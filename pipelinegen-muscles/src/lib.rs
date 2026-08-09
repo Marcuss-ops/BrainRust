@@ -15,19 +15,20 @@
 
 /// Stable placeholder proving that the crate is wired and testable.
 pub const COMPONENT: &str = "pipelinegen-muscles";
-const PROTOCOL_VERSION: &str = "mediaexec.v1";
 
 mod admin_media;
 mod artifact;
 mod config;
 mod cut;
 mod encoder;
+#[cfg(test)]
+mod golden;
 mod probe;
 mod protocol;
 mod render_stock;
 mod transform;
 
-use protocol::{Request, Response};
+use protocol::{Operation, Request, Response};
 use std::io::{self, BufRead, Write};
 
 pub(crate) use render_stock::reject_unresolved_selection;
@@ -37,15 +38,15 @@ pub(crate) use render_stock::{supported_transition, validate_resolved_render_pla
 /// Processes one capability request. The protocol exposes media capabilities,
 /// never arbitrary command execution.
 pub fn process(request: Request) -> Response {
-    let operation = request.operation.clone();
-    if request.version != PROTOCOL_VERSION {
+    let operation = request.operation.as_str().to_string();
+    if let Err(error) = request.validate() {
         return Response {
             ok: false,
             operation,
             source_path: request.source_path,
             items: Vec::new(),
             metadata: None,
-            error: Some(format!("unsupported protocol version: {}", request.version)),
+            error: Some(error),
         };
     }
     if let Some(error) = reject_unresolved_selection(&request) {
@@ -58,8 +59,8 @@ pub fn process(request: Request) -> Response {
             error: Some(error),
         };
     }
-    let mut response = match request.operation.as_str() {
-        "health" => Response {
+    let mut response = match request.operation {
+        Operation::Health => Response {
             ok: true,
             operation: "health".to_string(),
             source_path: None,
@@ -67,27 +68,19 @@ pub fn process(request: Request) -> Response {
             metadata: None,
             error: None,
         },
-        "cut_batch" => cut::execute(request),
-        "probe" => probe::execute(request),
-        "normalize" => transform::execute(request, "normalize"),
-        "cut_copy" => transform::execute(request, "cut_copy"),
-        "cut_and_normalize" => transform::execute(request, "cut_and_normalize"),
-        "watermark" => transform::execute(request, "watermark"),
-        "extract_frame" => transform::execute(request, "extract_frame"),
-        "generate_proxy" => transform::execute(request, "generate_proxy"),
-        "generate_storyboard" => transform::execute(request, "generate_storyboard"),
-        "remux_hls" => transform::execute(request, "remux_hls"),
-        "trim" => transform::execute(request, "trim"),
-        "render_stock" => render_stock::execute(request),
-        "admin_render" => admin_media::execute(request),
-        operation => Response {
-            ok: false,
-            operation: operation.to_string(),
-            source_path: request.source_path,
-            items: Vec::new(),
-            metadata: None,
-            error: Some(format!("unsupported operation: {operation}")),
-        },
+        Operation::CutBatch => cut::execute(request),
+        Operation::Probe => probe::execute(request),
+        Operation::Normalize => transform::execute(request, "normalize"),
+        Operation::CutCopy => transform::execute(request, "cut_copy"),
+        Operation::CutAndNormalize => transform::execute(request, "cut_and_normalize"),
+        Operation::Watermark => transform::execute(request, "watermark"),
+        Operation::ExtractFrame => transform::execute(request, "extract_frame"),
+        Operation::GenerateProxy => transform::execute(request, "generate_proxy"),
+        Operation::GenerateStoryboard => transform::execute(request, "generate_storyboard"),
+        Operation::RemuxHls => transform::execute(request, "remux_hls"),
+        Operation::Trim => transform::execute(request, "trim"),
+        Operation::RenderStock => render_stock::execute(request),
+        Operation::AdminRender => admin_media::execute(request),
     };
     if !response.ok {
         response.operation = operation;
@@ -125,7 +118,7 @@ mod tests {
     use super::{
         process, reject_unresolved_selection, validate_resolved_render_plan, Request, COMPONENT,
     };
-    use crate::protocol::{RenderEffectPath, RenderTransition};
+    use crate::protocol::{Operation, RenderEffectPath, RenderTransition};
 
     #[test]
     fn component_name_is_stable() {
@@ -136,7 +129,7 @@ mod tests {
     fn unresolved_selection_is_rejected_without_rust_side_selection() {
         let mut request = Request {
             version: "mediaexec.v1".to_string(),
-            operation: "render_stock".to_string(),
+            operation: Operation::RenderStock,
             ffmpeg_path: None,
             source_path: None,
             output_path: None,
@@ -217,41 +210,12 @@ mod tests {
 
     #[test]
     fn unsupported_operations_fail_closed() {
-        let response = process(Request {
-            version: "mediaexec.v1".to_string(),
-            operation: "run_command".to_string(),
-            ffmpeg_path: None,
-            source_path: None,
-            output_path: None,
-            timestamp_sec: None,
-            start_sec: None,
-            end_sec: None,
-            interval_frames: None,
-            columns: None,
-            rows: None,
-            jobs: None,
-            media: crate::config::MediaConfig::default(),
-            no_audio: None,
-            keep_audio: None,
-            overlay_path: None,
-            opacity: None,
-            input_paths: None,
-            no_transitions: None,
-            clip_duration_sec: None,
-            transitions: None,
-            transition_every: None,
-            effects_dir: None,
-            effect_every: None,
-            effect_index_hint: None,
-            no_effects: None,
-            effect_paths: None,
-            overlay_opacity: None,
-            font: None,
-            effects: None,
-            overlays: None,
-            max_duration_sec: None,
-        });
-        assert!(!response.ok);
-        assert!(response.error.unwrap().contains("unsupported operation"));
+        let invalid = serde_json::from_str::<Request>(
+            r#"{
+            "version":"mediaexec.v1",
+            "operation":"run_command"
+        }"#,
+        );
+        assert!(invalid.is_err());
     }
 }

@@ -2,10 +2,52 @@ use serde::{Deserialize, Serialize};
 
 use crate::config;
 
+pub const PROTOCOL_VERSION: &str = "mediaexec.v1";
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Operation {
+    Health,
+    Probe,
+    CutBatch,
+    Normalize,
+    CutCopy,
+    CutAndNormalize,
+    Watermark,
+    ExtractFrame,
+    GenerateProxy,
+    GenerateStoryboard,
+    RemuxHls,
+    Trim,
+    RenderStock,
+    AdminRender,
+}
+
+impl Operation {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Health => "health",
+            Self::Probe => "probe",
+            Self::CutBatch => "cut_batch",
+            Self::Normalize => "normalize",
+            Self::CutCopy => "cut_copy",
+            Self::CutAndNormalize => "cut_and_normalize",
+            Self::Watermark => "watermark",
+            Self::ExtractFrame => "extract_frame",
+            Self::GenerateProxy => "generate_proxy",
+            Self::GenerateStoryboard => "generate_storyboard",
+            Self::RemuxHls => "remux_hls",
+            Self::Trim => "trim",
+            Self::RenderStock => "render_stock",
+            Self::AdminRender => "admin_render",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Request {
     pub version: String,
-    pub operation: String,
+    pub operation: Operation,
     pub ffmpeg_path: Option<String>,
     pub source_path: Option<String>,
     pub output_path: Option<String>,
@@ -39,6 +81,58 @@ pub struct Request {
     pub effects: Option<Vec<RenderEffect>>,
     pub overlays: Option<Vec<RenderOverlay>>,
     pub max_duration_sec: Option<f64>,
+}
+
+impl Request {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.version != PROTOCOL_VERSION {
+            return Err(format!("unsupported protocol version: {}", self.version));
+        }
+        let require_source = || {
+            if self.source_path.as_deref().unwrap_or("").trim().is_empty() {
+                Err("source_path is required".to_string())
+            } else {
+                Ok(())
+            }
+        };
+        let require_output = || {
+            if self.output_path.as_deref().unwrap_or("").trim().is_empty() {
+                Err("output_path is required".to_string())
+            } else {
+                Ok(())
+            }
+        };
+        match self.operation {
+            Operation::Health => Ok(()),
+            Operation::Probe => require_source(),
+            Operation::CutBatch => {
+                require_source()?;
+                if self.jobs.as_ref().map_or(true, Vec::is_empty) {
+                    return Err("jobs are required".to_string());
+                }
+                Ok(())
+            }
+            Operation::RenderStock => {
+                if self.input_paths.as_ref().map_or(true, Vec::is_empty) {
+                    return Err("input_paths are required".to_string());
+                }
+                require_output()
+            }
+            Operation::AdminRender
+            | Operation::CutCopy
+            | Operation::Normalize
+            | Operation::CutAndNormalize
+            | Operation::Watermark
+            | Operation::ExtractFrame
+            | Operation::GenerateProxy
+            | Operation::GenerateStoryboard
+            | Operation::RemuxHls
+            | Operation::Trim => {
+                require_source()?;
+                require_output()
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -80,7 +174,7 @@ pub struct CutJob {
     pub output_path: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Response {
     pub ok: bool,
     pub operation: String,
@@ -90,7 +184,7 @@ pub struct Response {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct MediaMetadata {
     pub duration_sec: f64,
     pub width: u32,
@@ -104,7 +198,7 @@ pub struct MediaMetadata {
     pub has_audio: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct CutItem {
     pub job_id: String,
     pub output_path: Option<String>,
