@@ -421,6 +421,7 @@ fn render_stock(request: Request) -> Response {
     }
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
     let profile = request.media.profile();
+    let part = part_path(output);
     let mut command = Command::new(ffmpeg);
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
     for input in &inputs {
@@ -492,24 +493,33 @@ fn render_stock(request: Request) -> Response {
     if let Err(error) = append_video_options(&mut command, &request) {
         return failed_response(None, error);
     }
-    command.args(["-movflags", "+faststart", output]);
+    command.args(["-movflags", "+faststart", &part]);
     match command.output() {
-        Ok(result) if result.status.success() => Response {
-            ok: true,
-            operation: "render_stock".to_string(),
-            source_path: None,
-            items: Vec::new(),
-            metadata: None,
-            error: None,
+        Ok(result) if result.status.success() => match publish_output(&part, output) {
+            Ok(()) => Response {
+                ok: true,
+                operation: "render_stock".to_string(),
+                source_path: None,
+                items: Vec::new(),
+                metadata: None,
+                error: None,
+            },
+            Err(error) => failed_response(None, error),
         },
-        Ok(result) => failed_response(
-            None,
-            format!(
-                "stock render failed: {}",
-                String::from_utf8_lossy(&result.stderr).trim()
-            ),
-        ),
-        Err(error) => failed_response(None, format!("stock render failed: {error}")),
+        Ok(result) => {
+            let _ = fs::remove_file(&part);
+            failed_response(
+                None,
+                format!(
+                    "stock render failed: {}",
+                    String::from_utf8_lossy(&result.stderr).trim()
+                ),
+            )
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&part);
+            failed_response(None, format!("stock render failed: {error}"))
+        }
     }
 }
 
@@ -562,6 +572,7 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
         }
     };
     let profile = request.media.profile();
+    let part = part_path(output);
     let mut command = Command::new(ffmpeg);
     command.args([
         "-hide_banner",
@@ -591,28 +602,37 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
     if let Err(error) = append_video_options(&mut command, request) {
         return failed_response(None, error);
     }
-    command.args(["-movflags", "+faststart", output]);
+    command.args(["-movflags", "+faststart", &part]);
     let result = command.output();
     if inputs.len() > 1 {
         let _ = fs::remove_file(&source);
     }
     match result {
-        Ok(result) if result.status.success() => Response {
-            ok: true,
-            operation: "render_stock".to_string(),
-            source_path: None,
-            items: Vec::new(),
-            metadata: None,
-            error: None,
+        Ok(result) if result.status.success() => match publish_output(&part, output) {
+            Ok(()) => Response {
+                ok: true,
+                operation: "render_stock".to_string(),
+                source_path: None,
+                items: Vec::new(),
+                metadata: None,
+                error: None,
+            },
+            Err(error) => failed_response(None, error),
         },
-        Ok(result) => failed_response(
-            None,
-            format!(
-                "stock normalize failed: {}",
-                String::from_utf8_lossy(&result.stderr).trim()
-            ),
-        ),
-        Err(error) => failed_response(None, format!("stock normalize failed to start: {error}")),
+        Ok(result) => {
+            let _ = fs::remove_file(&part);
+            failed_response(
+                None,
+                format!(
+                    "stock normalize failed: {}",
+                    String::from_utf8_lossy(&result.stderr).trim()
+                ),
+            )
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&part);
+            failed_response(None, format!("stock normalize failed to start: {error}"))
+        }
     }
 }
 
@@ -716,6 +736,7 @@ fn admin_render(request: Request) -> Response {
     };
     let effects = request.effects.as_ref().cloned().unwrap_or_default();
     let overlays = request.overlays.as_ref().cloned().unwrap_or_default();
+    let part = part_path(output);
     let mut command = Command::new(request.ffmpeg_path.as_deref().unwrap_or("ffmpeg"));
     command.args(["-hide_banner", "-loglevel", "error", "-y", "-i", input]);
     for effect in &effects {
@@ -785,28 +806,37 @@ fn admin_render(request: Request) -> Response {
         "-movflags",
         "+faststart",
         "-shortest",
-        output,
+        &part,
     ]);
     match command.output() {
-        Ok(result) if result.status.success() => Response {
-            ok: true,
-            operation: "admin_render".to_string(),
-            source_path: Some(input.to_string()),
-            items: Vec::new(),
-            metadata: None,
-            error: None,
+        Ok(result) if result.status.success() => match publish_output(&part, output) {
+            Ok(()) => Response {
+                ok: true,
+                operation: "admin_render".to_string(),
+                source_path: Some(input.to_string()),
+                items: Vec::new(),
+                metadata: None,
+                error: None,
+            },
+            Err(error) => failed_response(Some(input.to_string()), error),
         },
-        Ok(result) => failed_response(
-            Some(input.to_string()),
-            format!(
-                "admin render failed: {}",
-                String::from_utf8_lossy(&result.stderr).trim()
-            ),
-        ),
-        Err(error) => failed_response(
-            Some(input.to_string()),
-            format!("admin render failed: {error}"),
-        ),
+        Ok(result) => {
+            let _ = fs::remove_file(&part);
+            failed_response(
+                Some(input.to_string()),
+                format!(
+                    "admin render failed: {}",
+                    String::from_utf8_lossy(&result.stderr).trim()
+                ),
+            )
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&part);
+            failed_response(
+                Some(input.to_string()),
+                format!("admin render failed: {error}"),
+            )
+        }
     }
 }
 
@@ -986,27 +1016,37 @@ fn transform(request: Request, operation: &str) -> Response {
             )
         }
     }
-    command.args(["-movflags", "+faststart", output]);
+    let part = part_path(output);
+    command.args(["-movflags", "+faststart", &part]);
     match command.output() {
-        Ok(result) if result.status.success() => Response {
-            ok: true,
-            operation: operation.to_string(),
-            source_path: Some(input.to_string()),
-            items: Vec::new(),
-            metadata: None,
-            error: None,
+        Ok(result) if result.status.success() => match publish_output(&part, output) {
+            Ok(()) => Response {
+                ok: true,
+                operation: operation.to_string(),
+                source_path: Some(input.to_string()),
+                items: Vec::new(),
+                metadata: None,
+                error: None,
+            },
+            Err(error) => failed_response(Some(input.to_string()), error),
         },
-        Ok(result) => failed_response(
-            Some(input.to_string()),
-            format!(
-                "{operation} failed: {}",
-                String::from_utf8_lossy(&result.stderr).trim()
-            ),
-        ),
-        Err(error) => failed_response(
-            Some(input.to_string()),
-            format!("{operation} failed to start: {error}"),
-        ),
+        Ok(result) => {
+            let _ = fs::remove_file(&part);
+            failed_response(
+                Some(input.to_string()),
+                format!(
+                    "{operation} failed: {}",
+                    String::from_utf8_lossy(&result.stderr).trim()
+                ),
+            )
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&part);
+            failed_response(
+                Some(input.to_string()),
+                format!("{operation} failed to start: {error}"),
+            )
+        }
     }
 }
 
@@ -1097,6 +1137,16 @@ fn part_path(final_path: &str) -> String {
         }
         None => format!("{final_path}.part"),
     }
+}
+
+fn publish_output(part_path: &str, final_path: &str) -> Result<(), String> {
+    let metadata =
+        fs::metadata(part_path).map_err(|error| format!("output is missing: {error}"))?;
+    if metadata.len() == 0 {
+        let _ = fs::remove_file(part_path);
+        return Err("output is empty".to_string());
+    }
+    fs::rename(part_path, final_path).map_err(|error| format!("publish output: {error}"))
 }
 
 fn failed_response(source_path: Option<String>, error: String) -> Response {
