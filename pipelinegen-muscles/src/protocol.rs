@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Request {
     pub version: String,
     pub operation: String,
@@ -24,18 +24,35 @@ pub struct Request {
     pub opacity: Option<f64>,
     pub input_paths: Option<Vec<String>>,
     pub no_transitions: Option<bool>,
-    pub transition_every: Option<i32>,
     pub clip_duration_sec: Option<i32>,
-    pub no_effects: Option<bool>,
+    pub transitions: Option<Vec<RenderTransition>>,
+    // Legacy selection inputs are accepted only so the protocol can reject
+    // unresolved requests explicitly; Rust never uses them to choose assets.
+    pub transition_every: Option<i32>,
     pub effects_dir: Option<String>,
     pub effect_every: Option<i32>,
     pub effect_index_hint: Option<i32>,
+    pub no_effects: Option<bool>,
+    pub effect_paths: Option<Vec<RenderEffectPath>>,
     pub overlay_opacity: Option<f64>,
     pub keyframe_interval: Option<u32>,
     pub font: Option<String>,
     pub effects: Option<Vec<RenderEffect>>,
     pub overlays: Option<Vec<RenderOverlay>>,
     pub max_duration_sec: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct RenderTransition {
+    pub clip_index: usize,
+    pub segment: String,
+    pub id: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct RenderEffectPath {
+    pub clip_index: usize,
+    pub path: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -56,7 +73,7 @@ pub struct RenderOverlay {
     pub color: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct CutJob {
     pub job_id: String,
     pub start_sec: f64,

@@ -42,6 +42,16 @@ pub fn process(request: Request) -> Response {
             error: Some(format!("unsupported protocol version: {}", request.version)),
         };
     }
+    if let Some(error) = reject_unresolved_selection(&request) {
+        return Response {
+            ok: false,
+            operation,
+            source_path: request.source_path,
+            items: Vec::new(),
+            metadata: None,
+            error: Some(error),
+        };
+    }
     let mut response = match request.operation.as_str() {
         "health" => Response {
             ok: true,
@@ -636,24 +646,72 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
     }
 }
 
-fn transition_name(index: i32) -> &'static str {
-    [
-        "fadeblack",
-        "fadewhite",
-        "flash",
-        "blur",
-        "gray",
-        "colorred",
-        "colorblue",
-        "colorgreen",
-        "coloryellow",
-        "colorpurple",
-        "colororange",
-        "colorpink",
-        "negate",
-        "vignette",
-        "fastblur",
-    ][index.rem_euclid(15) as usize]
+fn reject_unresolved_selection(request: &Request) -> Option<String> {
+    if request.transition_every.is_some()
+        || request.effects_dir.is_some()
+        || request.effect_every.is_some()
+        || request.effect_index_hint.is_some()
+    {
+        return Some(
+            "unresolved transition/effect selection is not supported; Go must send explicit IDs and paths"
+                .to_string(),
+        );
+    }
+    None
+}
+
+fn validate_resolved_render_plan(
+    input_count: usize,
+    no_transitions: bool,
+    transitions: &[protocol::RenderTransition],
+    no_effects: bool,
+    effects: &[protocol::RenderEffectPath],
+) -> Result<(), String> {
+    if !no_transitions {
+        if transitions.is_empty() {
+            return Err("unresolved render plan: transitions are required".to_string());
+        }
+        for transition in transitions {
+            if transition.clip_index >= input_count
+                || !matches!(transition.segment.as_str(), "start" | "end")
+                || !supported_transition(&transition.id)
+            {
+                return Err(format!("invalid resolved transition: {}", transition.id));
+            }
+        }
+    }
+    if !no_effects {
+        if effects.is_empty() {
+            return Err("unresolved render plan: effect paths are required".to_string());
+        }
+        for effect in effects {
+            if effect.clip_index >= input_count || effect.path.trim().is_empty() {
+                return Err(format!("invalid resolved effect path: {}", effect.path));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn supported_transition(name: &str) -> bool {
+    matches!(
+        name,
+        "fadeblack"
+            | "fadewhite"
+            | "flash"
+            | "blur"
+            | "gray"
+            | "colorred"
+            | "colorblue"
+            | "colorgreen"
+            | "coloryellow"
+            | "colorpurple"
+            | "colororange"
+            | "colorpink"
+            | "negate"
+            | "vignette"
+            | "fastblur"
+    )
 }
 
 fn transition_filter(name: &str, duration: i32, start: bool) -> String {
@@ -1189,11 +1247,98 @@ pub fn run_stdio() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{process, Request, COMPONENT};
+    use super::{
+        process, reject_unresolved_selection, validate_resolved_render_plan, Request, COMPONENT,
+    };
+    use crate::protocol::{RenderEffectPath, RenderTransition};
 
     #[test]
     fn component_name_is_stable() {
         assert_eq!(COMPONENT, "pipelinegen-muscles");
+    }
+
+    #[test]
+    fn unresolved_selection_is_rejected_without_rust_side_selection() {
+        let mut request = Request {
+            version: "mediaexec.v1".to_string(),
+            operation: "render_stock".to_string(),
+            ffmpeg_path: None,
+            source_path: None,
+            output_path: None,
+            timestamp_sec: None,
+            start_sec: None,
+            end_sec: None,
+            interval_frames: None,
+            columns: None,
+            rows: None,
+            jobs: None,
+            media: crate::config::MediaConfig::default(),
+            no_audio: None,
+            keep_audio: None,
+            overlay_path: None,
+            opacity: None,
+            input_paths: None,
+            no_transitions: None,
+            clip_duration_sec: None,
+            transitions: None,
+            transition_every: Some(4),
+            effects_dir: None,
+            effect_every: None,
+            effect_index_hint: None,
+            no_effects: None,
+            effect_paths: None,
+            overlay_opacity: None,
+            keyframe_interval: None,
+            font: None,
+            effects: None,
+            overlays: None,
+            max_duration_sec: None,
+        };
+        assert!(reject_unresolved_selection(&request).is_some());
+        assert_eq!(process(request.clone()).operation, "render_stock");
+        request.transition_every = None;
+        assert!(reject_unresolved_selection(&request).is_none());
+    }
+
+    #[test]
+    fn resolved_render_plan_rejects_unknown_ids_and_invalid_paths() {
+        let bad_transition = vec![RenderTransition {
+            clip_index: 0,
+            segment: "end".to_string(),
+            id: "not-supported".to_string(),
+        }];
+        assert!(validate_resolved_render_plan(1, false, &bad_transition, true, &[]).is_err());
+        let bad_effect = vec![RenderEffectPath {
+            clip_index: 1,
+            path: "/effects/one.mp4".to_string(),
+        }];
+        assert!(validate_resolved_render_plan(1, true, &[], false, &bad_effect).is_err());
+    }
+
+    #[test]
+    fn supported_transition_catalog_matches_go_selection_ids() {
+        for id in [
+            "fadeblack",
+            "fadewhite",
+            "flash",
+            "blur",
+            "gray",
+            "colorred",
+            "colorblue",
+            "colorgreen",
+            "coloryellow",
+            "colorpurple",
+            "colororange",
+            "colorpink",
+            "negate",
+            "vignette",
+            "fastblur",
+        ] {
+            assert!(
+                super::supported_transition(id),
+                "unsupported contract ID: {id}"
+            );
+        }
     }
 
     #[test]
@@ -1218,12 +1363,14 @@ mod tests {
             opacity: None,
             input_paths: None,
             no_transitions: None,
-            transition_every: None,
             clip_duration_sec: None,
-            no_effects: None,
+            transitions: None,
+            transition_every: None,
             effects_dir: None,
             effect_every: None,
             effect_index_hint: None,
+            no_effects: None,
+            effect_paths: None,
             overlay_opacity: None,
             keyframe_interval: None,
             font: None,
