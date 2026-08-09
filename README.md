@@ -1,6 +1,6 @@
 # PipelineGen Rust components
 
-This directory is the isolated Rust boundary for future native execution
+This directory is the isolated Rust boundary for native execution
 components (the “muscles”). The Go application remains the composition root
 and owns canonical state, application decisions, jobs, and the transactional
 outbox.
@@ -13,11 +13,16 @@ Qdrant state, or load credentials. Those responsibilities remain behind the
 existing Go application and infrastructure ports until a separate migration
 contract is approved.
 
-The initial crate is intentionally empty. Add one focused crate or module per
-execution capability rather than putting all native work into one god module.
+The first capability is `pipelinegen-muscles`, a newline-delimited JSON
+executor for `health` and `cut_batch`. Add one focused capability at a time;
+do not turn the process into a god module or expose arbitrary command
+execution.
 
 ## Local check
 
 ```sh
-cargo test --manifest-path rust/Cargo.toml
+RUSTUP_TOOLCHAIN=stable rustup run stable cargo test --manifest-path rust/Cargo.toml
+
+# Build the executable consumed by the Go adapter.
+make build-muscles
 ```
