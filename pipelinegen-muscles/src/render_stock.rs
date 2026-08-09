@@ -178,11 +178,11 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
                         "stock concat failed: {}",
                         String::from_utf8_lossy(&result.stderr).trim()
                     ),
-                )
+                );
             }
             Err(error) => {
                 let _ = fs::remove_file(&concat_path);
-                return failed_response(None, format!("stock concat failed to start: {error}"))
+                return failed_response(None, format!("stock concat failed to start: {error}"));
             }
         }
     };

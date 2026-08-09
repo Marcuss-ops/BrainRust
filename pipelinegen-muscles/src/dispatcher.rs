@@ -48,6 +48,8 @@ pub fn process(request: Request) -> Response {
         Operation::Trim => crate::transform::execute(request, "trim"),
         Operation::RenderStock => crate::render_stock::execute(request),
         Operation::AdminRender => crate::admin_media::execute(request),
+        Operation::MergeInputs => crate::transform::execute(request, "merge_inputs"),
+        Operation::RemoveSilence => crate::transform::execute(request, "remove_silence"),
     };
     if !response.ok {
         response.operation = operation;

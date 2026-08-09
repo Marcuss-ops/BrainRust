@@ -189,12 +189,20 @@ fn process_command(program: &str, args: &[String]) -> Command {
 fn kill_process_tree(child: &mut Child) {
     #[cfg(unix)]
     {
-        // Kill descendants first, then the supervised process itself. Using
-        // the process-group shorthand here can target the test/worker group
-        // when `setsid` falls back to its launcher behavior.
+        // `setsid` makes the supervised program the leader of a new process
+        // group. Signal the negative PGID so FFmpeg and every other descendant
+        // are terminated together; killing only the direct child leaves the
+        // actual worker alive behind the Rust executor.
         let pid = child.id().to_string();
-        let _ = Command::new("pkill").args(["-KILL", "-P", &pid]).status();
-        let _ = child.kill();
+        let group = format!("-{pid}");
+        let group_killed = Command::new("kill")
+            .args(["-KILL", "--", &group])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+        if !group_killed {
+            let _ = child.kill();
+        }
     }
     #[cfg(not(unix))]
     {
@@ -229,10 +237,14 @@ mod tests {
 
     #[test]
     fn timeout_kills_process_group_and_returns_promptly() {
-        let pid_file = std::env::temp_dir().join(format!("pipelinegen-child-{}", std::process::id()));
+        let pid_file =
+            std::env::temp_dir().join(format!("pipelinegen-child-{}", std::process::id()));
         let script = temp_script(
             "timeout",
-            &format!("sleep 30 &\nchild=$!\nprintf '%s' \\\"$child\\\" > '{}'\nwait\n", pid_file.display()),
+            &format!(
+                "sleep 30 &\nchild=$!\nprintf '%s' \"$child\" > '{}'\nwait\n",
+                pid_file.display()
+            ),
         );
         let started = Instant::now();
         let result = RustProcessRunner::with_timeout(Duration::from_millis(100))

@@ -21,6 +21,8 @@ pub enum Operation {
     Trim,
     RenderStock,
     AdminRender,
+    MergeInputs,
+    RemoveSilence,
 }
 
 impl Operation {
@@ -40,6 +42,8 @@ impl Operation {
             Self::Trim => "trim",
             Self::RenderStock => "render_stock",
             Self::AdminRender => "admin_render",
+            Self::MergeInputs => "merge_inputs",
+            Self::RemoveSilence => "remove_silence",
         }
     }
 }
@@ -129,6 +133,16 @@ impl Request {
             | Operation::RemuxHls
             | Operation::Trim => {
                 require_source()?;
+                require_output()
+            }
+            Operation::RemoveSilence => {
+                require_source()?;
+                require_output()
+            }
+            Operation::MergeInputs => {
+                if self.input_paths.as_ref().map_or(true, Vec::is_empty) {
+                    return Err("input_paths are required".to_string());
+                }
                 require_output()
             }
         }
