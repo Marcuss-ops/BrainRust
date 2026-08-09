@@ -17,75 +17,14 @@
 pub const COMPONENT: &str = "pipelinegen-muscles";
 
 mod config;
+mod protocol;
 
-use serde::{Deserialize, Serialize};
+use protocol::{CutItem, CutJob, MediaMetadata, Request, Response};
+use serde::Deserialize;
 use std::fs;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 use std::process::Command;
-
-#[derive(Debug, Deserialize)]
-pub struct Request {
-    pub operation: String,
-    pub ffmpeg_path: Option<String>,
-    pub source_path: Option<String>,
-    pub output_path: Option<String>,
-    pub timestamp_sec: Option<f64>,
-    pub start_sec: Option<f64>,
-    pub end_sec: Option<f64>,
-    pub interval_frames: Option<u32>,
-    pub columns: Option<u32>,
-    pub rows: Option<u32>,
-    pub jobs: Option<Vec<CutJob>>,
-    #[serde(flatten)]
-    pub media: config::MediaConfig,
-    pub no_audio: Option<bool>,
-    pub keep_audio: Option<bool>,
-    pub overlay_path: Option<String>,
-    pub opacity: Option<f64>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CutJob {
-    pub job_id: String,
-    pub start_sec: f64,
-    pub end_sec: f64,
-    pub output_path: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Response {
-    pub ok: bool,
-    pub operation: String,
-    pub source_path: Option<String>,
-    pub items: Vec<CutItem>,
-    pub metadata: Option<MediaMetadata>,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct MediaMetadata {
-    pub duration_sec: f64,
-    pub width: u32,
-    pub height: u32,
-    pub fps: f64,
-    pub video_codec: Option<String>,
-    pub audio_codec: Option<String>,
-    pub sample_rate: Option<u32>,
-    pub channels: Option<u32>,
-    pub has_video: bool,
-    pub has_audio: bool,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CutItem {
-    pub job_id: String,
-    pub output_path: Option<String>,
-    pub status: String,
-    pub size_bytes: u64,
-    pub duration_sec: f64,
-    pub error: Option<String>,
-}
 
 /// Processes one capability request. The protocol exposes media capabilities,
 /// never arbitrary command execution.
@@ -109,6 +48,9 @@ pub fn process(request: Request) -> Response {
         "generate_proxy" => transform(request, "generate_proxy"),
         "generate_storyboard" => transform(request, "generate_storyboard"),
         "remux_hls" => transform(request, "remux_hls"),
+        "trim" => transform(request, "trim"),
+        "render_stock" => render_stock(request),
+        "admin_render" => admin_render(request),
         operation => Response {
             ok: false,
             operation: operation.to_string(),
@@ -449,6 +391,414 @@ fn probe(request: Request) -> Response {
     }
 }
 
+fn render_stock(request: Request) -> Response {
+    let inputs = request.input_paths.clone().unwrap_or_default();
+    if inputs.is_empty() {
+        return failed_response(None, "input_paths is required".to_string());
+    }
+    let output = match request.output_path.as_deref() {
+        Some(path) if !path.is_empty() => path,
+        _ => return failed_response(None, "output_path is required".to_string()),
+    };
+    if inputs.iter().any(|path| !Path::new(path).is_file()) {
+        return failed_response(
+            Some(inputs.join(",")),
+            "a render input is not readable".to_string(),
+        );
+    }
+    if let Some(parent) = Path::new(output).parent() {
+        if let Err(error) = fs::create_dir_all(parent) {
+            return failed_response(None, format!("create output directory: {error}"));
+        }
+    }
+    if request.no_transitions.unwrap_or(false) && request.no_effects.unwrap_or(false) {
+        return render_stock_simple(&request, &inputs, output);
+    }
+    let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
+    let profile = request.media.profile();
+    let mut command = Command::new(ffmpeg);
+    command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+    for input in &inputs {
+        command.args(["-i", input]);
+    }
+
+    let transition_every = request.transition_every.unwrap_or(4);
+    let effect_every = request.effect_every.unwrap_or(3);
+    let duration = request.clip_duration_sec.unwrap_or(0);
+    let mut effect_path = None;
+    if !request.no_effects.unwrap_or(false) {
+        if let Some(dir) = request.effects_dir.as_deref() {
+            let mut effects: Vec<String> = fs::read_dir(dir)
+                .ok()
+                .into_iter()
+                .flatten()
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("mp4"))
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect();
+            effects.sort();
+            if !effects.is_empty() {
+                let hint = request
+                    .effect_index_hint
+                    .unwrap_or(0)
+                    .rem_euclid(effects.len() as i32) as usize;
+                effect_path = Some(effects[hint].clone());
+                command.args(["-i", &effects[hint]]);
+            }
+        }
+    }
+
+    let mut filter = String::new();
+    let mut transitions = Vec::new();
+    let overlay_index = inputs.len();
+    for index in 0..inputs.len() {
+        let mut filters = vec![format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1", profile.width, profile.height, profile.width, profile.height, profile.fps)];
+        if !request.no_transitions.unwrap_or(false) && transition_every > 0 {
+            if (index as i32 + 1) % transition_every == 0 {
+                let name = transition_name((index as i32 + 1) / transition_every);
+                filters.push(transition_filter(name, duration, false));
+                transitions.push(name.to_string());
+            }
+            if index > 0 && (index as i32) % transition_every == 0 {
+                let name = transition_name(index as i32 / transition_every);
+                filters.push(transition_filter(name, duration, true));
+            }
+        }
+        let with_effect = effect_path.is_some()
+            && !request.no_effects.unwrap_or(false)
+            && effect_every > 0
+            && (index as i32 + 1) % effect_every == 0;
+        if with_effect {
+            let opacity = request.overlay_opacity.unwrap_or(0.25);
+            filter.push_str(&format!("[{}:v]{}[vtemp{}];[{}:v]scale={}:{}:force_original_aspect_ratio=decrease,fps={},setsar=1,format=yuva420p,colorchannelmixer=aa={}[effect{}];[vtemp{}][effect{}]overlay=shortest=1[v{}];", index, filters.join(","), index, overlay_index, profile.width, profile.height, profile.fps, opacity, index, index, index, index));
+        } else {
+            filter.push_str(&format!("[{}:v]{}[v{}];", index, filters.join(","), index));
+        }
+    }
+    for index in 0..inputs.len() {
+        filter.push_str(&format!("[v{}]", index));
+    }
+    filter.push_str(&format!("concat=n={}:v=1:a=0[vfinal]", inputs.len()));
+    command.args(["-filter_complex", &filter, "-map", "[vfinal]"]);
+    if !request.keep_audio.unwrap_or(false) {
+        command.arg("-an");
+    }
+    append_video_options(&mut command, &request, false);
+    command.args(["-movflags", "+faststart", output]);
+    match command.output() {
+        Ok(result) if result.status.success() => Response {
+            ok: true,
+            operation: "render_stock".to_string(),
+            source_path: None,
+            items: Vec::new(),
+            metadata: None,
+            error: None,
+        },
+        Ok(result) => failed_response(
+            None,
+            format!(
+                "stock render failed: {}",
+                String::from_utf8_lossy(&result.stderr).trim()
+            ),
+        ),
+        Err(error) => failed_response(None, format!("stock render failed: {error}")),
+    }
+}
+
+fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Response {
+    let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
+    let source = if inputs.len() == 1 {
+        inputs[0].clone()
+    } else {
+        let list_path = format!("{output}.rust.concat.txt");
+        let concat_path = format!("{output}.rust.concat.mp4");
+        let lines = inputs
+            .iter()
+            .map(|path| format!("file '{}'", path.replace('\'', "'\\''")))
+            .collect::<Vec<_>>();
+        if let Err(error) = fs::write(&list_path, lines.join("\n")) {
+            return failed_response(None, format!("write concat list: {error}"));
+        }
+        let result = Command::new(ffmpeg)
+            .args([
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                &list_path,
+                "-c",
+                "copy",
+                &concat_path,
+            ])
+            .output();
+        let _ = fs::remove_file(&list_path);
+        match result {
+            Ok(result) if result.status.success() => concat_path,
+            Ok(result) => {
+                return failed_response(
+                    None,
+                    format!(
+                        "stock concat failed: {}",
+                        String::from_utf8_lossy(&result.stderr).trim()
+                    ),
+                )
+            }
+            Err(error) => {
+                return failed_response(None, format!("stock concat failed to start: {error}"))
+            }
+        }
+    };
+    let profile = request.media.profile();
+    let mut command = Command::new(ffmpeg);
+    command.args([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        &source,
+        "-vf",
+    ]);
+    command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1", profile.width, profile.height, profile.width, profile.height, profile.fps));
+    command.args(["-map", "0:v:0?"]);
+    if request.keep_audio.unwrap_or(false) {
+        command.args([
+            "-map",
+            "0:a:0?",
+            "-c:a",
+            profile.audio_codec,
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
+        ]);
+    } else {
+        command.arg("-an");
+    }
+    append_video_options(&mut command, request, false);
+    command.args(["-movflags", "+faststart", output]);
+    let result = command.output();
+    if inputs.len() > 1 {
+        let _ = fs::remove_file(&source);
+    }
+    match result {
+        Ok(result) if result.status.success() => Response {
+            ok: true,
+            operation: "render_stock".to_string(),
+            source_path: None,
+            items: Vec::new(),
+            metadata: None,
+            error: None,
+        },
+        Ok(result) => failed_response(
+            None,
+            format!(
+                "stock normalize failed: {}",
+                String::from_utf8_lossy(&result.stderr).trim()
+            ),
+        ),
+        Err(error) => failed_response(None, format!("stock normalize failed to start: {error}")),
+    }
+}
+
+fn transition_name(index: i32) -> &'static str {
+    [
+        "fadeblack",
+        "fadewhite",
+        "flash",
+        "blur",
+        "gray",
+        "colorred",
+        "colorblue",
+        "colorgreen",
+        "coloryellow",
+        "colorpurple",
+        "colororange",
+        "colorpink",
+        "negate",
+        "vignette",
+        "fastblur",
+    ][index.rem_euclid(15) as usize]
+}
+
+fn transition_filter(name: &str, duration: i32, start: bool) -> String {
+    let at = if start { 0.0 } else { duration as f64 - 0.5 };
+    match name {
+        "fadeblack" => format!(
+            "fade=t={}:st={:.6}:d=0.5",
+            if start { "in" } else { "out" },
+            at
+        ),
+        "fadewhite" => format!(
+            "fade=t={}:st={:.6}:d=0.5:color=white",
+            if start { "in" } else { "out" },
+            at
+        ),
+        "flash" => format!(
+            "fade=t={}:st={:.6}:d=0.2:color=white",
+            if start { "in" } else { "out" },
+            if start { 0.0 } else { duration as f64 - 0.2 }
+        ),
+        "blur" => format!(
+            "boxblur=15:enable='{}(t,{:.6})'",
+            if start { "lt" } else { "gt" },
+            at
+        ),
+        "gray" => format!(
+            "fade=t={}:st={:.6}:d=0.5:color=gray",
+            if start { "in" } else { "out" },
+            at
+        ),
+        "negate" => format!(
+            "negate=enable='{}(t,{:.6})'",
+            if start { "lt" } else { "gt" },
+            at
+        ),
+        "vignette" => format!(
+            "vignette=enable='{}(t,{:.6})'",
+            if start { "lt" } else { "gt" },
+            at
+        ),
+        "fastblur" => format!(
+            "boxblur=30:enable='{}(t,{:.6})'",
+            if start { "lt" } else { "gt" },
+            at
+        ),
+        color => {
+            let color = color.strip_prefix("color").unwrap_or("black");
+            format!(
+                "fade=t={}:st={:.6}:d=0.5:color={}",
+                if start { "in" } else { "out" },
+                at,
+                color
+            )
+        }
+    }
+}
+
+fn admin_render(request: Request) -> Response {
+    let input = match request.source_path.as_deref() {
+        Some(path) if Path::new(path).is_file() => path,
+        _ => {
+            return failed_response(
+                request.source_path.clone(),
+                "source_path is required and must be readable".to_string(),
+            )
+        }
+    };
+    let output = match request.output_path.as_deref() {
+        Some(path) if !path.is_empty() => path,
+        _ => {
+            return failed_response(
+                Some(input.to_string()),
+                "output_path is required".to_string(),
+            )
+        }
+    };
+    let font = match request.font.as_deref() {
+        Some(path) if !path.is_empty() => path,
+        _ => return failed_response(Some(input.to_string()), "font is required".to_string()),
+    };
+    let effects = request.effects.as_ref().cloned().unwrap_or_default();
+    let overlays = request.overlays.as_ref().cloned().unwrap_or_default();
+    let mut command = Command::new(request.ffmpeg_path.as_deref().unwrap_or("ffmpeg"));
+    command.args(["-hide_banner", "-loglevel", "error", "-y", "-i", input]);
+    for effect in &effects {
+        if !Path::new(&effect.path).is_file() {
+            return failed_response(
+                Some(input.to_string()),
+                format!("effect is not readable: {}", effect.path),
+            );
+        }
+        command.args(["-i", &effect.path]);
+    }
+    if overlays.is_empty() {
+        return failed_response(
+            Some(input.to_string()),
+            "at least one overlay is required".to_string(),
+        );
+    }
+    let mut video = String::from("[0:v]");
+    for overlay in overlays {
+        let color = if overlay.color.is_empty() {
+            "white"
+        } else {
+            &overlay.color
+        };
+        let y = if overlay.y.is_empty() {
+            "h*0.50"
+        } else {
+            &overlay.y
+        };
+        let text = overlay.text.replace('\'', "\\\\'");
+        video.push_str(&format!("drawtext=fontfile={}:text='{}':fontcolor={}:fontsize={}:borderw=3:bordercolor=black:x=(w-text_w)/2:y={}:enable='between(t\\,{}\\,{})',", font, text, color, overlay.size, y, overlay.start, overlay.end));
+    }
+    video = format!("{}[vout]", video.trim_end_matches(','));
+    let mut filter = format!("{};[0:a]aresample=48000,volume=0.78[base]", video);
+    let mut labels = String::from("[base]");
+    for (index, effect) in effects.iter().enumerate() {
+        let duration = if effect.duration <= 0.0 {
+            1.0
+        } else {
+            effect.duration
+        };
+        let volume = if effect.volume.is_empty() {
+            "1"
+        } else {
+            &effect.volume
+        };
+        filter.push_str(&format!(";[{}:a]aresample=48000,atrim=duration={:.3},asetpts=PTS-STARTPTS,volume={},adelay={}|{}[sfx{}]", index + 1, duration, volume, effect.delay_ms, effect.delay_ms, index));
+        labels.push_str(&format!("[sfx{}]", index));
+    }
+    filter.push_str(&format!(";{}amix=inputs={}:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95[aout]", labels, effects.len() + 1));
+    command.args([
+        "-filter_complex",
+        &filter,
+        "-map",
+        "[vout]",
+        "-map",
+        "[aout]",
+    ]);
+    append_video_options(&mut command, &request, false);
+    command.args([
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+        "-shortest",
+        output,
+    ]);
+    match command.output() {
+        Ok(result) if result.status.success() => Response {
+            ok: true,
+            operation: "admin_render".to_string(),
+            source_path: Some(input.to_string()),
+            items: Vec::new(),
+            metadata: None,
+            error: None,
+        },
+        Ok(result) => failed_response(
+            Some(input.to_string()),
+            format!(
+                "admin render failed: {}",
+                String::from_utf8_lossy(&result.stderr).trim()
+            ),
+        ),
+        Err(error) => failed_response(
+            Some(input.to_string()),
+            format!("admin render failed: {error}"),
+        ),
+    }
+}
+
 fn transform(request: Request, operation: &str) -> Response {
     let input = match request.source_path.as_deref() {
         Some(path)
@@ -592,6 +942,30 @@ fn transform(request: Request, operation: &str) -> Response {
         }
         "remux_hls" => {
             command.args(["-i", input, "-c", "copy"]);
+        }
+        "trim" => {
+            let max_duration = request.max_duration_sec.unwrap_or(0.0);
+            if !max_duration.is_finite() || max_duration <= 0.0 {
+                return failed_response(
+                    Some(input.to_string()),
+                    "max_duration_sec must be positive".to_string(),
+                );
+            }
+            command.args(["-i", input, "-t", &max_duration.to_string()]);
+            let extension = Path::new(input)
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if matches!(extension.as_str(), "mp4" | "mov" | "mkv") {
+                command.args(["-map", "0:v:0?", "-map", "0:a:0?"]);
+                append_video_options(&mut command, &request, false);
+                command.args(["-c:a", "aac", "-b:a", "192k"]);
+            } else if extension == "wav" {
+                command.args(["-vn", "-c:a", "pcm_s16le"]);
+            } else {
+                command.args(["-vn", "-c:a", "libmp3lame", "-q:a", "2"]);
+            }
         }
         _ => {
             return failed_response(
@@ -780,6 +1154,20 @@ mod tests {
             keep_audio: None,
             overlay_path: None,
             opacity: None,
+            input_paths: None,
+            no_transitions: None,
+            transition_every: None,
+            clip_duration_sec: None,
+            no_effects: None,
+            effects_dir: None,
+            effect_every: None,
+            effect_index_hint: None,
+            overlay_opacity: None,
+            keyframe_interval: None,
+            font: None,
+            effects: None,
+            overlays: None,
+            max_duration_sec: None,
         });
         assert!(!response.ok);
         assert!(response.error.unwrap().contains("unsupported operation"));
