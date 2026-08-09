@@ -4,6 +4,7 @@ use crate::config;
 
 #[derive(Debug, Deserialize)]
 pub struct Request {
+    pub version: String,
     pub operation: String,
     pub ffmpeg_path: Option<String>,
     pub source_path: Option<String>,

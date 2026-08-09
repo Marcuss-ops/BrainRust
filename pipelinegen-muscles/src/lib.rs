@@ -15,8 +15,10 @@
 
 /// Stable placeholder proving that the crate is wired and testable.
 pub const COMPONENT: &str = "pipelinegen-muscles";
+const PROTOCOL_VERSION: &str = "mediaexec.v1";
 
 mod config;
+mod encoder;
 mod protocol;
 
 use protocol::{CutItem, CutJob, MediaMetadata, Request, Response};
@@ -29,7 +31,18 @@ use std::process::Command;
 /// Processes one capability request. The protocol exposes media capabilities,
 /// never arbitrary command execution.
 pub fn process(request: Request) -> Response {
-    match request.operation.as_str() {
+    let operation = request.operation.clone();
+    if request.version != PROTOCOL_VERSION {
+        return Response {
+            ok: false,
+            operation,
+            source_path: request.source_path,
+            items: Vec::new(),
+            metadata: None,
+            error: Some(format!("unsupported protocol version: {}", request.version)),
+        };
+    }
+    let mut response = match request.operation.as_str() {
         "health" => Response {
             ok: true,
             operation: "health".to_string(),
@@ -59,7 +72,11 @@ pub fn process(request: Request) -> Response {
             metadata: None,
             error: Some(format!("unsupported operation: {operation}")),
         },
+    };
+    if !response.ok {
+        response.operation = operation;
     }
+    response
 }
 
 fn cut_batch(request: Request) -> Response {
@@ -79,7 +96,10 @@ fn cut_batch(request: Request) -> Response {
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "ffmpeg".to_string());
     let profile = request.media.profile();
-    let encoder = request.media.encoder();
+    let encoder = match request.media.encoder() {
+        Ok(value) => value,
+        Err(error) => return failed_response(source_path, error),
+    };
 
     for job in jobs {
         items.push(cut_one(
@@ -175,23 +195,8 @@ fn cut_one(
     if !no_audio {
         command.args(["-map", "0:a:0?"]);
     }
-    command.args(["-c:v", &encoder.codec]);
-    if !encoder.preset.is_empty() {
-        command.args(["-preset", &encoder.preset]);
-    }
-    if encoder.crf > 0 && !encoder.codec.contains("nvenc") {
-        command.args(["-crf", &encoder.crf.to_string()]);
-    }
-    command.args([
-        "-pix_fmt",
-        "yuv420p",
-        "-vsync",
-        "cfr",
-        "-g",
-        "48",
-        "-avoid_negative_ts",
-        "make_zero",
-    ]);
+    encoder::append_video_args(&mut command, encoder, profile, None);
+    command.args(["-avoid_negative_ts", "make_zero"]);
     if no_audio {
         command.arg("-an");
     } else {
@@ -484,7 +489,9 @@ fn render_stock(request: Request) -> Response {
     if !request.keep_audio.unwrap_or(false) {
         command.arg("-an");
     }
-    append_video_options(&mut command, &request, false);
+    if let Err(error) = append_video_options(&mut command, &request) {
+        return failed_response(None, error);
+    }
     command.args(["-movflags", "+faststart", output]);
     match command.output() {
         Ok(result) if result.status.success() => Response {
@@ -581,7 +588,9 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
     } else {
         command.arg("-an");
     }
-    append_video_options(&mut command, request, false);
+    if let Err(error) = append_video_options(&mut command, request) {
+        return failed_response(None, error);
+    }
     command.args(["-movflags", "+faststart", output]);
     let result = command.output();
     if inputs.len() > 1 {
@@ -765,7 +774,9 @@ fn admin_render(request: Request) -> Response {
         "-map",
         "[aout]",
     ]);
-    append_video_options(&mut command, &request, false);
+    if let Err(error) = append_video_options(&mut command, &request) {
+        return failed_response(None, error);
+    }
     command.args([
         "-c:a",
         "aac",
@@ -839,7 +850,9 @@ fn transform(request: Request, operation: &str) -> Response {
             let profile = request.media.profile();
             command.args(["-i", input, "-vf"]);
             command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}", profile.width, profile.height, profile.width, profile.height, profile.fps));
-            append_video_options(&mut command, &request, false);
+            if let Err(error) = append_video_options(&mut command, &request) {
+                return failed_response(Some(input.to_string()), error);
+            }
             if request.keep_audio.unwrap_or(false) {
                 command.args(["-c:a", "aac", "-ar", "48000", "-ac", "2"]);
             } else {
@@ -886,7 +899,9 @@ fn transform(request: Request, operation: &str) -> Response {
                 "-vf",
             ]);
             command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}", profile.width, profile.height, profile.width, profile.height, profile.fps));
-            append_video_options(&mut command, &request, true);
+            if let Err(error) = append_video_options(&mut command, &request) {
+                return failed_response(Some(input.to_string()), error);
+            }
             if request.no_audio.unwrap_or(false) {
                 command.arg("-an");
             } else {
@@ -912,23 +927,18 @@ fn transform(request: Request, operation: &str) -> Response {
                 "[1:v]format=rgba,colorchannelmixer=aa={}[wm];[0:v][wm]overlay=(W-w)/2:(H-h)/2",
                 request.opacity.unwrap_or(0.25)
             ));
-            command.args([
-                "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264", "-c:a", "aac",
-            ]);
+            command.args(["-map", "0:v:0", "-map", "0:a:0?"]);
+            if let Err(error) = append_video_options(&mut command, &request) {
+                return failed_response(Some(input.to_string()), error);
+            }
+            command.args(["-c:a", "aac"]);
         }
         "generate_proxy" => {
-            command.args([
-                "-i",
-                input,
-                "-vf",
-                "scale=-2:720",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "veryfast",
-                "-c:a",
-                "aac",
-            ]);
+            command.args(["-i", input, "-vf", "scale=-2:720"]);
+            if let Err(error) = append_video_options(&mut command, &request) {
+                return failed_response(Some(input.to_string()), error);
+            }
+            command.args(["-c:a", "aac"]);
         }
         "generate_storyboard" => {
             let interval = request.interval_frames.unwrap_or(10).max(1);
@@ -959,7 +969,9 @@ fn transform(request: Request, operation: &str) -> Response {
                 .to_ascii_lowercase();
             if matches!(extension.as_str(), "mp4" | "mov" | "mkv") {
                 command.args(["-map", "0:v:0?", "-map", "0:a:0?"]);
-                append_video_options(&mut command, &request, false);
+                if let Err(error) = append_video_options(&mut command, &request) {
+                    return failed_response(Some(input.to_string()), error);
+                }
                 command.args(["-c:a", "aac", "-b:a", "192k"]);
             } else if extension == "wav" {
                 command.args(["-vn", "-c:a", "pcm_s16le"]);
@@ -998,19 +1010,18 @@ fn transform(request: Request, operation: &str) -> Response {
     }
 }
 
-fn append_video_options(command: &mut Command, request: &Request, force_crf: bool) {
-    let encoder = request.media.encoder();
-    let codec = encoder.codec.as_str();
-    command.args(["-c:v", codec, "-pix_fmt", "yuv420p", "-vsync", "cfr"]);
-    if !encoder.preset.is_empty() {
-        command.args(["-preset", &encoder.preset]);
-    }
-    if force_crf || (!codec.contains("nvenc") && encoder.crf > 0) {
-        command.args(["-crf", &encoder.crf.to_string()]);
-    }
+fn append_video_options(command: &mut Command, request: &Request) -> Result<(), String> {
+    let encoder = request.media.encoder()?;
+    encoder::append_video_args(
+        command,
+        &encoder,
+        request.media.profile(),
+        request.keyframe_interval,
+    );
     if let Some(duration) = request.media.duration_sec.filter(|value| *value > 0.0) {
         command.args(["-t", &duration.to_string()]);
     }
+    Ok(())
 }
 
 fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, String> {
@@ -1138,6 +1149,7 @@ mod tests {
     #[test]
     fn unsupported_operations_fail_closed() {
         let response = process(Request {
+            version: "mediaexec.v1".to_string(),
             operation: "run_command".to_string(),
             ffmpeg_path: None,
             source_path: None,

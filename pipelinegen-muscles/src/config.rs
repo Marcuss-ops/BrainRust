@@ -58,14 +58,24 @@ impl MediaConfig {
         }
     }
 
-    pub fn encoder(&self) -> EncoderPolicy {
-        EncoderPolicy {
-            codec: self.codec.clone().unwrap_or_else(|| "libx264".to_string()),
-            preset: self
-                .preset
-                .clone()
-                .unwrap_or_else(|| "veryfast".to_string()),
-            crf: self.crf.filter(|value| *value > 0).unwrap_or(23),
-        }
+    pub fn encoder(&self) -> Result<EncoderPolicy, String> {
+        let codec = self
+            .codec
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                "ENCODER_POLICY_REQUIRED: codec is required for encoded media".to_string()
+            })?;
+        let preset = self
+            .preset
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                "ENCODER_POLICY_REQUIRED: preset is required for encoded media".to_string()
+            })?;
+        let crf = self.crf.filter(|value| *value > 0).ok_or_else(|| {
+            "ENCODER_POLICY_REQUIRED: quality is required for encoded media".to_string()
+        })?;
+        Ok(EncoderPolicy { codec, preset, crf })
     }
 }
