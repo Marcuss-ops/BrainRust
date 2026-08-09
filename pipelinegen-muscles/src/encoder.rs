@@ -1,4 +1,5 @@
 use crate::config::{EncoderPolicy, VideoProfile};
+use crate::protocol::Request;
 use std::process::Command;
 
 /// The only builder allowed to emit video encoder arguments.
@@ -30,4 +31,21 @@ pub fn append_video_args(
             .unwrap_or(profile.keyframe_interval)
             .to_string(),
     ]);
+}
+
+/// Resolves the Go-owned request policy and appends the complete encoder
+/// contract. Encoding capabilities must use this entry point rather than
+/// constructing codec, quality, or GOP arguments themselves.
+pub(crate) fn append_video_options(command: &mut Command, request: &Request) -> Result<(), String> {
+    let encoder = request.media.encoder()?;
+    append_video_args(
+        command,
+        &encoder,
+        request.media.profile(),
+        request.keyframe_interval,
+    );
+    if let Some(duration) = request.media.duration_sec.filter(|value| *value > 0.0) {
+        command.args(["-t", &duration.to_string()]);
+    }
+    Ok(())
 }
