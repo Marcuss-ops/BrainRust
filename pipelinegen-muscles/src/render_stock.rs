@@ -206,7 +206,7 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
             "-map",
             "0:a:0?",
             "-c:a",
-            profile.audio_codec,
+            profile.audio_codec.as_str(),
             "-ar",
             &profile.sample_rate.to_string(),
             "-ac",

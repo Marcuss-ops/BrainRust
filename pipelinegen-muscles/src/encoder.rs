@@ -10,7 +10,7 @@ use std::process::Command;
 pub fn append_video_args(
     command: &mut Command,
     policy: &EncoderPolicy,
-    profile: VideoProfile,
+    profile: &VideoProfile,
     keyframe_interval: Option<u32>,
 ) -> Result<(), String> {
     for argument in build_video_args(policy, profile, keyframe_interval)? {
@@ -24,7 +24,7 @@ pub fn append_video_args(
 /// decisions in this function; capabilities must not emit these flags directly.
 fn build_video_args(
     policy: &EncoderPolicy,
-    profile: VideoProfile,
+    profile: &VideoProfile,
     keyframe_interval: Option<u32>,
 ) -> Result<Vec<String>, String> {
     let requested_codec = policy.codec.trim().to_ascii_lowercase();
@@ -116,7 +116,7 @@ fn normalize_preset(codec: &str, preset: &str) -> Result<String, String> {
 pub(crate) fn append_video_options(command: &mut Command, request: &Request) -> Result<(), String> {
     let encoder = request.media.encoder()?;
     let profile = request.media.profile()?;
-    append_video_args(command, &encoder, profile, None)?;
+    append_video_args(command, &encoder, &profile, None)?;
     if let Some(duration) = request.media.duration_sec.filter(|value| *value > 0.0) {
         command.args(["-t", &duration.to_string()]);
     }
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn libx264_uses_crf_and_never_nvenc_rate_control() {
-        let args = build_video_args(&policy("libx264", "veryfast", 23), profile(), None).unwrap();
+        let args = build_video_args(&policy("libx264", "veryfast", 23), &profile(), None).unwrap();
 
         assert!(pair(&args, "-c:v", "libx264"));
         assert!(pair(&args, "-preset", "veryfast"));
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn nvenc_uses_cq_vbr_and_never_libx264_crf() {
-        let args = build_video_args(&policy("h264_nvenc", "p1", 23), profile(), Some(60)).unwrap();
+        let args = build_video_args(&policy("h264_nvenc", "p1", 23), &profile(), Some(60)).unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(pair(&args, "-preset", "p1"));
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn nvenc_alias_is_canonicalized_to_h264_nvenc() {
-        let args = build_video_args(&policy("nvenc", "p1", 23), profile(), None).unwrap();
+        let args = build_video_args(&policy("nvenc", "p1", 23), &profile(), None).unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(!pair(&args, "-c:v", "nvenc"));
@@ -191,7 +191,8 @@ mod tests {
 
     #[test]
     fn nvenc_translates_software_preset_without_changing_quality_semantics() {
-        let args = build_video_args(&policy("H264_NVENC", "veryfast", 27), profile(), None).unwrap();
+        let args =
+            build_video_args(&policy("H264_NVENC", "veryfast", 27), &profile(), None).unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(pair(&args, "-preset", "p1"));
@@ -218,14 +219,23 @@ mod tests {
             policy("libx264", "", 23),
             policy("libx264", "veryfast", 0),
         ] {
-            let error = build_video_args(&policy, profile(), None).unwrap_err();
+            let error = build_video_args(&policy, &profile(), None).unwrap_err();
             assert!(error.contains("ENCODER_POLICY_REQUIRED"));
         }
     }
 
     #[test]
     fn zero_override_uses_profile_gop() {
-        let args = build_video_args(&policy("libx264", "veryfast", 23), profile(), Some(0)).unwrap();
+        let args =
+            build_video_args(&policy("libx264", "veryfast", 23), &profile(), Some(0)).unwrap();
         assert!(pair(&args, "-g", "48"));
+    }
+
+    #[test]
+    fn profile_values_are_not_replaced_by_encoder_builder_defaults() {
+        let mut custom = profile();
+        custom.keyframe_interval = 72;
+        let args = build_video_args(&policy("libx264", "veryfast", 23), &custom, None).unwrap();
+        assert!(pair(&args, "-g", "72"));
     }
 }

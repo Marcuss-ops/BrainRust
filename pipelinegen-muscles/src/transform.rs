@@ -56,7 +56,14 @@ fn transform(request: Request, operation: &str) -> Response {
                 return failed_response(Some(input.to_string()), error);
             }
             if request.keep_audio.unwrap_or(false) {
-                command.args(["-c:a", profile.audio_codec.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
+                command.args([
+                    "-c:a",
+                    profile.audio_codec.as_str(),
+                    "-ar",
+                    &profile.sample_rate.to_string(),
+                    "-ac",
+                    &profile.channels.to_string(),
+                ]);
             } else {
                 command.arg("-an");
             }
@@ -110,14 +117,17 @@ fn transform(request: Request, operation: &str) -> Response {
             if request.no_audio.unwrap_or(false) {
                 command.arg("-an");
             } else {
-                command.args(["-c:a", profile.audio_codec.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
+                command.args([
+                    "-c:a",
+                    profile.audio_codec.as_str(),
+                    "-ar",
+                    &profile.sample_rate.to_string(),
+                    "-ac",
+                    &profile.channels.to_string(),
+                ]);
             }
         }
         "watermark" => {
-            let profile = match request.media.profile() {
-                Ok(value) => value,
-                Err(error) => return failed_response(Some(input.to_string()), error),
-            };
             let overlay = request.overlay_path.as_deref().ok_or(());
             if overlay.is_err() {
                 return failed_response(
@@ -144,13 +154,16 @@ fn transform(request: Request, operation: &str) -> Response {
                 Ok(value) => value,
                 Err(error) => return failed_response(Some(input.to_string()), error),
             };
-            command.args(["-c:a", profile.audio_codec.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
+            command.args([
+                "-c:a",
+                profile.audio_codec.as_str(),
+                "-ar",
+                &profile.sample_rate.to_string(),
+                "-ac",
+                &profile.channels.to_string(),
+            ]);
         }
         "generate_proxy" => {
-            let profile = match request.media.profile() {
-                Ok(value) => value,
-                Err(error) => return failed_response(Some(input.to_string()), error),
-            };
             command.args(["-i", input, "-vf", "scale=-2:720"]);
             if let Err(error) = append_video_options(&mut command, &request) {
                 return failed_response(Some(input.to_string()), error);
@@ -159,7 +172,14 @@ fn transform(request: Request, operation: &str) -> Response {
                 Ok(value) => value,
                 Err(error) => return failed_response(Some(input.to_string()), error),
             };
-            command.args(["-c:a", profile.audio_codec.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
+            command.args([
+                "-c:a",
+                profile.audio_codec.as_str(),
+                "-ar",
+                &profile.sample_rate.to_string(),
+                "-ac",
+                &profile.channels.to_string(),
+            ]);
         }
         "generate_storyboard" => {
             let interval = request.interval_frames.unwrap_or(10).max(1);
@@ -197,7 +217,16 @@ fn transform(request: Request, operation: &str) -> Response {
                 if let Err(error) = append_video_options(&mut command, &request) {
                     return failed_response(Some(input.to_string()), error);
                 }
-                command.args(["-c:a", profile.audio_codec.as_str(), "-b:a", profile.audio_bitrate.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
+                command.args([
+                    "-c:a",
+                    profile.audio_codec.as_str(),
+                    "-b:a",
+                    profile.audio_bitrate.as_str(),
+                    "-ar",
+                    &profile.sample_rate.to_string(),
+                    "-ac",
+                    &profile.channels.to_string(),
+                ]);
             } else if extension == "wav" {
                 command.args(["-vn", "-c:a", "pcm_s16le"]);
             } else {

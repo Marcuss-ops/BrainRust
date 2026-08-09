@@ -43,7 +43,7 @@ fn cut_batch(request: Request) -> Response {
             source,
             &job,
             &encoder,
-            profile,
+            profile.clone(),
             request.no_audio.unwrap_or(false),
             &ffprobe_path(&ffmpeg),
         ));
@@ -98,9 +98,14 @@ fn cut_one(
     // for a newly cut file; corrupt or partial files are regenerated.
     if let Ok(metadata) = fs::metadata(&job.output_path) {
         if metadata.len() > 0 {
-            if let Ok(duration_sec) =
-                validate_output(ffprobe, &job.output_path, no_audio, duration, profile)
-            {
+            if let Ok(duration_sec) = validate_output(
+                ffprobe,
+                &job.output_path,
+                no_audio,
+                duration,
+                &profile,
+                encoder,
+            ) {
                 return CutItem {
                     job_id: job.job_id.clone(),
                     output_path: Some(job.output_path.clone()),
@@ -132,7 +137,7 @@ fn cut_one(
     if !no_audio {
         command.args(["-map", "0:a:0?"]);
     }
-    if let Err(error) = encoder::append_video_args(&mut command, encoder, profile, None) {
+    if let Err(error) = encoder::append_video_args(&mut command, encoder, &profile, None) {
         return failed(error);
     }
     command.args(["-avoid_negative_ts", "make_zero"]);
@@ -141,9 +146,9 @@ fn cut_one(
     } else {
         command.args([
             "-c:a",
-            profile.audio_codec,
+            profile.audio_codec.as_str(),
             "-b:a",
-            profile.audio_bitrate,
+            &profile.audio_bitrate,
             "-ar",
             &profile.sample_rate.to_string(),
             "-ac",
@@ -177,8 +182,14 @@ fn cut_one(
         Ok(_) => return failed("ffmpeg produced an empty output".to_string()),
         Err(error) => return failed(format!("stat cut output: {error}")),
     };
-    let duration_sec = match validate_output(ffprobe, &job.output_path, no_audio, duration, profile)
-    {
+    let duration_sec = match validate_output(
+        ffprobe,
+        &job.output_path,
+        no_audio,
+        duration,
+        &profile,
+        encoder,
+    ) {
         Ok(duration_sec) => duration_sec,
         Err(error) => {
             let _ = fs::remove_file(&job.output_path);

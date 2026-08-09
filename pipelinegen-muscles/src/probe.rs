@@ -1,5 +1,6 @@
 use crate::artifact::failed_response;
 use crate::config;
+use crate::config::EncoderPolicy;
 use crate::protocol::{MediaMetadata, Request, Response};
 use serde::Deserialize;
 use std::path::Path;
@@ -48,7 +49,8 @@ pub(crate) fn validate_output(
     path: &str,
     no_audio: bool,
     expected_duration: f64,
-    profile: config::VideoProfile,
+    profile: &config::VideoProfile,
+    encoder: &EncoderPolicy,
 ) -> Result<f64, String> {
     let output = Command::new(ffprobe)
         .args([
@@ -86,7 +88,7 @@ pub(crate) fn validate_output(
         .ok_or_else(|| "no video stream".to_string())?;
     if video.width != Some(profile.width)
         || video.height != Some(profile.height)
-        || video.codec_name.as_deref() != Some("h264")
+        || !video_codec_matches(video.codec_name.as_deref(), &encoder.codec)
         || video.pix_fmt.as_deref() != Some("yuv420p")
         || parse_frame_rate(video.avg_frame_rate.as_deref().unwrap_or(""))
             .map_or(true, |fps| (fps - profile.fps as f64).abs() > 0.5)
@@ -103,14 +105,25 @@ pub(crate) fn validate_output(
         }
     } else {
         let audio = audio.ok_or_else(|| "audio stream is missing".to_string())?;
-        if audio.codec_name.as_deref() != Some("aac")
-            || audio.sample_rate.as_deref() != Some(&profile.sample_rate.to_string())
+        let expected_sample_rate = profile.sample_rate.to_string();
+        if audio.codec_name.as_deref() != Some(profile.audio_codec.as_str())
+            || audio.sample_rate.as_deref() != Some(expected_sample_rate.as_str())
             || audio.channels != Some(profile.channels)
         {
             return Err("canonical audio profile violation".to_string());
         }
     }
     Ok(duration)
+}
+
+fn video_codec_matches(actual: Option<&str>, expected: &str) -> bool {
+    let expected = expected.to_ascii_lowercase();
+    match actual {
+        Some(codec) if expected.contains("_nvenc") => codec == "h264",
+        Some(codec) if expected == "libx264" || expected == "h264" => codec == "h264",
+        Some(codec) => codec == expected,
+        None => false,
+    }
 }
 
 fn parse_frame_rate(value: &str) -> Option<f64> {

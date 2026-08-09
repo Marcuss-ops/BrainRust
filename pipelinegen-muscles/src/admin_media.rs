@@ -72,7 +72,10 @@ fn admin_render(request: Request) -> Response {
         video.push_str(&format!("drawtext=fontfile={}:text='{}':fontcolor={}:fontsize={}:borderw=3:bordercolor=black:x=(w-text_w)/2:y={}:enable='between(t\\,{}\\,{})',", font, text, color, overlay.size, y, overlay.start, overlay.end));
     }
     video = format!("{}[vout]", video.trim_end_matches(','));
-    let mut filter = format!("{};[0:a]aresample={},volume=0.78[base]", video, profile.sample_rate);
+    let mut filter = format!(
+        "{};[0:a]aresample={},volume=0.78[base]",
+        video, profile.sample_rate
+    );
     let mut labels = String::from("[base]");
     for (index, effect) in effects.iter().enumerate() {
         let duration = if effect.duration <= 0.0 {

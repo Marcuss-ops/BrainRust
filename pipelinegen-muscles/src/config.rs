@@ -64,8 +64,8 @@ impl MediaConfig {
     }
 
     pub fn encoder(&self) -> Result<EncoderPolicy, String> {
-        let codec = required_string(self.codec.as_deref(), "codec")?;
-        let preset = required_string(self.preset.as_deref(), "preset")?;
+        let codec = required_encoder_string(self.codec.as_deref(), "codec")?;
+        let preset = required_encoder_string(self.preset.as_deref(), "preset")?;
         let crf = self.crf.filter(|value| *value > 0).ok_or_else(|| {
             "ENCODER_POLICY_REQUIRED: quality is required for encoded media".to_string()
         })?;
@@ -74,9 +74,9 @@ impl MediaConfig {
 }
 
 fn required_positive(value: Option<u32>, field: &str) -> Result<u32, String> {
-    value.filter(|value| *value > 0).ok_or_else(|| {
-        format!("PROFILE_REQUIRED: {field} is required for encoded media")
-    })
+    value
+        .filter(|value| *value > 0)
+        .ok_or_else(|| format!("PROFILE_REQUIRED: {field} is required for encoded media"))
 }
 
 fn required_string(value: Option<&str>, field: &str) -> Result<String, String> {
@@ -84,6 +84,13 @@ fn required_string(value: Option<&str>, field: &str) -> Result<String, String> {
         .filter(|value| !value.trim().is_empty())
         .map(str::to_string)
         .ok_or_else(|| format!("PROFILE_REQUIRED: {field} is required for encoded media"))
+}
+
+fn required_encoder_string(value: Option<&str>, field: &str) -> Result<String, String> {
+    value
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| format!("ENCODER_POLICY_REQUIRED: {field} is required for encoded media"))
 }
 
 #[cfg(test)]
