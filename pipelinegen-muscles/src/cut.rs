@@ -132,7 +132,9 @@ fn cut_one(
     if !no_audio {
         command.args(["-map", "0:a:0?"]);
     }
-    encoder::append_video_args(&mut command, encoder, profile, None);
+    if let Err(error) = encoder::append_video_args(&mut command, encoder, profile, None) {
+        return failed(error);
+    }
     command.args(["-avoid_negative_ts", "make_zero"]);
     if no_audio {
         command.arg("-an");
