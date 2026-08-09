@@ -1,9 +1,9 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::encoder::append_video_options;
+use crate::process::FFmpegRunner;
 use crate::protocol::{self, Request, Response};
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn execute(request: Request) -> Response {
     render_stock(request)
@@ -38,7 +38,7 @@ fn render_stock(request: Request) -> Response {
         Err(error) => return failed_response(None, error),
     };
     let part = part_path(output);
-    let mut command = Command::new(ffmpeg);
+    let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
     for input in &inputs {
         command.args(["-i", input]);
@@ -150,23 +150,23 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
         if let Err(error) = fs::write(&list_path, lines.join("\n")) {
             return failed_response(None, format!("write concat list: {error}"));
         }
-        let result = Command::new(ffmpeg)
-            .args([
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-y",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                &list_path,
-                "-c",
-                "copy",
-                &concat_path,
-            ])
-            .output();
+        let mut concat = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
+        concat.args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            &list_path,
+            "-c",
+            "copy",
+            &concat_path,
+        ]);
+        let result = concat.output();
         let _ = fs::remove_file(&list_path);
         match result {
             Ok(result) if result.status.success() => concat_path,
@@ -189,7 +189,7 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
         Err(error) => return failed_response(None, error),
     };
     let part = part_path(output);
-    let mut command = Command::new(ffmpeg);
+    let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args([
         "-hide_banner",
         "-loglevel",

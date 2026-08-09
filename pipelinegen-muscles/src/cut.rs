@@ -2,11 +2,11 @@ use crate::artifact::{failed_response, part_path};
 use crate::config;
 use crate::encoder;
 use crate::probe::{ffprobe_path, validate_output};
+use crate::process::FFmpegRunner;
 use crate::protocol::{CutItem, CutJob, Request, Response};
 use std::fs;
 use std::io;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn execute(request: Request) -> Response {
     cut_batch(request)
@@ -126,7 +126,7 @@ fn cut_one(
         }
     }
     let part_path = part_path(&job.output_path);
-    let mut command = Command::new(ffmpeg);
+    let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command
         .args(["-hide_banner", "-loglevel", "error", "-y"])
         .args(["-ss", &job.start_sec.to_string()])

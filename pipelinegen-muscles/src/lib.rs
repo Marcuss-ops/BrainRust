@@ -24,6 +24,7 @@ mod encoder;
 #[cfg(test)]
 mod golden;
 mod probe;
+mod process;
 mod protocol;
 mod render_stock;
 mod transform;

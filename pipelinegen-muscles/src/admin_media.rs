@@ -1,9 +1,9 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::encoder::append_video_options;
+use crate::process::FFmpegRunner;
 use crate::protocol::{Request, Response};
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn execute(request: Request) -> Response {
     admin_render(request)
@@ -39,7 +39,8 @@ fn admin_render(request: Request) -> Response {
     let effects = request.effects.as_ref().cloned().unwrap_or_default();
     let overlays = request.overlays.as_ref().cloned().unwrap_or_default();
     let part = part_path(output);
-    let mut command = Command::new(request.ffmpeg_path.as_deref().unwrap_or("ffmpeg"));
+    let mut command =
+        FFmpegRunner::from_ffmpeg_path(request.ffmpeg_path.as_deref().unwrap_or("ffmpeg")).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y", "-i", input]);
     for effect in &effects {
         if !Path::new(&effect.path).is_file() {

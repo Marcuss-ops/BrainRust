@@ -1,6 +1,6 @@
 use crate::config::{EncoderPolicy, VideoProfile};
+use crate::process::ProcessCommand;
 use crate::protocol::Request;
-use std::process::Command;
 
 /// The only builder allowed to emit video encoder arguments.
 ///
@@ -8,7 +8,7 @@ use std::process::Command;
 /// FFmpeg mechanics: codec-specific quality flags, NVENC preset translation,
 /// pixel format, frame synchronization, and GOP construction.
 pub fn append_video_args(
-    command: &mut Command,
+    command: &mut ProcessCommand,
     policy: &EncoderPolicy,
     profile: &VideoProfile,
     keyframe_interval: Option<u32>,
@@ -113,7 +113,10 @@ fn normalize_preset(codec: &str, preset: &str) -> Result<String, String> {
 /// Resolves the Go-owned request policy and appends the complete encoder
 /// contract. Encoding capabilities must use this entry point rather than
 /// constructing codec, quality, or GOP arguments themselves.
-pub(crate) fn append_video_options(command: &mut Command, request: &Request) -> Result<(), String> {
+pub(crate) fn append_video_options(
+    command: &mut ProcessCommand,
+    request: &Request,
+) -> Result<(), String> {
     let encoder = request.media.encoder()?;
     let profile = request.media.profile()?;
     append_video_args(command, &encoder, &profile, None)?;

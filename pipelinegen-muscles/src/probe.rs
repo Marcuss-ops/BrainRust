@@ -1,10 +1,10 @@
 use crate::artifact::failed_response;
 use crate::config;
 use crate::config::EncoderPolicy;
+use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
 use serde::Deserialize;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn execute(request: Request) -> Response {
     probe(request)
@@ -52,16 +52,17 @@ pub(crate) fn validate_output(
     profile: &config::VideoProfile,
     encoder: &EncoderPolicy,
 ) -> Result<f64, String> {
-    let output = Command::new(ffprobe)
-        .args([
-            "-v",
-            "quiet",
-            "-print_format",
-            "json",
-            "-show_format",
-            "-show_streams",
-            path,
-        ])
+    let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
+    command.args([
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        path,
+    ]);
+    let output = command
         .output()
         .map_err(|error| format!("ffprobe failed to start: {error}"))?;
     if !output.status.success() {
@@ -164,16 +165,17 @@ fn probe(request: Request) -> Response {
 }
 
 fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, String> {
-    let output = Command::new(ffprobe)
-        .args([
-            "-v",
-            "quiet",
-            "-print_format",
-            "json",
-            "-show_format",
-            "-show_streams",
-            path,
-        ])
+    let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
+    command.args([
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        path,
+    ]);
+    let output = command
         .output()
         .map_err(|error| format!("ffprobe failed to start: {error}"))?;
     if !output.status.success() {

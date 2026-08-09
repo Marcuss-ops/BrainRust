@@ -1,9 +1,9 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::encoder::append_video_options;
+use crate::process::FFmpegRunner;
 use crate::protocol::{Request, Response};
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn execute(request: Request, operation: &str) -> Response {
     transform(request, operation)
@@ -42,7 +42,7 @@ fn transform(request: Request, operation: &str) -> Response {
         }
     }
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
-    let mut command = Command::new(ffmpeg);
+    let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
     match operation {
         "normalize" => {
