@@ -116,7 +116,7 @@ fn normalize_preset(codec: &str, preset: &str) -> Result<String, String> {
 pub(crate) fn append_video_options(command: &mut Command, request: &Request) -> Result<(), String> {
     let encoder = request.media.encoder()?;
     let profile = request.media.profile()?;
-    append_video_args(command, &encoder, profile, request.keyframe_interval)?;
+    append_video_args(command, &encoder, profile, None)?;
     if let Some(duration) = request.media.duration_sec.filter(|value| *value > 0.0) {
         command.args(["-t", &duration.to_string()]);
     }

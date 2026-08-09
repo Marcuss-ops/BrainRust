@@ -85,3 +85,48 @@ fn required_string(value: Option<&str>, field: &str) -> Result<String, String> {
         .map(str::to_string)
         .ok_or_else(|| format!("PROFILE_REQUIRED: {field} is required for encoded media"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::MediaConfig;
+
+    fn complete() -> MediaConfig {
+        MediaConfig {
+            codec: Some("h264_nvenc".to_string()),
+            preset: Some("p1".to_string()),
+            crf: Some(23),
+            width: Some(1920),
+            height: Some(1080),
+            fps: Some(24),
+            keyframe_interval: Some(48),
+            audio_codec: Some("aac".to_string()),
+            audio_bitrate: Some("128k".to_string()),
+            sample_rate: Some(48000),
+            channels: Some(2),
+            duration_sec: None,
+        }
+    }
+
+    #[test]
+    fn complete_payload_materializes_without_rust_defaults() {
+        let media = complete();
+        let profile = media.profile().unwrap();
+        assert_eq!(profile.width, 1920);
+        assert_eq!(profile.height, 1080);
+        assert_eq!(profile.fps, 24);
+        assert_eq!(profile.keyframe_interval, 48);
+        assert_eq!(profile.audio_codec, "aac");
+        assert_eq!(profile.audio_bitrate, "128k");
+        assert_eq!(profile.sample_rate, 48000);
+        assert_eq!(profile.channels, 2);
+        assert_eq!(media.encoder().unwrap().codec, "h264_nvenc");
+    }
+
+    #[test]
+    fn incomplete_profile_fails_closed_instead_of_defaulting() {
+        let mut media = complete();
+        media.fps = None;
+        let error = media.profile().unwrap_err();
+        assert!(error.contains("PROFILE_REQUIRED: fps"));
+    }
+}
