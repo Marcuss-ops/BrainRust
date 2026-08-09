@@ -46,5 +46,8 @@ pub(crate) fn publish_output(part_path: &str, final_path: &str) -> Result<(), St
         let _ = fs::remove_file(part_path);
         return Err("output is empty".to_string());
     }
-    fs::rename(part_path, final_path).map_err(|error| format!("publish output: {error}"))
+    fs::rename(part_path, final_path).map_err(|error| {
+        let _ = fs::remove_file(part_path);
+        format!("publish output: {error}")
+    })
 }

@@ -229,14 +229,38 @@ mod tests {
 
     #[test]
     fn timeout_kills_process_group_and_returns_promptly() {
-        let script = temp_script("timeout", "sleep 30 &\nwait\n");
+        let pid_file = std::env::temp_dir().join(format!("pipelinegen-child-{}", std::process::id()));
+        let script = temp_script(
+            "timeout",
+            &format!("sleep 30 &\nchild=$!\nprintf '%s' \\\"$child\\\" > '{}'\nwait\n", pid_file.display()),
+        );
         let started = Instant::now();
         let result = RustProcessRunner::with_timeout(Duration::from_millis(100))
             .command("sh", vec![script.to_string_lossy().into_owned()])
             .output();
-        let _ = fs::remove_file(script);
+        let _ = fs::remove_file(&script);
         let error = result.expect_err("long process must time out");
         assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
         assert!(started.elapsed() < Duration::from_secs(2));
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let mut child_gone = false;
+        while Instant::now() < deadline {
+            if let Ok(pid) = fs::read_to_string(&pid_file) {
+                if let Ok(pid) = pid.trim().parse::<i32>() {
+                    let status = std::process::Command::new("kill")
+                        .args(["-0", &pid.to_string()])
+                        .status()
+                        .expect("probe child process");
+                    if !status.success() {
+                        child_gone = true;
+                        break;
+                    }
+                }
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let _ = fs::remove_file(pid_file);
+        assert!(child_gone, "descendant process survived timeout");
     }
 }

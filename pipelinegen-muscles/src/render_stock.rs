@@ -171,6 +171,7 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
         match result {
             Ok(result) if result.status.success() => concat_path,
             Ok(result) => {
+                let _ = fs::remove_file(&concat_path);
                 return failed_response(
                     None,
                     format!(
@@ -180,13 +181,19 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
                 )
             }
             Err(error) => {
+                let _ = fs::remove_file(&concat_path);
                 return failed_response(None, format!("stock concat failed to start: {error}"))
             }
         }
     };
     let profile = match request.media.profile() {
         Ok(value) => value,
-        Err(error) => return failed_response(None, error),
+        Err(error) => {
+            if inputs.len() > 1 {
+                let _ = fs::remove_file(&source);
+            }
+            return failed_response(None, error);
+        }
     };
     let part = part_path(output);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
@@ -216,6 +223,9 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
         command.arg("-an");
     }
     if let Err(error) = append_video_options(&mut command, request) {
+        if inputs.len() > 1 {
+            let _ = fs::remove_file(&source);
+        }
         return failed_response(None, error);
     }
     command.args(["-movflags", "+faststart", &part]);
