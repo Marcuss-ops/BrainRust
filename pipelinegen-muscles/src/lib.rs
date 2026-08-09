@@ -57,6 +57,7 @@ pub struct CutItem {
     pub output_path: Option<String>,
     pub status: String,
     pub size_bytes: u64,
+    pub duration_sec: f64,
     pub error: Option<String>,
 }
 
@@ -108,6 +109,7 @@ fn cut_batch(request: Request) -> Response {
             request.preset.as_deref().unwrap_or(""),
             request.crf.unwrap_or(0),
             request.no_audio.unwrap_or(false),
+            &ffprobe_path(&ffmpeg),
         ));
     }
 
@@ -133,12 +135,14 @@ fn cut_one(
     preset: &str,
     crf: i32,
     no_audio: bool,
+    ffprobe: &str,
 ) -> CutItem {
     let failed = |message: String| CutItem {
         job_id: job.job_id.clone(),
         output_path: None,
         status: "failed".to_string(),
         size_bytes: 0,
+        duration_sec: 0.0,
         error: Some(message),
     };
 
@@ -151,6 +155,25 @@ fn cut_one(
     let duration = job.end_sec - job.start_sec;
     if duration <= 0.0 {
         return failed("end_sec must be greater than start_sec".to_string());
+    }
+
+    // Deterministic output paths are resumable execution artifacts. Reuse a
+    // non-empty existing output only after the same canonical validation used
+    // for a newly cut file; corrupt or partial files are regenerated.
+    if let Ok(metadata) = fs::metadata(&job.output_path) {
+        if metadata.len() > 0 {
+            if let Ok(duration_sec) = validate_output(ffprobe, &job.output_path, no_audio, duration) {
+                return CutItem {
+                    job_id: job.job_id.clone(),
+                    output_path: Some(job.output_path.clone()),
+                    status: "validated".to_string(),
+                    size_bytes: metadata.len(),
+                    duration_sec,
+                    error: None,
+                };
+            }
+            let _ = fs::remove_file(&job.output_path);
+        }
     }
 
     let output = Path::new(&job.output_path);
@@ -166,6 +189,7 @@ fn cut_one(
         .args(["-ss", &job.start_sec.to_string()])
         .args(["-i", source])
         .args(["-t", &duration.to_string()])
+        .args(["-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=24"])
         .args(["-map", "0:v:0?"]);
     if !no_audio {
         command.args(["-map", "0:a:0?"]);
@@ -177,10 +201,20 @@ fn cut_one(
     if crf > 0 && !codec.contains("nvenc") {
         command.args(["-crf", &crf.to_string()]);
     }
+    command.args([
+        "-pix_fmt",
+        "yuv420p",
+        "-vsync",
+        "cfr",
+        "-g",
+        "48",
+        "-avoid_negative_ts",
+        "make_zero",
+    ]);
     if no_audio {
         command.arg("-an");
     } else {
-        command.args(["-c:a", "aac"]);
+        command.args(["-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2"]);
     }
     command.args(["-movflags", "+faststart", &part_path]);
 
@@ -209,14 +243,137 @@ fn cut_one(
         Ok(_) => return failed("ffmpeg produced an empty output".to_string()),
         Err(error) => return failed(format!("stat cut output: {error}")),
     };
+    let duration_sec = match validate_output(ffprobe, &job.output_path, no_audio, duration) {
+        Ok(duration_sec) => duration_sec,
+        Err(error) => {
+            let _ = fs::remove_file(&job.output_path);
+            return failed(format!("validate cut output: {error}"));
+        }
+    };
 
     CutItem {
         job_id: job.job_id.clone(),
         output_path: Some(job.output_path.clone()),
-        status: "succeeded".to_string(),
+        status: "validated".to_string(),
         size_bytes,
+        duration_sec,
         error: None,
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct ProbeOutput {
+    format: ProbeFormat,
+    streams: Vec<ProbeStream>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProbeFormat {
+    duration: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProbeStream {
+    codec_type: Option<String>,
+    codec_name: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+    avg_frame_rate: Option<String>,
+    pix_fmt: Option<String>,
+    sample_rate: Option<String>,
+    channels: Option<u32>,
+}
+
+fn ffprobe_path(ffmpeg: &str) -> String {
+    let path = Path::new(ffmpeg);
+    if path.file_name().and_then(|name| name.to_str()) == Some("ffmpeg") {
+        return path
+            .with_file_name("ffprobe")
+            .to_string_lossy()
+            .into_owned();
+    }
+    "ffprobe".to_string()
+}
+
+fn validate_output(
+    ffprobe: &str,
+    path: &str,
+    no_audio: bool,
+    expected_duration: f64,
+) -> Result<f64, String> {
+    let output = Command::new(ffprobe)
+        .args([
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            path,
+        ])
+        .output()
+        .map_err(|error| format!("ffprobe failed to start: {error}"))?;
+    if !output.status.success() {
+        return Err(format!("ffprobe exited with {}", output.status));
+    }
+    let probe: ProbeOutput = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("ffprobe parse failed: {error}"))?;
+    let duration = probe
+        .format
+        .duration
+        .as_deref()
+        .ok_or_else(|| "ffprobe returned no duration".to_string())?
+        .parse::<f64>()
+        .map_err(|error| format!("invalid duration: {error}"))?;
+    if duration <= 0.0 || (duration - expected_duration).abs() > 0.25 {
+        return Err(format!(
+            "duration violation: got {duration:.3}s, expected {expected_duration:.3}s"
+        ));
+    }
+    let video = probe
+        .streams
+        .iter()
+        .find(|stream| stream.codec_type.as_deref() == Some("video"))
+        .ok_or_else(|| "no video stream".to_string())?;
+    if video.width != Some(1920)
+        || video.height != Some(1080)
+        || video.codec_name.as_deref() != Some("h264")
+        || video.pix_fmt.as_deref() != Some("yuv420p")
+        || parse_frame_rate(video.avg_frame_rate.as_deref().unwrap_or(""))
+            .map_or(true, |fps| (fps - 24.0).abs() > 0.5)
+    {
+        return Err("canonical video profile violation".to_string());
+    }
+    let audio = probe
+        .streams
+        .iter()
+        .find(|stream| stream.codec_type.as_deref() == Some("audio"));
+    if no_audio {
+        if audio.is_some() {
+            return Err("audio stream present with no_audio=true".to_string());
+        }
+    } else {
+        let audio = audio.ok_or_else(|| "audio stream is missing".to_string())?;
+        if audio.codec_name.as_deref() != Some("aac")
+            || audio.sample_rate.as_deref() != Some("48000")
+            || audio.channels != Some(2)
+        {
+            return Err("canonical audio profile violation".to_string());
+        }
+    }
+    Ok(duration)
+}
+
+fn parse_frame_rate(value: &str) -> Option<f64> {
+    if let Some((numerator, denominator)) = value.split_once('/') {
+        let numerator = numerator.parse::<f64>().ok()?;
+        let denominator = denominator.parse::<f64>().ok()?;
+        if denominator == 0.0 {
+            return None;
+        }
+        return Some(numerator / denominator);
+    }
+    value.parse::<f64>().ok()
 }
 
 fn part_path(final_path: &str) -> String {
