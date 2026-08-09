@@ -29,7 +29,11 @@ mod tests {
     fn mediaexec_v1_shared_goldens_match_rust_wire_types() {
         for name in ["probe", "cut_batch", "render_stock", "normalize"] {
             let fixture = fixture(name);
-            assert_eq!(fixture.request.version, "mediaexec.v1");
+            assert_eq!(fixture.request.version, crate::protocol::PROTOCOL_VERSION);
+            fixture
+                .request
+                .validate()
+                .unwrap_or_else(|error| panic!("fixture {name} failed validation: {error}"));
             assert_eq!(fixture.request.operation.as_str(), name);
             assert!(fixture.response.ok);
             assert_eq!(fixture.response.operation, name);

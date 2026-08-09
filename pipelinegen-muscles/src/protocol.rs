@@ -4,7 +4,7 @@ use crate::config;
 
 pub const PROTOCOL_VERSION: &str = "mediaexec.v1";
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Operation {
     Health,
