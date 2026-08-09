@@ -35,7 +35,6 @@ pub struct Request {
     pub no_effects: Option<bool>,
     pub effect_paths: Option<Vec<RenderEffectPath>>,
     pub overlay_opacity: Option<f64>,
-    pub keyframe_interval: Option<u32>,
     pub font: Option<String>,
     pub effects: Option<Vec<RenderEffect>>,
     pub overlays: Option<Vec<RenderOverlay>>,

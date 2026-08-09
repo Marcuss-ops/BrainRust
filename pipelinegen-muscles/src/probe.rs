@@ -104,8 +104,8 @@ pub(crate) fn validate_output(
     } else {
         let audio = audio.ok_or_else(|| "audio stream is missing".to_string())?;
         if audio.codec_name.as_deref() != Some("aac")
-            || audio.sample_rate.as_deref() != Some("48000")
-            || audio.channels != Some(2)
+            || audio.sample_rate.as_deref() != Some(&profile.sample_rate.to_string())
+            || audio.channels != Some(profile.channels)
         {
             return Err("canonical audio profile violation".to_string());
         }

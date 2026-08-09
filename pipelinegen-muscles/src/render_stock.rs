@@ -33,7 +33,10 @@ fn render_stock(request: Request) -> Response {
         return render_stock_simple(&request, &inputs, output);
     }
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
-    let profile = request.media.profile();
+    let profile = match request.media.profile() {
+        Ok(value) => value,
+        Err(error) => return failed_response(None, error),
+    };
     let part = part_path(output);
     let mut command = Command::new(ffmpeg);
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
@@ -181,7 +184,10 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
             }
         }
     };
-    let profile = request.media.profile();
+    let profile = match request.media.profile() {
+        Ok(value) => value,
+        Err(error) => return failed_response(None, error),
+    };
     let part = part_path(output);
     let mut command = Command::new(ffmpeg);
     command.args([
@@ -202,9 +208,9 @@ fn render_stock_simple(request: &Request, inputs: &[String], output: &str) -> Re
             "-c:a",
             profile.audio_codec,
             "-ar",
-            "48000",
+            &profile.sample_rate.to_string(),
             "-ac",
-            "2",
+            &profile.channels.to_string(),
         ]);
     } else {
         command.arg("-an");

@@ -115,12 +115,8 @@ fn normalize_preset(codec: &str, preset: &str) -> Result<String, String> {
 /// constructing codec, quality, or GOP arguments themselves.
 pub(crate) fn append_video_options(command: &mut Command, request: &Request) -> Result<(), String> {
     let encoder = request.media.encoder()?;
-    append_video_args(
-        command,
-        &encoder,
-        request.media.profile(),
-        request.keyframe_interval,
-    )?;
+    let profile = request.media.profile()?;
+    append_video_args(command, &encoder, profile, request.keyframe_interval)?;
     if let Some(duration) = request.media.duration_sec.filter(|value| *value > 0.0) {
         command.args(["-t", &duration.to_string()]);
     }
@@ -142,8 +138,14 @@ mod tests {
 
     fn profile() -> VideoProfile {
         VideoProfile {
+            width: 1920,
+            height: 1080,
+            fps: 24,
             keyframe_interval: 48,
-            ..VideoProfile::default()
+            audio_codec: "aac".to_string(),
+            audio_bitrate: "128k".to_string(),
+            sample_rate: 48000,
+            channels: 2,
         }
     }
 

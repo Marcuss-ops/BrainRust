@@ -46,14 +46,17 @@ fn transform(request: Request, operation: &str) -> Response {
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
     match operation {
         "normalize" => {
-            let profile = request.media.profile();
+            let profile = match request.media.profile() {
+                Ok(value) => value,
+                Err(error) => return failed_response(Some(input.to_string()), error),
+            };
             command.args(["-i", input, "-vf"]);
             command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}", profile.width, profile.height, profile.width, profile.height, profile.fps));
             if let Err(error) = append_video_options(&mut command, &request) {
                 return failed_response(Some(input.to_string()), error);
             }
             if request.keep_audio.unwrap_or(false) {
-                command.args(["-c:a", "aac", "-ar", "48000", "-ac", "2"]);
+                command.args(["-c:a", profile.audio_codec.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
             } else {
                 command.arg("-an");
             }
@@ -85,7 +88,10 @@ fn transform(request: Request, operation: &str) -> Response {
             }
         }
         "cut_and_normalize" => {
-            let profile = request.media.profile();
+            let profile = match request.media.profile() {
+                Ok(value) => value,
+                Err(error) => return failed_response(Some(input.to_string()), error),
+            };
             let start = request.start_sec.unwrap_or(0.0);
             let end = request.end_sec.unwrap_or(start);
             command.args([
@@ -104,7 +110,7 @@ fn transform(request: Request, operation: &str) -> Response {
             if request.no_audio.unwrap_or(false) {
                 command.arg("-an");
             } else {
-                command.args(["-c:a", profile.audio_codec, "-ar", "48000", "-ac", "2"]);
+                command.args(["-c:a", profile.audio_codec.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
             }
         }
         "watermark" => {
@@ -130,14 +136,22 @@ fn transform(request: Request, operation: &str) -> Response {
             if let Err(error) = append_video_options(&mut command, &request) {
                 return failed_response(Some(input.to_string()), error);
             }
-            command.args(["-c:a", "aac"]);
+            let profile = match request.media.profile() {
+                Ok(value) => value,
+                Err(error) => return failed_response(Some(input.to_string()), error),
+            };
+            command.args(["-c:a", profile.audio_codec.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
         }
         "generate_proxy" => {
             command.args(["-i", input, "-vf", "scale=-2:720"]);
             if let Err(error) = append_video_options(&mut command, &request) {
                 return failed_response(Some(input.to_string()), error);
             }
-            command.args(["-c:a", "aac"]);
+            let profile = match request.media.profile() {
+                Ok(value) => value,
+                Err(error) => return failed_response(Some(input.to_string()), error),
+            };
+            command.args(["-c:a", profile.audio_codec.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
         }
         "generate_storyboard" => {
             let interval = request.interval_frames.unwrap_or(10).max(1);
@@ -167,11 +181,15 @@ fn transform(request: Request, operation: &str) -> Response {
                 .unwrap_or("")
                 .to_ascii_lowercase();
             if matches!(extension.as_str(), "mp4" | "mov" | "mkv") {
+                let profile = match request.media.profile() {
+                    Ok(value) => value,
+                    Err(error) => return failed_response(Some(input.to_string()), error),
+                };
                 command.args(["-map", "0:v:0?", "-map", "0:a:0?"]);
                 if let Err(error) = append_video_options(&mut command, &request) {
                     return failed_response(Some(input.to_string()), error);
                 }
-                command.args(["-c:a", "aac", "-b:a", "192k"]);
+                command.args(["-c:a", profile.audio_codec.as_str(), "-b:a", profile.audio_bitrate.as_str(), "-ar", &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string()]);
             } else if extension == "wav" {
                 command.args(["-vn", "-c:a", "pcm_s16le"]);
             } else {

@@ -28,10 +28,10 @@ fn cut_batch(request: Request) -> Response {
         .ffmpeg_path
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "ffmpeg".to_string());
-    let mut profile = request.media.profile();
-    if let Some(keyframe_interval) = request.keyframe_interval.filter(|value| *value > 0) {
-        profile.keyframe_interval = keyframe_interval;
-    }
+    let profile = match request.media.profile() {
+        Ok(value) => value,
+        Err(error) => return failed_response(source_path, error),
+    };
     let encoder = match request.media.encoder() {
         Ok(value) => value,
         Err(error) => return failed_response(source_path, error),
@@ -145,9 +145,9 @@ fn cut_one(
             "-b:a",
             profile.audio_bitrate,
             "-ar",
-            "48000",
+            &profile.sample_rate.to_string(),
             "-ac",
-            "2",
+            &profile.channels.to_string(),
         ]);
     }
     command.args(["-movflags", "+faststart", &part_path]);

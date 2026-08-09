@@ -32,6 +32,10 @@ fn admin_render(request: Request) -> Response {
         Some(path) if !path.is_empty() => path,
         _ => return failed_response(Some(input.to_string()), "font is required".to_string()),
     };
+    let profile = match request.media.profile() {
+        Ok(value) => value,
+        Err(error) => return failed_response(Some(input.to_string()), error),
+    };
     let effects = request.effects.as_ref().cloned().unwrap_or_default();
     let overlays = request.overlays.as_ref().cloned().unwrap_or_default();
     let part = part_path(output);
@@ -68,7 +72,7 @@ fn admin_render(request: Request) -> Response {
         video.push_str(&format!("drawtext=fontfile={}:text='{}':fontcolor={}:fontsize={}:borderw=3:bordercolor=black:x=(w-text_w)/2:y={}:enable='between(t\\,{}\\,{})',", font, text, color, overlay.size, y, overlay.start, overlay.end));
     }
     video = format!("{}[vout]", video.trim_end_matches(','));
-    let mut filter = format!("{};[0:a]aresample=48000,volume=0.78[base]", video);
+    let mut filter = format!("{};[0:a]aresample={},volume=0.78[base]", video, profile.sample_rate);
     let mut labels = String::from("[base]");
     for (index, effect) in effects.iter().enumerate() {
         let duration = if effect.duration <= 0.0 {
@@ -81,7 +85,7 @@ fn admin_render(request: Request) -> Response {
         } else {
             &effect.volume
         };
-        filter.push_str(&format!(";[{}:a]aresample=48000,atrim=duration={:.3},asetpts=PTS-STARTPTS,volume={},adelay={}|{}[sfx{}]", index + 1, duration, volume, effect.delay_ms, effect.delay_ms, index));
+        filter.push_str(&format!(";[{}:a]aresample={},atrim=duration={:.3},asetpts=PTS-STARTPTS,volume={},adelay={}|{}[sfx{}]", index + 1, profile.sample_rate, duration, volume, effect.delay_ms, effect.delay_ms, index));
         labels.push_str(&format!("[sfx{}]", index));
     }
     filter.push_str(&format!(";{}amix=inputs={}:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95[aout]", labels, effects.len() + 1));
@@ -98,9 +102,13 @@ fn admin_render(request: Request) -> Response {
     }
     command.args([
         "-c:a",
-        "aac",
+        profile.audio_codec.as_str(),
         "-b:a",
-        "192k",
+        profile.audio_bitrate.as_str(),
+        "-ar",
+        &profile.sample_rate.to_string(),
+        "-ac",
+        &profile.channels.to_string(),
         "-movflags",
         "+faststart",
         "-shortest",
