@@ -19,6 +19,7 @@ struct ProbeOutput {
 #[derive(Debug, Deserialize)]
 struct ProbeFormat {
     duration: Option<String>,
+    bit_rate: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,6 +32,8 @@ struct ProbeStream {
     pix_fmt: Option<String>,
     sample_rate: Option<String>,
     channels: Option<u32>,
+    profile: Option<String>,
+    start_time: Option<String>,
 }
 
 pub(crate) fn ffprobe_path(ffmpeg: &str) -> String {
@@ -164,7 +167,7 @@ fn probe(request: Request) -> Response {
     }
 }
 
-fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, String> {
+pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, String> {
     let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
     command.args([
         "-v",
@@ -200,15 +203,25 @@ fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, String> {
         .find(|stream| stream.codec_type.as_deref() == Some("audio"));
     Ok(MediaMetadata {
         duration_sec,
+        bitrate: probe
+            .format
+            .bit_rate
+            .as_deref()
+            .and_then(|value| value.parse().ok()),
         width: video.and_then(|stream| stream.width).unwrap_or(0),
         height: video.and_then(|stream| stream.height).unwrap_or(0),
         fps: video
             .and_then(|stream| parse_frame_rate(stream.avg_frame_rate.as_deref().unwrap_or("")))
             .unwrap_or(0.0),
         video_codec: video.and_then(|stream| stream.codec_name.clone()),
+        pixel_format: video.and_then(|stream| stream.pix_fmt.clone()),
         audio_codec: audio.and_then(|stream| stream.codec_name.clone()),
+        audio_profile: audio.and_then(|stream| stream.profile.clone()),
         sample_rate: audio.and_then(|stream| stream.sample_rate.as_deref()?.parse().ok()),
         channels: audio.and_then(|stream| stream.channels),
+        start_pts: audio
+            .and_then(|stream| stream.start_time.as_deref()?.parse::<f64>().ok())
+            .map(|value| value.round() as i64),
         has_video: video.is_some(),
         has_audio: audio.is_some(),
     })

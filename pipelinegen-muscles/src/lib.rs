@@ -27,6 +27,7 @@ mod golden;
 mod probe;
 mod process;
 mod protocol;
+mod render_audio;
 mod render_stock;
 mod transform;
 

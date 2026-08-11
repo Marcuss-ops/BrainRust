@@ -1,7 +1,7 @@
 use crate::artifact::{failed_response, part_path};
 use crate::config;
 use crate::encoder;
-use crate::probe::{ffprobe_path, validate_output};
+use crate::probe::{ffprobe_path, probe_file, validate_output};
 use crate::process::FFmpegRunner;
 use crate::protocol::{CutItem, CutJob, Request, Response};
 use std::fs;
@@ -36,6 +36,8 @@ fn cut_batch(request: Request) -> Response {
         Ok(value) => value,
         Err(error) => return failed_response(source_path, error),
     };
+    let ffprobe = ffprobe_path(&ffmpeg);
+    let gpu_cut = gpu_cut_eligibility(&encoder, &profile, source, &ffprobe);
 
     for job in jobs {
         items.push(cut_one(
@@ -45,7 +47,8 @@ fn cut_batch(request: Request) -> Response {
             &encoder,
             profile.clone(),
             request.no_audio.unwrap_or(false),
-            &ffprobe_path(&ffmpeg),
+            &ffprobe,
+            gpu_cut,
         ));
     }
 
@@ -72,6 +75,7 @@ fn cut_one(
     profile: config::VideoProfile,
     no_audio: bool,
     ffprobe: &str,
+    gpu_cut: bool,
 ) -> CutItem {
     let failed = |message: String| CutItem {
         job_id: job.job_id.clone(),
@@ -127,13 +131,18 @@ fn cut_one(
     }
     let part_path = part_path(&job.output_path);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
+    command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+    if gpu_cut {
+        command.args(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
+    }
     command
-        .args(["-hide_banner", "-loglevel", "error", "-y"])
         .args(["-ss", &job.start_sec.to_string()])
         .args(["-i", source])
         .args(["-t", &duration.to_string()])
-        .args(["-vf", &format!("scale={}:{:}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}", profile.width, profile.height, profile.width, profile.height, profile.fps)])
         .args(["-map", "0:v:0?"]);
+    if !gpu_cut {
+        command.args(["-vf", &format!("scale={}:{:}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}", profile.width, profile.height, profile.width, profile.height, profile.fps)]);
+    }
     if !no_audio {
         command.args(["-map", "0:a:0?"]);
     }
@@ -205,4 +214,22 @@ fn cut_one(
         duration_sec,
         error: None,
     }
+}
+
+fn gpu_cut_eligibility(
+    encoder: &config::EncoderPolicy,
+    profile: &config::VideoProfile,
+    source: &str,
+    ffprobe: &str,
+) -> bool {
+    if !encoder.codec.to_ascii_lowercase().ends_with("_nvenc") {
+        return false;
+    }
+    let Ok(metadata) = probe_file(ffprobe, source) else {
+        return false;
+    };
+    metadata.has_video
+        && metadata.width == profile.width
+        && metadata.height == profile.height
+        && (metadata.fps - profile.fps as f64).abs() <= 0.5
 }

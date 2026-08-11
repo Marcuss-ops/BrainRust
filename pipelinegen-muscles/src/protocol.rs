@@ -23,6 +23,8 @@ pub enum Operation {
     AdminRender,
     MergeInputs,
     RemoveSilence,
+    RenderAudioPlan,
+    MuxAudioCopy,
 }
 
 impl Operation {
@@ -44,6 +46,8 @@ impl Operation {
             Self::AdminRender => "admin_render",
             Self::MergeInputs => "merge_inputs",
             Self::RemoveSilence => "remove_silence",
+            Self::RenderAudioPlan => "render_audio_plan",
+            Self::MuxAudioCopy => "mux_audio_copy",
         }
     }
 }
@@ -85,6 +89,14 @@ pub struct Request {
     pub effects: Option<Vec<RenderEffect>>,
     pub overlays: Option<Vec<RenderOverlay>>,
     pub max_duration_sec: Option<f64>,
+    pub audio_plan: Option<serde_json::Value>,
+    pub audio_assets: Option<Vec<AudioAsset>>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct AudioAsset {
+    pub asset_id: String,
+    pub path: String,
 }
 
 impl Request {
@@ -145,6 +157,27 @@ impl Request {
                 }
                 require_output()
             }
+            Operation::RenderAudioPlan => {
+                require_output()?;
+                if self.audio_plan.is_none() {
+                    return Err("audio_plan is required".to_string());
+                }
+                if self.audio_assets.as_ref().map_or(true, Vec::is_empty) {
+                    return Err("audio_assets are required".to_string());
+                }
+                Ok(())
+            }
+            Operation::MuxAudioCopy => {
+                require_output()?;
+                if self
+                    .input_paths
+                    .as_ref()
+                    .map_or(true, |paths| paths.len() != 2)
+                {
+                    return Err("exactly video and final audio inputs are required".to_string());
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -201,13 +234,17 @@ pub struct Response {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MediaMetadata {
     pub duration_sec: f64,
+    pub bitrate: Option<i64>,
     pub width: u32,
     pub height: u32,
     pub fps: f64,
     pub video_codec: Option<String>,
+    pub pixel_format: Option<String>,
     pub audio_codec: Option<String>,
+    pub audio_profile: Option<String>,
     pub sample_rate: Option<u32>,
     pub channels: Option<u32>,
+    pub start_pts: Option<i64>,
     pub has_video: bool,
     pub has_audio: bool,
 }

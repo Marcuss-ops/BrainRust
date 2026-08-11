@@ -1,4 +1,5 @@
 use crate::protocol::{Operation, Request, Response};
+use crate::render_audio;
 use crate::render_stock;
 use std::io::{self, BufRead, Write};
 
@@ -50,6 +51,8 @@ pub fn process(request: Request) -> Response {
         Operation::AdminRender => crate::admin_media::execute(request),
         Operation::MergeInputs => crate::transform::execute(request, "merge_inputs"),
         Operation::RemoveSilence => crate::transform::execute(request, "remove_silence"),
+        Operation::RenderAudioPlan => render_audio::execute(request),
+        Operation::MuxAudioCopy => crate::transform::execute(request, "mux_audio_copy"),
     };
     if !response.ok {
         response.operation = operation;
@@ -130,6 +133,8 @@ mod tests {
             effects: None,
             overlays: None,
             max_duration_sec: None,
+            audio_plan: None,
+            audio_assets: None,
         };
         assert!(reject_unresolved_selection(&request).is_some());
         assert_eq!(process(request.clone()).operation, "render_stock");
