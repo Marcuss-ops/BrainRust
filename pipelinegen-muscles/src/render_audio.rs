@@ -7,8 +7,13 @@ use std::path::Path;
 
 #[derive(serde::Deserialize)]
 struct Plan {
+    #[serde(default)]
+    audio_plan_version: String,
     duration_us: i64,
+    #[serde(default)]
     primary_events: Vec<Event>,
+    #[serde(default)]
+    tracks: Vec<Track>,
     #[serde(default)]
     background_music: Vec<Layer>,
     #[serde(default)]
@@ -18,7 +23,16 @@ struct Plan {
     canonical_audio_profile: Output,
 }
 #[derive(serde::Deserialize)]
+struct Track {
+    track_id: String,
+    role: String,
+    #[serde(default)]
+    events: Vec<Event>,
+}
+#[derive(serde::Deserialize)]
 struct Event {
+    #[serde(default)]
+    event_id: String,
     r#type: String,
     asset_id: Option<String>,
     timeline_start_us: i64,
@@ -29,6 +43,7 @@ struct Event {
     source_duration_us: i64,
     #[serde(default)]
     use_original_audio: bool,
+    #[serde(default)]
     gain_db: f64,
 }
 #[derive(serde::Deserialize)]
@@ -50,6 +65,9 @@ struct Layer {
 }
 #[derive(serde::Deserialize)]
 struct Automation {
+    #[serde(default)]
+    target_track_id: String,
+    #[serde(default)]
     target_layer: String,
     start_us: i64,
     end_us: i64,
@@ -80,19 +98,54 @@ struct Stream {
 }
 
 fn validate_plan(plan: &Plan) -> Result<(), String> {
+    if !plan.audio_plan_version.is_empty()
+        && plan.audio_plan_version != "compiled-audio-plan.v1"
+        && plan.audio_plan_version != "compiled-audio-plan.v2"
+    {
+        return Err("unsupported audio plan version".into());
+    }
+    if plan.audio_plan_version == "compiled-audio-plan.v2" && plan.tracks.is_empty() {
+        return Err("compiled-audio-plan.v2 requires tracks".into());
+    }
     if plan.duration_us <= 0
         || plan.canonical_audio_profile.codec != "aac"
         || plan.canonical_audio_profile.sample_rate != 48000
         || plan.canonical_audio_profile.channels != 2
         || plan.canonical_audio_profile.channel_layout != "stereo"
-        || !plan.canonical_audio_profile.profile.eq_ignore_ascii_case("lc")
+        || !plan
+            .canonical_audio_profile
+            .profile
+            .eq_ignore_ascii_case("lc")
         || plan.canonical_audio_profile.bitrate.trim().is_empty()
     {
         return Err("audio_plan violates canonical AAC-LC stereo contract".into());
     }
+    let use_tracks = !plan.tracks.is_empty();
     let mut expected = 0;
-    for event in &plan.primary_events {
-        if event.timeline_start_us != expected
+    let mut event_ids = std::collections::HashSet::new();
+    for track in &plan.tracks {
+        if track.track_id.trim().is_empty()
+            || !["VOICEOVER", "CLIP_AUDIO", "BGM", "SFX"].contains(&track.role.as_str())
+        {
+            return Err("audio track id is required".into());
+        }
+        for event in &track.events {
+            if event.event_id.trim().is_empty() || !event_ids.insert(event.event_id.clone()) {
+                return Err("audio event id is missing or duplicated".into());
+            }
+            if (track.role == "VOICEOVER"
+                && event.r#type != "VOICEOVER"
+                && event.r#type != "SILENCE")
+                || (track.role == "CLIP_AUDIO" && event.r#type != "CLIP_AUDIO")
+                || (track.role == "BGM" && event.r#type != "BGM")
+                || (track.role == "SFX" && event.r#type != "SFX")
+            {
+                return Err("audio event role does not match track".into());
+            }
+        }
+    }
+    for event in primary_events(plan) {
+        if (!use_tracks && event.timeline_start_us != expected)
             || event.duration_us <= 0
             || event.timeline_start_us < 0
             || event.timeline_start_us + event.duration_us > plan.duration_us
@@ -106,11 +159,11 @@ fn validate_plan(plan: &Plan) -> Result<(), String> {
                     return Err("audio event asset is unresolved".into());
                 }
             }
-            "CLIP_AUDIO" => {
+            "CLIP_AUDIO" | "BGM" | "SFX" => {
                 if event.asset_id.as_deref().unwrap_or("").is_empty() {
                     return Err("audio event asset is unresolved".into());
                 }
-                if !event.use_original_audio {
+                if event.r#type == "CLIP_AUDIO" && !event.use_original_audio {
                     return Err("CLIP_AUDIO must use the original clip audio".into());
                 }
             }
@@ -118,14 +171,17 @@ fn validate_plan(plan: &Plan) -> Result<(), String> {
         }
         if event.source_in_us < 0
             || event.source_duration_us < 0
-            || ((event.r#type == "VOICEOVER" || event.r#type == "CLIP_AUDIO")
+            || ((event.r#type == "VOICEOVER"
+                || event.r#type == "CLIP_AUDIO"
+                || event.r#type == "BGM"
+                || event.r#type == "SFX")
                 && event.source_duration_us <= 0)
         {
             return Err("audio event source range is invalid".into());
         }
         expected += event.duration_us;
     }
-    if expected != plan.duration_us {
+    if !use_tracks && expected != plan.duration_us {
         return Err("audio_plan duration does not equal event end".into());
     }
     for layer in plan.background_music.iter().chain(plan.sfx.iter()) {
@@ -138,7 +194,12 @@ fn validate_plan(plan: &Plan) -> Result<(), String> {
         }
     }
     for automation in &plan.automation {
-        if automation.target_layer.trim().is_empty()
+        let target = if !automation.target_track_id.trim().is_empty() {
+            automation.target_track_id.trim()
+        } else {
+            automation.target_layer.trim()
+        };
+        if target.is_empty()
             || automation.start_us < 0
             || automation.end_us <= automation.start_us
             || automation.end_us > plan.duration_us
@@ -149,6 +210,39 @@ fn validate_plan(plan: &Plan) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn primary_events(plan: &Plan) -> Vec<&Event> {
+    if !plan.tracks.is_empty() {
+        return plan
+            .tracks
+            .iter()
+            .filter(|track| {
+                ["VOICEOVER", "CLIP_AUDIO", "BGM", "SFX"].contains(&track.role.as_str())
+            })
+            .flat_map(|track| track.events.iter())
+            .collect();
+    }
+    plan.primary_events.iter().collect()
+}
+
+fn track_events(plan: &Plan) -> Vec<(String, &Event)> {
+    if !plan.tracks.is_empty() {
+        return plan
+            .tracks
+            .iter()
+            .flat_map(|track| {
+                track
+                    .events
+                    .iter()
+                    .map(move |event| (track.track_id.clone(), event))
+            })
+            .collect();
+    }
+    plan.primary_events
+        .iter()
+        .map(|event| ("legacy-primary".to_string(), event))
+        .collect()
 }
 
 fn probe_source_duration(ffmpeg: &str, path: &str) -> Result<f64, String> {
@@ -306,7 +400,10 @@ pub(crate) fn execute(request: Request) -> Response {
     };
     let mut inputs = Vec::new();
     let mut filters = Vec::new();
-    for event in plan.primary_events.iter().filter(|event| event.r#type != "SILENCE") {
+    for (track_id, event) in track_events(&plan)
+        .into_iter()
+        .filter(|(_, event)| event.r#type != "SILENCE")
+    {
         let path = match event.asset_id.as_ref().and_then(|id| by_id.get(id)) {
             Some(path) if Path::new(path).is_file() => path,
             Some(path) => {
@@ -331,7 +428,24 @@ pub(crate) fn execute(request: Request) -> Response {
         // accepts integer milliseconds, so rounding happens only at this
         // executor boundary and never changes the sealed plan/hash.
         let delay_ms = (event.timeline_start_us + 500) / 1000;
-        filters.push(format!("[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume={}[a{index}]", event.source_in_us as f64 / 1_000_000.0, source_end as f64 / 1_000_000.0, event.gain_db));
+        let mut gain = format!("{}", event.gain_db);
+        for automation in &plan.automation {
+            let target = if !automation.target_track_id.trim().is_empty() {
+                &automation.target_track_id
+            } else {
+                &automation.target_layer
+            };
+            if target.eq_ignore_ascii_case(&track_id) {
+                gain = format!(
+                    "if(between(t,{},{}) ,{},{} )",
+                    automation.start_us as f64 / 1_000_000.0,
+                    automation.end_us as f64 / 1_000_000.0,
+                    automation.gain_db,
+                    gain
+                );
+            }
+        }
+        filters.push(format!("[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume={gain}[a{index}]", event.source_in_us as f64 / 1_000_000.0, source_end as f64 / 1_000_000.0));
     }
     for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
         for layer in layers {
@@ -355,7 +469,9 @@ pub(crate) fn execute(request: Request) -> Response {
             }
             let mut gain = format!("{}", layer.gain_db);
             for automation in &plan.automation {
-                if automation.target_layer.eq_ignore_ascii_case(layer_name) {
+                if automation.target_track_id.eq_ignore_ascii_case(layer_name)
+                    || automation.target_layer.eq_ignore_ascii_case(layer_name)
+                {
                     if automation.start_us < 0 || automation.end_us <= automation.start_us {
                         return failed_response(None, "audio automation range is invalid".into());
                     }
