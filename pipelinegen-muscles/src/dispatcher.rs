@@ -135,6 +135,7 @@ mod tests {
             max_duration_sec: None,
             audio_plan: None,
             audio_assets: None,
+            render_plan: None,
         };
         assert!(reject_unresolved_selection(&request).is_some());
         assert_eq!(process(request.clone()).operation, "render_stock");

@@ -91,6 +91,9 @@ pub struct Request {
     pub max_duration_sec: Option<f64>,
     pub audio_plan: Option<serde_json::Value>,
     pub audio_assets: Option<Vec<AudioAsset>>,
+    // The Go boundary sends a sealed render plan. Rust treats it as an
+    // audited contract and never derives timing or asset selection from it.
+    pub render_plan: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
