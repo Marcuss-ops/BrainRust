@@ -7,26 +7,28 @@ use std::path::Path;
 
 #[derive(serde::Deserialize)]
 struct Plan {
-    duration_ms: i64,
-    events: Vec<Event>,
+    duration_us: i64,
+    primary_events: Vec<Event>,
     #[serde(default)]
     background_music: Vec<Layer>,
     #[serde(default)]
     sfx: Vec<Layer>,
     #[serde(default)]
     automation: Vec<Automation>,
-    output: Output,
+    canonical_audio_profile: Output,
 }
 #[derive(serde::Deserialize)]
 struct Event {
     r#type: String,
     asset_id: Option<String>,
-    timeline_start_ms: i64,
-    duration_ms: i64,
+    timeline_start_us: i64,
+    duration_us: i64,
     #[serde(default)]
-    source_in_ms: i64,
+    source_in_us: i64,
     #[serde(default)]
-    source_out_ms: i64,
+    source_duration_us: i64,
+    #[serde(default)]
+    use_original_audio: bool,
     gain_db: f64,
 }
 #[derive(serde::Deserialize)]
@@ -41,21 +43,21 @@ struct Output {
 #[derive(serde::Deserialize)]
 struct Layer {
     asset_id: String,
-    timeline_start_ms: i64,
-    duration_ms: i64,
+    timeline_start_us: i64,
+    duration_us: i64,
     #[serde(default)]
     gain_db: f64,
 }
 #[derive(serde::Deserialize)]
 struct Automation {
     target_layer: String,
-    start_ms: i64,
-    end_ms: i64,
+    start_us: i64,
+    end_us: i64,
     gain_db: f64,
     #[serde(default)]
-    attack_ms: i64,
+    attack_us: i64,
     #[serde(default)]
-    release_ms: i64,
+    release_us: i64,
 }
 #[derive(serde::Deserialize)]
 struct Probe {
@@ -78,62 +80,70 @@ struct Stream {
 }
 
 fn validate_plan(plan: &Plan) -> Result<(), String> {
-    if plan.duration_ms <= 0
-        || plan.output.codec != "aac"
-        || plan.output.sample_rate != 48000
-        || plan.output.channels != 2
-        || plan.output.channel_layout != "stereo"
-        || !plan.output.profile.eq_ignore_ascii_case("lc")
-        || plan.output.bitrate.trim().is_empty()
+    if plan.duration_us <= 0
+        || plan.canonical_audio_profile.codec != "aac"
+        || plan.canonical_audio_profile.sample_rate != 48000
+        || plan.canonical_audio_profile.channels != 2
+        || plan.canonical_audio_profile.channel_layout != "stereo"
+        || !plan.canonical_audio_profile.profile.eq_ignore_ascii_case("lc")
+        || plan.canonical_audio_profile.bitrate.trim().is_empty()
     {
         return Err("audio_plan violates canonical AAC-LC stereo contract".into());
     }
     let mut expected = 0;
-    for event in &plan.events {
-        if event.timeline_start_ms != expected
-            || event.duration_ms <= 0
-            || event.timeline_start_ms < 0
-            || event.timeline_start_ms + event.duration_ms > plan.duration_ms
+    for event in &plan.primary_events {
+        if event.timeline_start_us != expected
+            || event.duration_us <= 0
+            || event.timeline_start_us < 0
+            || event.timeline_start_us + event.duration_us > plan.duration_us
         {
             return Err("audio_plan events are not contiguous and bounded by the timeline".into());
         }
         match event.r#type.as_str() {
             "SILENCE" => {}
-            "VOICEOVER" | "CLIP_AUDIO" => {
+            "VOICEOVER" => {
                 if event.asset_id.as_deref().unwrap_or("").is_empty() {
                     return Err("audio event asset is unresolved".into());
                 }
             }
+            "CLIP_AUDIO" => {
+                if event.asset_id.as_deref().unwrap_or("").is_empty() {
+                    return Err("audio event asset is unresolved".into());
+                }
+                if !event.use_original_audio {
+                    return Err("CLIP_AUDIO must use the original clip audio".into());
+                }
+            }
             _ => return Err("audio_plan contains an unknown event type".into()),
         }
-        if event.source_in_ms < 0
-            || event.source_out_ms < 0
+        if event.source_in_us < 0
+            || event.source_duration_us < 0
             || ((event.r#type == "VOICEOVER" || event.r#type == "CLIP_AUDIO")
-                && event.source_out_ms <= event.source_in_ms)
+                && event.source_duration_us <= 0)
         {
             return Err("audio event source range is invalid".into());
         }
-        expected += event.duration_ms;
+        expected += event.duration_us;
     }
-    if expected != plan.duration_ms {
+    if expected != plan.duration_us {
         return Err("audio_plan duration does not equal event end".into());
     }
     for layer in plan.background_music.iter().chain(plan.sfx.iter()) {
         if layer.asset_id.trim().is_empty()
-            || layer.timeline_start_ms < 0
-            || layer.duration_ms <= 0
-            || layer.timeline_start_ms + layer.duration_ms > plan.duration_ms
+            || layer.timeline_start_us < 0
+            || layer.duration_us <= 0
+            || layer.timeline_start_us + layer.duration_us > plan.duration_us
         {
             return Err("audio layer is outside the canonical timeline".into());
         }
     }
     for automation in &plan.automation {
         if automation.target_layer.trim().is_empty()
-            || automation.start_ms < 0
-            || automation.end_ms <= automation.start_ms
-            || automation.end_ms > plan.duration_ms
-            || automation.attack_ms < 0
-            || automation.release_ms < 0
+            || automation.start_us < 0
+            || automation.end_us <= automation.start_us
+            || automation.end_us > plan.duration_us
+            || automation.attack_us < 0
+            || automation.release_us < 0
         {
             return Err("audio automation is outside the canonical timeline".into());
         }
@@ -277,7 +287,7 @@ pub(crate) fn execute(request: Request) -> Response {
     let mut source_durations: HashMap<String, f64> = HashMap::new();
     let mut ensure_source = |asset_id: &str,
                              path: &str,
-                             required_end_ms: i64|
+                             required_end_us: i64|
      -> Result<(), String> {
         let duration = if let Some(duration) = source_durations.get(path) {
             *duration
@@ -287,7 +297,7 @@ pub(crate) fn execute(request: Request) -> Response {
             source_durations.insert(path.to_owned(), duration);
             duration
         };
-        if duration * 1000.0 + 40.0 < required_end_ms as f64 {
+        if duration * 1_000_000.0 + 40_000.0 < required_end_us as f64 {
             return Err(format!(
                 "audio asset {asset_id} is shorter than required source range"
             ));
@@ -296,7 +306,7 @@ pub(crate) fn execute(request: Request) -> Response {
     };
     let mut inputs = Vec::new();
     let mut filters = Vec::new();
-    for event in plan.events.iter().filter(|event| event.r#type != "SILENCE") {
+    for event in plan.primary_events.iter().filter(|event| event.r#type != "SILENCE") {
         let path = match event.asset_id.as_ref().and_then(|id| by_id.get(id)) {
             Some(path) if Path::new(path).is_file() => path,
             Some(path) => {
@@ -309,17 +319,19 @@ pub(crate) fn execute(request: Request) -> Response {
         };
         let index = inputs.len();
         inputs.push(path.clone());
-        let source_end = if event.source_out_ms > event.source_in_ms {
-            event.source_out_ms
-        } else {
-            return failed_response(None, "audio event source range is incomplete".into());
+        let source_end = match event.source_in_us.checked_add(event.source_duration_us) {
+            Some(value) if event.source_duration_us > 0 => value,
+            _ => return failed_response(None, "audio event source range is incomplete".into()),
         };
         if let Err(error) = ensure_source(event.asset_id.as_deref().unwrap_or(""), path, source_end)
         {
             return failed_response(Some(path.clone()), error);
         }
-        let delay = event.timeline_start_ms;
-        filters.push(format!("[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay}|{delay},volume={}[a{index}]", event.source_in_ms as f64 / 1000.0, source_end as f64 / 1000.0, event.gain_db));
+        // The plan remains canonical microseconds; FFmpeg's adelay filter
+        // accepts integer milliseconds, so rounding happens only at this
+        // executor boundary and never changes the sealed plan/hash.
+        let delay_ms = (event.timeline_start_us + 500) / 1000;
+        filters.push(format!("[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume={}[a{index}]", event.source_in_us as f64 / 1_000_000.0, source_end as f64 / 1_000_000.0, event.gain_db));
     }
     for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
         for layer in layers {
@@ -333,38 +345,40 @@ pub(crate) fn execute(request: Request) -> Response {
                 }
                 None => return failed_response(None, format!("{layer_name} asset is unresolved")),
             };
-            if layer.duration_ms <= 0 || layer.timeline_start_ms < 0 {
+            if layer.duration_us <= 0 || layer.timeline_start_us < 0 {
                 return failed_response(None, format!("{layer_name} layer range is invalid"));
             }
             let index = inputs.len();
             inputs.push(path.clone());
-            if let Err(error) = ensure_source(&layer.asset_id, path, layer.duration_ms) {
+            if let Err(error) = ensure_source(&layer.asset_id, path, layer.duration_us) {
                 return failed_response(Some(path.clone()), error);
             }
             let mut gain = format!("{}", layer.gain_db);
             for automation in &plan.automation {
                 if automation.target_layer.eq_ignore_ascii_case(layer_name) {
-                    if automation.start_ms < 0 || automation.end_ms <= automation.start_ms {
+                    if automation.start_us < 0 || automation.end_us <= automation.start_us {
                         return failed_response(None, "audio automation range is invalid".into());
                     }
                     gain = format!(
                         "if(between(t,{},{}) ,{},{} )",
-                        automation.start_ms as f64 / 1000.0,
-                        automation.end_ms as f64 / 1000.0,
+                        automation.start_us as f64 / 1_000_000.0,
+                        automation.end_us as f64 / 1_000_000.0,
                         automation.gain_db,
                         gain
                     );
                 }
             }
-            let delay = layer.timeline_start_ms;
-            let duration = layer.duration_ms as f64 / 1000.0;
-            filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay}|{delay},volume='{gain}'[a{index}]"));
+            // adelay is millisecond-granular; keep the canonical microsecond
+            // values authoritative and round only for this FFmpeg filter.
+            let delay_ms = (layer.timeline_start_us + 500) / 1000;
+            let duration = layer.duration_us as f64 / 1_000_000.0;
+            filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}'[a{index}]"));
         }
     }
     if inputs.is_empty() {
         filters.push(format!(
             "anullsrc=r=48000:cl=stereo,atrim=duration={}[a0]",
-            plan.duration_ms as f64 / 1000.0
+            plan.duration_us as f64 / 1_000_000.0
         ));
     }
     let count = std::cmp::max(inputs.len(), 1);
@@ -397,7 +411,7 @@ pub(crate) fn execute(request: Request) -> Response {
         "-map",
         "[aout]",
         "-t",
-        &(plan.duration_ms as f64 / 1000.0).to_string(),
+        &(plan.duration_us as f64 / 1_000_000.0).to_string(),
         "-c:a",
         "aac",
         "-profile:a",
@@ -407,12 +421,12 @@ pub(crate) fn execute(request: Request) -> Response {
         "-ac",
         "2",
         "-b:a",
-        &plan.output.bitrate,
+        &plan.canonical_audio_profile.bitrate,
         &part,
     ]);
     match command.output() {
         Ok(result) if result.status.success() => {
-            match probe_audio(ffmpeg, &part, plan.duration_ms as f64 / 1000.0) {
+            match probe_audio(ffmpeg, &part, plan.duration_us as f64 / 1_000_000.0) {
                 Ok(metadata) => match publish_output(&part, output) {
                     Ok(()) => Response {
                         ok: true,
