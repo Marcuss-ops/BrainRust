@@ -224,5 +224,8 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
             .map(|value| value.round() as i64),
         has_video: video.is_some(),
         has_audio: audio.is_some(),
+        mix_ms: None,
+        encode_ms: None,
+        probe_ms: None,
     })
 }

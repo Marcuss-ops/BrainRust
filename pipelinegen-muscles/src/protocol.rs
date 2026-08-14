@@ -263,6 +263,14 @@ pub struct MediaMetadata {
     pub start_pts: Option<i64>,
     pub has_video: bool,
     pub has_audio: bool,
+    // Stage timings populated only by the combined-audio render path
+    // (render_audio_plan). None everywhere else, and omitted on the wire.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mix_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encode_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub probe_ms: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -400,10 +408,13 @@ mod tests {
             audio_profile: None,
             sample_rate: None,
             channels: None,
-            start_pts: None,
-            has_video: true,
-            has_audio: false,
-        }
+        start_pts: None,
+        has_video: true,
+        has_audio: false,
+        mix_ms: None,
+        encode_ms: None,
+        probe_ms: None,
+    }
     }
 
     #[test]

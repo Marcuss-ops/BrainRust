@@ -105,5 +105,8 @@ pub(super) fn probe_audio(
             .map(|value| value.round() as i64),
         has_video: false,
         has_audio: true,
+        mix_ms: None,
+        encode_ms: None,
+        probe_ms: None,
     })
 }

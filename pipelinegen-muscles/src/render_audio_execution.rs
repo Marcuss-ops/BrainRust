@@ -1,7 +1,7 @@
 use super::plan::{track_events, validate_plan};
 use super::probe::{probe_audio, probe_source_duration};
 use super::Plan;
-use crate::artifact::{failed_response, part_path, publish_output};
+use crate::artifact::{failed_response, mix_path, part_path, publish_output};
 use crate::process::FFmpegRunner;
 use crate::protocol::{AudioAsset, Request, Response};
 use std::collections::HashMap;
@@ -115,7 +115,7 @@ pub(super) fn execute(request: Request) -> Response {
     let count = std::cmp::max(inputs.len(), 1);
     let labels: String = (0..count).map(|index| format!("[a{index}]")).collect();
     let filter = if count == 1 {
-        format!("{}anull,alimiter=limit=0.95[aout]", filters.join(";"))
+        format!("{};[a0]anull,alimiter=limit=0.95[aout]", filters.join(";"))
     } else {
         format!("{};{}amix=inputs={count}:duration=longest:normalize=0[mixed];[mixed]alimiter=limit=0.95[aout]", filters.join(";"), labels)
     };
@@ -125,31 +125,77 @@ pub(super) fn execute(request: Request) -> Response {
         }
     }
     let part = part_path(output);
+    let mix_part = mix_path(output);
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
-    let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
-    command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-    for input in inputs { command.args(["-i", &input]); }
-    command.args([
+
+    // Pass 1 — mix: the full filter graph (amix + limiter) into lossless
+    // PCM. Timing this pass separately from the AAC encode is what feeds the
+    // durable mix_ms / aac_encode_ms metrics.
+    let mut mix_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
+    mix_command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+    for input in &inputs {
+        mix_command.args(["-i", input]);
+    }
+    mix_command.args([
         "-filter_complex", &filter, "-map", "[aout]", "-t",
-        &(plan.duration_us as f64 / 1_000_000.0).to_string(), "-c:a", "aac",
-        "-profile:a", "aac_low", "-ar", "48000", "-ac", "2", "-b:a",
-        &plan.canonical_audio_profile.bitrate, &part,
+        &(plan.duration_us as f64 / 1_000_000.0).to_string(), "-c:a", "pcm_s16le",
+        &mix_part,
     ]);
-    match command.output() {
-        Ok(result) if result.status.success() => match probe_audio(ffmpeg, &part, plan.duration_us as f64 / 1_000_000.0) {
-            Ok(metadata) => match publish_output(&part, output) {
-                Ok(()) => Response { ok: true, operation: "render_audio_plan".into(), source_path: None, items: Vec::new(), metadata: Some(metadata), error: None },
-                Err(error) => failed_response(None, error),
-            },
-            Err(error) => { let _ = fs::remove_file(&part); failed_response(None, error) }
-        },
+    let mix_started = std::time::Instant::now();
+    let mix_result = mix_command.output();
+    let mix_ms = mix_started.elapsed().as_millis() as i64;
+    match mix_result {
+        Ok(result) if result.status.success() => {}
+        Ok(result) => {
+            let _ = fs::remove_file(&mix_part);
+            let _ = fs::remove_file(&part);
+            return failed_response(None, format!("render_audio_plan mix failed: {}", String::from_utf8_lossy(&result.stderr).trim()));
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&mix_part);
+            let _ = fs::remove_file(&part);
+            return failed_response(None, format!("render_audio_plan mix failed to start: {error}"));
+        }
+    }
+
+    // Pass 2 — encode: lossless PCM → canonical AAC-LC 48kHz stereo master.
+    let mut encode_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
+    encode_command.args([
+        "-hide_banner", "-loglevel", "error", "-y", "-i", &mix_part,
+        "-c:a", "aac", "-profile:a", "aac_low", "-ar", "48000", "-ac", "2",
+        "-b:a", &plan.canonical_audio_profile.bitrate, &part,
+    ]);
+    let encode_started = std::time::Instant::now();
+    let encode_result = encode_command.output();
+    let encode_ms = encode_started.elapsed().as_millis() as i64;
+    let _ = fs::remove_file(&mix_part);
+    match encode_result {
+        Ok(result) if result.status.success() => {}
         Ok(result) => {
             let _ = fs::remove_file(&part);
-            failed_response(None, format!("render_audio_plan failed: {}", String::from_utf8_lossy(&result.stderr).trim()))
+            return failed_response(None, format!("render_audio_plan encode failed: {}", String::from_utf8_lossy(&result.stderr).trim()));
         }
         Err(error) => {
             let _ = fs::remove_file(&part);
-            failed_response(None, format!("render_audio_plan failed to start: {error}"))
+            return failed_response(None, format!("render_audio_plan encode failed to start: {error}"));
         }
+    }
+
+    // Probe the encoded master, then attach the stage timings to the
+    // certified metadata before publishing.
+    let probe_started = std::time::Instant::now();
+    let probe_result = probe_audio(ffmpeg, &part, plan.duration_us as f64 / 1_000_000.0);
+    let probe_ms = probe_started.elapsed().as_millis() as i64;
+    match probe_result {
+        Ok(mut metadata) => {
+            metadata.mix_ms = Some(mix_ms);
+            metadata.encode_ms = Some(encode_ms);
+            metadata.probe_ms = Some(probe_ms);
+            match publish_output(&part, output) {
+                Ok(()) => Response { ok: true, operation: "render_audio_plan".into(), source_path: None, items: Vec::new(), metadata: Some(metadata), error: None },
+                Err(error) => failed_response(None, error),
+            }
+        }
+        Err(error) => { let _ = fs::remove_file(&part); failed_response(None, error) }
     }
 }
