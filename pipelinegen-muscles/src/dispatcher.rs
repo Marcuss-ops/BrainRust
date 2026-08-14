@@ -53,6 +53,7 @@ pub fn process(request: Request) -> Response {
         Operation::RemoveSilence => crate::transform::execute(request, "remove_silence"),
         Operation::RenderAudioPlan => render_audio::execute(request),
         Operation::MuxAudioCopy => crate::transform::execute(request, "mux_audio_copy"),
+        Operation::AssembleCopy => crate::transform::execute(request, "assemble_copy"),
     };
     if !response.ok {
         response.operation = operation;
@@ -135,6 +136,7 @@ mod tests {
             max_duration_sec: None,
             audio_plan: None,
             audio_assets: None,
+            copy_certification: None,
             render_plan: None,
         };
         assert!(reject_unresolved_selection(&request).is_some());

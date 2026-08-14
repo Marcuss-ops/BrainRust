@@ -25,6 +25,7 @@ pub enum Operation {
     RemoveSilence,
     RenderAudioPlan,
     MuxAudioCopy,
+    AssembleCopy,
 }
 
 impl Operation {
@@ -48,6 +49,7 @@ impl Operation {
             Self::RemoveSilence => "remove_silence",
             Self::RenderAudioPlan => "render_audio_plan",
             Self::MuxAudioCopy => "mux_audio_copy",
+            Self::AssembleCopy => "assemble_copy",
         }
     }
 }
@@ -91,6 +93,7 @@ pub struct Request {
     pub max_duration_sec: Option<f64>,
     pub audio_plan: Option<serde_json::Value>,
     pub audio_assets: Option<Vec<AudioAsset>>,
+    pub copy_certification: Option<CopyCertification>,
     // The Go boundary sends a sealed render plan. Rust treats it as an
     // audited contract and never derives timing or asset selection from it.
     pub render_plan: Option<serde_json::Value>,
@@ -181,6 +184,16 @@ impl Request {
                 }
                 Ok(())
             }
+            Operation::AssembleCopy => {
+                if self.input_paths.as_ref().map_or(true, Vec::is_empty) {
+                    return Err("input_paths are required".to_string());
+                }
+                require_output()?;
+                if self.copy_certification.is_none() {
+                    return Err("copy_certification is required".to_string());
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -260,4 +273,214 @@ pub struct CutItem {
     pub size_bytes: u64,
     pub duration_sec: f64,
     pub error: Option<String>,
+}
+
+/// CopyCertification is the copy-only certification of an overlay artifact:
+/// it declares that the artifact is a self-contained, correctly-encoded video
+/// segment (closed GOP, first frame keyframe) that can be assembled by
+/// packet-copy with zero decode/encode.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct CopyCertification {
+    pub copy_eligible: bool,
+    pub profile_id: Option<String>,
+    pub codec: Option<String>,
+    pub codec_profile: Option<String>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub fps_num: Option<u32>,
+    pub fps_den: Option<u32>,
+    pub closed_gop: Option<bool>,
+    pub first_frame_keyframe: Option<bool>,
+}
+
+impl CopyCertification {
+    /// Validates the copy-only certification. It fails closed: a missing or
+    /// false field rejects the packet-copy path so the encoded composite path
+    /// remains responsible for anything uncertified.
+    pub fn validate(&self) -> Result<(), String> {
+        if !self.copy_eligible {
+            return Err("COPY_NOT_ELIGIBLE: copy_eligible is false".to_string());
+        }
+        if self.profile_id.as_deref().unwrap_or("").trim().is_empty() {
+            return Err("CERTIFICATION_REQUIRED: profile_id is required".to_string());
+        }
+        if self.codec.as_deref().unwrap_or("").trim().is_empty() {
+            return Err("CERTIFICATION_REQUIRED: codec is required".to_string());
+        }
+        if self.width.unwrap_or(0) == 0 || self.height.unwrap_or(0) == 0 {
+            return Err("CERTIFICATION_REQUIRED: width/height are required".to_string());
+        }
+        if self.fps_num.unwrap_or(0) == 0 || self.fps_den.unwrap_or(0) == 0 {
+            return Err("CERTIFICATION_REQUIRED: fps_num/fps_den are required".to_string());
+        }
+        if !self.closed_gop.unwrap_or(false) {
+            return Err("CERTIFICATION_REQUIRED: closed_gop must be true".to_string());
+        }
+        if !self.first_frame_keyframe.unwrap_or(false) {
+            return Err("CERTIFICATION_REQUIRED: first_frame_keyframe must be true".to_string());
+        }
+        Ok(())
+    }
+
+    /// Verifies that probed media matches the certified copy-only profile.
+    pub fn verify_metadata(&self, metadata: &MediaMetadata) -> Result<(), String> {
+        if !metadata.has_video {
+            return Err("COPY_CERTIFICATION_VIOLATION: input has no video stream".to_string());
+        }
+        let width = self.width.unwrap_or(0);
+        let height = self.height.unwrap_or(0);
+        if metadata.width != width || metadata.height != height {
+            return Err(format!(
+                "COPY_CERTIFICATION_VIOLATION: geometry {}x{} != certified {}x{}",
+                metadata.width, metadata.height, width, height
+            ));
+        }
+        let fps = self.fps_num.unwrap_or(0) as f64 / self.fps_den.unwrap_or(1) as f64;
+        if (metadata.fps - fps).abs() > 0.5 {
+            return Err(format!(
+                "COPY_CERTIFICATION_VIOLATION: fps {:.3} != certified {:.3}",
+                metadata.fps, fps
+            ));
+        }
+        if !copy_codec_matches(
+            metadata.video_codec.as_deref(),
+            self.codec.as_deref().unwrap_or(""),
+        ) {
+            return Err(format!(
+                "COPY_CERTIFICATION_VIOLATION: codec {:?} != certified {}",
+                metadata.video_codec,
+                self.codec.as_deref().unwrap_or("")
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn copy_codec_matches(actual: Option<&str>, expected: &str) -> bool {
+    let expected = expected.trim().to_ascii_lowercase();
+    match actual {
+        Some(codec) if expected == "h264" || expected == "libx264" || expected == "h264_nvenc" => {
+            codec == "h264"
+        }
+        Some(codec) => codec == expected,
+        None => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CopyCertification;
+    use crate::protocol::MediaMetadata;
+
+    fn certified() -> CopyCertification {
+        CopyCertification {
+            copy_eligible: true,
+            profile_id: Some("velox-h264-copy-v1".to_string()),
+            codec: Some("h264".to_string()),
+            codec_profile: Some("high".to_string()),
+            width: Some(1920),
+            height: Some(1080),
+            fps_num: Some(30),
+            fps_den: Some(1),
+            closed_gop: Some(true),
+            first_frame_keyframe: Some(true),
+        }
+    }
+
+    fn metadata() -> MediaMetadata {
+        MediaMetadata {
+            duration_sec: 18.2,
+            bitrate: None,
+            width: 1920,
+            height: 1080,
+            fps: 30.0,
+            video_codec: Some("h264".to_string()),
+            pixel_format: Some("yuv420p".to_string()),
+            audio_codec: None,
+            audio_profile: None,
+            sample_rate: None,
+            channels: None,
+            start_pts: None,
+            has_video: true,
+            has_audio: false,
+        }
+    }
+
+    #[test]
+    fn certified_metadata_matches_copy_only_profile() {
+        assert!(certified().validate().is_ok());
+        assert!(certified().verify_metadata(&metadata()).is_ok());
+    }
+
+    #[test]
+    fn copy_not_eligible_fails_closed() {
+        let mut cert = certified();
+        cert.copy_eligible = false;
+        assert!(cert.validate().unwrap_err().contains("COPY_NOT_ELIGIBLE"));
+    }
+
+    #[test]
+    fn missing_certification_fields_fail_closed() {
+        for cert in [
+            CopyCertification {
+                profile_id: None,
+                ..certified()
+            },
+            CopyCertification {
+                codec: None,
+                ..certified()
+            },
+            CopyCertification {
+                width: None,
+                ..certified()
+            },
+            CopyCertification {
+                fps_num: None,
+                ..certified()
+            },
+            CopyCertification {
+                closed_gop: None,
+                ..certified()
+            },
+            CopyCertification {
+                first_frame_keyframe: None,
+                ..certified()
+            },
+        ] {
+            assert!(cert.validate().is_err(), "expected certification to fail");
+        }
+    }
+
+    #[test]
+    fn metadata_violations_fail_closed() {
+        let cert = certified();
+
+        let mut wrong_geometry = metadata();
+        wrong_geometry.width = 1280;
+        assert!(cert
+            .verify_metadata(&wrong_geometry)
+            .unwrap_err()
+            .contains("geometry"));
+
+        let mut wrong_fps = metadata();
+        wrong_fps.fps = 24.0;
+        assert!(cert
+            .verify_metadata(&wrong_fps)
+            .unwrap_err()
+            .contains("fps"));
+
+        let mut wrong_codec = metadata();
+        wrong_codec.video_codec = Some("hevc".to_string());
+        assert!(cert
+            .verify_metadata(&wrong_codec)
+            .unwrap_err()
+            .contains("codec"));
+
+        let mut no_video = metadata();
+        no_video.has_video = false;
+        assert!(cert
+            .verify_metadata(&no_video)
+            .unwrap_err()
+            .contains("no video"));
+    }
 }
