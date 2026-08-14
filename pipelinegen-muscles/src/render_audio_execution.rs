@@ -114,10 +114,15 @@ pub(super) fn execute(request: Request) -> Response {
     }
     let count = std::cmp::max(inputs.len(), 1);
     let labels: String = (0..count).map(|index| format!("[a{index}]")).collect();
+    // Pad the mixed stream to the exact canonical timeline duration. SILENCE
+    // events carry no asset and are intentionally dropped above, so a scene
+    // whose narration/clip ends before its window leaves a trailing gap that
+    // would otherwise make the final_audio shorter than plan.duration_us.
+    let pad_secs = plan.duration_us as f64 / 1_000_000.0;
     let filter = if count == 1 {
-        format!("{};[a0]anull,alimiter=limit=0.95[aout]", filters.join(";"))
+        format!("{};[a0]apad=whole_dur={pad_secs},alimiter=limit=0.95[aout]", filters.join(";"))
     } else {
-        format!("{};{}amix=inputs={count}:duration=longest:normalize=0[mixed];[mixed]alimiter=limit=0.95[aout]", filters.join(";"), labels)
+        format!("{};{}amix=inputs={count}:duration=longest:normalize=0[mixed];[mixed]apad=whole_dur={pad_secs},alimiter=limit=0.95[aout]", filters.join(";"), labels)
     };
     if let Some(parent) = Path::new(output).parent() {
         if let Err(error) = fs::create_dir_all(parent) {
@@ -163,7 +168,8 @@ pub(super) fn execute(request: Request) -> Response {
     encode_command.args([
         "-hide_banner", "-loglevel", "error", "-y", "-i", &mix_part,
         "-c:a", "aac", "-profile:a", "aac_low", "-ar", "48000", "-ac", "2",
-        "-b:a", &plan.canonical_audio_profile.bitrate, &part,
+        "-b:a", &plan.canonical_audio_profile.bitrate, "-t",
+        &(plan.duration_us as f64 / 1_000_000.0).to_string(), &part,
     ]);
     let encode_started = std::time::Instant::now();
     let encode_result = encode_command.output();
