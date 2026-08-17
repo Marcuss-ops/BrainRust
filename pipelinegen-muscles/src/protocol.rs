@@ -20,6 +20,7 @@ pub enum Operation {
     RemuxHls,
     Trim,
     RenderStock,
+    RenderClip,
     AdminRender,
     MergeInputs,
     RemoveSilence,
@@ -44,6 +45,7 @@ impl Operation {
             Self::RemuxHls => "remux_hls",
             Self::Trim => "trim",
             Self::RenderStock => "render_stock",
+            Self::RenderClip => "render_clip",
             Self::AdminRender => "admin_render",
             Self::MergeInputs => "merge_inputs",
             Self::RemoveSilence => "remove_silence",
@@ -97,6 +99,11 @@ pub struct Request {
     // The Go boundary sends a sealed render plan. Rust treats it as an
     // audited contract and never derives timing or asset selection from it.
     pub render_plan: Option<serde_json::Value>,
+    // The Go boundary sends the sealed ClipRenderPlanV1 for render_clip.
+    // Same audited-contract rule: Rust validates and executes it verbatim,
+    // making zero business selections (background/watermark/subtitles/audio
+    // policy/geometry all arrive resolved).
+    pub clip_plan: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -139,6 +146,14 @@ impl Request {
                     return Err("input_paths are required".to_string());
                 }
                 require_output()
+            }
+            Operation::RenderClip => {
+                require_source()?;
+                require_output()?;
+                if self.clip_plan.is_none() {
+                    return Err("clip_plan is required".to_string());
+                }
+                Ok(())
             }
             Operation::AdminRender
             | Operation::CutCopy
@@ -295,6 +310,20 @@ pub struct MediaMetadata {
     // hash operation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub final_audio_sha256: Option<String>,
+    // render_clip audio copy policy outcome: whether the source audio stream
+    // was copied verbatim (true) or one certified conversion ran (false).
+    // None everywhere else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_copy_eligible: Option<bool>,
+    // render_clip audio encode passes (0 = copied, 1 = exactly one certified
+    // conversion). None everywhere else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_encode_passes: Option<i32>,
+    // render_clip subtitle raster stage: true when mode=burn rasterized
+    // libass inside the single render pass (a CPU stage — never claimed as
+    // GPU). None when subtitles are disabled or sidecar.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtitle_raster_cpu: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -446,6 +475,9 @@ mod tests {
         hash_ms: None,
         ffmpeg_ms: None,
         final_audio_sha256: None,
+        audio_copy_eligible: None,
+        audio_encode_passes: None,
+        subtitle_raster_cpu: None,
     }
 }
 

@@ -269,5 +269,8 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
         hash_ms: None,
         ffmpeg_ms: None,
         final_audio_sha256: None,
+        audio_copy_eligible: None,
+        audio_encode_passes: None,
+        subtitle_raster_cpu: None,
     })
 }

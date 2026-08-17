@@ -28,6 +28,7 @@ mod probe;
 mod process;
 mod protocol;
 mod render_audio;
+mod render_clip;
 mod render_stock;
 mod transform;
 

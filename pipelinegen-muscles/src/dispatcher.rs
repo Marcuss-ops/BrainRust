@@ -48,6 +48,7 @@ pub fn process(request: Request) -> Response {
         Operation::RemuxHls => crate::transform::execute(request, "remux_hls"),
         Operation::Trim => crate::transform::execute(request, "trim"),
         Operation::RenderStock => crate::render_stock::execute(request),
+        Operation::RenderClip => crate::render_clip::render_clip(request),
         Operation::AdminRender => crate::admin_media::execute(request),
         Operation::MergeInputs => crate::transform::execute(request, "merge_inputs"),
         Operation::RemoveSilence => crate::transform::execute(request, "remove_silence"),
@@ -138,6 +139,7 @@ mod tests {
             audio_assets: None,
             copy_certification: None,
             render_plan: None,
+            clip_plan: None,
         };
         assert!(reject_unresolved_selection(&request).is_some());
         assert_eq!(process(request.clone()).operation, "render_stock");

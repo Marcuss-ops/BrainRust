@@ -197,6 +197,9 @@ pub(super) fn execute_canonical_render(
                         hash_ms: None,
                         ffmpeg_ms: Some(ffmpeg_ms.max(1)),
                         final_audio_sha256: None,
+                        audio_copy_eligible: None,
+                        audio_encode_passes: None,
+                        subtitle_raster_cpu: None,
                     }),
                     error: None,
                 }
