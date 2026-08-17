@@ -331,6 +331,10 @@ fn watermark_position(watermark: &ClipPlanWatermark, _width: u32, _height: u32) 
             format!("x=main_w-overlay_w-{margin}"),
             format!("y={margin}"),
         ),
+        "center" => (
+            "x=(main_w-overlay_w)/2".to_string(),
+            "y=(main_h-overlay_h)/2".to_string(),
+        ),
         "bottom_left" => (
             format!("x={margin}"),
             format!("y=main_h-overlay_h-{margin}"),

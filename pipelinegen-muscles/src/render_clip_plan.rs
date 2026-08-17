@@ -163,7 +163,7 @@ fn validate(plan: &ClipRenderPlan) -> Result<(), String> {
         }
         if !matches!(
             watermark.position.as_str(),
-            "top_left" | "top_right" | "bottom_left" | "bottom_right"
+            "top_left" | "top_right" | "center" | "bottom_left" | "bottom_right"
         ) {
             return Err(format!(
                 "clip_plan invalid watermark position {:?}",
