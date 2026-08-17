@@ -2,7 +2,7 @@ use super::effects::{transition_filter, validate_resolved_render_plan};
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::encoder::append_video_options;
 use crate::process::FFmpegRunner;
-use crate::protocol::{Request, Response};
+use crate::protocol::{MediaMetadata, Request, Response};
 use std::fs;
 use std::path::Path;
 
@@ -113,14 +113,41 @@ pub(super) fn render_stock(request: Request) -> Response {
         return failed_response(None, error);
     }
     command.args(["-movflags", "+faststart", &part]);
-    match command.output() {
+    let encode_started = std::time::Instant::now();
+    let encode_result = command.output();
+    let ffmpeg_ms = encode_started.elapsed().as_millis() as i64;
+    match encode_result {
         Ok(result) if result.status.success() => match publish_output(&part, output) {
             Ok(()) => Response {
                 ok: true,
                 operation: "render_stock".to_string(),
                 source_path: None,
                 items: Vec::new(),
-                metadata: None,
+                // The legacy composite path does not probe its output, so the
+                // media fields report the resolved profile plus the native
+                // ffmpeg encode wall time only; duration_sec stays 0.
+                metadata: Some(MediaMetadata {
+                    duration_sec: 0.0,
+                    bitrate: None,
+                    width: profile.width,
+                    height: profile.height,
+                    fps: profile.fps as f64,
+                    video_codec: None,
+                    pixel_format: None,
+                    audio_codec: None,
+                    audio_profile: None,
+                    sample_rate: None,
+                    channels: None,
+                    start_pts: None,
+                    has_video: true,
+                    has_audio: request.keep_audio.unwrap_or(false),
+                    mix_ms: None,
+                    aac_encode_ms: None,
+                    probe_ms: None,
+                    hash_ms: None,
+                    ffmpeg_ms: Some(ffmpeg_ms.max(1)),
+                    final_audio_sha256: None,
+                }),
                 error: None,
             },
             Err(error) => failed_response(None, error),

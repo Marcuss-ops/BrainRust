@@ -268,9 +268,21 @@ pub struct MediaMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mix_ms: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub encode_ms: Option<i64>,
+    pub aac_encode_ms: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub probe_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_ms: Option<i64>,
+    // FFmpeg wall time for the media encode subprocess, measured natively by
+    // render_stock (canonical + legacy composite) so callers get the encode
+    // wall time without an external timing shim. None elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ffmpeg_ms: Option<i64>,
+    // SHA256 of the published final audio, computed by Rust so the Go adapter
+    // never re-hashes the output it just rendered (single ownership of the
+    // hash operation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub final_audio_sha256: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -410,12 +422,14 @@ mod tests {
             channels: None,
         start_pts: None,
         has_video: true,
-        has_audio: false,
-        mix_ms: None,
-        encode_ms: None,
+        has_audio: false,        mix_ms: None,
+        aac_encode_ms: None,
         probe_ms: None,
+        hash_ms: None,
+        ffmpeg_ms: None,
+        final_audio_sha256: None,
     }
-    }
+}
 
     #[test]
     fn certified_metadata_matches_copy_only_profile() {

@@ -14,7 +14,9 @@ pub(crate) fn execute(request: Request) -> Response {
     legacy::render_stock(request)
 }
 
-pub(crate) use effects::{
-    reject_unresolved_selection, supported_transition, transition_filter,
-    validate_resolved_render_plan,
-};
+pub(crate) use effects::reject_unresolved_selection;
+
+// These two are consumed by the dispatcher tests through the render_stock
+// path; production code reaches them through the effects module directly.
+#[cfg(test)]
+pub(crate) use effects::{supported_transition, validate_resolved_render_plan};

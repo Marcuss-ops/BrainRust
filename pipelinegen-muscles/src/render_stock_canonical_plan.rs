@@ -37,6 +37,8 @@ pub(super) struct CanonicalVideoSegment {
     pub(super) source: CanonicalFrameRange,
     pub(super) timeline: CanonicalFrameRange,
     pub(super) z_index: i32,
+    #[serde(default)]
+    pub(super) freeze: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -158,11 +160,18 @@ fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), String> {
                 ));
             };
             let expected_start = expected_timeline.unwrap_or(segment.timeline.start_frame);
+            // A freeze tail stretches one source frame across many timeline
+            // frames; every other segment keeps the 1:1 source↔timeline map.
+            let source_matches_timeline = if segment.freeze {
+                segment.source.frame_count == 1
+            } else {
+                segment.source.frame_count == segment.timeline.frame_count
+            };
             if segment.source.start_frame < 0
                 || segment.source.frame_count <= 0
                 || segment.timeline.start_frame != expected_start
                 || segment.timeline.frame_count <= 0
-                || segment.source.frame_count != segment.timeline.frame_count
+                || !source_matches_timeline
                 || source_end > *asset_frame_count
                 || timeline_end > plan.duration_frames
                 || segment.z_index < 0

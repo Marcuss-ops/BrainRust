@@ -85,7 +85,10 @@ pub(super) fn probe_audio(
     {
         return Err("rendered audio violates canonical AAC-LC 48kHz stereo contract".into());
     }
-    if (duration - expected_duration).abs() > 0.25 {
+    // The master is apad+atrim'd to the canonical duration in the mix pass, so
+    // only the AAC encoder padding may remain. Fail closed beyond ±40ms — the
+    // same window the Go adapter certifies (ValidateFinalAudioReference).
+    if (duration - expected_duration).abs() > 0.040 {
         return Err(format!("rendered audio duration {duration:.3}s differs from expected {expected_duration:.3}s"));
     }
     Ok(MediaMetadata {
@@ -106,7 +109,10 @@ pub(super) fn probe_audio(
         has_video: false,
         has_audio: true,
         mix_ms: None,
-        encode_ms: None,
+        aac_encode_ms: None,
         probe_ms: None,
+        hash_ms: None,
+        ffmpeg_ms: None,
+        final_audio_sha256: None,
     })
 }

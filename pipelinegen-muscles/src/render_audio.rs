@@ -10,6 +10,10 @@ struct Plan {
     #[serde(default)]
     audio_plan_version: String,
     duration_us: i64,
+    // Frame-aligned pad target for the mastered file (audio_duration >=
+    // video_duration). Absent/zero means "pad to duration_us".
+    #[serde(default)]
+    master_duration_us: Option<i64>,
     #[serde(default)]
     primary_events: Vec<Event>,
     #[serde(default)]

@@ -1,6 +1,7 @@
 use crate::protocol::Response;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 pub(crate) fn failed_response(source_path: Option<String>, error: String) -> Response {
     Response {
@@ -56,6 +57,35 @@ pub(crate) fn mix_path(final_path: &str) -> String {
             .into_owned(),
         _ => format!("{stem}.mix.wav"),
     }
+}
+
+/// sha256_file computes the lowercase SHA256 digest of a file using the same
+/// `sha256sum` invocation the canonical render plan already relies on. It is
+/// the hashing helper for the combined-audio render path so the Go adapter can
+/// trust the digest Rust produced instead of re-hashing the output it just
+/// rendered.
+pub(crate) fn sha256_file(path: &str) -> Result<String, String> {
+    let output = Command::new("sha256sum")
+        .arg("--")
+        .arg(path)
+        .output()
+        .map_err(|error| format!("compute SHA256 for {path}: {error}"))?;
+    if !output.status.success() {
+        return Err(format!("compute SHA256 for {path} failed"));
+    }
+    let digest = String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_string();
+    if digest.len() != 64
+        || !digest
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+    {
+        return Err(format!("sha256sum returned an invalid digest for {path}"));
+    }
+    Ok(digest)
 }
 
 pub(crate) fn publish_output(part_path: &str, final_path: &str) -> Result<(), String> {

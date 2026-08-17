@@ -1,12 +1,21 @@
 use super::plan::{track_events, validate_plan};
 use super::probe::{probe_audio, probe_source_duration};
 use super::Plan;
-use crate::artifact::{failed_response, mix_path, part_path, publish_output};
+use crate::artifact::{failed_response, mix_path, part_path, publish_output, sha256_file};
 use crate::process::FFmpegRunner;
 use crate::protocol::{AudioAsset, Request, Response};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+
+// The plan carries gains in dB, while the FFmpeg volume filter treats a plain
+// number as a linear multiplier (volume=0 silences the stream, and negative
+// "gains" would invert/amplify instead of attenuating). Convert at the
+// boundary with the standard power ratio so 0 dB maps to unity and the
+// canonical duck levels (-12/-18/-24 dB) attenuate as the mix policy intends.
+fn linear_gain(gain_db: f64) -> String {
+    format!("{:.6}", 10f64.powf(gain_db / 20.0))
+}
 
 pub(super) fn execute(request: Request) -> Response {
     let output = match request.output_path.as_deref() {
@@ -24,6 +33,13 @@ pub(super) fn execute(request: Request) -> Response {
     if let Err(error) = validate_plan(&plan) {
         return failed_response(None, error);
     }
+    // The plan carries the canonical microsecond duration, but the video
+    // renderer emits FrameAt(duration_us) whole frames, which can round the
+    // timeline up by up to half a frame. The master is padded to the
+    // frame-aligned duration (master_duration_us) so audio_duration >=
+    // video_duration instead of leaving a silent tail at the end of the mux.
+    let master_duration_us = plan.master_duration_us.unwrap_or(plan.duration_us);
+    let master_secs = master_duration_us as f64 / 1_000_000.0;
     let by_id: HashMap<String, String> = request
         .audio_assets
         .unwrap_or_default()
@@ -65,7 +81,7 @@ pub(super) fn execute(request: Request) -> Response {
             return failed_response(Some(path.clone()), error);
         }
         let delay_ms = (event.timeline_start_us + 500) / 1000;
-        let mut gain = format!("{}", event.gain_db);
+        let mut gain = linear_gain(event.gain_db);
         for automation in &plan.automation {
             let target = if !automation.target_track_id.trim().is_empty() {
                 &automation.target_track_id
@@ -73,10 +89,10 @@ pub(super) fn execute(request: Request) -> Response {
                 &automation.target_layer
             };
             if target.eq_ignore_ascii_case(&track_id) {
-                gain = format!("if(between(t,{},{}) ,{},{} )", automation.start_us as f64 / 1_000_000.0, automation.end_us as f64 / 1_000_000.0, automation.gain_db, gain);
+                gain = format!("if(between(t,{},{}) ,{},{} )", automation.start_us as f64 / 1_000_000.0, automation.end_us as f64 / 1_000_000.0, linear_gain(automation.gain_db), gain);
             }
         }
-        filters.push(format!("[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume={gain}[a{index}]", event.source_in_us as f64 / 1_000_000.0, source_end as f64 / 1_000_000.0));
+        filters.push(format!("[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}'[a{index}]", event.source_in_us as f64 / 1_000_000.0, source_end as f64 / 1_000_000.0));
     }
     for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
         for layer in layers {
@@ -93,7 +109,7 @@ pub(super) fn execute(request: Request) -> Response {
             if let Err(error) = ensure_source(&layer.asset_id, path, layer.duration_us) {
                 return failed_response(Some(path.clone()), error);
             }
-            let mut gain = format!("{}", layer.gain_db);
+            let mut gain = linear_gain(layer.gain_db);
             for automation in &plan.automation {
                 if automation.target_track_id.eq_ignore_ascii_case(layer_name)
                     || automation.target_layer.eq_ignore_ascii_case(layer_name)
@@ -101,7 +117,7 @@ pub(super) fn execute(request: Request) -> Response {
                     if automation.start_us < 0 || automation.end_us <= automation.start_us {
                         return failed_response(None, "audio automation range is invalid".into());
                     }
-                    gain = format!("if(between(t,{},{}) ,{},{} )", automation.start_us as f64 / 1_000_000.0, automation.end_us as f64 / 1_000_000.0, automation.gain_db, gain);
+                    gain = format!("if(between(t,{},{}) ,{},{} )", automation.start_us as f64 / 1_000_000.0, automation.end_us as f64 / 1_000_000.0, linear_gain(automation.gain_db), gain);
                 }
             }
             let delay_ms = (layer.timeline_start_us + 500) / 1000;
@@ -109,20 +125,23 @@ pub(super) fn execute(request: Request) -> Response {
             filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}'[a{index}]"));
         }
     }
-    if inputs.is_empty() {
-        filters.push(format!("anullsrc=r=48000:cl=stereo,atrim=duration={}[a0]", plan.duration_us as f64 / 1_000_000.0));
-    }
-    let count = std::cmp::max(inputs.len(), 1);
-    let labels: String = (0..count).map(|index| format!("[a{index}]")).collect();
-    // Pad the mixed stream to the exact canonical timeline duration. SILENCE
-    // events carry no asset and are intentionally dropped above, so a scene
-    // whose narration/clip ends before its window leaves a trailing gap that
-    // would otherwise make the final_audio shorter than plan.duration_us.
-    let pad_secs = plan.duration_us as f64 / 1_000_000.0;
-    let filter = if count == 1 {
-        format!("{};[a0]apad=whole_dur={pad_secs},alimiter=limit=0.95[aout]", filters.join(";"))
+    // Silence anchor + apad + atrim. The full-length silent bed is always
+    // part of the mix, so the graph emits samples for the entire canonical
+    // duration even when every real source ends early (SILENCE events carry
+    // no asset and are intentionally dropped above). apad then fills any
+    // remaining shortfall and atrim removes any overflow, so the master is
+    // pinned to exactly plan.duration_us instead of relying on the output
+    // `-t` limit alone.
+    let pad_secs = master_secs;
+    filters.push(format!("anullsrc=r=48000:cl=stereo,atrim=duration={pad_secs},asetpts=PTS-STARTPTS[asilence]"));
+    let mix_labels: String = (0..inputs.len())
+        .map(|index| format!("[a{index}]"))
+        .chain(std::iter::once("[asilence]".to_string()))
+        .collect();
+    let filter = if inputs.is_empty() {
+        format!("{};[asilence]apad=whole_dur={pad_secs},atrim=duration={pad_secs},alimiter=limit=0.95[aout]", filters.join(";"))
     } else {
-        format!("{};{}amix=inputs={count}:duration=longest:normalize=0[mixed];[mixed]apad=whole_dur={pad_secs},alimiter=limit=0.95[aout]", filters.join(";"), labels)
+        format!("{};{}amix=inputs={}:duration=longest:normalize=0[mixed];[mixed]apad=whole_dur={pad_secs},atrim=duration={pad_secs},alimiter=limit=0.95[aout]", filters.join(";"), mix_labels, inputs.len() + 1)
     };
     if let Some(parent) = Path::new(output).parent() {
         if let Err(error) = fs::create_dir_all(parent) {
@@ -143,7 +162,7 @@ pub(super) fn execute(request: Request) -> Response {
     }
     mix_command.args([
         "-filter_complex", &filter, "-map", "[aout]", "-t",
-        &(plan.duration_us as f64 / 1_000_000.0).to_string(), "-c:a", "pcm_s16le",
+        &master_secs.to_string(), "-c:a", "pcm_s16le",
         &mix_part,
     ]);
     let mix_started = std::time::Instant::now();
@@ -169,11 +188,11 @@ pub(super) fn execute(request: Request) -> Response {
         "-hide_banner", "-loglevel", "error", "-y", "-i", &mix_part,
         "-c:a", "aac", "-profile:a", "aac_low", "-ar", "48000", "-ac", "2",
         "-b:a", &plan.canonical_audio_profile.bitrate, "-t",
-        &(plan.duration_us as f64 / 1_000_000.0).to_string(), &part,
+        &master_secs.to_string(), &part,
     ]);
     let encode_started = std::time::Instant::now();
     let encode_result = encode_command.output();
-    let encode_ms = encode_started.elapsed().as_millis() as i64;
+    let aac_encode_ms = encode_started.elapsed().as_millis() as i64;
     let _ = fs::remove_file(&mix_part);
     match encode_result {
         Ok(result) if result.status.success() => {}
@@ -190,18 +209,57 @@ pub(super) fn execute(request: Request) -> Response {
     // Probe the encoded master, then attach the stage timings to the
     // certified metadata before publishing.
     let probe_started = std::time::Instant::now();
-    let probe_result = probe_audio(ffmpeg, &part, plan.duration_us as f64 / 1_000_000.0);
+    let probe_result = probe_audio(ffmpeg, &part, master_secs);
     let probe_ms = probe_started.elapsed().as_millis() as i64;
     match probe_result {
         Ok(mut metadata) => {
             metadata.mix_ms = Some(mix_ms);
-            metadata.encode_ms = Some(encode_ms);
+            metadata.aac_encode_ms = Some(aac_encode_ms);
             metadata.probe_ms = Some(probe_ms);
             match publish_output(&part, output) {
-                Ok(()) => Response { ok: true, operation: "render_audio_plan".into(), source_path: None, items: Vec::new(), metadata: Some(metadata), error: None },
+                Ok(()) => {
+                    // Hash the published final audio in its owner (Rust), so
+                    // the Go adapter maps hash_ms + the digest instead of
+                    // re-measuring the hash round-trip as a single block.
+                    let hash_started = std::time::Instant::now();
+                    match sha256_file(output) {
+                        Ok(digest) => {
+                            let hash_ms = hash_started.elapsed().as_millis() as i64;
+                            metadata.hash_ms = Some(hash_ms.max(1));
+                            metadata.final_audio_sha256 = Some(digest);
+                            Response { ok: true, operation: "render_audio_plan".into(), source_path: None, items: Vec::new(), metadata: Some(metadata), error: None }
+                        }
+                        Err(error) => failed_response(None, error),
+                    }
+                }
                 Err(error) => failed_response(None, error),
             }
         }
         Err(error) => { let _ = fs::remove_file(&part); failed_response(None, error) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::linear_gain;
+
+    #[test]
+    fn linear_gain_maps_zero_db_to_unity() {
+        assert_eq!(linear_gain(0.0), "1.000000");
+    }
+
+    #[test]
+    fn linear_gain_maps_policy_duck_levels() {
+        assert_eq!(linear_gain(-12.0), "0.251189");
+        assert_eq!(linear_gain(-18.0), "0.125893");
+        assert_eq!(linear_gain(-24.0), "0.063096");
+    }
+
+    #[test]
+    fn linear_gain_is_never_negative() {
+        for db in [-30.0, -18.0, -6.0, 0.0, 3.0, 12.0] {
+            let value: f64 = linear_gain(db).parse().unwrap();
+            assert!(value.is_finite() && value > 0.0);
+        }
     }
 }

@@ -1,7 +1,7 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::encoder::append_video_options;
 use crate::process::FFmpegRunner;
-use crate::protocol::{Request, Response};
+use crate::protocol::{MediaMetadata, Request, Response};
 use super::plan::CanonicalRenderPlan;
 use std::collections::HashMap;
 use std::fs;
@@ -101,16 +101,36 @@ pub(super) fn execute_canonical_render(
                 )
             }
         };
-        filter.push_str(&format!(
-            "[{index}:v]trim=start_frame={}:end_frame={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1[v{index}];",
-            segment.source.start_frame,
-            end_frame,
-            profile.width,
-            profile.height,
-            profile.width,
-            profile.height,
-            format!("{}/{}", plan.fps_numerator, plan.fps_denominator)
-        ));
+        if segment.freeze {
+            // Hold the clip's final frame across the tail's timeline frames.
+            // tpad clones the last frame for the remaining duration so only
+            // the tail is synthesized; the real clip stays a trimmed copy.
+            let hold_frames = segment.timeline.frame_count.saturating_sub(1);
+            let hold_seconds = (hold_frames as f64 * plan.fps_denominator as f64)
+                / plan.fps_numerator as f64;
+            filter.push_str(&format!(
+                "[{index}:v]trim=start_frame={}:end_frame={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1,tpad=stop_mode=clone:stop_duration={:.9},setpts=PTS-STARTPTS[v{index}];",
+                segment.source.start_frame,
+                end_frame,
+                profile.width,
+                profile.height,
+                profile.width,
+                profile.height,
+                format!("{}/{}", plan.fps_numerator, plan.fps_denominator),
+                hold_seconds
+            ));
+        } else {
+            filter.push_str(&format!(
+                "[{index}:v]trim=start_frame={}:end_frame={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1[v{index}];",
+                segment.source.start_frame,
+                end_frame,
+                profile.width,
+                profile.height,
+                profile.width,
+                profile.height,
+                format!("{}/{}", plan.fps_numerator, plan.fps_denominator)
+            ));
+        }
         concat_labels.push(format!("[v{}]", index));
         cursor_frame = segment.timeline.start_frame + segment.timeline.frame_count;
     }
@@ -137,16 +157,44 @@ pub(super) fn execute_canonical_render(
         return failed_response(None, error);
     }
     command.args(["-an", "-movflags", "+faststart", &part]);
-    match command.output() {
+    let encode_started = std::time::Instant::now();
+    let encode_result = command.output();
+    let ffmpeg_ms = encode_started.elapsed().as_millis() as i64;
+    match encode_result {
         Ok(result) if result.status.success() => match publish_output(&part, output) {
-            Ok(()) => Response {
-                ok: true,
-                operation: "render_stock".to_string(),
-                source_path: None,
-                items: Vec::new(),
-                metadata: None,
-                error: None,
-            },
+            Ok(()) => {
+                let duration_sec = plan.duration_frames as f64 * plan.fps_denominator as f64
+                    / plan.fps_numerator as f64;
+                Response {
+                    ok: true,
+                    operation: "render_stock".to_string(),
+                    source_path: None,
+                    items: Vec::new(),
+                    metadata: Some(MediaMetadata {
+                        duration_sec,
+                        bitrate: None,
+                        width: profile.width,
+                        height: profile.height,
+                        fps: plan.fps_numerator as f64 / plan.fps_denominator as f64,
+                        video_codec: None,
+                        pixel_format: None,
+                        audio_codec: None,
+                        audio_profile: None,
+                        sample_rate: None,
+                        channels: None,
+                        start_pts: None,
+                        has_video: true,
+                        has_audio: false,
+                        mix_ms: None,
+                        aac_encode_ms: None,
+                        probe_ms: None,
+                        hash_ms: None,
+                        ffmpeg_ms: Some(ffmpeg_ms.max(1)),
+                        final_audio_sha256: None,
+                    }),
+                    error: None,
+                }
+            }
             Err(error) => failed_response(None, error),
         },
         Ok(result) => {
