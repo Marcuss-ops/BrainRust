@@ -256,6 +256,18 @@ pub struct MediaMetadata {
     pub fps: f64,
     pub video_codec: Option<String>,
     pub pixel_format: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format_name: Option<String>,
+    #[serde(default)]
+    pub stream_count: u32,
+    #[serde(default)]
+    pub video_stream_count: u32,
+    #[serde(default)]
+    pub audio_stream_count: u32,
+    #[serde(default)]
+    pub fps_num: u32,
+    #[serde(default)]
+    pub fps_den: u32,
     pub audio_codec: Option<String>,
     pub audio_profile: Option<String>,
     pub sample_rate: Option<u32>,
@@ -416,6 +428,12 @@ mod tests {
             fps: 30.0,
             video_codec: Some("h264".to_string()),
             pixel_format: Some("yuv420p".to_string()),
+            format_name: Some("mov,mp4,m4a,3gp,3g2,mj2".to_string()),
+            stream_count: 1,
+            video_stream_count: 1,
+            audio_stream_count: 0,
+            fps_num: 30,
+            fps_den: 1,
             audio_codec: None,
             audio_profile: None,
             sample_rate: None,

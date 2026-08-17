@@ -20,6 +20,8 @@ struct ProbeOutput {
 struct ProbeFormat {
     duration: Option<String>,
     bit_rate: Option<String>,
+    format_name: Option<String>,
+    nb_streams: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -142,6 +144,19 @@ fn parse_frame_rate(value: &str) -> Option<f64> {
     value.parse::<f64>().ok()
 }
 
+// parse_frame_rate_rational parses the exact num/den rational ffprobe reports
+// in avg_frame_rate (e.g. "30/1", "30000/1001"). It is kept lossless so the
+// overlay media contract can compare frame rates exactly instead of through a
+// float round-trip. (0, 0) means "not reported / indeterminate".
+fn parse_frame_rate_rational(value: &str) -> (u32, u32) {
+    if let Some((numerator, denominator)) = value.split_once('/') {
+        let numerator = numerator.parse::<u32>().unwrap_or(0);
+        let denominator = denominator.parse::<u32>().unwrap_or(0);
+        return (numerator, denominator);
+    }
+    (0, 0)
+}
+
 fn probe(request: Request) -> Response {
     let source = match request.source_path.as_deref() {
         Some(path) if !path.is_empty() && Path::new(path).is_file() => path,
@@ -201,6 +216,24 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
         .streams
         .iter()
         .find(|stream| stream.codec_type.as_deref() == Some("audio"));
+    let stream_count = probe
+        .format
+        .nb_streams
+        .unwrap_or(probe.streams.len() as u32);
+    let video_stream_count = probe
+        .streams
+        .iter()
+        .filter(|stream| stream.codec_type.as_deref() == Some("video"))
+        .count() as u32;
+    let audio_stream_count = probe
+        .streams
+        .iter()
+        .filter(|stream| stream.codec_type.as_deref() == Some("audio"))
+        .count() as u32;
+    let (fps_num, fps_den) = video
+        .and_then(|stream| stream.avg_frame_rate.as_deref())
+        .map(parse_frame_rate_rational)
+        .unwrap_or((0, 0));
     Ok(MediaMetadata {
         duration_sec,
         bitrate: probe
@@ -215,6 +248,12 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
             .unwrap_or(0.0),
         video_codec: video.and_then(|stream| stream.codec_name.clone()),
         pixel_format: video.and_then(|stream| stream.pix_fmt.clone()),
+        format_name: probe.format.format_name.clone(),
+        stream_count,
+        video_stream_count,
+        audio_stream_count,
+        fps_num,
+        fps_den,
         audio_codec: audio.and_then(|stream| stream.codec_name.clone()),
         audio_profile: audio.and_then(|stream| stream.profile.clone()),
         sample_rate: audio.and_then(|stream| stream.sample_rate.as_deref()?.parse().ok()),
