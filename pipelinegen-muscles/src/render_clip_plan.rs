@@ -92,6 +92,8 @@ pub(super) struct ClipPlanOutput {
     pub width: i64,
     pub height: i64,
     pub fps: i64,
+    #[serde(default)]
+    pub foreground_scale_percent: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,8 +111,8 @@ pub(super) struct ClipPlanAudio {
 /// before any FFmpeg process starts — Rust never renders bytes it has not
 /// verified.
 pub(super) fn decode_and_validate(raw_plan: serde_json::Value) -> Result<ClipRenderPlan, String> {
-    let plan: ClipRenderPlan = serde_json::from_value(raw_plan)
-        .map_err(|error| format!("invalid clip_plan: {error}"))?;
+    let plan: ClipRenderPlan =
+        serde_json::from_value(raw_plan).map_err(|error| format!("invalid clip_plan: {error}"))?;
     validate(&plan)?;
     Ok(plan)
 }
@@ -135,9 +137,10 @@ fn validate(plan: &ClipRenderPlan) -> Result<(), String> {
                     .path
                     .as_deref()
                     .ok_or_else(|| "clip_plan background mode=asset requires path".to_string())?;
-                let sha256 = background.sha256.as_deref().ok_or_else(|| {
-                    "clip_plan background mode=asset requires sha256".to_string()
-                })?;
+                let sha256 = background
+                    .sha256
+                    .as_deref()
+                    .ok_or_else(|| "clip_plan background mode=asset requires sha256".to_string())?;
                 validate_artifact("background", path, sha256)?;
                 if background
                     .asset_id
@@ -228,7 +231,10 @@ fn validate_audio(audio: &ClipPlanAudio) -> Result<(), String> {
 }
 
 fn is_lower_sha256(value: &str) -> bool {
-    value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+    value.len() == 64
+        && value
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
 }
 
 /// validate_artifact verifies the referenced file exists and its content
@@ -236,7 +242,9 @@ fn is_lower_sha256(value: &str) -> bool {
 /// a missing file or a digest mismatch rejects the plan.
 fn validate_artifact(label: &str, path: &str, expected: &str) -> Result<(), String> {
     if !is_lower_sha256(expected) {
-        return Err(format!("clip_plan {label} sha256 must be a lowercase SHA256 value"));
+        return Err(format!(
+            "clip_plan {label} sha256 must be a lowercase SHA256 value"
+        ));
     }
     if !Path::new(path).is_file() {
         return Err(format!("clip_plan {label} path is not readable: {path}"));
@@ -280,11 +288,9 @@ mod tests {
     fn fixture_dir(tag: &str) -> std::path::PathBuf {
         static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let id = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!(
-            "cliprender-plan-{}-{tag}",
-            std::process::id()
-        ))
-        .join(id.to_string());
+        let dir = std::env::temp_dir()
+            .join(format!("cliprender-plan-{}-{tag}", std::process::id()))
+            .join(id.to_string());
         fs::create_dir_all(&dir).expect("create fixture dir");
         dir
     }

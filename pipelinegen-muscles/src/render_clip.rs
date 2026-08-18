@@ -20,9 +20,9 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::config::VideoProfile;
 use crate::encoder::append_video_args;
+use crate::probe;
 use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
-use crate::probe;
 use std::fs;
 use std::path::Path;
 
@@ -108,11 +108,8 @@ pub(super) fn render_clip(request: Request) -> Response {
         Ok(metadata) => metadata,
         Err(error) => return failed_response(Some(source.to_string()), error),
     };
-    let (audio_copy_eligible, audio_encode_passes, audio_args) = audio_policy(
-        &clip_plan.audio,
-        &source_metadata,
-        audio_bitrate,
-    );
+    let (audio_copy_eligible, audio_encode_passes, audio_args) =
+        audio_policy(&clip_plan.audio, &source_metadata, audio_bitrate);
 
     let graph = build_filter_graph(&clip_plan, &profile);
     let subtitle_raster_cpu = clip_plan
@@ -146,7 +143,14 @@ pub(super) fn render_clip(request: Request) -> Response {
                 .unwrap_or(""),
         ]);
     }
-    command.args(["-filter_complex", &graph, "-map", "[vfinal]", "-map", "0:a?"]);
+    command.args([
+        "-filter_complex",
+        &graph,
+        "-map",
+        "[vfinal]",
+        "-map",
+        "0:a?",
+    ]);
     for argument in audio_args {
         command.arg(argument);
     }
@@ -259,6 +263,9 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
     let w = profile.width;
     let h = profile.height;
     let fps = profile.fps;
+    let scale = plan.output.foreground_scale_percent.clamp(1, 100) as u64;
+    let fg_w = (w as u64 * scale / 100).max(2) as u32;
+    let fg_h = (h as u64 * scale / 100).max(2) as u32;
     let mut graph = String::new();
 
     let bg_mode = plan
@@ -266,6 +273,14 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
         .as_ref()
         .map(|bg| bg.mode.as_str())
         .unwrap_or(BACKGROUND_NONE);
+    let blur_source = bg_mode != BACKGROUND_NONE && bg_mode != BACKGROUND_ASSET;
+    // Conform the source rate once before branching the blur and foreground
+    // paths. This avoids running an independent fps filter on both branches.
+    if blur_source {
+        graph.push_str(&format!("[0:v]fps={fps},split=2[src_bg][src_fg];"));
+    } else {
+        graph.push_str(&format!("[0:v]fps={fps}[src_fg];"));
+    }
     match bg_mode {
         BACKGROUND_NONE => {}
         BACKGROUND_ASSET => {
@@ -277,17 +292,19 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
             ));
         }
         _ => {
-            // blur_source: cover-crop the source itself and blur it. The
-            // sharp foreground overlays it below — one decode, one encode.
+            // blur_source: build the blurred plate at a small fixed size,
+            // then upscale it. The foreground remains sharp and overlays it
+            // below. Keeping the expensive blur at 180x320 avoids doing a
+            // full-resolution CPU blur for every output frame.
             graph.push_str(&format!(
-                "[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},gblur=sigma=25,setsar=1,fps={fps}[bg];"
+                "[src_bg]scale=180:320:force_original_aspect_ratio=increase,crop=180:320,gblur=sigma=5,scale={w}:{h}:flags=bilinear,setsar=1[bg];"
             ));
         }
     }
 
     // Fitted foreground, centered on the background canvas.
     graph.push_str(&format!(
-        "[0:v]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,fps={fps},setsar=1[fg];"
+        "[src_fg]scale={fg_w}:{fg_h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1[fg];"
     ));
 
     let mut final_label: String;
@@ -306,14 +323,18 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
             "[{input_index}:v]format=rgba,colorchannelmixer=aa={}[wm];",
             watermark.opacity
         ));
-        graph.push_str(&format!("{final_label}[wm]overlay={x}:{y}:format=auto[v1];"));
+        graph.push_str(&format!(
+            "{final_label}[wm]overlay={x}:{y}:format=auto[v1];"
+        ));
         final_label = "[v1]".to_string();
     }
 
     if let Some(subtitles) = &plan.subtitles {
         if subtitles.mode == SUBTITLE_BURN {
             let escaped = escape_filter_path(&subtitles.path);
-            graph.push_str(&format!("{final_label}subtitles=filename='{escaped}'[vfinal]"));
+            graph.push_str(&format!(
+                "{final_label}subtitles=filename='{escaped}'[vfinal]"
+            ));
             return graph;
         }
     }
@@ -323,7 +344,11 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
 
 /// watermark_position resolves the overlay x/y expressions for the requested
 /// corner with the margin in output pixels.
-fn watermark_position(watermark: &ClipPlanWatermark, _width: u32, _height: u32) -> (String, String) {
+fn watermark_position(
+    watermark: &ClipPlanWatermark,
+    _width: u32,
+    _height: u32,
+) -> (String, String) {
     let margin = watermark.margin_px;
     match watermark.position.as_str() {
         "top_left" => (format!("x={margin}"), format!("y={margin}")),
@@ -368,8 +393,8 @@ mod tests {
     use crate::config::VideoProfile;
     use crate::protocol::MediaMetadata;
     use crate::render_clip::plan::{
-        ClipPlanAudio, ClipPlanBackground, ClipPlanSource, ClipPlanSubtitles, ClipPlanWatermark,
-        ClipRenderPlan, ClipPlanOutput,
+        ClipPlanAudio, ClipPlanBackground, ClipPlanOutput, ClipPlanSource, ClipPlanSubtitles,
+        ClipPlanWatermark, ClipRenderPlan,
     };
     use std::fs;
 
@@ -399,6 +424,7 @@ mod tests {
                 width: 1080,
                 height: 1920,
                 fps: 60,
+                foreground_scale_percent: 100,
             },
             audio: ClipPlanAudio {
                 mode: "copy_if_compatible".to_string(),
@@ -485,7 +511,12 @@ mod tests {
         });
         let graph = build_filter_graph(&p, &profile());
         // One graph, one encode: background + foreground + watermark + burn.
-        assert!(graph.contains("gblur=sigma=25"), "graph: {graph}");
+        assert!(graph.contains("scale=180:320"), "graph: {graph}");
+        assert!(graph.contains("gblur=sigma=5"), "graph: {graph}");
+        assert!(
+            graph.contains("scale=1080:1920:flags=bilinear"),
+            "graph: {graph}"
+        );
         assert!(graph.contains("pad=1080:1920:(ow-iw)/2:(oh-ih)/2"));
         assert!(graph.contains("fps=60"));
         assert!(graph.contains("overlay=0:0:format=auto"));
@@ -521,7 +552,7 @@ mod tests {
         let graph = build_filter_graph(&p, &profile());
         assert!(!graph.contains("gblur"), "graph: {graph}");
         assert!(!graph.contains("[bg]"), "graph: {graph}");
-        assert!(graph.starts_with("[0:v]scale="));
+        assert!(graph.starts_with("[0:v]fps="));
     }
 
     #[test]
@@ -551,15 +582,9 @@ mod tests {
         let (x, y) = watermark_position(&wm("top_left"), 1080, 1920);
         assert_eq!((x.as_str(), y.as_str()), ("x=24", "y=24"));
         let (x, y) = watermark_position(&wm("top_right"), 1080, 1920);
-        assert_eq!(
-            (x.as_str(), y.as_str()),
-            ("x=main_w-overlay_w-24", "y=24")
-        );
+        assert_eq!((x.as_str(), y.as_str()), ("x=main_w-overlay_w-24", "y=24"));
         let (x, y) = watermark_position(&wm("bottom_left"), 1080, 1920);
-        assert_eq!(
-            (x.as_str(), y.as_str()),
-            ("x=24", "y=main_h-overlay_h-24")
-        );
+        assert_eq!((x.as_str(), y.as_str()), ("x=24", "y=main_h-overlay_h-24"));
         let (x, y) = watermark_position(&wm("bottom_right"), 1080, 1920);
         assert_eq!(
             (x.as_str(), y.as_str()),

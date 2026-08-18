@@ -49,6 +49,15 @@ fn build_video_args(
     }
 
     let mut args = vec![
+        // Deterministic container: strip all source metadata (creation_time,
+        // encoder/comment tags, chapters) so a re-encode of identical video
+        // bytes always produces an identical MP4. Without these, FFmpeg copies
+        // per-download metadata (e.g. a rotating signed-URL creation_time) into
+        // the output, so the same clip re-downloaded yields a different hash.
+        "-map_metadata".to_string(),
+        "-1".to_string(),
+        "-map_chapters".to_string(),
+        "-1".to_string(),
         "-c:v".to_string(),
         codec,
         "-preset".to_string(),
@@ -167,6 +176,8 @@ mod tests {
         assert!(pair(&args, "-pix_fmt", "yuv420p"));
         assert!(pair(&args, "-vsync", "cfr"));
         assert!(pair(&args, "-g", "48"));
+        assert!(pair(&args, "-map_metadata", "-1"));
+        assert!(pair(&args, "-map_chapters", "-1"));
         assert!(!args.iter().any(|arg| arg == "-rc" || arg == "-cq"));
     }
 
