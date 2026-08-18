@@ -62,8 +62,38 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
         }
         "watermark" => {
             let overlay = match request.overlay_path.as_deref() { Some(value) => value, None => return failed_response(Some(input.to_string()), "overlay_path is required".to_string()) };
+            let opacity = request.opacity.unwrap_or(0.25);
+            // Optional green-screen chroma key: removes the backdrop color
+            // BEFORE the alpha/opacity pass (YouTube watermark flow).
+            let chroma = match request.green_screen_color.as_deref() {
+                Some(color) if !color.trim().is_empty() => format!(
+                    "chromakey=color={}:similarity={}:blend={},",
+                    color.trim(),
+                    request.green_screen_similarity.unwrap_or(0.3),
+                    request.green_screen_blend.unwrap_or(0.1),
+                ),
+                _ => String::new(),
+            };
+            // Optional scaling: scale_percent is a percentage of the MAIN
+            // frame width (0/absent = native overlay size). scale2ref takes
+            // the reference (main frame) as FIRST input and the overlay as
+            // SECOND; main_w/main_h in the expressions refer to the
+            // reference, i.e. the main frame. Outputs: scaled overlay, then
+            // the reference (main frame) passthrough.
+            let scale_percent = request.scale_percent.unwrap_or(0);
+            let filter = if scale_percent > 0 && scale_percent != 100 {
+                format!(
+                    "[0:v][1:v]scale2ref=w=trunc(main_w*{pct}/100/2)*2:h=-2[wmref][base];[wmref]{chroma}format=rgba,colorchannelmixer=aa={opacity}[wm];[base][wm]overlay=(W-w)/2:(H-h)/2",
+                    pct = scale_percent, chroma = chroma, opacity = opacity,
+                )
+            } else {
+                format!(
+                    "[1:v]{chroma}format=rgba,colorchannelmixer=aa={opacity}[wm];[0:v][wm]overlay=(W-w)/2:(H-h)/2",
+                    chroma = chroma, opacity = opacity,
+                )
+            };
             command.args(["-i", input, "-i", overlay, "-filter_complex"]);
-            command.arg(format!("[1:v]format=rgba,colorchannelmixer=aa={}[wm];[0:v][wm]overlay=(W-w)/2:(H-h)/2", request.opacity.unwrap_or(0.25)));
+            command.arg(filter);
             command.args(["-map", "0:v:0", "-map", "0:a:0?"]);
             if let Err(error) = append_video_options(&mut command, &request) { return failed_response(Some(input.to_string()), error); }
             let profile = match request.media.profile() { Ok(value) => value, Err(error) => return failed_response(Some(input.to_string()), error) };

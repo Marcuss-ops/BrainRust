@@ -17,6 +17,28 @@ fn linear_gain(gain_db: f64) -> String {
     format!("{:.6}", 10f64.powf(gain_db / 20.0))
 }
 
+// event_filter builds the ffmpeg filter graph for ONE already-compiled
+// audio event. This is the boundary where "Go decides, Rust executes" is
+// enforced: the graph plays EXACTLY the declared source range
+// [source_in_us, source_end) once, delayed to the declared timeline start.
+// There is no loop filter, no stream_loop, and no duration discovery — a
+// plan that wants the music repeated must contain N explicit events (the
+// Go loop expander's output). If the source is shorter than the declared
+// range, ensure_source fails the render instead of inventing a loop.
+fn event_filter(
+    index: usize,
+    source_in_us: i64,
+    source_end_us: i64,
+    delay_ms: i64,
+    gain: &str,
+) -> String {
+    format!(
+        "[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}':eval=frame[a{index}]",
+        source_in_us as f64 / 1_000_000.0,
+        source_end_us as f64 / 1_000_000.0
+    )
+}
+
 pub(super) fn execute(request: Request) -> Response {
     let output = match request.output_path.as_deref() {
         Some(value) if !value.is_empty() => value,
@@ -92,7 +114,16 @@ pub(super) fn execute(request: Request) -> Response {
                 gain = format!("if(between(t,{},{}) ,{},{} )", automation.start_us as f64 / 1_000_000.0, automation.end_us as f64 / 1_000_000.0, linear_gain(automation.gain_db), gain);
             }
         }
-        filters.push(format!("[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}'[a{index}]", event.source_in_us as f64 / 1_000_000.0, source_end as f64 / 1_000_000.0));
+        // eval=frame is mandatory for automation: the volume filter's
+        // default eval=once decides the gain at the first frame (t=0),
+        // so every event would keep ONE level for its whole duration — a
+        // duck window [0,20s) would duck a looped BGM's second event
+        // (delay 20s) instead of the first, and multi-scene clip ducking
+        // windows would never match. With eval=frame the expression is
+        // evaluated per frame and, because adelay shifts the stream PTS
+        // to absolute output time, the between(t, ...) windows land at
+        // the exact absolute positions the plan declares.
+        filters.push(event_filter(index, event.source_in_us, source_end, delay_ms, &gain));
     }
     for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
         for layer in layers {
@@ -122,7 +153,10 @@ pub(super) fn execute(request: Request) -> Response {
             }
             let delay_ms = (layer.timeline_start_us + 500) / 1000;
             let duration = layer.duration_us as f64 / 1_000_000.0;
-            filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}'[a{index}]"));
+            // Same eval=frame contract as the track path above: automation
+            // windows are absolute output time and must be re-evaluated per
+            // frame after the adelay.
+            filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}':eval=frame[a{index}]"));
         }
     }
     // Silence anchor + apad + atrim. The full-length silent bed is always
@@ -241,7 +275,53 @@ pub(super) fn execute(request: Request) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::linear_gain;
+    use super::{event_filter, linear_gain};
+
+    #[test]
+    fn event_filter_plays_only_the_declared_source_range_once() {
+        // The fundamental expansion's 2nd BGM event ([20s, 40s), source
+        // restarting from 0) must be a single atrim of exactly [0,20s)
+        // delayed to 20s — the whole 20s source played once, never looped.
+        let filter = event_filter(1, 0, 20_000_000, 20_000, "0.063096");
+        assert!(filter.contains("atrim=start=0:end=20,"), "{filter}");
+        assert!(filter.contains("adelay=20000|20000"), "{filter}");
+        assert!(filter.contains("volume='0.063096':eval=frame"), "{filter}");
+        assert!(filter.ends_with("[a1]"), "{filter}");
+    }
+
+    #[test]
+    fn event_filter_truncates_the_last_loop_event_not_the_source() {
+        // The fundamental expansion's 4th event covers [60s, 75s): a 15s
+        // trim from the same 20s source, delayed to 60s. Rust renders the
+        // declared 15s — it never plays the whole 20s source again nor
+        // loops it to fill the timeline.
+        let filter = event_filter(3, 0, 15_000_000, 60_000, "0.063096");
+        assert!(filter.contains("atrim=start=0:end=15,"), "{filter}");
+        assert!(filter.contains("adelay=60000|60000"), "{filter}");
+    }
+
+    #[test]
+    fn event_filter_applies_declared_source_trim_for_sfx() {
+        // An SFX with source_in_ms=250, duration_ms=900 is trimmed to the
+        // declared [0.25s, 1.15s) slice of its source — the source is never
+        // played beyond the compiled event.
+        let filter = event_filter(0, 250_000, 1_150_000, 12_000, "0.398107");
+        assert!(filter.contains("atrim=start=0.25:end=1.15,"), "{filter}");
+        assert!(filter.contains("adelay=12000|12000"), "{filter}");
+    }
+
+    #[test]
+    fn event_filter_never_invents_a_loop() {
+        // The renderer must never add a loop/aloop/stream_loop filter: a
+        // compiled plan carries N explicit events for N repeats, and Rust
+        // executes them verbatim.
+        for filter in [
+            event_filter(0, 0, 20_000_000, 0, "0.063096"),
+            event_filter(3, 0, 15_000_000, 60_000, "0.063096"),
+        ] {
+            assert!(!filter.contains("loop"), "filter must never loop: {filter}");
+        }
+    }
 
     #[test]
     fn linear_gain_maps_zero_db_to_unity() {

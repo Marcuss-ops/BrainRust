@@ -76,6 +76,15 @@ pub struct Request {
     pub keep_audio: Option<bool>,
     pub overlay_path: Option<String>,
     pub opacity: Option<f64>,
+    // Watermark scaling + green-screen chroma key (YouTube watermark flow).
+    // scale_percent is the overlay size as a percentage of the MAIN frame
+    // width (0 = leave the overlay at its native size). green_screen_*
+    // drive the ffmpeg chromakey filter that removes the backdrop before
+    // the alpha/opacity pass.
+    pub scale_percent: Option<u32>,
+    pub green_screen_color: Option<String>,
+    pub green_screen_similarity: Option<f64>,
+    pub green_screen_blend: Option<f64>,
     pub input_paths: Option<Vec<String>>,
     pub no_transitions: Option<bool>,
     pub clip_duration_sec: Option<i32>,
