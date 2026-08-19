@@ -91,7 +91,8 @@ pub(super) struct ClipPlanOutput {
     pub pixel_format: String,
     pub width: i64,
     pub height: i64,
-    pub fps: i64,
+    pub fps_num: i64,
+    pub fps_den: i64,
     #[serde(default)]
     pub foreground_scale_percent: i64,
 }
@@ -210,7 +211,8 @@ fn validate_output(output: &ClipPlanOutput) -> Result<(), String> {
         || output.pixel_format.trim().is_empty()
         || output.width <= 0
         || output.height <= 0
-        || output.fps <= 0
+        || output.fps_num <= 0
+        || output.fps_den <= 0
     {
         return Err("clip_plan output contract is incomplete".to_string());
     }
@@ -305,7 +307,7 @@ mod tests {
                 "run_id": "job-1",
                 "source": {{"asset_id": "asset-src", "path": "{}", "sha256": "{}"}},
                 "background": {{"mode": "blur_source"}},
-                "output": {{"contract_id": "velox-editing-clip-v1", "container": "mp4", "video_codec": "h264", "video_profile": "high", "pixel_format": "yuv420p", "width": 1080, "height": 1920, "fps": 60}},
+                "output": {{"contract_id": "velox-editing-clip-v1", "container": "mp4", "video_codec": "h264", "video_profile": "high", "pixel_format": "yuv420p", "width": 1080, "height": 1920, "fps_num": 60, "fps_den": 1}},
                 "audio": {{"mode": "copy_if_compatible", "codec": "aac", "sample_rate": 48000, "channels": 2}},
                 "output_path": "/tmp/out.mp4",
                 "plan_sha256": "{}"

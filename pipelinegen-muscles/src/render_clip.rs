@@ -19,7 +19,7 @@
 
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::config::VideoProfile;
-use crate::encoder::append_video_args;
+use crate::encoder::{append_video_args, append_video_args_cuda};
 use crate::probe;
 use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
@@ -65,12 +65,17 @@ pub(super) fn render_clip(request: Request) -> Response {
             )
         }
     };
+    let fps_num = clip_plan.output.fps_num;
+    let fps_den = clip_plan.output.fps_den;
     // Geometry and audio contract come from the sealed plan; the media
     // config supplies the encoder policy + audio bitrate. Fail-closed drift
-    // check: the transport profile must agree with the audited plan.
+    // check: the transport profile must agree with the audited plan. The
+    // framerate is a rational pair so NTSC rates (30000/1001) survive the
+    // boundary losslessly instead of being rounded to a scalar integer.
     if request.media.width != Some(clip_plan.output.width as u32)
         || request.media.height != Some(clip_plan.output.height as u32)
-        || request.media.fps != Some(clip_plan.output.fps as u32)
+        || request.media.fps_num != Some(fps_num as u32)
+        || request.media.fps_den != Some(fps_den as u32)
     {
         return failed_response(
             None,
@@ -86,7 +91,9 @@ pub(super) fn render_clip(request: Request) -> Response {
     let profile = VideoProfile {
         width: clip_plan.output.width as u32,
         height: clip_plan.output.height as u32,
-        fps: clip_plan.output.fps as u32,
+        // Scalar fps is a nominal projection for encoder validation only;
+        // the filter graph and response metadata use the exact rational pair.
+        fps: (fps_num as f64 / fps_den as f64).round() as u32,
         keyframe_interval,
         audio_codec: clip_plan.audio.codec.clone(),
         audio_bitrate: audio_bitrate.to_string(),
@@ -111,7 +118,20 @@ pub(super) fn render_clip(request: Request) -> Response {
     let (audio_copy_eligible, audio_encode_passes, audio_args) =
         audio_policy(&clip_plan.audio, &source_metadata, audio_bitrate);
 
-    let graph = build_filter_graph(&clip_plan, &profile);
+    // The render backend is resolved by the Go RenderBackendResolver and
+    // transported here — Rust never derives hardware usage from the codec
+    // string. Only the CUDA native backend enables NVDEC decode; the
+    // software FFmpeg fallback decodes on the CPU regardless of encoder.
+    let backend = request.render_backend.as_deref().unwrap_or("ffmpeg_fallback");
+    let use_hw_decode = backend == "cuda_native";
+    // A CUDA frame must not pass through a CPU-only filter. This strict path
+    // is intentionally limited to a source-only clip: subtitles, alpha
+    // watermarking, backgrounds and frame-rate conversion still use the
+    // correctness fallback below until their GPU implementations are wired.
+    let requested_codec = encoder.codec.trim().to_ascii_lowercase();
+    let nvenc_encoder = requested_codec == "nvenc" || requested_codec.ends_with("_nvenc");
+    let gpu_native = use_hw_decode && nvenc_encoder && gpu_native_eligible(&clip_plan);
+    let graph = build_filter_graph_with_hw_decode(&clip_plan, &profile, use_hw_decode, gpu_native);
     let subtitle_raster_cpu = clip_plan
         .subtitles
         .as_ref()
@@ -122,6 +142,12 @@ pub(super) fn render_clip(request: Request) -> Response {
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
     // Inputs: [0] source, [1] background asset (mode=asset), [2] watermark.
+    if use_hw_decode {
+        // Decode source frames through NVDEC. CPU filters use the explicit
+        // hwdownload fallback; the source-only path keeps the CUDA frames
+        // device-local through scale_cuda and NVENC.
+        command.args(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
+    }
     command.args(["-i", source]);
     if clip_plan.background.as_ref().map(|bg| bg.mode.as_str()) == Some(BACKGROUND_ASSET) {
         command.args([
@@ -154,7 +180,12 @@ pub(super) fn render_clip(request: Request) -> Response {
     for argument in audio_args {
         command.arg(argument);
     }
-    if let Err(error) = append_video_args(&mut command, &encoder, &profile, None) {
+    let encoder_result = if gpu_native {
+        append_video_args_cuda(&mut command, &encoder, &profile, None)
+    } else {
+        append_video_args(&mut command, &encoder, &profile, None)
+    };
+    if let Err(error) = encoder_result {
         return failed_response(None, error);
     }
     command.args(["-movflags", "+faststart", &part]);
@@ -174,15 +205,15 @@ pub(super) fn render_clip(request: Request) -> Response {
                     bitrate: None,
                     width: profile.width,
                     height: profile.height,
-                    fps: profile.fps as f64,
+                    fps: fps_num as f64 / fps_den as f64,
                     video_codec: None,
                     pixel_format: None,
                     format_name: None,
                     stream_count: 0,
                     video_stream_count: 0,
                     audio_stream_count: 0,
-                    fps_num: 0,
-                    fps_den: 0,
+                    fps_num: fps_num as u32,
+                    fps_den: fps_den as u32,
                     audio_codec: None,
                     audio_profile: None,
                     sample_rate: None,
@@ -259,14 +290,33 @@ fn audio_policy(
 /// watermark (position/opacity/margin) → libass burn (mode=burn only).
 /// Input indices are positional: [0] source, [1] background asset (only when
 /// mode=asset), [2] watermark (next free index).
+#[cfg(test)]
 fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
+    build_filter_graph_with_hw_decode(plan, profile, false, false)
+}
+
+fn build_filter_graph_with_hw_decode(
+    plan: &ClipRenderPlan,
+    profile: &VideoProfile,
+    hw_decode: bool,
+    gpu_native: bool,
+) -> String {
     let w = profile.width;
     let h = profile.height;
-    let fps = profile.fps;
+    // Rational framerate pair from the sealed plan: NTSC rates (30000/1001)
+    // are passed to the fps filter losslessly instead of as a rounded int.
+    let fps = format!("{}/{}", plan.output.fps_num, plan.output.fps_den);
     let scale = plan.output.foreground_scale_percent.clamp(1, 100) as u64;
     let fg_w = (w as u64 * scale / 100).max(2) as u32;
     let fg_h = (h as u64 * scale / 100).max(2) as u32;
     let mut graph = String::new();
+
+    if gpu_native {
+        graph.push_str(&format!(
+            "[0:v]scale_cuda={w}:{h}[vfinal]"
+        ));
+        return graph;
+    }
 
     let bg_mode = plan
         .background
@@ -276,10 +326,17 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
     let blur_source = bg_mode != BACKGROUND_NONE && bg_mode != BACKGROUND_ASSET;
     // Conform the source rate once before branching the blur and foreground
     // paths. This avoids running an independent fps filter on both branches.
-    if blur_source {
-        graph.push_str(&format!("[0:v]fps={fps},split=2[src_bg][src_fg];"));
+    let source_prefix = if hw_decode {
+        "[0:v]hwdownload,format=nv12,".to_string()
     } else {
-        graph.push_str(&format!("[0:v]fps={fps}[src_fg];"));
+        "[0:v]".to_string()
+    };
+    if blur_source {
+        graph.push_str(&format!(
+            "{source_prefix}fps={fps},split=2[src_bg][src_fg];"
+        ));
+    } else {
+        graph.push_str(&format!("{source_prefix}fps={fps}[src_fg];"));
     }
     match bg_mode {
         BACKGROUND_NONE => {}
@@ -340,6 +397,16 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
     }
     graph.push_str(&format!("{final_label}null[vfinal]"));
     graph
+}
+
+/// Returns true only for the graph that can remain entirely in CUDA memory.
+/// The conservative boundary is deliberate: an accidental CPU filter here
+/// would silently trigger a full-frame PCIe round trip.
+fn gpu_native_eligible(plan: &ClipRenderPlan) -> bool {
+    plan.background.is_none()
+        && plan.watermark.is_none()
+        && plan.subtitles.as_ref().map(|s| s.mode != SUBTITLE_BURN).unwrap_or(true)
+        && plan.output.foreground_scale_percent == 100
 }
 
 /// watermark_position resolves the overlay x/y expressions for the requested
@@ -423,7 +490,8 @@ mod tests {
                 pixel_format: "yuv420p".to_string(),
                 width: 1080,
                 height: 1920,
-                fps: 60,
+                fps_num: 60,
+                fps_den: 1,
                 foreground_scale_percent: 100,
             },
             audio: ClipPlanAudio {
@@ -518,7 +586,7 @@ mod tests {
             "graph: {graph}"
         );
         assert!(graph.contains("pad=1080:1920:(ow-iw)/2:(oh-ih)/2"));
-        assert!(graph.contains("fps=60"));
+        assert!(graph.contains("fps=60/1"));
         assert!(graph.contains("overlay=0:0:format=auto"));
         assert!(graph.contains("colorchannelmixer=aa=0.85"));
         assert!(graph.contains("x=main_w-overlay_w-40"));
@@ -553,6 +621,32 @@ mod tests {
         assert!(!graph.contains("gblur"), "graph: {graph}");
         assert!(!graph.contains("[bg]"), "graph: {graph}");
         assert!(graph.starts_with("[0:v]fps="));
+    }
+
+    #[test]
+    fn source_only_cuda_graph_has_no_cpu_boundary() {
+        let mut p = plan();
+        p.background = None;
+        assert!(gpu_native_eligible(&p));
+        let graph = build_filter_graph_with_hw_decode(&p, &profile(), true, true);
+        assert_eq!(graph, "[0:v]scale_cuda=1080:1920[vfinal]");
+        assert!(!graph.contains("hwdownload"));
+        assert!(!graph.contains("fps="));
+    }
+
+    #[test]
+    fn cuda_graph_rejects_alpha_and_burn_filters() {
+        let mut p = plan();
+        p.background = None;
+        p.watermark = Some(ClipPlanWatermark {
+            asset_id: "wm-1".to_string(),
+            path: "/tmp/wm.png".to_string(),
+            sha256: "a".repeat(64),
+            position: "top_left".to_string(),
+            opacity: 0.8,
+            margin_px: 10,
+        });
+        assert!(!gpu_native_eligible(&p));
     }
 
     #[test]

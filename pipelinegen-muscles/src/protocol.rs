@@ -113,6 +113,10 @@ pub struct Request {
     // making zero business selections (background/watermark/subtitles/audio
     // policy/geometry all arrive resolved).
     pub clip_plan: Option<serde_json::Value>,
+    // The render backend resolved by the Go capability's RenderBackendResolver
+    // ("cuda_native" | "ffmpeg_fallback"). Rust executes the selected backend
+    // verbatim and never derives it from the codec string.
+    pub render_backend: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

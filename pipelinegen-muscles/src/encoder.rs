@@ -13,7 +13,29 @@ pub fn append_video_args(
     profile: &VideoProfile,
     keyframe_interval: Option<u32>,
 ) -> Result<(), String> {
-    for argument in build_video_args(policy, profile, keyframe_interval)? {
+    append_video_args_with_pixel_format(command, policy, profile, keyframe_interval, "yuv420p")
+}
+
+/// Appends the encoder contract for a hardware frame. `cuda` is an FFmpeg
+/// hardware pixel format, not a codec pixel format: it tells FFmpeg to keep
+/// the decoded CUDA frame on the device until NVENC consumes it.
+pub fn append_video_args_cuda(
+    command: &mut ProcessCommand,
+    policy: &EncoderPolicy,
+    profile: &VideoProfile,
+    keyframe_interval: Option<u32>,
+) -> Result<(), String> {
+    append_video_args_with_pixel_format(command, policy, profile, keyframe_interval, "cuda")
+}
+
+fn append_video_args_with_pixel_format(
+    command: &mut ProcessCommand,
+    policy: &EncoderPolicy,
+    profile: &VideoProfile,
+    keyframe_interval: Option<u32>,
+    pixel_format: &str,
+) -> Result<(), String> {
+    for argument in build_video_args(policy, profile, keyframe_interval, pixel_format)? {
         command.arg(argument);
     }
     Ok(())
@@ -26,6 +48,7 @@ fn build_video_args(
     policy: &EncoderPolicy,
     profile: &VideoProfile,
     keyframe_interval: Option<u32>,
+    pixel_format: &str,
 ) -> Result<Vec<String>, String> {
     let requested_codec = policy.codec.trim().to_ascii_lowercase();
     if requested_codec.is_empty() {
@@ -63,7 +86,7 @@ fn build_video_args(
         "-preset".to_string(),
         preset,
         "-pix_fmt".to_string(),
-        "yuv420p".to_string(),
+        pixel_format.to_string(),
         "-vsync".to_string(),
         "cfr".to_string(),
     ];
@@ -168,7 +191,7 @@ mod tests {
 
     #[test]
     fn libx264_uses_crf_and_never_nvenc_rate_control() {
-        let args = build_video_args(&policy("libx264", "veryfast", 23), &profile(), None).unwrap();
+        let args = build_video_args(&policy("libx264", "veryfast", 23), &profile(), None, "yuv420p").unwrap();
 
         assert!(pair(&args, "-c:v", "libx264"));
         assert!(pair(&args, "-preset", "veryfast"));
@@ -183,7 +206,7 @@ mod tests {
 
     #[test]
     fn nvenc_uses_cq_vbr_and_never_libx264_crf() {
-        let args = build_video_args(&policy("h264_nvenc", "p1", 23), &profile(), Some(60)).unwrap();
+        let args = build_video_args(&policy("h264_nvenc", "p1", 23), &profile(), Some(60), "yuv420p").unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(pair(&args, "-preset", "p1"));
@@ -194,8 +217,21 @@ mod tests {
     }
 
     #[test]
+    fn cuda_output_keeps_hardware_pixel_format() {
+        let args = build_video_args(
+            &policy("h264_nvenc", "p1", 23),
+            &profile(),
+            None,
+            "cuda",
+        )
+        .unwrap();
+        assert!(pair(&args, "-pix_fmt", "cuda"));
+        assert!(!pair(&args, "-pix_fmt", "yuv420p"));
+    }
+
+    #[test]
     fn nvenc_alias_is_canonicalized_to_h264_nvenc() {
-        let args = build_video_args(&policy("nvenc", "p1", 23), &profile(), None).unwrap();
+        let args = build_video_args(&policy("nvenc", "p1", 23), &profile(), None, "yuv420p").unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(!pair(&args, "-c:v", "nvenc"));
@@ -206,7 +242,7 @@ mod tests {
     #[test]
     fn nvenc_translates_software_preset_without_changing_quality_semantics() {
         let args =
-            build_video_args(&policy("H264_NVENC", "veryfast", 27), &profile(), None).unwrap();
+            build_video_args(&policy("H264_NVENC", "veryfast", 27), &profile(), None, "yuv420p").unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(pair(&args, "-preset", "p1"));
@@ -233,7 +269,7 @@ mod tests {
             policy("libx264", "", 23),
             policy("libx264", "veryfast", 0),
         ] {
-            let error = build_video_args(&policy, &profile(), None).unwrap_err();
+            let error = build_video_args(&policy, &profile(), None, "yuv420p").unwrap_err();
             assert!(error.contains("ENCODER_POLICY_REQUIRED"));
         }
     }
@@ -241,7 +277,7 @@ mod tests {
     #[test]
     fn zero_override_uses_profile_gop() {
         let args =
-            build_video_args(&policy("libx264", "veryfast", 23), &profile(), Some(0)).unwrap();
+            build_video_args(&policy("libx264", "veryfast", 23), &profile(), Some(0), "yuv420p").unwrap();
         assert!(pair(&args, "-g", "48"));
     }
 
@@ -249,7 +285,7 @@ mod tests {
     fn profile_values_are_not_replaced_by_encoder_builder_defaults() {
         let mut custom = profile();
         custom.keyframe_interval = 72;
-        let args = build_video_args(&policy("libx264", "veryfast", 23), &custom, None).unwrap();
+        let args = build_video_args(&policy("libx264", "veryfast", 23), &custom, None, "yuv420p").unwrap();
         assert!(pair(&args, "-g", "72"));
     }
 }
