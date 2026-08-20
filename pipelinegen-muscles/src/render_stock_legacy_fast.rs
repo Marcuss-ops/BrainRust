@@ -29,8 +29,19 @@ pub(super) fn render_stock_simple(request: &Request, inputs: &[String], output: 
         }
         let mut concat = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
         concat.args([
-            "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0",
-            "-i", &list_path, "-c", "copy", &concat_path,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            &list_path,
+            "-c",
+            "copy",
+            &concat_path,
         ]);
         let result = concat.output();
         let _ = fs::remove_file(&list_path);
@@ -64,14 +75,26 @@ pub(super) fn render_stock_simple(request: &Request, inputs: &[String], output: 
     let part = part_path(output);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args([
-        "-hide_banner", "-loglevel", "error", "-y", "-i", &source, "-vf",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        &source,
+        "-vf",
     ]);
     command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1", profile.width, profile.height, profile.width, profile.height, profile.fps));
     command.args(["-map", "0:v:0?"]);
     if request.keep_audio.unwrap_or(false) {
         command.args([
-            "-map", "0:a:0?", "-c:a", profile.audio_codec.as_str(), "-ar",
-            &profile.sample_rate.to_string(), "-ac", &profile.channels.to_string(),
+            "-map",
+            "0:a:0?",
+            "-c:a",
+            profile.audio_codec.as_str(),
+            "-ar",
+            &profile.sample_rate.to_string(),
+            "-ac",
+            &profile.channels.to_string(),
         ]);
     } else {
         command.arg("-an");

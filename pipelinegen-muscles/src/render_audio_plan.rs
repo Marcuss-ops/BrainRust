@@ -15,7 +15,10 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<(), String> {
         || plan.canonical_audio_profile.sample_rate != 48000
         || plan.canonical_audio_profile.channels != 2
         || plan.canonical_audio_profile.channel_layout != "stereo"
-        || !plan.canonical_audio_profile.profile.eq_ignore_ascii_case("lc")
+        || !plan
+            .canonical_audio_profile
+            .profile
+            .eq_ignore_ascii_case("lc")
         || plan.canonical_audio_profile.bitrate.trim().is_empty()
     {
         return Err("audio_plan violates canonical AAC-LC stereo contract".into());
@@ -117,7 +120,9 @@ fn primary_events(plan: &Plan) -> Vec<&Event> {
         return plan
             .tracks
             .iter()
-            .filter(|track| ["VOICEOVER", "CLIP_AUDIO", "BGM", "SFX"].contains(&track.role.as_str()))
+            .filter(|track| {
+                ["VOICEOVER", "CLIP_AUDIO", "BGM", "SFX"].contains(&track.role.as_str())
+            })
             .flat_map(|track| track.events.iter())
             .collect();
     }

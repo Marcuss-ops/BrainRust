@@ -156,6 +156,8 @@ pub(super) fn render_stock(request: Request) -> Response {
                     audio_copy_eligible: None,
                     audio_encode_passes: None,
                     subtitle_raster_cpu: None,
+                    native_media: None,
+                    gpu_copy_bytes: None,
                 }),
                 error: None,
             },

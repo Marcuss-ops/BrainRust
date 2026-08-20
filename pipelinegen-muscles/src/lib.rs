@@ -31,5 +31,6 @@ mod render_audio;
 mod render_clip;
 mod render_stock;
 mod transform;
+mod native;
 
 pub use dispatcher::{process, run_stdio};

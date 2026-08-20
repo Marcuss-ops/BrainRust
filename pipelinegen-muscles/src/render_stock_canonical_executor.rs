@@ -1,8 +1,8 @@
+use super::plan::CanonicalRenderPlan;
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::encoder::append_video_options;
 use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
-use super::plan::CanonicalRenderPlan;
 use std::collections::HashMap;
 use std::fs;
 
@@ -106,8 +106,8 @@ pub(super) fn execute_canonical_render(
             // tpad clones the last frame for the remaining duration so only
             // the tail is synthesized; the real clip stays a trimmed copy.
             let hold_frames = segment.timeline.frame_count.saturating_sub(1);
-            let hold_seconds = (hold_frames as f64 * plan.fps_denominator as f64)
-                / plan.fps_numerator as f64;
+            let hold_seconds =
+                (hold_frames as f64 * plan.fps_denominator as f64) / plan.fps_numerator as f64;
             filter.push_str(&format!(
                 "[{index}:v]trim=start_frame={}:end_frame={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1,tpad=stop_mode=clone:stop_duration={:.9},setpts=PTS-STARTPTS[v{index}];",
                 segment.source.start_frame,
@@ -200,6 +200,8 @@ pub(super) fn execute_canonical_render(
                         audio_copy_eligible: None,
                         audio_encode_passes: None,
                         subtitle_raster_cpu: None,
+                        native_media: None,
+                        gpu_copy_bytes: None,
                     }),
                     error: None,
                 }

@@ -56,7 +56,9 @@ pub(super) struct ClipPlanBackground {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct ClipPlanWatermark {
-    pub asset_id: String,
+	#[serde(default)]
+	pub text: String,
+	pub asset_id: String,
     pub path: String,
     pub sha256: String,
     pub position: String,
@@ -161,9 +163,11 @@ fn validate(plan: &ClipRenderPlan) -> Result<(), String> {
     }
 
     if let Some(watermark) = &plan.watermark {
-        validate_artifact("watermark", &watermark.path, &watermark.sha256)?;
-        if watermark.asset_id.trim().is_empty() {
-            return Err("clip_plan watermark requires asset_id".to_string());
+		if watermark.text.trim().is_empty() {
+			validate_artifact("watermark", &watermark.path, &watermark.sha256)?;
+		}
+		if watermark.asset_id.trim().is_empty() && watermark.text.trim().is_empty() {
+			return Err("clip_plan watermark requires asset_id or text".to_string());
         }
         if !matches!(
             watermark.position.as_str(),

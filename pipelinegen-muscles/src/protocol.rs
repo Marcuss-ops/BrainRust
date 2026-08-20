@@ -337,6 +337,12 @@ pub struct MediaMetadata {
     // GPU). None when subtitles are disabled or sidecar.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subtitle_raster_cpu: Option<bool>,
+    // Native libavcodec path and explicit device-copy accounting. None means
+    // the legacy operation did not collect these native metrics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_media: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu_copy_bytes: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -480,19 +486,22 @@ mod tests {
             audio_profile: None,
             sample_rate: None,
             channels: None,
-        start_pts: None,
-        has_video: true,
-        has_audio: false,        mix_ms: None,
-        aac_encode_ms: None,
-        probe_ms: None,
-        hash_ms: None,
-        ffmpeg_ms: None,
-        final_audio_sha256: None,
-        audio_copy_eligible: None,
-        audio_encode_passes: None,
-        subtitle_raster_cpu: None,
+            start_pts: None,
+            has_video: true,
+            has_audio: false,
+            mix_ms: None,
+            aac_encode_ms: None,
+            probe_ms: None,
+            hash_ms: None,
+            ffmpeg_ms: None,
+            final_audio_sha256: None,
+            audio_copy_eligible: None,
+            audio_encode_passes: None,
+            subtitle_raster_cpu: None,
+            native_media: None,
+            gpu_copy_bytes: None,
+        }
     }
-}
 
     #[test]
     fn certified_metadata_matches_copy_only_profile() {

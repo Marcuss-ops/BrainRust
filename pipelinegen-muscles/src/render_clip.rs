@@ -20,6 +20,7 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::config::VideoProfile;
 use crate::encoder::{append_video_args, append_video_args_cuda};
+use crate::native;
 use crate::probe;
 use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
@@ -122,7 +123,10 @@ pub(super) fn render_clip(request: Request) -> Response {
     // transported here — Rust never derives hardware usage from the codec
     // string. Only the CUDA native backend enables NVDEC decode; the
     // software FFmpeg fallback decodes on the CPU regardless of encoder.
-    let backend = request.render_backend.as_deref().unwrap_or("ffmpeg_fallback");
+    let backend = request
+        .render_backend
+        .as_deref()
+        .unwrap_or("ffmpeg_fallback");
     let use_hw_decode = backend == "cuda_native";
     // A CUDA frame must not pass through a CPU-only filter. This strict path
     // is intentionally limited to a source-only clip: subtitles, alpha
@@ -139,9 +143,75 @@ pub(super) fn render_clip(request: Request) -> Response {
         .unwrap_or(false);
 
     let part = part_path(output);
+
+    // Native libavcodec/libavformat path. It is deliberately narrower than
+    // the CUDA filter path: only an already-sized source-only clip with
+    // compatible copied audio can use it. This reuses the native decoder and
+    // encoder setup inside the bridge and avoids spawning FFmpeg for this
+    // class of render. Any unsupported media shape falls through to the
+    // audited FFmpeg graph rather than changing output semantics.
+    let native_eligible = gpu_native
+        && audio_copy_eligible
+        && clip_plan.subtitles.is_none()
+        && clip_plan.watermark.is_none()
+        && clip_plan.background.is_none()
+        && source_metadata.width == profile.width
+        && source_metadata.height == profile.height;
+    if native_eligible {
+        let native_started = std::time::Instant::now();
+        if native::render_source_only(source, &part, profile.width, profile.height).is_ok() {
+            let native_ms = native_started.elapsed().as_millis() as i64;
+            return match publish_output(&part, output) {
+                Ok(()) => Response {
+                    ok: true,
+                    operation: "render_clip".to_string(),
+                    source_path: Some(source.to_string()),
+                    items: Vec::new(),
+                    metadata: Some(MediaMetadata {
+                        duration_sec: source_metadata.duration_sec,
+                        bitrate: None,
+                        width: profile.width,
+                        height: profile.height,
+                        fps: fps_num as f64 / fps_den as f64,
+                        video_codec: Some("h264_nvenc".to_string()),
+                        pixel_format: Some("cuda".to_string()),
+                        format_name: Some("native_libav_cuda".to_string()),
+                        stream_count: 0,
+                        video_stream_count: 1,
+                        audio_stream_count: u32::from(source_metadata.has_audio),
+                        fps_num: fps_num as u32,
+                        fps_den: fps_den as u32,
+                        audio_codec: source_metadata.audio_codec.clone(),
+                        audio_profile: source_metadata.audio_profile.clone(),
+                        sample_rate: source_metadata.sample_rate,
+                        channels: source_metadata.channels,
+                        start_pts: source_metadata.start_pts,
+                        has_video: true,
+                        has_audio: source_metadata.has_audio,
+                        mix_ms: None,
+                        aac_encode_ms: None,
+                        probe_ms: None,
+                        hash_ms: None,
+                        ffmpeg_ms: Some(native_ms.max(1)),
+                        final_audio_sha256: None,
+                        audio_copy_eligible: Some(true),
+                        audio_encode_passes: Some(0),
+                        subtitle_raster_cpu: Some(false),
+                        native_media: Some(true),
+                        gpu_copy_bytes: Some(0),
+                    }),
+                    error: None,
+                },
+                Err(error) => failed_response(None, error),
+            };
+        }
+        let _ = fs::remove_file(&part);
+    }
+
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-    // Inputs: [0] source, [1] background asset (mode=asset), [2] watermark.
+    // Inputs: [0] source, optional background asset, and for the CUDA path a
+    // transparent overlay canvas supplied by lavfi.
     if use_hw_decode {
         // Decode source frames through NVDEC. CPU filters use the explicit
         // hwdownload fallback; the source-only path keeps the CUDA frames
@@ -159,7 +229,12 @@ pub(super) fn render_clip(request: Request) -> Response {
                 .unwrap_or(""),
         ]);
     }
-    if clip_plan.watermark.is_some() {
+    if clip_plan
+        .watermark
+        .as_ref()
+        .map(|wm| wm.text.trim().is_empty())
+        .unwrap_or(false)
+    {
         command.args([
             "-i",
             clip_plan
@@ -167,6 +242,12 @@ pub(super) fn render_clip(request: Request) -> Response {
                 .as_ref()
                 .map(|wm| wm.path.as_str())
                 .unwrap_or(""),
+        ]);
+    }
+    if gpu_native && (clip_plan.watermark.is_some() || clip_plan.subtitles.is_some()) {
+        command.args([
+            "-f", "lavfi", "-i",
+            &format!("color=c=black@0.0:s={}x{}:r={}/{}", profile.width, profile.height, fps_num, fps_den),
         ]);
     }
     command.args([
@@ -230,6 +311,8 @@ pub(super) fn render_clip(request: Request) -> Response {
                     audio_copy_eligible: Some(audio_copy_eligible),
                     audio_encode_passes: Some(audio_encode_passes),
                     subtitle_raster_cpu: Some(subtitle_raster_cpu),
+                    native_media: Some(false),
+                    gpu_copy_bytes: None,
                 }),
                 error: None,
             },
@@ -312,9 +395,31 @@ fn build_filter_graph_with_hw_decode(
     let mut graph = String::new();
 
     if gpu_native {
-        graph.push_str(&format!(
-            "[0:v]scale_cuda={w}:{h}[vfinal]"
-        ));
+        if plan.watermark.is_none() && plan.subtitles.is_none() {
+            graph.push_str(&format!("[0:v]scale_cuda={w}:{h}[vfinal]"));
+            return graph;
+        }
+        graph.push_str(&format!("[0:v]scale_cuda={w}:{h}[base];"));
+        if plan.watermark.is_some() || plan.subtitles.is_some() {
+            // Rasterize only the transparent overlay layer on CPU, then
+            // upload that small layer and composite it over the CUDA video.
+            graph.push_str("[1:v]format=rgba");
+            if let Some(watermark) = &plan.watermark {
+                let (x, y) = watermark_text_position(watermark);
+                let text = escape_filter_text(&watermark.text);
+                graph.push_str(&format!(
+                    ",drawtext=text='{text}':fontcolor=white@{}:fontsize=48:borderw=2:bordercolor=black@{}:{x}:{y}",
+                    watermark.opacity, watermark.opacity
+                ));
+            }
+            if let Some(subtitles) = &plan.subtitles {
+                if subtitles.mode == SUBTITLE_BURN {
+                    let escaped = escape_filter_path(&subtitles.path);
+                    graph.push_str(&format!(",subtitles=filename='{escaped}'"));
+                }
+            }
+            graph.push_str(",hwupload_cuda[overlay];[base][overlay]overlay_cuda=x=0:y=0:format=nv12[vfinal]");
+        }
         return graph;
     }
 
@@ -374,15 +479,24 @@ fn build_filter_graph_with_hw_decode(
     }
 
     if let Some(watermark) = &plan.watermark {
-        let input_index = if bg_mode == BACKGROUND_ASSET { 2 } else { 1 };
-        let (x, y) = watermark_position(watermark, w, h);
-        graph.push_str(&format!(
-            "[{input_index}:v]format=rgba,colorchannelmixer=aa={}[wm];",
-            watermark.opacity
-        ));
-        graph.push_str(&format!(
-            "{final_label}[wm]overlay={x}:{y}:format=auto[v1];"
-        ));
+        if watermark.text.trim().is_empty() {
+            let input_index = if bg_mode == BACKGROUND_ASSET { 2 } else { 1 };
+            let (x, y) = watermark_position(watermark, w, h);
+            graph.push_str(&format!(
+                "[{input_index}:v]format=rgba,colorchannelmixer=aa={}[wm];",
+                watermark.opacity
+            ));
+            graph.push_str(&format!(
+                "{final_label}[wm]overlay={x}:{y}:format=auto[v1];"
+            ));
+        } else {
+            let (x, y) = watermark_text_position(watermark);
+            let text = escape_filter_text(&watermark.text);
+            graph.push_str(&format!(
+                "{final_label}drawtext=text='{text}':fontcolor=white@{}:fontsize=48:borderw=2:bordercolor=black@{}:{x}:{y}[v1];",
+                watermark.opacity, watermark.opacity
+            ));
+        }
         final_label = "[v1]".to_string();
     }
 
@@ -404,8 +518,7 @@ fn build_filter_graph_with_hw_decode(
 /// would silently trigger a full-frame PCIe round trip.
 fn gpu_native_eligible(plan: &ClipRenderPlan) -> bool {
     plan.background.is_none()
-        && plan.watermark.is_none()
-        && plan.subtitles.as_ref().map(|s| s.mode != SUBTITLE_BURN).unwrap_or(true)
+        && plan.watermark.as_ref().map(|wm| !wm.text.trim().is_empty()).unwrap_or(true)
         && plan.output.foreground_scale_percent == 100
 }
 
@@ -438,6 +551,17 @@ fn watermark_position(
     }
 }
 
+fn watermark_text_position(watermark: &ClipPlanWatermark) -> (String, String) {
+    let margin = watermark.margin_px;
+    match watermark.position.as_str() {
+        "top_left" => (format!("x={margin}"), format!("y={margin}")),
+        "top_right" => (format!("x=w-text_w-{margin}"), format!("y={margin}")),
+        "bottom_left" => (format!("x={margin}"), format!("y=h-text_h-{margin}")),
+        "bottom_right" => (format!("x=w-text_w-{margin}"), format!("y=h-text_h-{margin}")),
+        _ => ("x=(w-text_w)/2".to_string(), "y=(h-text_h)/2".to_string()),
+    }
+}
+
 /// escape_filter_path makes a filesystem path safe inside an ffmpeg filter
 /// argument: backslashes and colons are backslash-escaped, single quotes are
 /// closed/reopened, and the result is single-quoted.
@@ -448,6 +572,21 @@ fn escape_filter_path(path: &str) -> String {
             '\\' => escaped.push_str("\\\\"),
             ':' => escaped.push_str("\\:"),
             '\'' => escaped.push_str("'\\''"),
+            other => escaped.push(other),
+        }
+    }
+    escaped
+}
+
+fn escape_filter_text(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len() + 8);
+    for character in text.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            ':' | ',' | '\'' => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
             other => escaped.push(other),
         }
     }
@@ -553,6 +692,8 @@ mod tests {
             audio_copy_eligible: None,
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
+            native_media: None,
+            gpu_copy_bytes: None,
         }
     }
 
@@ -564,7 +705,8 @@ mod tests {
         let sub_path = std::env::temp_dir().join("cliprender-sub.ass");
         fs::write(&sub_path, b"[Script Info]").unwrap();
         p.watermark = Some(ClipPlanWatermark {
-            asset_id: "wm-1".to_string(),
+			text: String::new(),
+			asset_id: "wm-1".to_string(),
             path: wm_path.to_string_lossy().into_owned(),
             sha256: "a".repeat(64),
             position: "top_right".to_string(),
@@ -639,7 +781,8 @@ mod tests {
         let mut p = plan();
         p.background = None;
         p.watermark = Some(ClipPlanWatermark {
-            asset_id: "wm-1".to_string(),
+			text: String::new(),
+			asset_id: "wm-1".to_string(),
             path: "/tmp/wm.png".to_string(),
             sha256: "a".repeat(64),
             position: "top_left".to_string(),
@@ -666,7 +809,8 @@ mod tests {
     #[test]
     fn watermark_positions_cover_all_four_corners() {
         let wm = |position: &str| ClipPlanWatermark {
-            asset_id: "wm-1".to_string(),
+			text: String::new(),
+			asset_id: "wm-1".to_string(),
             path: "/tmp/wm.png".to_string(),
             sha256: "a".repeat(64),
             position: position.to_string(),

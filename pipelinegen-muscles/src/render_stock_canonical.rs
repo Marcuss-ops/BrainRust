@@ -3,10 +3,10 @@ use crate::protocol::{Request, Response};
 use std::fs;
 use std::path::Path;
 
-#[path = "render_stock_canonical_plan.rs"]
-mod plan;
 #[path = "render_stock_canonical_executor.rs"]
 mod executor;
+#[path = "render_stock_canonical_plan.rs"]
+mod plan;
 
 pub(super) fn render_stock_canonical(request: Request) -> Response {
     let raw_plan = match request.render_plan.clone() {

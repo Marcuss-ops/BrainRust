@@ -7,6 +7,12 @@ use crate::protocol::{CutItem, CutJob, Request, Response};
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::thread;
+
+// Each cut is an independent FFmpeg process. Keep the fan-out bounded so a
+// 12-clip source does not saturate CPU/RAM or create a thundering herd on a
+// shared worker, while still avoiding the old fully-serial batch path.
+const MAX_PARALLEL_CUTS: usize = 3;
 
 pub(crate) fn execute(request: Request) -> Response {
     cut_batch(request)
@@ -39,17 +45,43 @@ fn cut_batch(request: Request) -> Response {
     let ffprobe = ffprobe_path(&ffmpeg);
     let gpu_cut = gpu_cut_eligibility(&encoder, &profile, source, &ffprobe);
 
-    for job in jobs {
-        items.push(cut_one(
-            &ffmpeg,
-            source,
-            &job,
-            &encoder,
-            profile.clone(),
-            request.no_audio.unwrap_or(false),
-            &ffprobe,
-            gpu_cut,
-        ));
+    // Run small bounded waves instead of serially spawning one FFmpeg process
+    // after another. The wave join preserves request order, which is part of
+    // the stock publication contract and keeps clip ordinals deterministic.
+    for wave in jobs.chunks(MAX_PARALLEL_CUTS) {
+        let wave_items = thread::scope(|scope| {
+            let handles = wave
+                .iter()
+                .map(|job| {
+                    scope.spawn(|| {
+                        cut_one(
+                            &ffmpeg,
+                            source,
+                            job,
+                            &encoder,
+                            profile.clone(),
+                            request.no_audio.unwrap_or(false),
+                            &ffprobe,
+                            gpu_cut,
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+            handles
+                .into_iter()
+                .map(|handle| {
+                    handle.join().unwrap_or_else(|_| CutItem {
+                        job_id: String::new(),
+                        output_path: None,
+                        status: "failed".to_string(),
+                        size_bytes: 0,
+                        duration_sec: 0.0,
+                        error: Some("cut worker thread panicked".to_string()),
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
+        items.extend(wave_items);
     }
 
     let all_failed = !items.is_empty() && items.iter().all(|item| item.status == "failed");

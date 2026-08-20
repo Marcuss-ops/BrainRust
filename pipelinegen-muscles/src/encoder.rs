@@ -191,7 +191,13 @@ mod tests {
 
     #[test]
     fn libx264_uses_crf_and_never_nvenc_rate_control() {
-        let args = build_video_args(&policy("libx264", "veryfast", 23), &profile(), None, "yuv420p").unwrap();
+        let args = build_video_args(
+            &policy("libx264", "veryfast", 23),
+            &profile(),
+            None,
+            "yuv420p",
+        )
+        .unwrap();
 
         assert!(pair(&args, "-c:v", "libx264"));
         assert!(pair(&args, "-preset", "veryfast"));
@@ -206,7 +212,13 @@ mod tests {
 
     #[test]
     fn nvenc_uses_cq_vbr_and_never_libx264_crf() {
-        let args = build_video_args(&policy("h264_nvenc", "p1", 23), &profile(), Some(60), "yuv420p").unwrap();
+        let args = build_video_args(
+            &policy("h264_nvenc", "p1", 23),
+            &profile(),
+            Some(60),
+            "yuv420p",
+        )
+        .unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(pair(&args, "-preset", "p1"));
@@ -218,20 +230,16 @@ mod tests {
 
     #[test]
     fn cuda_output_keeps_hardware_pixel_format() {
-        let args = build_video_args(
-            &policy("h264_nvenc", "p1", 23),
-            &profile(),
-            None,
-            "cuda",
-        )
-        .unwrap();
+        let args =
+            build_video_args(&policy("h264_nvenc", "p1", 23), &profile(), None, "cuda").unwrap();
         assert!(pair(&args, "-pix_fmt", "cuda"));
         assert!(!pair(&args, "-pix_fmt", "yuv420p"));
     }
 
     #[test]
     fn nvenc_alias_is_canonicalized_to_h264_nvenc() {
-        let args = build_video_args(&policy("nvenc", "p1", 23), &profile(), None, "yuv420p").unwrap();
+        let args =
+            build_video_args(&policy("nvenc", "p1", 23), &profile(), None, "yuv420p").unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(!pair(&args, "-c:v", "nvenc"));
@@ -241,8 +249,13 @@ mod tests {
 
     #[test]
     fn nvenc_translates_software_preset_without_changing_quality_semantics() {
-        let args =
-            build_video_args(&policy("H264_NVENC", "veryfast", 27), &profile(), None, "yuv420p").unwrap();
+        let args = build_video_args(
+            &policy("H264_NVENC", "veryfast", 27),
+            &profile(),
+            None,
+            "yuv420p",
+        )
+        .unwrap();
 
         assert!(pair(&args, "-c:v", "h264_nvenc"));
         assert!(pair(&args, "-preset", "p1"));
@@ -276,8 +289,13 @@ mod tests {
 
     #[test]
     fn zero_override_uses_profile_gop() {
-        let args =
-            build_video_args(&policy("libx264", "veryfast", 23), &profile(), Some(0), "yuv420p").unwrap();
+        let args = build_video_args(
+            &policy("libx264", "veryfast", 23),
+            &profile(),
+            Some(0),
+            "yuv420p",
+        )
+        .unwrap();
         assert!(pair(&args, "-g", "48"));
     }
 
@@ -285,7 +303,8 @@ mod tests {
     fn profile_values_are_not_replaced_by_encoder_builder_defaults() {
         let mut custom = profile();
         custom.keyframe_interval = 72;
-        let args = build_video_args(&policy("libx264", "veryfast", 23), &custom, None, "yuv420p").unwrap();
+        let args =
+            build_video_args(&policy("libx264", "veryfast", 23), &custom, None, "yuv420p").unwrap();
         assert!(pair(&args, "-g", "72"));
     }
 }

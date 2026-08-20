@@ -69,16 +69,22 @@ pub(super) fn execute(request: Request) -> Response {
         .map(|asset: AudioAsset| (asset.asset_id, asset.path))
         .collect();
     let mut source_durations: HashMap<String, f64> = HashMap::new();
-    let mut ensure_source = |asset_id: &str, path: &str, required_end_us: i64| -> Result<(), String> {
+    let mut ensure_source = |asset_id: &str,
+                             path: &str,
+                             required_end_us: i64|
+     -> Result<(), String> {
         let duration = if let Some(duration) = source_durations.get(path) {
             *duration
         } else {
-            let duration = probe_source_duration(request.ffmpeg_path.as_deref().unwrap_or("ffmpeg"), path)?;
+            let duration =
+                probe_source_duration(request.ffmpeg_path.as_deref().unwrap_or("ffmpeg"), path)?;
             source_durations.insert(path.to_owned(), duration);
             duration
         };
         if duration * 1_000_000.0 + 40_000.0 < required_end_us as f64 {
-            return Err(format!("audio asset {asset_id} is shorter than required source range"));
+            return Err(format!(
+                "audio asset {asset_id} is shorter than required source range"
+            ));
         }
         Ok(())
     };
@@ -90,7 +96,12 @@ pub(super) fn execute(request: Request) -> Response {
     {
         let path = match event.asset_id.as_ref().and_then(|id| by_id.get(id)) {
             Some(path) if Path::new(path).is_file() => path,
-            Some(path) => return failed_response(Some(path.clone()), format!("audio source is not readable: {path}")),
+            Some(path) => {
+                return failed_response(
+                    Some(path.clone()),
+                    format!("audio source is not readable: {path}"),
+                )
+            }
             None => return failed_response(None, "audio event asset is unresolved".into()),
         };
         let index = inputs.len();
@@ -99,7 +110,8 @@ pub(super) fn execute(request: Request) -> Response {
             Some(value) if event.source_duration_us > 0 => value,
             _ => return failed_response(None, "audio event source range is incomplete".into()),
         };
-        if let Err(error) = ensure_source(event.asset_id.as_deref().unwrap_or(""), path, source_end) {
+        if let Err(error) = ensure_source(event.asset_id.as_deref().unwrap_or(""), path, source_end)
+        {
             return failed_response(Some(path.clone()), error);
         }
         let delay_ms = (event.timeline_start_us + 500) / 1000;
@@ -111,7 +123,13 @@ pub(super) fn execute(request: Request) -> Response {
                 &automation.target_layer
             };
             if target.eq_ignore_ascii_case(&track_id) {
-                gain = format!("if(between(t,{},{}) ,{},{} )", automation.start_us as f64 / 1_000_000.0, automation.end_us as f64 / 1_000_000.0, linear_gain(automation.gain_db), gain);
+                gain = format!(
+                    "if(between(t,{},{}) ,{},{} )",
+                    automation.start_us as f64 / 1_000_000.0,
+                    automation.end_us as f64 / 1_000_000.0,
+                    linear_gain(automation.gain_db),
+                    gain
+                );
             }
         }
         // eval=frame is mandatory for automation: the volume filter's
@@ -123,13 +141,24 @@ pub(super) fn execute(request: Request) -> Response {
         // evaluated per frame and, because adelay shifts the stream PTS
         // to absolute output time, the between(t, ...) windows land at
         // the exact absolute positions the plan declares.
-        filters.push(event_filter(index, event.source_in_us, source_end, delay_ms, &gain));
+        filters.push(event_filter(
+            index,
+            event.source_in_us,
+            source_end,
+            delay_ms,
+            &gain,
+        ));
     }
     for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
         for layer in layers {
             let path = match by_id.get(&layer.asset_id) {
                 Some(path) if Path::new(path).is_file() => path,
-                Some(path) => return failed_response(Some(path.clone()), format!("audio source is not readable: {path}")),
+                Some(path) => {
+                    return failed_response(
+                        Some(path.clone()),
+                        format!("audio source is not readable: {path}"),
+                    )
+                }
                 None => return failed_response(None, format!("{layer_name} asset is unresolved")),
             };
             if layer.duration_us <= 0 || layer.timeline_start_us < 0 {
@@ -148,7 +177,13 @@ pub(super) fn execute(request: Request) -> Response {
                     if automation.start_us < 0 || automation.end_us <= automation.start_us {
                         return failed_response(None, "audio automation range is invalid".into());
                     }
-                    gain = format!("if(between(t,{},{}) ,{},{} )", automation.start_us as f64 / 1_000_000.0, automation.end_us as f64 / 1_000_000.0, linear_gain(automation.gain_db), gain);
+                    gain = format!(
+                        "if(between(t,{},{}) ,{},{} )",
+                        automation.start_us as f64 / 1_000_000.0,
+                        automation.end_us as f64 / 1_000_000.0,
+                        linear_gain(automation.gain_db),
+                        gain
+                    );
                 }
             }
             let delay_ms = (layer.timeline_start_us + 500) / 1000;
@@ -167,7 +202,9 @@ pub(super) fn execute(request: Request) -> Response {
     // pinned to exactly plan.duration_us instead of relying on the output
     // `-t` limit alone.
     let pad_secs = master_secs;
-    filters.push(format!("anullsrc=r=48000:cl=stereo,atrim=duration={pad_secs},asetpts=PTS-STARTPTS[asilence]"));
+    filters.push(format!(
+        "anullsrc=r=48000:cl=stereo,atrim=duration={pad_secs},asetpts=PTS-STARTPTS[asilence]"
+    ));
     let mix_labels: String = (0..inputs.len())
         .map(|index| format!("[a{index}]"))
         .chain(std::iter::once("[asilence]".to_string()))
@@ -195,8 +232,14 @@ pub(super) fn execute(request: Request) -> Response {
         mix_command.args(["-i", input]);
     }
     mix_command.args([
-        "-filter_complex", &filter, "-map", "[aout]", "-t",
-        &master_secs.to_string(), "-c:a", "pcm_s16le",
+        "-filter_complex",
+        &filter,
+        "-map",
+        "[aout]",
+        "-t",
+        &master_secs.to_string(),
+        "-c:a",
+        "pcm_s16le",
         &mix_part,
     ]);
     let mix_started = std::time::Instant::now();
@@ -207,22 +250,46 @@ pub(super) fn execute(request: Request) -> Response {
         Ok(result) => {
             let _ = fs::remove_file(&mix_part);
             let _ = fs::remove_file(&part);
-            return failed_response(None, format!("render_audio_plan mix failed: {}", String::from_utf8_lossy(&result.stderr).trim()));
+            return failed_response(
+                None,
+                format!(
+                    "render_audio_plan mix failed: {}",
+                    String::from_utf8_lossy(&result.stderr).trim()
+                ),
+            );
         }
         Err(error) => {
             let _ = fs::remove_file(&mix_part);
             let _ = fs::remove_file(&part);
-            return failed_response(None, format!("render_audio_plan mix failed to start: {error}"));
+            return failed_response(
+                None,
+                format!("render_audio_plan mix failed to start: {error}"),
+            );
         }
     }
 
     // Pass 2 — encode: lossless PCM → canonical AAC-LC 48kHz stereo master.
     let mut encode_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     encode_command.args([
-        "-hide_banner", "-loglevel", "error", "-y", "-i", &mix_part,
-        "-c:a", "aac", "-profile:a", "aac_low", "-ar", "48000", "-ac", "2",
-        "-b:a", &plan.canonical_audio_profile.bitrate, "-t",
-        &master_secs.to_string(), &part,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        &mix_part,
+        "-c:a",
+        "aac",
+        "-profile:a",
+        "aac_low",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        "-b:a",
+        &plan.canonical_audio_profile.bitrate,
+        "-t",
+        &master_secs.to_string(),
+        &part,
     ]);
     let encode_started = std::time::Instant::now();
     let encode_result = encode_command.output();
@@ -232,11 +299,20 @@ pub(super) fn execute(request: Request) -> Response {
         Ok(result) if result.status.success() => {}
         Ok(result) => {
             let _ = fs::remove_file(&part);
-            return failed_response(None, format!("render_audio_plan encode failed: {}", String::from_utf8_lossy(&result.stderr).trim()));
+            return failed_response(
+                None,
+                format!(
+                    "render_audio_plan encode failed: {}",
+                    String::from_utf8_lossy(&result.stderr).trim()
+                ),
+            );
         }
         Err(error) => {
             let _ = fs::remove_file(&part);
-            return failed_response(None, format!("render_audio_plan encode failed to start: {error}"));
+            return failed_response(
+                None,
+                format!("render_audio_plan encode failed to start: {error}"),
+            );
         }
     }
 
@@ -261,7 +337,14 @@ pub(super) fn execute(request: Request) -> Response {
                             let hash_ms = hash_started.elapsed().as_millis() as i64;
                             metadata.hash_ms = Some(hash_ms.max(1));
                             metadata.final_audio_sha256 = Some(digest);
-                            Response { ok: true, operation: "render_audio_plan".into(), source_path: None, items: Vec::new(), metadata: Some(metadata), error: None }
+                            Response {
+                                ok: true,
+                                operation: "render_audio_plan".into(),
+                                source_path: None,
+                                items: Vec::new(),
+                                metadata: Some(metadata),
+                                error: None,
+                            }
                         }
                         Err(error) => failed_response(None, error),
                     }
@@ -269,7 +352,10 @@ pub(super) fn execute(request: Request) -> Response {
                 Err(error) => failed_response(None, error),
             }
         }
-        Err(error) => { let _ = fs::remove_file(&part); failed_response(None, error) }
+        Err(error) => {
+            let _ = fs::remove_file(&part);
+            failed_response(None, error)
+        }
     }
 }
 
