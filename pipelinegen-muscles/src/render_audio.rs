@@ -78,6 +78,8 @@ struct Automation {
     target_track_id: String,
     #[serde(default)]
     target_layer: String,
+    #[serde(default)]
+    trigger_track_id: String,
     start_us: i64,
     end_us: i64,
     gain_db: f64,

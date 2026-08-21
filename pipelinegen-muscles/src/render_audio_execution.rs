@@ -1,6 +1,6 @@
 use super::plan::{track_events, validate_plan};
 use super::probe::{probe_audio, probe_source_duration};
-use super::Plan;
+use super::{Automation, Plan};
 use crate::artifact::{failed_response, mix_path, part_path, publish_output, sha256_file};
 use crate::process::FFmpegRunner;
 use crate::protocol::{AudioAsset, Request, Response};
@@ -15,6 +15,121 @@ use std::path::Path;
 // canonical duck levels (-12/-18/-24 dB) attenuate as the mix policy intends.
 fn linear_gain(gain_db: f64) -> String {
     format!("{:.6}", 10f64.powf(gain_db / 20.0))
+}
+
+// num formats a literal for a filter expression with fixed precision so the
+// generated graph is deterministic across builds and locales.
+fn num(value: f64) -> String {
+    format!("{:.6}", value)
+}
+
+fn secs(us: i64) -> f64 {
+    us as f64 / 1_000_000.0
+}
+
+// fade_envelope realizes one BGM fade automation entry: unity outside its
+// window, inside the linear ramp from silence up to unity over attack and
+// back down to silence over release. The compiler emits GainDB == layer
+// gain on fade entries, so multiplying the event's own gain by this shape
+// alone produces exactly the contracted "silence → layer gain → silence"
+// envelope; attack/release of zero collapse that edge to an instant step.
+fn fade_envelope(start_us: i64, end_us: i64, attack_us: i64, release_us: i64) -> String {
+    let rise = (attack_us > 0)
+        .then(|| format!("(t-{})/{}", num(secs(start_us)), num(secs(attack_us))));
+    let fall = (release_us > 0)
+        .then(|| format!("({}-t)/{}", num(secs(end_us)), num(secs(release_us))));
+    let shape = match (rise, fall) {
+        (Some(rise), Some(fall)) => format!("min(min({rise},{fall}),1)"),
+        (Some(rise), None) => format!("min({rise},1)"),
+        (None, Some(fall)) => format!("min({fall},1)"),
+        (None, None) => return String::from("1"),
+    };
+    format!(
+        "if(between(t,{},{}),{},1)",
+        num(secs(start_us)),
+        num(secs(end_us)),
+        shape
+    )
+}
+
+// duck_envelope realizes one ducking automation entry: unity outside its
+// window, the duck ratio inside, and a linear ramp between the two over
+// attack at the window start and release at the window end. The duck target
+// is an absolute level, so it enters as a ratio against the event's own
+// gain (10^((duck_db - event_db)/20)) — multiplying keeps the absolute
+// value the plan declares while the ramps keep the transition inaudible
+// as a switch. Zero attack/release degrade to the historical step.
+fn duck_envelope(start_us: i64, end_us: i64, attack_us: i64, release_us: i64, ratio: f64) -> String {
+    let d = num(ratio);
+    let start = num(secs(start_us));
+    let end = num(secs(end_us));
+    let ramp_in = format!(
+        "1+({d}-1)*min((t-{s})/{a},1)",
+        d = d,
+        s = start,
+        a = num(secs(attack_us)),
+    );
+    let ramp_out = format!(
+        "{d}+(1-{d})*min(({e}-t)/{r},1)",
+        d = d,
+        e = end,
+        r = num(secs(release_us)),
+    );
+    let inside = match (attack_us > 0, release_us > 0) {
+        (true, true) => format!(
+            "if(lt(t,{sa}),{rin},if(lt(t,{er}),{d},{rout}))",
+            sa = num(secs(start_us + attack_us)),
+            rin = ramp_in,
+            er = num(secs(end_us - release_us)),
+            d = d,
+            rout = ramp_out,
+        ),
+        (false, true) => format!(
+            "if(lt(t,{er}),{d},{rout})",
+            er = num(secs(end_us - release_us)),
+            d = d,
+            rout = ramp_out,
+        ),
+        (true, false) => format!(
+            "if(lt(t,{sa}),{rin},{d})",
+            sa = num(secs(start_us + attack_us)),
+            rin = ramp_in,
+            d = d,
+        ),
+        (false, false) => d.clone(),
+    };
+    format!("if(between(t,{s},{e}),{inside},1)", s = start, e = end)
+}
+
+// track_gain_expr composes the volume expression for one event or layer:
+// the static gain multiplied by every automation envelope targeting its
+// track. Fade entries contribute their silence→gain→silence shape, duck
+// entries their hold-with-ramps shape; envelopes are cheap (no nesting of
+// the base expression), so any number of entries composes linearly.
+fn track_gain_expr(base_gain_db: f64, automations: &[(&Automation, bool)]) -> String {
+    let mut expr = linear_gain(base_gain_db);
+    for (automation, triggered) in automations {
+        let envelope = if *triggered {
+            let ratio = 10f64.powf((automation.gain_db - base_gain_db) / 20.0);
+            duck_envelope(
+                automation.start_us,
+                automation.end_us,
+                automation.attack_us,
+                automation.release_us,
+                ratio,
+            )
+        } else {
+            fade_envelope(
+                automation.start_us,
+                automation.end_us,
+                automation.attack_us,
+                automation.release_us,
+            )
+        };
+        expr.push('*');
+        expr.push_str(&envelope);
+    }
+    expr
 }
 
 // event_filter builds the ffmpeg filter graph for ONE already-compiled
@@ -115,7 +230,7 @@ pub(super) fn execute(request: Request) -> Response {
             return failed_response(Some(path.clone()), error);
         }
         let delay_ms = (event.timeline_start_us + 500) / 1000;
-        let mut gain = linear_gain(event.gain_db);
+        let mut targeting: Vec<(&Automation, bool)> = Vec::new();
         for automation in &plan.automation {
             let target = if !automation.target_track_id.trim().is_empty() {
                 &automation.target_track_id
@@ -123,15 +238,12 @@ pub(super) fn execute(request: Request) -> Response {
                 &automation.target_layer
             };
             if target.eq_ignore_ascii_case(&track_id) {
-                gain = format!(
-                    "if(between(t,{},{}) ,{},{} )",
-                    automation.start_us as f64 / 1_000_000.0,
-                    automation.end_us as f64 / 1_000_000.0,
-                    linear_gain(automation.gain_db),
-                    gain
-                );
+                // A triggered entry ducks under its trigger track; an
+                // untriggered one is a fade shape over the layer window.
+                targeting.push((automation, !automation.trigger_track_id.trim().is_empty()));
             }
         }
+        let gain = track_gain_expr(event.gain_db, &targeting);
         // eval=frame is mandatory for automation: the volume filter's
         // default eval=once decides the gain at the first frame (t=0),
         // so every event would keep ONE level for its whole duration — a
@@ -169,7 +281,7 @@ pub(super) fn execute(request: Request) -> Response {
             if let Err(error) = ensure_source(&layer.asset_id, path, layer.duration_us) {
                 return failed_response(Some(path.clone()), error);
             }
-            let mut gain = linear_gain(layer.gain_db);
+            let mut targeting: Vec<(&Automation, bool)> = Vec::new();
             for automation in &plan.automation {
                 if automation.target_track_id.eq_ignore_ascii_case(layer_name)
                     || automation.target_layer.eq_ignore_ascii_case(layer_name)
@@ -177,15 +289,10 @@ pub(super) fn execute(request: Request) -> Response {
                     if automation.start_us < 0 || automation.end_us <= automation.start_us {
                         return failed_response(None, "audio automation range is invalid".into());
                     }
-                    gain = format!(
-                        "if(between(t,{},{}) ,{},{} )",
-                        automation.start_us as f64 / 1_000_000.0,
-                        automation.end_us as f64 / 1_000_000.0,
-                        linear_gain(automation.gain_db),
-                        gain
-                    );
+                    targeting.push((automation, !automation.trigger_track_id.trim().is_empty()));
                 }
             }
+            let gain = track_gain_expr(layer.gain_db, &targeting);
             let delay_ms = (layer.timeline_start_us + 500) / 1000;
             let duration = layer.duration_us as f64 / 1_000_000.0;
             // Same eval=frame contract as the track path above: automation
@@ -361,7 +468,83 @@ pub(super) fn execute(request: Request) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{event_filter, linear_gain};
+    use super::{duck_envelope, event_filter, fade_envelope, linear_gain, track_gain_expr, Automation};
+
+    #[test]
+    fn fade_envelope_ramps_from_and_to_silence() {
+        // Gate A's contract: 800ms fade-in, 1000ms fade-out over [0,25s).
+        let expr = fade_envelope(0, 25_000_000, 800_000, 1_000_000);
+        assert!(
+            expr.starts_with("if(between(t,0.000000,25.000000),"),
+            "envelope must be unity outside its window: {expr}"
+        );
+        assert!(
+            expr.contains("min(min((t-0.000000)/0.800000,(25.000000-t)/1.000000),1)"),
+            "envelope must ramp from silence and back: {expr}"
+        );
+    }
+
+    #[test]
+    fn fade_envelope_without_ramps_is_unity() {
+        assert_eq!(fade_envelope(0, 10_000_000, 0, 0), "1");
+    }
+
+    #[test]
+    fn duck_envelope_holds_ratio_with_edge_ramps() {
+        // Duck to -28dB against a -18dB base over [0,15s): 120ms attack,
+        // 350ms release.
+        let ratio = 10f64.powf((-28.0 - -18.0) / 20.0);
+        let expr = duck_envelope(0, 15_000_000, 120_000, 350_000, ratio);
+        assert!(
+            expr.contains("1+(0.316228-1)*min((t-0.000000)/0.120000,1)"),
+            "attack must ramp base→duck: {expr}"
+        );
+        assert!(
+            expr.contains("if(lt(t,14.650000),0.316228,"),
+            "the ducked level must hold between the ramps: {expr}"
+        );
+        assert!(
+            expr.contains("0.316228+(1-0.316228)*min((15.000000-t)/0.350000,1)"),
+            "release must ramp duck→base: {expr}"
+        );
+    }
+
+    #[test]
+    fn duck_envelope_without_ramps_is_the_plain_step() {
+        let expr = duck_envelope(5_000_000, 9_000_000, 0, 0, 0.25);
+        assert_eq!(
+            expr, "if(between(t,5.000000,9.000000),0.250000,1)",
+            "zero attack/release must keep the historical step semantics"
+        );
+    }
+
+    #[test]
+    fn track_gain_expr_multiplies_the_static_gain_by_every_targeting_envelope() {
+        let fade = Automation {
+            target_track_id: "bgm".into(),
+            target_layer: String::new(),
+            trigger_track_id: String::new(),
+            start_us: 0,
+            end_us: 25_000_000,
+            gain_db: -18.0,
+            attack_us: 800_000,
+            release_us: 1_000_000,
+        };
+        let duck = Automation {
+            target_track_id: "bgm".into(),
+            target_layer: String::new(),
+            trigger_track_id: "voiceover".into(),
+            start_us: 0,
+            end_us: 15_000_000,
+            gain_db: -28.0,
+            attack_us: 120_000,
+            release_us: 350_000,
+        };
+        let expr = track_gain_expr(-18.0, &[(&fade, false), (&duck, true)]);
+        assert!(expr.starts_with("0.125893*"), "static gain first: {expr}");
+        assert!(expr.contains("if(between(t,0.000000,25.000000)"), "fade shape: {expr}");
+        assert!(expr.contains("0.316228"), "duck ratio is relative to the base gain: {expr}");
+    }
 
     #[test]
     fn event_filter_plays_only_the_declared_source_range_once() {
