@@ -328,6 +328,13 @@ pub(super) fn execute(request: Request) -> Response {
     }
     let part = part_path(output);
     let mix_part = mix_path(output);
+    // Keep the filter graph out of argv. With many clips/scenes the graph can
+    // exceed the host ARG_MAX limit even though the actual audio plan is
+    // valid. ffmpeg's script input has the same semantics without that limit.
+    let filter_script = format!("{mix_part}.filter_complex.txt");
+    if let Err(error) = fs::write(&filter_script, &filter) {
+        return failed_response(None, format!("write audio filter script: {error}"));
+    }
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
 
     // Pass 1 — mix: the full filter graph (amix + limiter) into lossless
@@ -339,8 +346,8 @@ pub(super) fn execute(request: Request) -> Response {
         mix_command.args(["-i", input]);
     }
     mix_command.args([
-        "-filter_complex",
-        &filter,
+        "-filter_complex_script",
+        &filter_script,
         "-map",
         "[aout]",
         "-t",
@@ -353,8 +360,11 @@ pub(super) fn execute(request: Request) -> Response {
     let mix_result = mix_command.output();
     let mix_ms = mix_started.elapsed().as_millis() as i64;
     match mix_result {
-        Ok(result) if result.status.success() => {}
+        Ok(result) if result.status.success() => {
+            let _ = fs::remove_file(&filter_script);
+        }
         Ok(result) => {
+            let _ = fs::remove_file(&filter_script);
             let _ = fs::remove_file(&mix_part);
             let _ = fs::remove_file(&part);
             return failed_response(
@@ -366,6 +376,7 @@ pub(super) fn execute(request: Request) -> Response {
             );
         }
         Err(error) => {
+            let _ = fs::remove_file(&filter_script);
             let _ = fs::remove_file(&mix_part);
             let _ = fs::remove_file(&part);
             return failed_response(
