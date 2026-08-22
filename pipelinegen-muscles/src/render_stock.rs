@@ -4,14 +4,17 @@ use crate::protocol::{Request, Response};
 mod canonical;
 #[path = "render_stock_effects.rs"]
 mod effects;
-#[path = "render_stock_legacy.rs"]
-mod legacy;
+// The legacy renderer remains in the source tree only for migration fixtures;
+// runtime execution is canonical-plan-only.
 
 pub(crate) fn execute(request: Request) -> Response {
-    if request.render_plan.is_some() {
-        return canonical::render_stock_canonical(request);
+    if request.render_plan.is_none() {
+        return crate::artifact::failed_response(
+            None,
+            "render_stock requires a canonical render_plan".to_string(),
+        );
     }
-    legacy::render_stock(request)
+    canonical::render_stock_canonical(request)
 }
 
 pub(crate) use effects::reject_unresolved_selection;
