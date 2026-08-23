@@ -4,9 +4,9 @@ use crate::protocol::{Request, Response};
 mod canonical;
 #[path = "render_stock_effects.rs"]
 mod effects;
-// The legacy renderer remains in the source tree only for migration fixtures;
-// runtime execution is canonical-plan-only.
 
+// Runtime stock rendering is canonical-plan-only. Legacy render implementations
+// have been physically removed; requests without render_plan fail closed.
 pub(crate) fn execute(request: Request) -> Response {
     if request.render_plan.is_none() {
         return crate::artifact::failed_response(
