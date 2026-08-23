@@ -95,6 +95,8 @@ pub(super) fn render_clip(request: Request) -> Response {
         // Scalar fps is a nominal projection for encoder validation only;
         // the filter graph and response metadata use the exact rational pair.
         fps: (fps_num as f64 / fps_den as f64).round() as u32,
+        fps_num: fps_num as u32,
+        fps_den: fps_den as u32,
         keyframe_interval,
         audio_codec: clip_plan.audio.codec.clone(),
         audio_bitrate: audio_bitrate.to_string(),
@@ -649,6 +651,8 @@ mod tests {
             width: 1080,
             height: 1920,
             fps: 60,
+            fps_num: 60,
+            fps_den: 1,
             keyframe_interval: 120,
             audio_codec: "aac".to_string(),
             audio_bitrate: "128k".to_string(),

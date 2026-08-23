@@ -176,6 +176,8 @@ mod tests {
             width: 1920,
             height: 1080,
             fps: 24,
+            fps_num: 24,
+            fps_den: 1,
             keyframe_interval: 48,
             audio_codec: "aac".to_string(),
             audio_bitrate: "128k".to_string(),

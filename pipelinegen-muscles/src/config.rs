@@ -28,12 +28,23 @@ pub struct MediaConfig {
 pub struct VideoProfile {
     pub width: u32,
     pub height: u32,
-    pub fps: u32,
+    pub fps: u32, // deprecated: use fps_num/fps_den
+    pub fps_num: u32,
+    pub fps_den: u32,
     pub keyframe_interval: u32,
     pub audio_codec: String,
     pub audio_bitrate: String,
     pub sample_rate: u32,
     pub channels: u32,
+}
+
+impl VideoProfile {
+    pub fn fps_float(&self) -> f64 {
+        self.fps_num as f64 / self.fps_den as f64
+    }
+    pub fn fps_equal(&self, other: &VideoProfile) -> bool {
+        self.fps_num * other.fps_den == other.fps_num * self.fps_den
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -47,7 +58,14 @@ impl MediaConfig {
     pub fn profile(&self) -> Result<VideoProfile, String> {
         let width = required_positive(self.width, "width")?;
         let height = required_positive(self.height, "height")?;
-        let fps = required_positive(self.fps, "fps")?;
+        let (fps_num, fps_den) = match (self.fps_num, self.fps_den) {
+            (Some(n), Some(d)) if n > 0 && d > 0 => (n, d),
+            _ => {
+                let fps = required_positive(self.fps, "fps")?;
+                (fps, 1)
+            }
+        };
+        let fps = (fps_num as f64 / fps_den as f64).round() as u32;
         let keyframe_interval = required_positive(self.keyframe_interval, "keyframe_interval")?;
         let sample_rate = required_positive(self.sample_rate, "sample_rate")?;
         let channels = required_positive(self.channels, "channels")?;
@@ -57,6 +75,8 @@ impl MediaConfig {
             width,
             height,
             fps,
+            fps_num,
+            fps_den,
             keyframe_interval,
             audio_codec,
             audio_bitrate,
@@ -125,6 +145,8 @@ mod tests {
         assert_eq!(profile.width, 1920);
         assert_eq!(profile.height, 1080);
         assert_eq!(profile.fps, 24);
+        assert_eq!(profile.fps_num, 24);
+        assert_eq!(profile.fps_den, 1);
         assert_eq!(profile.keyframe_interval, 48);
         assert_eq!(profile.audio_codec, "aac");
         assert_eq!(profile.audio_bitrate, "128k");
