@@ -6,7 +6,6 @@ use std::process::Command;
 #[derive(Debug, Deserialize)]
 pub(super) struct CanonicalRenderPlan {
     pub(super) version: String,
-    pub(super) fps: u32,
     pub(super) fps_numerator: i64,
     pub(super) fps_denominator: i64,
     pub(super) duration_frames: i64,
@@ -58,20 +57,11 @@ pub(super) fn decode_and_validate(
 
 fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), String> {
     if plan.version != "render-plan.v2"
-        || plan.fps == 0
         || plan.fps_numerator <= 0
         || plan.fps_denominator <= 0
         || plan.duration_frames <= 0
     {
         return Err("invalid render_plan version, frame rate, or duration_frames".to_string());
-    }
-    let nominal_numerator = match plan.fps_numerator.checked_add(plan.fps_denominator / 2) {
-        Some(value) => value,
-        None => return Err("render_plan nominal fps calculation overflows".to_string()),
-    };
-    let nominal_fps = nominal_numerator / plan.fps_denominator;
-    if nominal_fps != i64::from(plan.fps) {
-        return Err("render_plan nominal fps disagrees with rational frame rate".to_string());
     }
     for hash in [
         &plan.timeline_hash,

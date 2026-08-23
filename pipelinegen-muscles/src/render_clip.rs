@@ -92,9 +92,6 @@ pub(super) fn render_clip(request: Request) -> Response {
     let profile = VideoProfile {
         width: clip_plan.output.width as u32,
         height: clip_plan.output.height as u32,
-        // Scalar fps is a nominal projection for encoder validation only;
-        // the filter graph and response metadata use the exact rational pair.
-        fps: (fps_num as f64 / fps_den as f64).round() as u32,
         fps_num: fps_num as u32,
         fps_den: fps_den as u32,
         keyframe_interval,
@@ -624,7 +621,7 @@ mod tests {
             watermark: None,
             subtitles: None,
             output: ClipPlanOutput {
-                contract_id: "velox-editing-clip-v1".to_string(),
+                contract_id: "VELOX_ASSEMBLY_READY_V1".to_string(),
                 container: "mp4".to_string(),
                 video_codec: "h264".to_string(),
                 video_profile: Some("high".to_string()),
@@ -650,7 +647,6 @@ mod tests {
         VideoProfile {
             width: 1080,
             height: 1920,
-            fps: 60,
             fps_num: 60,
             fps_den: 1,
             keyframe_interval: 120,

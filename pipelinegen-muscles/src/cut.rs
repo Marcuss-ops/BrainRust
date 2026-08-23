@@ -173,7 +173,7 @@ fn cut_one(
         .args(["-t", &duration.to_string()])
         .args(["-map", "0:v:0?"]);
     if !gpu_cut {
-        command.args(["-vf", &format!("scale={}:{:}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}", profile.width, profile.height, profile.width, profile.height, profile.fps)]);
+        command.args(["-vf", &format!("scale={}:{:}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{}", profile.width, profile.height, profile.width, profile.height, profile.fps_num, profile.fps_den)]);
     }
     if !no_audio {
         command.args(["-map", "0:a:0?"]);
@@ -262,6 +262,5 @@ fn gpu_cut_eligibility(
     };
     metadata.has_video
         && metadata.width == profile.width
-        && metadata.height == profile.height
-        && (metadata.fps - profile.fps as f64).abs() <= 0.5
+        && metadata.height == profile.height		&& (metadata.fps - profile.fps_float()).abs() <= 0.5
 }

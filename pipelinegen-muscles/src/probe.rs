@@ -97,7 +97,7 @@ pub(crate) fn validate_output(
         || !video_codec_matches(video.codec_name.as_deref(), &encoder.codec)
         || video.pix_fmt.as_deref() != Some("yuv420p")
         || parse_frame_rate(video.avg_frame_rate.as_deref().unwrap_or(""))
-            .map_or(true, |fps| (fps - profile.fps as f64).abs() > 0.5)
+            .map_or(true, |fps| (fps - profile.fps_float()).abs() > 0.5)
     {
         return Err("canonical video profile violation".to_string());
     }

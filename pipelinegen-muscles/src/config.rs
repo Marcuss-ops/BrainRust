@@ -13,7 +13,6 @@ pub struct MediaConfig {
     pub crf: Option<i32>,
     pub width: Option<u32>,
     pub height: Option<u32>,
-    pub fps: Option<u32>,
     pub fps_num: Option<u32>,
     pub fps_den: Option<u32>,
     pub keyframe_interval: Option<u32>,
@@ -28,7 +27,6 @@ pub struct MediaConfig {
 pub struct VideoProfile {
     pub width: u32,
     pub height: u32,
-    pub fps: u32, // deprecated: use fps_num/fps_den
     pub fps_num: u32,
     pub fps_den: u32,
     pub keyframe_interval: u32,
@@ -39,9 +37,15 @@ pub struct VideoProfile {
 }
 
 impl VideoProfile {
+    /// FPS as f64 — projection for logs/UI only.
     pub fn fps_float(&self) -> f64 {
         self.fps_num as f64 / self.fps_den as f64
     }
+    /// Rounded integer FPS — for ffmpeg filter compatibility. Prefer fps_float().
+    pub fn fps_round(&self) -> u32 {
+        (self.fps_num as f64 / self.fps_den as f64).round() as u32
+    }
+    /// Exact rational equality — no float epsilon.
     pub fn fps_equal(&self, other: &VideoProfile) -> bool {
         self.fps_num * other.fps_den == other.fps_num * self.fps_den
     }
@@ -58,14 +62,8 @@ impl MediaConfig {
     pub fn profile(&self) -> Result<VideoProfile, String> {
         let width = required_positive(self.width, "width")?;
         let height = required_positive(self.height, "height")?;
-        let (fps_num, fps_den) = match (self.fps_num, self.fps_den) {
-            (Some(n), Some(d)) if n > 0 && d > 0 => (n, d),
-            _ => {
-                let fps = required_positive(self.fps, "fps")?;
-                (fps, 1)
-            }
-        };
-        let fps = (fps_num as f64 / fps_den as f64).round() as u32;
+        let fps_num = required_positive(self.fps_num, "fps_num")?;
+        let fps_den = required_positive(self.fps_den, "fps_den")?;
         let keyframe_interval = required_positive(self.keyframe_interval, "keyframe_interval")?;
         let sample_rate = required_positive(self.sample_rate, "sample_rate")?;
         let channels = required_positive(self.channels, "channels")?;
@@ -74,7 +72,6 @@ impl MediaConfig {
         Ok(VideoProfile {
             width,
             height,
-            fps,
             fps_num,
             fps_den,
             keyframe_interval,
@@ -126,9 +123,8 @@ mod tests {
             crf: Some(23),
             width: Some(1920),
             height: Some(1080),
-            fps: Some(24),
-            fps_num: None,
-            fps_den: None,
+            fps_num: Some(24),
+            fps_den: Some(1),
             keyframe_interval: Some(48),
             audio_codec: Some("aac".to_string()),
             audio_bitrate: Some("128k".to_string()),
@@ -144,7 +140,7 @@ mod tests {
         let profile = media.profile().unwrap();
         assert_eq!(profile.width, 1920);
         assert_eq!(profile.height, 1080);
-        assert_eq!(profile.fps, 24);
+        assert_eq!(profile.fps_round(), 24);
         assert_eq!(profile.fps_num, 24);
         assert_eq!(profile.fps_den, 1);
         assert_eq!(profile.keyframe_interval, 48);
@@ -158,8 +154,9 @@ mod tests {
     #[test]
     fn incomplete_profile_fails_closed_instead_of_defaulting() {
         let mut media = complete();
-        media.fps = None;
+        media.fps_num = None;
+        media.fps_den = None;
         let error = media.profile().unwrap_err();
-        assert!(error.contains("PROFILE_REQUIRED: fps"));
+        assert!(error.contains("PROFILE_REQUIRED: fps_num"));
     }
 }
