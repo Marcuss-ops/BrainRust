@@ -483,9 +483,9 @@ mod tests {
     fn gate_stream_count_mismatch_fails() {
         let cert = canonical_cert();
         let mut bad = canonical_probe();
-        bad.audio_stream_count = 0;
-        bad.has_audio = false;
-        bad.audio_codec = None;
+        // Only differ on video_stream_count; keep audio identical.
+        bad.video_stream_count = 2;
+        bad.stream_count = 3;
         let probes = vec![canonical_probe(), bad];
         let err = assembly_compatibility_gate(&cert, &probes).unwrap_err();
         assert!(err.contains("ASSEMBLY_INPUT_CONTRACT_MISMATCH"));
