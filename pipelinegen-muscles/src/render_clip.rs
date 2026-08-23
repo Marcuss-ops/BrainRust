@@ -667,14 +667,14 @@ mod tests {
             bitrate: None,
             width: 1920,
             height: 1080,
-            fps: 30.0,
+            fps: 24.0,
             video_codec: Some("h264".to_string()),
             pixel_format: Some("yuv420p".to_string()),
             format_name: None,
             stream_count: 1,
             video_stream_count: 1,
             audio_stream_count: u32::from(has_audio),
-            fps_num: 30,
+            fps_num: 24,
             fps_den: 1,
             audio_codec: if has_audio {
                 Some("aac".to_string())
