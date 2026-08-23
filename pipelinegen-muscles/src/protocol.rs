@@ -359,6 +359,10 @@ pub struct CutItem {
 /// it declares that the artifact is a self-contained, correctly-encoded video
 /// segment (closed GOP, first frame keyframe) that can be assembled by
 /// packet-copy with zero decode/encode.
+///
+/// Assembly-ready gate fields (added Wave 5, Aug 2026):
+///   - contract_id: MUST be "VELOX_ASSEMBLY_READY_V1"
+///   - stream_signature_sha256: all inputs in a batch MUST share identical signature
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct CopyCertification {
     pub copy_eligible: bool,
@@ -371,6 +375,14 @@ pub struct CopyCertification {
     pub fps_den: Option<u32>,
     pub closed_gop: Option<bool>,
     pub first_frame_keyframe: Option<bool>,
+    /// Assembly-ready contract identity ("VELOX_ASSEMBLY_READY_V1").
+    /// Empty on legacy certifications; gate enforces it for new paths.
+    #[serde(default)]
+    pub contract_id: Option<String>,
+    /// Stream signature SHA-256 fingerprint (canonical JSON of all video+audio+layout facts).
+    /// Empty on legacy certifications; gate enforces it when present on all inputs.
+    #[serde(default)]
+    pub stream_signature_sha256: Option<String>,
 }
 
 impl CopyCertification {
@@ -464,6 +476,8 @@ mod tests {
             fps_den: Some(1),
             closed_gop: Some(true),
             first_frame_keyframe: Some(true),
+            contract_id: None,
+            stream_signature_sha256: None,
         }
     }
 
@@ -560,7 +574,7 @@ mod tests {
             .contains("geometry"));
 
         let mut wrong_fps = metadata();
-        wrong_fps.fps = 24.0;
+        wrong_fps.fps = 30.0;
         assert!(cert
             .verify_metadata(&wrong_fps)
             .unwrap_err()
