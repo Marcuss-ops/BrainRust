@@ -214,7 +214,10 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
             command.args(["-i", input, "-c", "copy"]);
         }
         "remove_silence" => {
-            command.args(["-i", input, "-af", "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.25:stop_periods=-1:stop_threshold=-45dB:stop_silence=0.35", "-c:a", "libmp3lame", "-q:a", "2"]);
+            // Edge TTS frequently inserts long pauses between phrases. Keep
+            // natural pauses up to 800 ms, but remove every longer silent
+            // run (including internal runs: stop_periods=-1).
+            command.args(["-i", input, "-af", "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.8:stop_periods=-1:stop_threshold=-45dB:stop_silence=0.8", "-c:a", "libmp3lame", "-q:a", "2"]);
         }
         "trim" => {
             let max_duration = request.max_duration_sec.unwrap_or(0.0);
