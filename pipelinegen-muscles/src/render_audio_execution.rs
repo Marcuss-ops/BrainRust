@@ -1,7 +1,7 @@
 use super::plan::{track_events, validate_plan};
 use super::probe::{probe_audio, probe_source_duration};
 use super::{Automation, Plan};
-use crate::artifact::{failed_response, mix_path, part_path, publish_output, sha256_file};
+use crate::artifact::{failed_response, part_path, publish_output, sha256_file};
 use crate::process::FFmpegRunner;
 use crate::protocol::{AudioAsset, Request, Response};
 use std::collections::HashMap;
@@ -327,74 +327,30 @@ pub(super) fn execute(request: Request) -> Response {
         }
     }
     let part = part_path(output);
-    let mix_part = mix_path(output);
     // Keep the filter graph out of argv. With many clips/scenes the graph can
     // exceed the host ARG_MAX limit even though the actual audio plan is
     // valid. ffmpeg's script input has the same semantics without that limit.
-    let filter_script = format!("{mix_part}.filter_complex.txt");
+    let filter_script = format!("{part}.filter_complex.txt");
     if let Err(error) = fs::write(&filter_script, &filter) {
         return failed_response(None, format!("write audio filter script: {error}"));
     }
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
 
-    // Pass 1 — mix: the full filter graph (amix + limiter) into lossless
-    // PCM. Timing this pass separately from the AAC encode is what feeds the
-    // durable mix_ms / aac_encode_ms metrics.
-    let mut mix_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
-    mix_command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+    // Single pass: render the complete filter graph directly to the
+    // canonical AAC-LC master. The previous PCM intermediate caused a full
+    // second read/write/encode pass over the entire timeline. The filter
+    // graph still performs the exact same mix, limiter, padding and trim;
+    // only the lossless intermediate is removed.
+    let mut encode_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
+    encode_command.args(["-hide_banner", "-loglevel", "error", "-y"]);
     for input in &inputs {
-        mix_command.args(["-i", input]);
+        encode_command.args(["-i", input]);
     }
-    mix_command.args([
+    encode_command.args([
         "-filter_complex_script",
         &filter_script,
         "-map",
         "[aout]",
-        "-t",
-        &master_secs.to_string(),
-        "-c:a",
-        "pcm_s16le",
-        &mix_part,
-    ]);
-    let mix_started = std::time::Instant::now();
-    let mix_result = mix_command.output();
-    let mix_ms = mix_started.elapsed().as_millis() as i64;
-    match mix_result {
-        Ok(result) if result.status.success() => {
-            let _ = fs::remove_file(&filter_script);
-        }
-        Ok(result) => {
-            let _ = fs::remove_file(&filter_script);
-            let _ = fs::remove_file(&mix_part);
-            let _ = fs::remove_file(&part);
-            return failed_response(
-                None,
-                format!(
-                    "render_audio_plan mix failed: {}",
-                    String::from_utf8_lossy(&result.stderr).trim()
-                ),
-            );
-        }
-        Err(error) => {
-            let _ = fs::remove_file(&filter_script);
-            let _ = fs::remove_file(&mix_part);
-            let _ = fs::remove_file(&part);
-            return failed_response(
-                None,
-                format!("render_audio_plan mix failed to start: {error}"),
-            );
-        }
-    }
-
-    // Pass 2 — encode: lossless PCM → canonical AAC-LC 48kHz stereo master.
-    let mut encode_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
-    encode_command.args([
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        &mix_part,
         "-c:a",
         "aac",
         "-profile:a",
@@ -412,7 +368,7 @@ pub(super) fn execute(request: Request) -> Response {
     let encode_started = std::time::Instant::now();
     let encode_result = encode_command.output();
     let aac_encode_ms = encode_started.elapsed().as_millis() as i64;
-    let _ = fs::remove_file(&mix_part);
+    let _ = fs::remove_file(&filter_script);
     match encode_result {
         Ok(result) if result.status.success() => {}
         Ok(result) => {
@@ -441,7 +397,10 @@ pub(super) fn execute(request: Request) -> Response {
     let probe_ms = probe_started.elapsed().as_millis() as i64;
     match probe_result {
         Ok(mut metadata) => {
-            metadata.mix_ms = Some(mix_ms);
+            // The mix is now fused into the single encode pass. Keep the
+            // legacy metric explicit rather than reporting a fabricated
+            // second-pass duration.
+            metadata.mix_ms = Some(0);
             metadata.aac_encode_ms = Some(aac_encode_ms);
             metadata.probe_ms = Some(probe_ms);
             match publish_output(&part, output) {

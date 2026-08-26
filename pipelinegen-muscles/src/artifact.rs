@@ -40,24 +40,6 @@ pub(crate) fn part_path(final_path: &str) -> String {
     }
 }
 
-/// mix_path derives the lossless-PCM intermediate path used by the
-/// combined-audio renderer's two-pass mix→encode split. It lives next to the
-/// output with a `.mix.wav` suffix so the encode pass can read it back and the
-/// executor can clean it up deterministically.
-pub(crate) fn mix_path(final_path: &str) -> String {
-    let path = Path::new(final_path);
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("mix");
-    match path.parent().and_then(|value| value.to_str()) {
-        Some(parent) if !parent.is_empty() => Path::new(parent)
-            .join(format!("{stem}.mix.wav"))
-            .to_string_lossy()
-            .into_owned(),
-        _ => format!("{stem}.mix.wav"),
-    }
-}
 
 /// sha256_file computes the lowercase SHA256 digest of a file using the same
 /// `sha256sum` invocation the canonical render plan already relies on. It is
