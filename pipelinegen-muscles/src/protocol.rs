@@ -91,6 +91,11 @@ pub struct Request {
     pub transitions: Option<Vec<RenderTransition>>,
     // Legacy selection inputs are accepted only so the protocol can reject
     // unresolved requests explicitly; Rust never uses them to choose assets.
+    // REMOVAL GATE: these fields become deletable once every dispatcher
+    // build has rolled past the render_plan cutover (no caller sends
+    // transition_every / effects_dir / effect_every / no_effects); until
+    // then they keep unresolved requests failing with an explicit typed
+    // error instead of a raw serde unknown-field error.
     pub transition_every: Option<i32>,
     pub effects_dir: Option<String>,
     pub effect_every: Option<i32>,
@@ -114,8 +119,9 @@ pub struct Request {
     // policy/geometry all arrive resolved).
     pub clip_plan: Option<serde_json::Value>,
     // The render backend resolved by the Go capability's RenderBackendResolver
-    // ("cuda_native" | "ffmpeg_fallback"). Rust executes the selected backend
-    // verbatim and never derives it from the codec string.
+    // ("chronon_vulkan" | "cuda_native" | "ffmpeg_fallback"). Rust executes
+    // the selected backend verbatim and never derives it from the codec
+    // string; cuda_native selects the PATH B CUDA hybrid graph.
     pub render_backend: Option<String>,
 }
 
@@ -318,6 +324,17 @@ pub struct MediaMetadata {
     // wall time without an external timing shim. None elsewhere.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ffmpeg_ms: Option<i64>,
+    // render_clip phase timings (the benchmark decomposition): startup_ms
+    // spans plan decode + source probe + filter-graph build + process spawn
+    // (the "renderer startup" BEFORE the ffmpeg wall); publish_ms is the
+    // output publish/rename; op_ms is the whole render_clip wall inside the
+    // Rust process. None elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub startup_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub op_ms: Option<i64>,
     // SHA256 of the published final audio, computed by Rust so the Go adapter
     // never re-hashes the output it just rendered (single ownership of the
     // hash operation).
@@ -337,10 +354,8 @@ pub struct MediaMetadata {
     // GPU). None when subtitles are disabled or sidecar.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subtitle_raster_cpu: Option<bool>,
-    // Native libavcodec path and explicit device-copy accounting. None means
-    // the legacy operation did not collect these native metrics.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub native_media: Option<bool>,
+    // Explicit device-copy accounting. None means the operation did not
+    // collect these GPU metrics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_copy_bytes: Option<u64>,
 }
@@ -508,11 +523,13 @@ mod tests {
             probe_ms: None,
             hash_ms: None,
             ffmpeg_ms: None,
+            startup_ms: None,
+            publish_ms: None,
+            op_ms: None,
             final_audio_sha256: None,
             audio_copy_eligible: None,
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
-            native_media: None,
             gpu_copy_bytes: None,
         }
     }

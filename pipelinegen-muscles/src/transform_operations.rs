@@ -217,7 +217,16 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
             // Edge TTS frequently inserts long pauses between phrases. Keep
             // natural pauses up to 800 ms, but remove every longer silent
             // run (including internal runs: stop_periods=-1).
-            command.args(["-i", input, "-af", "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.8:stop_periods=-1:stop_threshold=-45dB:stop_silence=0.8", "-c:a", "libmp3lame", "-q:a", "2"]);
+            //
+            // P0 mix canonicalization (2026-08-26): the cleaned output is
+            // normalized to the canonical 48 kHz stereo mix profile in the
+            // SAME pass that strips silence, so the renderer's
+            // source_normalize can skip aresample/aformat for every
+            // voiceover source. Edge TTS emits 24 kHz mono; without this
+            // the mix graph upmixed and resampled each event on every
+            // render. The fingerprint bump (voiceover-content-v2) ensures
+            // pre-canonicalization cache rows are never reused.
+            command.args(["-i", input, "-af", "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.8:stop_periods=-1:stop_threshold=-45dB:stop_silence=0.8", "-c:a", "libmp3lame", "-q:a", "2", "-ar", "48000", "-ac", "2"]);
         }
         "trim" => {
             let max_duration = request.max_duration_sec.unwrap_or(0.0);

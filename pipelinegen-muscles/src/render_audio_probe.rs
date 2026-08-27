@@ -20,19 +20,37 @@ struct Stream {
     profile: Option<String>,
     sample_rate: Option<String>,
     channels: Option<u32>,
+    channel_layout: Option<String>,
     start_time: Option<String>,
 }
 
-pub(super) fn probe_source_duration(ffmpeg: &str, path: &str) -> Result<f64, String> {
+// SourceProbe is the per-asset audio format facts the renderer needs to
+// build the filter graph: the duration it already validated against the
+// declared source range, plus the stream format it uses to decide whether
+// the input must be normalized to the canonical 48 kHz stereo mix or can
+// join it as-is.
+#[derive(Clone, Debug)]
+pub(super) struct SourceProbe {
+    pub duration_sec: f64,
+    pub sample_rate: Option<u32>,
+    pub channels: Option<u32>,
+    pub channel_layout: Option<String>,
+}
+
+// probe_source reads one audio source's duration and stream format in a
+// single ffprobe call. It replaces the old duration-only probe: the format
+// facts let the graph skip aresample/aformat for assets that are already
+// canonical, without paying a second subprocess per unique path.
+pub(super) fn probe_source(ffmpeg: &str, path: &str) -> Result<SourceProbe, String> {
     let ffprobe = crate::probe::ffprobe_path(ffmpeg);
     let mut command = FFmpegRunner::from_ffprobe_path(&ffprobe).ffprobe();
     command.args([
         "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
         path,
     ]);
     let output = command
@@ -41,14 +59,28 @@ pub(super) fn probe_source_duration(ffmpeg: &str, path: &str) -> Result<f64, Str
     if !output.status.success() {
         return Err(format!("source asset is corrupt or unreadable: {path}"));
     }
-    let duration = String::from_utf8_lossy(&output.stdout)
-        .trim()
+    let probe: Probe = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("ffprobe source parse failed for {path}: {error}"))?;
+    let duration = probe
+        .format
+        .duration
+        .as_deref()
+        .ok_or_else(|| format!("source asset has no usable duration: {path}"))?
         .parse::<f64>()
         .map_err(|error| format!("invalid source duration for {path}: {error}"))?;
     if !duration.is_finite() || duration <= 0.0 {
         return Err(format!("source asset has no usable duration: {path}"));
     }
-    Ok(duration)
+    let audio = probe
+        .streams
+        .iter()
+        .find(|stream| stream.codec_type.as_deref() == Some("audio"));
+    Ok(SourceProbe {
+        duration_sec: duration,
+        sample_rate: audio.and_then(|stream| stream.sample_rate.as_deref()?.parse().ok()),
+        channels: audio.and_then(|stream| stream.channels),
+        channel_layout: audio.and_then(|stream| stream.channel_layout.clone()),
+    })
 }
 
 pub(super) fn probe_audio(
@@ -149,11 +181,13 @@ pub(super) fn probe_audio(
         probe_ms: None,
         hash_ms: None,
         ffmpeg_ms: None,
+        startup_ms: None,
+        publish_ms: None,
+        op_ms: None,
         final_audio_sha256: None,
         audio_copy_eligible: None,
         audio_encode_passes: None,
         subtitle_raster_cpu: None,
-        native_media: None,
         gpu_copy_bytes: None,
     })
 }

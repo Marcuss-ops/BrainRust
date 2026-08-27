@@ -16,9 +16,10 @@ pub fn append_video_args(
     append_video_args_with_pixel_format(command, policy, profile, keyframe_interval, "yuv420p")
 }
 
-/// Appends the encoder contract for a hardware frame. `cuda` is an FFmpeg
-/// hardware pixel format, not a codec pixel format: it tells FFmpeg to keep
-/// the decoded CUDA frame on the device until NVENC consumes it.
+/// Appends the encoder contract for a CUDA frame (PATH B hybrid). `cuda` is
+/// an FFmpeg hardware pixel format, not a codec pixel format: it tells FFmpeg
+/// to keep the composited CUDA frame on the device until NVENC consumes it —
+/// the base video never leaves VRAM (zero readback).
 pub fn append_video_args_cuda(
     command: &mut ProcessCommand,
     policy: &EncoderPolicy,

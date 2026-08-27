@@ -1,5 +1,5 @@
 use super::plan::{track_events, validate_plan};
-use super::probe::{probe_audio, probe_source_duration};
+use super::probe::{probe_audio, probe_source, SourceProbe};
 use super::{Automation, Plan};
 use crate::artifact::{failed_response, part_path, publish_output, sha256_file};
 use crate::process::FFmpegRunner;
@@ -132,6 +132,45 @@ fn track_gain_expr(base_gain_db: f64, automations: &[(&Automation, bool)]) -> St
     expr
 }
 
+// volume_eval_mode picks the FFmpeg volume filter's expression-evaluation
+// mode. Automation envelopes (fade/duck) reference t — the absolute output
+// time once adelay shifts the stream PTS — so the expression MUST be
+// re-evaluated every frame: eval=frame. A static gain (no targeting
+// entries) is a constant expression: eval=once evaluates it at the first
+// frame and reuses the value for every frame, which is behaviourally
+// identical and skips the per-frame expression evaluation the filter would
+// otherwise pay for every event in the graph. The canonical mix-policy
+// levels (0 dB / -3 dB / -12 dB voiceovers with no ducking) are static, so
+// they take the once path; only BGM fades and trigger-driven ducks pay the
+// per-frame cost.
+fn volume_eval_mode(has_automation: bool) -> &'static str {
+    if has_automation {
+        "eval=frame"
+    } else {
+        "eval=once"
+    }
+}
+
+// source_normalize emits the resample/reformat chain an input needs to
+// join the canonical 48 kHz stereo mix. An asset that probes as already
+// canonical (48 kHz, 2 channels, explicit stereo layout) skips both
+// filters: aresample would be a no-op and aformat would only re-declare
+// the layout it already has. Everything else keeps the normalizing chain
+// — mono voiceovers must still be upmixed to stereo, 44.1 kHz BGM
+// resampled, and layout-ambiguous stereo streams pinned to an explicit
+// stereo layout so amix sees uniform inputs. The empty string is safe in
+// the filter string: the surrounding commas just join adjacent filters.
+fn source_normalize(probe: &SourceProbe) -> &'static str {
+    if probe.sample_rate == Some(48000)
+        && probe.channels == Some(2)
+        && probe.channel_layout.as_deref() == Some("stereo")
+    {
+        ""
+    } else {
+        "aresample=48000,aformat=channel_layouts=stereo,"
+    }
+}
+
 // event_filter builds the ffmpeg filter graph for ONE already-compiled
 // audio event. This is the boundary where "Go decides, Rust executes" is
 // enforced: the graph plays EXACTLY the declared source range
@@ -140,15 +179,25 @@ fn track_gain_expr(base_gain_db: f64, automations: &[(&Automation, bool)]) -> St
 // plan that wants the music repeated must contain N explicit events (the
 // Go loop expander's output). If the source is shorter than the declared
 // range, ensure_source fails the render instead of inventing a loop.
+//
+// eval_mode is the volume filter's expression-evaluation mode
+// (volume_eval_mode): "eval=frame" when the gain expression depends on
+// absolute output time (automation), "eval=once" for static gains.
+//
+// normalize is the source_normalize output for this event's asset: the
+// aresample/aformat chain when the source is not canonical, empty when it
+// already is 48 kHz stereo.
 fn event_filter(
     index: usize,
     source_in_us: i64,
     source_end_us: i64,
     delay_ms: i64,
     gain: &str,
+    eval_mode: &str,
+    normalize: &str,
 ) -> String {
     format!(
-        "[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}':eval=frame[a{index}]",
+        "[{index}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS,{normalize}adelay={delay_ms}|{delay_ms},volume='{gain}':{eval_mode}[a{index}]",
         source_in_us as f64 / 1_000_000.0,
         source_end_us as f64 / 1_000_000.0
     )
@@ -183,25 +232,25 @@ pub(super) fn execute(request: Request) -> Response {
         .into_iter()
         .map(|asset: AudioAsset| (asset.asset_id, asset.path))
         .collect();
-    let mut source_durations: HashMap<String, f64> = HashMap::new();
+    let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
+    let mut source_probes: HashMap<String, SourceProbe> = HashMap::new();
     let mut ensure_source = |asset_id: &str,
                              path: &str,
                              required_end_us: i64|
-     -> Result<(), String> {
-        let duration = if let Some(duration) = source_durations.get(path) {
-            *duration
+     -> Result<SourceProbe, String> {
+        let probe = if let Some(probe) = source_probes.get(path) {
+            probe.clone()
         } else {
-            let duration =
-                probe_source_duration(request.ffmpeg_path.as_deref().unwrap_or("ffmpeg"), path)?;
-            source_durations.insert(path.to_owned(), duration);
-            duration
+            let probe = probe_source(ffmpeg, path)?;
+            source_probes.insert(path.to_owned(), probe.clone());
+            probe
         };
-        if duration * 1_000_000.0 + 40_000.0 < required_end_us as f64 {
+        if probe.duration_sec * 1_000_000.0 + 40_000.0 < required_end_us as f64 {
             return Err(format!(
                 "audio asset {asset_id} is shorter than required source range"
             ));
         }
-        Ok(())
+        Ok(probe)
     };
     let mut inputs = Vec::new();
     let mut filters = Vec::new();
@@ -225,10 +274,10 @@ pub(super) fn execute(request: Request) -> Response {
             Some(value) if event.source_duration_us > 0 => value,
             _ => return failed_response(None, "audio event source range is incomplete".into()),
         };
-        if let Err(error) = ensure_source(event.asset_id.as_deref().unwrap_or(""), path, source_end)
-        {
-            return failed_response(Some(path.clone()), error);
-        }
+        let probe = match ensure_source(event.asset_id.as_deref().unwrap_or(""), path, source_end) {
+            Ok(probe) => probe,
+            Err(error) => return failed_response(Some(path.clone()), error),
+        };
         let delay_ms = (event.timeline_start_us + 500) / 1000;
         let mut targeting: Vec<(&Automation, bool)> = Vec::new();
         for automation in &plan.automation {
@@ -252,13 +301,17 @@ pub(super) fn execute(request: Request) -> Response {
         // windows would never match. With eval=frame the expression is
         // evaluated per frame and, because adelay shifts the stream PTS
         // to absolute output time, the between(t, ...) windows land at
-        // the exact absolute positions the plan declares.
+        // the exact absolute positions the plan declares. Events with no
+        // targeting entries have a static gain and take eval=once instead
+        // (behaviourally identical, no per-frame expression cost).
         filters.push(event_filter(
             index,
             event.source_in_us,
             source_end,
             delay_ms,
             &gain,
+            volume_eval_mode(!targeting.is_empty()),
+            source_normalize(&probe),
         ));
     }
     for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
@@ -278,9 +331,10 @@ pub(super) fn execute(request: Request) -> Response {
             }
             let index = inputs.len();
             inputs.push(path.clone());
-            if let Err(error) = ensure_source(&layer.asset_id, path, layer.duration_us) {
-                return failed_response(Some(path.clone()), error);
-            }
+            let probe = match ensure_source(&layer.asset_id, path, layer.duration_us) {
+                Ok(probe) => probe,
+                Err(error) => return failed_response(Some(path.clone()), error),
+            };
             let mut targeting: Vec<(&Automation, bool)> = Vec::new();
             for automation in &plan.automation {
                 if automation.target_track_id.eq_ignore_ascii_case(layer_name)
@@ -295,10 +349,12 @@ pub(super) fn execute(request: Request) -> Response {
             let gain = track_gain_expr(layer.gain_db, &targeting);
             let delay_ms = (layer.timeline_start_us + 500) / 1000;
             let duration = layer.duration_us as f64 / 1_000_000.0;
-            // Same eval=frame contract as the track path above: automation
+            // Same eval contract as the track path above: automation
             // windows are absolute output time and must be re-evaluated per
-            // frame after the adelay.
-            filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay={delay_ms}|{delay_ms},volume='{gain}':eval=frame[a{index}]"));
+            // frame (eval=frame); a static layer gain takes eval=once.
+            let eval_mode = volume_eval_mode(!targeting.is_empty());
+            let normalize = source_normalize(&probe);
+            filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,{normalize}adelay={delay_ms}|{delay_ms},volume='{gain}':{eval_mode}[a{index}]"));
         }
     }
     // Silence anchor + apad + atrim. The full-length silent bed is always
@@ -403,6 +459,13 @@ pub(super) fn execute(request: Request) -> Response {
             metadata.mix_ms = Some(0);
             metadata.aac_encode_ms = Some(aac_encode_ms);
             metadata.probe_ms = Some(probe_ms);
+            // Single-pass contract, reported from the execution plane where
+            // the encode command lives: the filter graph renders the master
+            // directly to AAC-LC with ONE ffmpeg encode (no PCM intermediate,
+            // no decode/re-encode cycle). The Go adapter reads this instead
+            // of hard-coding the count. If a future change adds a second
+            // pass, this constant is the place that must be updated.
+            metadata.audio_encode_passes = Some(1);
             match publish_output(&part, output) {
                 Ok(()) => {
                     // Hash the published final audio in its owner (Rust), so
@@ -438,7 +501,10 @@ pub(super) fn execute(request: Request) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{duck_envelope, event_filter, fade_envelope, linear_gain, track_gain_expr, Automation};
+    use super::{
+        duck_envelope, event_filter, fade_envelope, linear_gain, source_normalize, track_gain_expr,
+        volume_eval_mode, Automation, SourceProbe,
+    };
 
     #[test]
     fn fade_envelope_ramps_from_and_to_silence() {
@@ -521,11 +587,22 @@ mod tests {
         // The fundamental expansion's 2nd BGM event ([20s, 40s), source
         // restarting from 0) must be a single atrim of exactly [0,20s)
         // delayed to 20s — the whole 20s source played once, never looped.
-        let filter = event_filter(1, 0, 20_000_000, 20_000, "0.063096");
+        let filter = event_filter(1, 0, 20_000_000, 20_000, "0.063096", "eval=once", "");
         assert!(filter.contains("atrim=start=0:end=20,"), "{filter}");
         assert!(filter.contains("adelay=20000|20000"), "{filter}");
-        assert!(filter.contains("volume='0.063096':eval=frame"), "{filter}");
+        assert!(filter.contains("volume='0.063096':eval=once"), "{filter}");
         assert!(filter.ends_with("[a1]"), "{filter}");
+    }
+
+    #[test]
+    fn event_filter_keeps_eval_frame_for_automated_gains() {
+        // An event whose gain expression depends on absolute output time
+        // (duck/fade automation targeting its track) must keep eval=frame:
+        // only the per-frame evaluation makes between(t, ...) windows land
+        // at the declared absolute positions after the adelay.
+        let filter = event_filter(1, 0, 20_000_000, 20_000, "0.063096*if(between(t,0.000000,15.000000),0.316228,1)", "eval=frame", "");
+        assert!(filter.contains("volume='0.063096*if(between(t,0.000000,15.000000),0.316228,1)':eval=frame"), "{filter}");
+        assert!(filter.contains("adelay=20000|20000"), "{filter}");
     }
 
     #[test]
@@ -534,7 +611,7 @@ mod tests {
         // trim from the same 20s source, delayed to 60s. Rust renders the
         // declared 15s — it never plays the whole 20s source again nor
         // loops it to fill the timeline.
-        let filter = event_filter(3, 0, 15_000_000, 60_000, "0.063096");
+        let filter = event_filter(3, 0, 15_000_000, 60_000, "0.063096", "eval=once", "");
         assert!(filter.contains("atrim=start=0:end=15,"), "{filter}");
         assert!(filter.contains("adelay=60000|60000"), "{filter}");
     }
@@ -544,7 +621,7 @@ mod tests {
         // An SFX with source_in_ms=250, duration_ms=900 is trimmed to the
         // declared [0.25s, 1.15s) slice of its source — the source is never
         // played beyond the compiled event.
-        let filter = event_filter(0, 250_000, 1_150_000, 12_000, "0.398107");
+        let filter = event_filter(0, 250_000, 1_150_000, 12_000, "0.398107", "eval=once", "");
         assert!(filter.contains("atrim=start=0.25:end=1.15,"), "{filter}");
         assert!(filter.contains("adelay=12000|12000"), "{filter}");
     }
@@ -555,11 +632,92 @@ mod tests {
         // compiled plan carries N explicit events for N repeats, and Rust
         // executes them verbatim.
         for filter in [
-            event_filter(0, 0, 20_000_000, 0, "0.063096"),
-            event_filter(3, 0, 15_000_000, 60_000, "0.063096"),
+            event_filter(0, 0, 20_000_000, 0, "0.063096", "eval=once", ""),
+            event_filter(3, 0, 15_000_000, 60_000, "0.063096", "eval=frame", ""),
         ] {
             assert!(!filter.contains("loop"), "filter must never loop: {filter}");
         }
+    }
+
+    #[test]
+    fn source_normalize_skips_conversion_for_canonical_assets() {
+        let canonical = SourceProbe {
+            duration_sec: 10.0,
+            sample_rate: Some(48000),
+            channels: Some(2),
+            channel_layout: Some("stereo".into()),
+        };
+        assert_eq!(source_normalize(&canonical), "");
+    }
+
+    #[test]
+    fn source_normalize_keeps_conversion_for_non_canonical_assets() {
+        // Mono 24 kHz voiceover: must be resampled AND upmixed to stereo.
+        let voiceover = SourceProbe {
+            duration_sec: 10.0,
+            sample_rate: Some(24000),
+            channels: Some(1),
+            channel_layout: Some("mono".into()),
+        };
+        assert_eq!(
+            source_normalize(&voiceover),
+            "aresample=48000,aformat=channel_layouts=stereo,"
+        );
+        // Stereo 44.1 kHz BGM: resample needed.
+        let bgm = SourceProbe {
+            duration_sec: 10.0,
+            sample_rate: Some(44100),
+            channels: Some(2),
+            channel_layout: Some("stereo".into()),
+        };
+        assert_eq!(
+            source_normalize(&bgm),
+            "aresample=48000,aformat=channel_layouts=stereo,"
+        );
+        // 48 kHz 2ch with unknown layout: pin the stereo layout explicitly.
+        let ambiguous = SourceProbe {
+            duration_sec: 10.0,
+            sample_rate: Some(48000),
+            channels: Some(2),
+            channel_layout: None,
+        };
+        assert_eq!(
+            source_normalize(&ambiguous),
+            "aresample=48000,aformat=channel_layouts=stereo,"
+        );
+    }
+
+    #[test]
+    fn event_filter_skips_normalize_for_canonical_sources() {
+        let filter = event_filter(1, 0, 20_000_000, 20_000, "0.063096", "eval=once", "");
+        assert!(!filter.contains("aresample"), "{filter}");
+        assert!(!filter.contains("aformat"), "{filter}");
+        assert!(filter.contains("asetpts=PTS-STARTPTS,adelay=20000|20000"), "{filter}");
+    }
+
+    #[test]
+    fn event_filter_normalizes_non_canonical_sources() {
+        let filter = event_filter(
+            1,
+            0,
+            20_000_000,
+            20_000,
+            "0.063096",
+            "eval=once",
+            "aresample=48000,aformat=channel_layouts=stereo,",
+        );
+        assert!(
+            filter.contains("asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,adelay=20000|20000"),
+            "{filter}"
+        );
+    }
+
+    #[test]
+    fn volume_eval_mode_is_frame_only_with_automation() {
+        // Static gains (no targeting entries) evaluate once; any automation
+        // envelope references t and must re-evaluate per frame.
+        assert_eq!(volume_eval_mode(false), "eval=once");
+        assert_eq!(volume_eval_mode(true), "eval=frame");
     }
 
     #[test]

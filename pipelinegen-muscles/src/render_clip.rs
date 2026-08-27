@@ -20,7 +20,6 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::config::VideoProfile;
 use crate::encoder::{append_video_args, append_video_args_cuda};
-use crate::native;
 use crate::probe;
 use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
@@ -36,6 +35,10 @@ use plan::{
 };
 
 pub(super) fn render_clip(request: Request) -> Response {
+    // The whole-operation wall clock for the benchmark decomposition: every
+    // success response reports startup_ms / publish_ms / op_ms so the Go
+    // boundary can attribute the seconds outside the ffmpeg wall.
+    let op_started = std::time::Instant::now();
     let raw_plan = match request.clip_plan.clone() {
         Some(value) => value,
         None => return failed_response(None, "clip_plan is required".to_string()),
@@ -120,21 +123,35 @@ pub(super) fn render_clip(request: Request) -> Response {
 
     // The render backend is resolved by the Go RenderBackendResolver and
     // transported here — Rust never derives hardware usage from the codec
-    // string. Only the CUDA native backend enables NVDEC decode; the
-    // software FFmpeg fallback decodes on the CPU regardless of encoder.
+    // string. cuda_native selects the PATH B CUDA hybrid graph (NVDEC →
+    // scale_cuda base → CPU-rasterized overlay → hwupload_cuda →
+    // overlay_cuda → NVENC) with ZERO readback of the base video; every
+    // other backend uses the software FFmpeg graph (chronon_vulkan is
+    // executed by the Chronon executor, never here).
     let backend = request
         .render_backend
         .as_deref()
         .unwrap_or("ffmpeg_fallback");
-    let use_hw_decode = backend == "cuda_native";
-    // A CUDA frame must not pass through a CPU-only filter. This strict path
-    // is intentionally limited to a source-only clip: subtitles, alpha
-    // watermarking, backgrounds and frame-rate conversion still use the
-    // correctness fallback below until their GPU implementations are wired.
     let requested_codec = encoder.codec.trim().to_ascii_lowercase();
     let nvenc_encoder = requested_codec == "nvenc" || requested_codec.ends_with("_nvenc");
-    let gpu_native = use_hw_decode && nvenc_encoder && gpu_native_eligible(&clip_plan);
-    let graph = build_filter_graph_with_hw_decode(&clip_plan, &profile, use_hw_decode, gpu_native);
+    let gpu_native = backend == "cuda_native" && nvenc_encoder && gpu_native_eligible(&clip_plan);
+    // Zero-readback contract: when cuda_native is selected the plan MUST be
+    // renderable device-local. A plan the hybrid cannot do (background
+    // plate, scale != 100, software encoder) is a resolver/media-policy
+    // mismatch — fail closed loudly instead of silently hwdownload-ing the
+    // base video (the historical PATH B readback this implementation
+    // eliminates).
+    if backend == "cuda_native" && !gpu_native {
+        return failed_response(
+            None,
+            "cuda_native selected but the plan/encoder is not eligible for the zero-readback CUDA hybrid (background, scale or software encoder); resolver/media-policy mismatch".to_string(),
+        );
+    }
+    let graph = if gpu_native {
+        build_gpu_filter_graph(&clip_plan, &profile)
+    } else {
+        build_filter_graph(&clip_plan, &profile)
+    };
     let subtitle_raster_cpu = clip_plan
         .subtitles
         .as_ref()
@@ -143,78 +160,13 @@ pub(super) fn render_clip(request: Request) -> Response {
 
     let part = part_path(output);
 
-    // Native libavcodec/libavformat path. It is deliberately narrower than
-    // the CUDA filter path: only an already-sized source-only clip with
-    // compatible copied audio can use it. This reuses the native decoder and
-    // encoder setup inside the bridge and avoids spawning FFmpeg for this
-    // class of render. Any unsupported media shape falls through to the
-    // audited FFmpeg graph rather than changing output semantics.
-    let native_eligible = gpu_native
-        && audio_copy_eligible
-        && clip_plan.subtitles.is_none()
-        && clip_plan.watermark.is_none()
-        && clip_plan.background.is_none()
-        && source_metadata.width == profile.width
-        && source_metadata.height == profile.height;
-    if native_eligible {
-        let native_started = std::time::Instant::now();
-        if native::render_source_only(source, &part, profile.width, profile.height).is_ok() {
-            let native_ms = native_started.elapsed().as_millis() as i64;
-            return match publish_output(&part, output) {
-                Ok(()) => Response {
-                    ok: true,
-                    operation: "render_clip".to_string(),
-                    source_path: Some(source.to_string()),
-                    items: Vec::new(),
-                    metadata: Some(MediaMetadata {
-                        duration_sec: source_metadata.duration_sec,
-                        bitrate: None,
-                        width: profile.width,
-                        height: profile.height,
-                        fps: fps_num as f64 / fps_den as f64,
-                        video_codec: Some("h264_nvenc".to_string()),
-                        pixel_format: Some("cuda".to_string()),
-                        format_name: Some("native_libav_cuda".to_string()),
-                        stream_count: 0,
-                        video_stream_count: 1,
-                        audio_stream_count: u32::from(source_metadata.has_audio),
-                        fps_num: fps_num as u32,
-                        fps_den: fps_den as u32,
-                        audio_codec: source_metadata.audio_codec.clone(),
-                        audio_profile: source_metadata.audio_profile.clone(),
-                        sample_rate: source_metadata.sample_rate,
-                        channels: source_metadata.channels,
-                        start_pts: source_metadata.start_pts,
-                        has_video: true,
-                        has_audio: source_metadata.has_audio,
-                        mix_ms: None,
-                        aac_encode_ms: None,
-                        probe_ms: None,
-                        hash_ms: None,
-                        ffmpeg_ms: Some(native_ms.max(1)),
-                        final_audio_sha256: None,
-                        audio_copy_eligible: Some(true),
-                        audio_encode_passes: Some(0),
-                        subtitle_raster_cpu: Some(false),
-                        native_media: Some(true),
-                        gpu_copy_bytes: Some(0),
-                    }),
-                    error: None,
-                },
-                Err(error) => failed_response(None, error),
-            };
-        }
-        let _ = fs::remove_file(&part);
-    }
-
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-    // Inputs: [0] source, optional background asset, and for the CUDA path a
-    // transparent overlay canvas supplied by lavfi.
-    if use_hw_decode {
-        // Decode source frames through NVDEC. CPU filters use the explicit
-        // hwdownload fallback; the source-only path keeps the CUDA frames
-        // device-local through scale_cuda and NVENC.
+    // Inputs: [0] source, optional background asset, optional watermark, and
+    // for the CUDA hybrid the transparent overlay canvas (lavfi).
+    if gpu_native {
+        // Decode through NVDEC and keep the base video device-local; the
+        // PATH B graph never downloads it.
         command.args(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
     }
     command.args(["-i", source]);
@@ -228,12 +180,30 @@ pub(super) fn render_clip(request: Request) -> Response {
                 .unwrap_or(""),
         ]);
     }
-    if clip_plan
+    let text_watermark = clip_plan
+        .watermark
+        .as_ref()
+        .map(|wm| !wm.text.trim().is_empty())
+        .unwrap_or(false);
+    let image_watermark = clip_plan
         .watermark
         .as_ref()
         .map(|wm| wm.text.trim().is_empty())
-        .unwrap_or(false)
-    {
+        .unwrap_or(false);
+    let burn_subtitles = clip_plan
+        .subtitles
+        .as_ref()
+        .map(|s| s.mode == SUBTITLE_BURN)
+        .unwrap_or(false);
+    // PATH B overlay canvas: transparent full-frame canvas rasterized on CPU
+    // (drawtext + libass subtitles), uploaded once and composited on GPU.
+    if gpu_native && (text_watermark || burn_subtitles) {
+        command.args([
+            "-f", "lavfi", "-i",
+            &format!("color=c=black@0.0:s={}x{}:r={}/{}", profile.width, profile.height, fps_num, fps_den),
+        ]);
+    }
+    if image_watermark {
         command.args([
             "-i",
             clip_plan
@@ -241,12 +211,6 @@ pub(super) fn render_clip(request: Request) -> Response {
                 .as_ref()
                 .map(|wm| wm.path.as_str())
                 .unwrap_or(""),
-        ]);
-    }
-    if gpu_native && (clip_plan.watermark.is_some() || clip_plan.subtitles.is_some()) {
-        command.args([
-            "-f", "lavfi", "-i",
-            &format!("color=c=black@0.0:s={}x{}:r={}/{}", profile.width, profile.height, fps_num, fps_den),
         ]);
     }
     command.args([
@@ -270,53 +234,66 @@ pub(super) fn render_clip(request: Request) -> Response {
     }
     command.args(["-movflags", "+faststart", &part]);
 
+    // startup_ms = everything BEFORE the ffmpeg wall: plan decode, source
+    // probe, audio policy, filter-graph build, process spawn. This is the
+    // "renderer startup" the benchmark could not attribute to decode,
+    // composite or encode.
+    let startup_ms = op_started.elapsed().as_millis() as i64;
     let encode_started = std::time::Instant::now();
     let encode_result = command.output();
     let ffmpeg_ms = encode_started.elapsed().as_millis() as i64;
     match encode_result {
-        Ok(result) if result.status.success() => match publish_output(&part, output) {
-            Ok(()) => Response {
-                ok: true,
-                operation: "render_clip".to_string(),
-                source_path: Some(source.to_string()),
-                items: Vec::new(),
-                metadata: Some(MediaMetadata {
-                    duration_sec: source_metadata.duration_sec,
-                    bitrate: None,
-                    width: profile.width,
-                    height: profile.height,
-                    fps: fps_num as f64 / fps_den as f64,
-                    video_codec: None,
-                    pixel_format: None,
-                    format_name: None,
-                    stream_count: 0,
-                    video_stream_count: 0,
-                    audio_stream_count: 0,
-                    fps_num: fps_num as u32,
-                    fps_den: fps_den as u32,
-                    audio_codec: None,
-                    audio_profile: None,
-                    sample_rate: None,
-                    channels: None,
-                    start_pts: None,
-                    has_video: true,
-                    has_audio: source_metadata.has_audio,
-                    mix_ms: None,
-                    aac_encode_ms: None,
-                    probe_ms: None,
-                    hash_ms: None,
-                    ffmpeg_ms: Some(ffmpeg_ms.max(1)),
-                    final_audio_sha256: None,
-                    audio_copy_eligible: Some(audio_copy_eligible),
-                    audio_encode_passes: Some(audio_encode_passes),
-                    subtitle_raster_cpu: Some(subtitle_raster_cpu),
-                    native_media: Some(false),
-                    gpu_copy_bytes: None,
-                }),
-                error: None,
-            },
-            Err(error) => failed_response(None, error),
-        },
+        Ok(result) if result.status.success() => {
+            let publish_started = std::time::Instant::now();
+            let published = publish_output(&part, output);
+            let publish_ms = publish_started.elapsed().as_millis() as i64;
+            let op_ms = op_started.elapsed().as_millis() as i64;
+            match published {
+                Ok(()) => Response {
+                    ok: true,
+                    operation: "render_clip".to_string(),
+                    source_path: Some(source.to_string()),
+                    items: Vec::new(),
+                    metadata: Some(MediaMetadata {
+                        duration_sec: source_metadata.duration_sec,
+                        bitrate: None,
+                        width: profile.width,
+                        height: profile.height,
+                        fps: fps_num as f64 / fps_den as f64,
+                        video_codec: None,
+                        pixel_format: None,
+                        format_name: None,
+                        stream_count: 0,
+                        video_stream_count: 0,
+                        audio_stream_count: 0,
+                        fps_num: fps_num as u32,
+                        fps_den: fps_den as u32,
+                        audio_codec: None,
+                        audio_profile: None,
+                        sample_rate: None,
+                        channels: None,
+                        start_pts: None,
+                        has_video: true,
+                        has_audio: source_metadata.has_audio,
+                        mix_ms: None,
+                        aac_encode_ms: None,
+                        probe_ms: None,
+                        hash_ms: None,
+                        ffmpeg_ms: Some(ffmpeg_ms.max(1)),
+                        startup_ms: Some(startup_ms.max(1)),
+                        publish_ms: Some(publish_ms.max(1)),
+                        op_ms: Some(op_ms.max(1)),
+                        final_audio_sha256: None,
+                        audio_copy_eligible: Some(audio_copy_eligible),
+                        audio_encode_passes: Some(audio_encode_passes),
+                        subtitle_raster_cpu: Some(subtitle_raster_cpu),
+                        gpu_copy_bytes: None,
+                    }),
+                    error: None,
+                },
+                Err(error) => failed_response(None, error),
+            }
+        }
         Ok(result) => {
             let _ = fs::remove_file(&part);
             failed_response(
@@ -367,22 +344,16 @@ fn audio_policy(
     )
 }
 
-/// build_filter_graph composes the single-pass filter chain:
+/// build_filter_graph composes the single-pass SOFTWARE filter chain:
 /// background (none | blur_source | asset) + fitted foreground → overlay →
 /// watermark (position/opacity/margin) → libass burn (mode=burn only).
 /// Input indices are positional: [0] source, [1] background asset (only when
-/// mode=asset), [2] watermark (next free index).
-#[cfg(test)]
+/// mode=asset), [2] watermark (next free index). This is the ONLY graph: the
+/// CUDA hybrid path (scale_cuda/overlay_cuda/hwupload_cuda) was removed with
+/// the cuda_native backend — certified Chronon owns GPU compositing on the
+/// Chronon executor, and this graph is the software baseline for every other
+/// host.
 fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
-    build_filter_graph_with_hw_decode(plan, profile, false, false)
-}
-
-fn build_filter_graph_with_hw_decode(
-    plan: &ClipRenderPlan,
-    profile: &VideoProfile,
-    hw_decode: bool,
-    gpu_native: bool,
-) -> String {
     let w = profile.width;
     let h = profile.height;
     // Rational framerate pair from the sealed plan: NTSC rates (30000/1001)
@@ -393,35 +364,6 @@ fn build_filter_graph_with_hw_decode(
     let fg_h = (h as u64 * scale / 100).max(2) as u32;
     let mut graph = String::new();
 
-    if gpu_native {
-        if plan.watermark.is_none() && plan.subtitles.is_none() {
-            graph.push_str(&format!("[0:v]scale_cuda={w}:{h}[vfinal]"));
-            return graph;
-        }
-        graph.push_str(&format!("[0:v]scale_cuda={w}:{h}[base];"));
-        if plan.watermark.is_some() || plan.subtitles.is_some() {
-            // Rasterize only the transparent overlay layer on CPU, then
-            // upload that small layer and composite it over the CUDA video.
-            graph.push_str("[1:v]format=rgba");
-            if let Some(watermark) = &plan.watermark {
-                let (x, y) = watermark_text_position(watermark);
-                let text = escape_filter_text(&watermark.text);
-                graph.push_str(&format!(
-                    ",drawtext=text='{text}':fontcolor=white@{}:fontsize=48:borderw=2:bordercolor=black@{}:{x}:{y}",
-                    watermark.opacity, watermark.opacity
-                ));
-            }
-            if let Some(subtitles) = &plan.subtitles {
-                if subtitles.mode == SUBTITLE_BURN {
-                    let escaped = escape_filter_path(&subtitles.path);
-                    graph.push_str(&format!(",subtitles=filename='{escaped}'"));
-                }
-            }
-            graph.push_str(",hwupload_cuda[overlay];[base][overlay]overlay_cuda=x=0:y=0:format=nv12[vfinal]");
-        }
-        return graph;
-    }
-
     let bg_mode = plan
         .background
         .as_ref()
@@ -430,11 +372,7 @@ fn build_filter_graph_with_hw_decode(
     let blur_source = bg_mode != BACKGROUND_NONE && bg_mode != BACKGROUND_ASSET;
     // Conform the source rate once before branching the blur and foreground
     // paths. This avoids running an independent fps filter on both branches.
-    let source_prefix = if hw_decode {
-        "[0:v]hwdownload,format=nv12,".to_string()
-    } else {
-        "[0:v]".to_string()
-    };
+    let source_prefix = "[0:v]";
     if blur_source {
         graph.push_str(&format!(
             "{source_prefix}fps={fps},split=2[src_bg][src_fg];"
@@ -512,13 +450,105 @@ fn build_filter_graph_with_hw_decode(
     graph
 }
 
-/// Returns true only for the graph that can remain entirely in CUDA memory.
-/// The conservative boundary is deliberate: an accidental CPU filter here
-/// would silently trigger a full-frame PCIe round trip.
+/// build_gpu_filter_graph composes the PATH B CUDA hybrid chain — ZERO
+/// readback of the base video:
+///
+///   [0:v] NVDEC → scale_cuda (device-local base)
+///   overlay layer rasterized on CPU (drawtext / libass subtitles / image
+///     watermark on a transparent canvas) → hwupload_cuda (only the small
+///     overlay crosses the PCIe bus)
+///   [base][overlay] overlay_cuda → NVENC (pix_fmt cuda)
+///
+/// The base video frames never leave VRAM. Called only when the plan passed
+/// gpu_native_eligible (the resolver must route everything else away); the
+/// caller fail-closes before this function if cuda_native was selected for
+/// an ineligible plan.
+fn build_gpu_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
+    let w = profile.width;
+    let h = profile.height;
+    let text_watermark = plan
+        .watermark
+        .as_ref()
+        .map(|wm| !wm.text.trim().is_empty())
+        .unwrap_or(false);
+    let image_watermark = plan
+        .watermark
+        .as_ref()
+        .map(|wm| wm.text.trim().is_empty())
+        .unwrap_or(false);
+    let burn_subtitles = plan
+        .subtitles
+        .as_ref()
+        .map(|s| s.mode == SUBTITLE_BURN)
+        .unwrap_or(false);
+
+    if !text_watermark && !image_watermark && !burn_subtitles {
+        // Plain source-only clip: base video straight to NVENC, all CUDA.
+        return format!("[0:v]scale_cuda={w}:{h}[vfinal]");
+    }
+    let mut graph = String::new();
+    graph.push_str(&format!("[0:v]scale_cuda={w}:{h}[base];"));
+    if text_watermark || burn_subtitles {
+        // CPU raster of the transparent canvas: text + libass subtitles.
+        graph.push_str("[1:v]format=rgba");
+        if text_watermark {
+            if let Some(watermark) = &plan.watermark {
+                let (x, y) = watermark_text_position(watermark);
+                let text = escape_filter_text(&watermark.text);
+                graph.push_str(&format!(
+                    ",drawtext=text='{text}':fontcolor=white@{}:fontsize=48:borderw=2:bordercolor=black@{}:{x}:{y}",
+                    watermark.opacity, watermark.opacity
+                ));
+            }
+        }
+        if burn_subtitles {
+            if let Some(subtitles) = &plan.subtitles {
+                let escaped = escape_filter_path(&subtitles.path);
+                graph.push_str(&format!(",subtitles=filename='{escaped}'"));
+            }
+        }
+        graph.push_str("[canvas];");
+    }
+    if image_watermark {
+        let index = if text_watermark || burn_subtitles { 2 } else { 1 };
+        let watermark = plan.watermark.as_ref().expect("image watermark present");
+        let (x, y) = watermark_position(watermark, w, h);
+        if text_watermark || burn_subtitles {
+            // Compose the logo onto the CPU canvas, then upload once.
+            graph.push_str(&format!(
+                "[{index}:v]format=rgba,colorchannelmixer=aa={}[wm];[canvas][wm]overlay={x}:{y}:format=auto[composed];",
+                watermark.opacity
+            ));
+            graph.push_str("[composed]hwupload_cuda[overlay];[base][overlay]overlay_cuda=x=0:y=0:format=nv12[vfinal]");
+        } else {
+            // Image-only overlay: upload the logo and position it with
+            // overlay_cuda (x/y expressions resolve against the base video).
+            graph.push_str(&format!(
+                "[{index}:v]format=rgba,colorchannelmixer=aa={}[wm];[wm]hwupload_cuda[overlay];[base][overlay]overlay_cuda={x}:{y}:format=nv12[vfinal]",
+                watermark.opacity
+            ));
+        }
+        return graph;
+    }
+    graph.push_str("[canvas]hwupload_cuda[overlay];[base][overlay]overlay_cuda=x=0:y=0:format=nv12[vfinal]");
+    graph
+}
+
+/// Returns true only for plans the PATH B CUDA hybrid can render entirely
+/// device-local (zero readback of the base video): no background plate
+/// (mode none or absent) and no foreground fit/pad (scale must be 100 — the
+/// pad filter has no device-local CUDA equivalent). Overlays (image/text
+/// watermark, burn subtitles) are fine: they are rasterized on CPU into the
+/// small overlay layer and uploaded, never the base video. Zero is treated
+/// as 100 to mirror Compile's normalizeForegroundScale.
 fn gpu_native_eligible(plan: &ClipRenderPlan) -> bool {
-    plan.background.is_none()
-        && plan.watermark.as_ref().map(|wm| !wm.text.trim().is_empty()).unwrap_or(true)
-        && plan.output.foreground_scale_percent == 100
+    let background_none = plan
+        .background
+        .as_ref()
+        .map(|bg| bg.mode == BACKGROUND_NONE)
+        .unwrap_or(true);
+    let scale = plan.output.foreground_scale_percent;
+    background_none && (scale == 100 || scale == 0)
 }
 
 /// watermark_position resolves the overlay x/y expressions for the requested
@@ -688,11 +718,13 @@ mod tests {
             probe_ms: None,
             hash_ms: None,
             ffmpeg_ms: None,
+            startup_ms: None,
+            publish_ms: None,
+            op_ms: None,
             final_audio_sha256: None,
             audio_copy_eligible: None,
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
-            native_media: None,
             gpu_copy_bytes: None,
         }
     }
@@ -766,33 +798,6 @@ mod tests {
     }
 
     #[test]
-    fn source_only_cuda_graph_has_no_cpu_boundary() {
-        let mut p = plan();
-        p.background = None;
-        assert!(gpu_native_eligible(&p));
-        let graph = build_filter_graph_with_hw_decode(&p, &profile(), true, true);
-        assert_eq!(graph, "[0:v]scale_cuda=1080:1920[vfinal]");
-        assert!(!graph.contains("hwdownload"));
-        assert!(!graph.contains("fps="));
-    }
-
-    #[test]
-    fn cuda_graph_rejects_alpha_and_burn_filters() {
-        let mut p = plan();
-        p.background = None;
-        p.watermark = Some(ClipPlanWatermark {
-			text: String::new(),
-			asset_id: "wm-1".to_string(),
-            path: "/tmp/wm.png".to_string(),
-            sha256: "a".repeat(64),
-            position: "top_left".to_string(),
-            opacity: 0.8,
-            margin_px: 10,
-        });
-        assert!(!gpu_native_eligible(&p));
-    }
-
-    #[test]
     fn asset_background_uses_second_input() {
         let mut p = plan();
         p.background = Some(ClipPlanBackground {
@@ -804,6 +809,153 @@ mod tests {
         let graph = build_filter_graph(&p, &profile());
         assert!(graph.contains("[1:v]scale="), "graph: {graph}");
         assert!(!graph.contains("gblur"), "graph: {graph}");
+    }
+
+    #[test]
+    fn gpu_graph_source_only_is_device_local() {
+        let mut p = plan();
+        p.background = Some(ClipPlanBackground {
+            mode: "none".to_string(),
+            asset_id: None,
+            path: None,
+            sha256: None,
+        });
+        p.watermark = None;
+        p.subtitles = None;
+        assert!(gpu_native_eligible(&p));
+        let graph = build_gpu_filter_graph(&p, &profile());
+        assert_eq!(graph, "[0:v]scale_cuda=1080:1920[vfinal]");
+        assert!(!graph.contains("hwdownload"), "graph: {graph}");
+    }
+
+    #[test]
+    fn gpu_graph_rasterizes_text_and_subtitles_on_cpu_then_uploads() {
+        let mut p = plan();
+        p.background = Some(ClipPlanBackground {
+            mode: "none".to_string(),
+            asset_id: None,
+            path: None,
+            sha256: None,
+        });
+        p.watermark = Some(ClipPlanWatermark {
+            text: "LOGO".to_string(),
+            asset_id: "wm-1".to_string(),
+            path: "/tmp/wm.png".to_string(),
+            sha256: "a".repeat(64),
+            position: "top_right".to_string(),
+            opacity: 0.9,
+            margin_px: 24,
+        });
+        let sub_path = std::env::temp_dir().join("cliprender-gpu-sub.ass");
+        fs::write(&sub_path, b"[Script Info]").unwrap();
+        p.subtitles = Some(ClipPlanSubtitles {
+            mode: "burn".to_string(),
+            style_id: Some("shorts-v1".to_string()),
+            path: sub_path.to_string_lossy().into_owned(),
+            sha256: "a".repeat(64),
+        });
+        assert!(gpu_native_eligible(&p));
+        let graph = build_gpu_filter_graph(&p, &profile());
+        assert!(graph.contains("scale_cuda=1080:1920[base]"), "graph: {graph}");
+        assert!(graph.contains("drawtext=text='LOGO'"), "graph: {graph}");
+        assert!(graph.contains("subtitles=filename="), "graph: {graph}");
+        assert!(graph.contains("hwupload_cuda"), "graph: {graph}");
+        assert!(graph.contains("overlay_cuda=x=0:y=0:format=nv12"), "graph: {graph}");
+        assert!(!graph.contains("hwdownload"), "graph: {graph}");
+    }
+
+    #[test]
+    fn gpu_graph_composites_image_watermark_device_local() {
+        let mut p = plan();
+        p.background = Some(ClipPlanBackground {
+            mode: "none".to_string(),
+            asset_id: None,
+            path: None,
+            sha256: None,
+        });
+        p.watermark = Some(ClipPlanWatermark {
+            text: String::new(),
+            asset_id: "logo".to_string(),
+            path: "/tmp/logo.png".to_string(),
+            sha256: "a".repeat(64),
+            position: "top_right".to_string(),
+            opacity: 0.85,
+            margin_px: 24,
+        });
+        assert!(gpu_native_eligible(&p));
+        let graph = build_gpu_filter_graph(&p, &profile());
+        assert!(graph.contains("colorchannelmixer=aa=0.85"), "graph: {graph}");
+        assert!(graph.contains("hwupload_cuda"), "graph: {graph}");
+        assert!(graph.contains("overlay_cuda=x=main_w-overlay_w-24:y=24:format=nv12"), "graph: {graph}");
+        assert!(!graph.contains("hwdownload"), "graph: {graph}");
+        assert!(!graph.contains("drawtext"), "graph: {graph}");
+    }
+
+    #[test]
+    fn gpu_graph_composes_image_watermark_onto_canvas_with_subtitles() {
+        let mut p = plan();
+        p.background = Some(ClipPlanBackground {
+            mode: "none".to_string(),
+            asset_id: None,
+            path: None,
+            sha256: None,
+        });
+        p.watermark = Some(ClipPlanWatermark {
+            text: String::new(),
+            asset_id: "logo".to_string(),
+            path: "/tmp/logo.png".to_string(),
+            sha256: "a".repeat(64),
+            position: "top_right".to_string(),
+            opacity: 0.85,
+            margin_px: 24,
+        });
+        let sub_path = std::env::temp_dir().join("cliprender-gpu-sub2.ass");
+        fs::write(&sub_path, b"[Script Info]").unwrap();
+        p.subtitles = Some(ClipPlanSubtitles {
+            mode: "burn".to_string(),
+            style_id: Some("shorts-v1".to_string()),
+            path: sub_path.to_string_lossy().into_owned(),
+            sha256: "a".repeat(64),
+        });
+        // Image watermark + burn subtitles: the canvas is input [1], the logo
+        // input [2], and the logo is composed onto the CPU canvas before the
+        // single hwupload_cuda.
+        let graph = build_gpu_filter_graph(&p, &profile());
+        assert!(graph.contains("[2:v]format=rgba,colorchannelmixer=aa=0.85[wm]"), "graph: {graph}");
+        assert!(graph.contains("[canvas][wm]overlay="), "graph: {graph}");
+        assert!(graph.contains("subtitles=filename="), "graph: {graph}");
+        assert!(graph.contains("hwupload_cuda"), "graph: {graph}");
+        assert!(graph.contains("overlay_cuda=x=0:y=0:format=nv12"), "graph: {graph}");
+    }
+
+    #[test]
+    fn gpu_eligibility_rejects_background_and_scale() {
+        let mut p = plan();
+        p.background = Some(ClipPlanBackground {
+            mode: "blur_source".to_string(),
+            asset_id: None,
+            path: None,
+            sha256: None,
+        });
+        assert!(!gpu_native_eligible(&p));
+        let mut p2 = plan();
+        p2.background = Some(ClipPlanBackground {
+            mode: "none".to_string(),
+            asset_id: None,
+            path: None,
+            sha256: None,
+        });
+        p2.output.foreground_scale_percent = 50;
+        assert!(!gpu_native_eligible(&p2));
+        // Background none + scale 100 → eligible.
+        let mut p3 = plan();
+        p3.background = Some(ClipPlanBackground {
+            mode: "none".to_string(),
+            asset_id: None,
+            path: None,
+            sha256: None,
+        });
+        assert!(gpu_native_eligible(&p3));
     }
 
     #[test]

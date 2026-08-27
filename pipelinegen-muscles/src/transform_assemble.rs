@@ -247,6 +247,10 @@ fn assembly_compatibility_gate(
     if let Some(ref contract_id) = cert.contract_id {
         if contract_id.is_empty() {
             // Legacy certification: skip contract_id gate.
+            // REMOVAL GATE: removable once the certification store provably
+            // holds no contract-less certs (every row either carries
+            // VELOX_ASSEMBLY_READY_V1 or a stream signature); an audit query
+            // over stored certs is the evidence, compilation alone is not.
         } else if contract_id != "VELOX_ASSEMBLY_READY_V1" {
             return Err(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: unknown contract_id {contract_id}"
@@ -370,11 +374,13 @@ mod tests {
             probe_ms: None,
             hash_ms: None,
             ffmpeg_ms: None,
+            startup_ms: None,
+            publish_ms: None,
+            op_ms: None,
             final_audio_sha256: None,
             audio_copy_eligible: None,
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
-            native_media: None,
             gpu_copy_bytes: None,
         }
     }
