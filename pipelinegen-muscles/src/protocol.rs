@@ -358,6 +358,21 @@ pub struct MediaMetadata {
     // collect these GPU metrics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_copy_bytes: Option<u64>,
+    // Fine-grained render phases measured by the owning Rust boundary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decode_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter_graph_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtitle_raster_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub watermark_raster_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame_conversion_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encode_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_mux_ms: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -531,6 +546,13 @@ mod tests {
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
             gpu_copy_bytes: None,
+            decode_ms: None,
+            filter_graph_ms: None,
+            subtitle_raster_ms: None,
+            watermark_raster_ms: None,
+            frame_conversion_ms: None,
+            encode_ms: None,
+            audio_mux_ms: None,
         }
     }
 

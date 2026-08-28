@@ -44,6 +44,21 @@ impl RustProcessRunner {
     }
 
     fn run(&self, program: &str, args: &[String]) -> io::Result<ProcessOutput> {
+        self.run_with_handler(program, args, |_| {})
+    }
+
+    /// run_with_handler is `run` plus an incremental line callback on the
+    /// child's stderr. The handler is invoked for every COMPLETE line as it
+    /// streams (before the tail cap truncates anything), so callers can
+    /// accumulate facts from verbose output that would otherwise exceed the
+    /// retained tail — e.g. ffmpeg's per-frame `-benchmark_all` lines on a
+    /// long render. The tail buffer and its 64KiB cap are unchanged.
+    fn run_with_handler(
+        &self,
+        program: &str,
+        args: &[String],
+        on_line: impl FnMut(&str) + Send + 'static,
+    ) -> io::Result<ProcessOutput> {
         let mut command = process_command(program, args);
         command.stdin(Stdio::null());
         command.stdout(Stdio::piped());
@@ -52,8 +67,8 @@ impl RustProcessRunner {
         let stdout = child.stdout.take().expect("stdout was piped");
         let stderr = child.stderr.take().expect("stderr was piped");
         let limit = self.output_limit;
-        let stdout_thread = thread::spawn(move || read_tail(stdout, limit));
-        let stderr_thread = thread::spawn(move || read_tail(stderr, limit));
+        let stdout_thread = thread::spawn(move || read_tail(stdout, limit, |_| {}));
+        let stderr_thread = thread::spawn(move || read_tail(stderr, limit, on_line));
 
         let started = Instant::now();
         let status = loop {
@@ -112,6 +127,15 @@ impl ProcessCommand {
     pub(crate) fn output(self) -> io::Result<ProcessOutput> {
         self.runner.run(&self.program, &self.args)
     }
+
+    /// output_with_line_handler streams the child's stderr to `on_line`
+    /// (complete lines only) while still returning the capped tail buffer.
+    pub(crate) fn output_with_line_handler(
+        self,
+        on_line: impl FnMut(&str) + Send + 'static,
+    ) -> io::Result<ProcessOutput> {
+        self.runner.run_with_handler(&self.program, &self.args, on_line)
+    }
 }
 
 pub(crate) struct FFmpegRunner {
@@ -147,12 +171,24 @@ impl FFmpegRunner {
     }
 }
 
-fn read_tail<R: Read>(mut reader: R, limit: usize) -> io::Result<Vec<u8>> {
+fn read_tail<R: Read>(
+    mut reader: R,
+    limit: usize,
+    mut on_line: impl FnMut(&str),
+) -> io::Result<Vec<u8>> {
     let mut tail = Vec::with_capacity(limit.min(8192));
     let mut chunk = [0_u8; 8192];
+    let mut line_buf: Vec<u8> = Vec::new();
     loop {
         let count = reader.read(&mut chunk)?;
         if count == 0 {
+            // Final unterminated line (no trailing newline) still reaches the
+            // handler.
+            if !line_buf.is_empty() {
+                if let Ok(line) = std::str::from_utf8(&line_buf) {
+                    on_line(line);
+                }
+            }
             return Ok(tail);
         }
         if count >= limit {
@@ -163,6 +199,18 @@ fn read_tail<R: Read>(mut reader: R, limit: usize) -> io::Result<Vec<u8>> {
             if tail.len() > limit {
                 let start = tail.len() - limit;
                 tail.drain(..start);
+            }
+        }
+        // Feed complete lines to the handler as they stream. A pathological
+        // line longer than the cap is dropped rather than buffered forever.
+        for &byte in &chunk[..count] {
+            if byte == b'\n' {
+                if let Ok(line) = std::str::from_utf8(&line_buf) {
+                    on_line(line);
+                }
+                line_buf.clear();
+            } else if line_buf.len() < limit {
+                line_buf.push(byte);
             }
         }
     }

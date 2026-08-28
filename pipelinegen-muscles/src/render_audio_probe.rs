@@ -189,5 +189,12 @@ pub(super) fn probe_audio(
         audio_encode_passes: None,
         subtitle_raster_cpu: None,
         gpu_copy_bytes: None,
+        decode_ms: None,
+        filter_graph_ms: None,
+        subtitle_raster_ms: None,
+        watermark_raster_ms: None,
+        frame_conversion_ms: None,
+        encode_ms: None,
+        audio_mux_ms: None,
     })
 }

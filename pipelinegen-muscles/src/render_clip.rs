@@ -25,6 +25,7 @@ use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
 use std::fs;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 #[path = "render_clip_plan.rs"]
 mod plan;
@@ -114,10 +115,15 @@ pub(super) fn render_clip(request: Request) -> Response {
 
     // Audio copy policy: probe the source stream; copy verbatim only when it
     // already satisfies the plan contract (never re-encode compatible audio).
+    // The probe is timed separately (probe_ms) so the report can attribute
+    // the ffprobe wall instead of burying it inside startup_ms.
+    let probe_started = std::time::Instant::now();
     let source_metadata = match probe::probe_file(&ffprobe, source) {
         Ok(metadata) => metadata,
         Err(error) => return failed_response(Some(source.to_string()), error),
     };
+    let probe_elapsed = probe_started.elapsed();
+    let probe_ms = probe_elapsed.as_millis() as i64;
     let (audio_copy_eligible, audio_encode_passes, audio_args) =
         audio_policy(&clip_plan.audio, &source_metadata, audio_bitrate);
 
@@ -161,7 +167,21 @@ pub(super) fn render_clip(request: Request) -> Response {
     let part = part_path(output);
 
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
-    command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+    // -benchmark_all emits a per-frame `bench:` line on stderr for every
+    // decode/encode call — the ONLY decode/encode attribution stock ffmpeg
+    // exposes from a single pass. The lines are logged at INFO, so the
+    // loglevel must be raised from error; -nostats keeps the progress
+    // reports off. The per-frame lines are accumulated incrementally by
+    // BenchAccumulator (the retained stderr tail is capped at 64KiB and
+    // would truncate them on long renders).
+    command.args([
+        "-hide_banner",
+        "-loglevel",
+        "info",
+        "-nostats",
+        "-benchmark_all",
+        "-y",
+    ]);
     // Inputs: [0] source, optional background asset, optional watermark, and
     // for the CUDA hybrid the transparent overlay canvas (lavfi).
     if gpu_native {
@@ -234,14 +254,31 @@ pub(super) fn render_clip(request: Request) -> Response {
     }
     command.args(["-movflags", "+faststart", &part]);
 
-    // startup_ms = everything BEFORE the ffmpeg wall: plan decode, source
-    // probe, audio policy, filter-graph build, process spawn. This is the
-    // "renderer startup" the benchmark could not attribute to decode,
-    // composite or encode.
-    let startup_ms = op_started.elapsed().as_millis() as i64;
+    // startup_ms = everything BEFORE the ffmpeg wall EXCEPT the source probe
+    // (reported separately as probe_ms): plan decode, audio policy,
+    // filter-graph build, process spawn. This is the "renderer startup" the
+    // benchmark could not attribute to decode, composite or encode.
+    let startup_ms = (op_started.elapsed() - probe_elapsed).as_millis() as i64;
     let encode_started = std::time::Instant::now();
-    let encode_result = command.output();
+    let bench = Arc::new(Mutex::new(BenchAccumulator::default()));
+    let bench_for_thread = Arc::clone(&bench);
+    let on_bench_line = move |line: &str| {
+        bench_for_thread.lock().unwrap().handle_line(line);
+    };
+    let encode_result = command.output_with_line_handler(on_bench_line);
     let ffmpeg_ms = encode_started.elapsed().as_millis() as i64;
+    // Fine-grained attribution from the bench sums: decode_ms/encode_ms are
+    // measured per-frame; filter_graph_ms is the residual (ffmpeg wall minus
+    // the measured work) and honestly covers the filter graph (subtitle
+    // raster + watermark + compositing + conversions) plus demux/mux and the
+    // +faststart pass. saw_bench=false means the ffmpeg build emitted no
+    // bench lines → phases stay NOT_INSTRUMENTED (never a fake zero).
+    let bench_state = bench.lock().unwrap();
+    let saw_bench = bench_state.saw_bench;
+    let decode_ms = bench_state.decode_us / 1000;
+    let encode_ms = bench_state.encode_us / 1000;
+    let filter_graph_ms = (ffmpeg_ms - decode_ms - encode_ms).max(0);
+    drop(bench_state);
     match encode_result {
         Ok(result) if result.status.success() => {
             let publish_started = std::time::Instant::now();
@@ -277,7 +314,7 @@ pub(super) fn render_clip(request: Request) -> Response {
                         has_audio: source_metadata.has_audio,
                         mix_ms: None,
                         aac_encode_ms: None,
-                        probe_ms: None,
+                        probe_ms: Some(probe_ms.max(0)),
                         hash_ms: None,
                         ffmpeg_ms: Some(ffmpeg_ms.max(1)),
                         startup_ms: Some(startup_ms.max(1)),
@@ -288,6 +325,33 @@ pub(super) fn render_clip(request: Request) -> Response {
                         audio_encode_passes: Some(audio_encode_passes),
                         subtitle_raster_cpu: Some(subtitle_raster_cpu),
                         gpu_copy_bytes: None,
+                        decode_ms: if saw_bench {
+                            Some(decode_ms)
+                        } else {
+                            None
+                        },
+                        filter_graph_ms: if saw_bench {
+                            Some(filter_graph_ms)
+                        } else {
+                            None
+                        },
+                        // subtitle_raster_ms / watermark_raster_ms /
+                        // frame_conversion_ms / audio_mux_ms stay None
+                        // (NOT_INSTRUMENTED): a single-pass stock ffmpeg
+                        // invocation attributes only decode/encode per-frame;
+                        // the filter-graph residual above covers subtitle
+                        // raster + watermark + compositing + conversions +
+                        // muxing as one lump. Per-filter attribution would
+                        // require a custom ffmpeg build — never a fake zero.
+                        subtitle_raster_ms: None,
+                        watermark_raster_ms: None,
+                        frame_conversion_ms: None,
+                        encode_ms: if saw_bench {
+                            Some(encode_ms)
+                        } else {
+                            None
+                        },
+                        audio_mux_ms: None,
                     }),
                     error: None,
                 },
@@ -296,17 +360,57 @@ pub(super) fn render_clip(request: Request) -> Response {
         }
         Ok(result) => {
             let _ = fs::remove_file(&part);
-            failed_response(
-                None,
-                format!(
-                    "clip render failed: {}",
-                    String::from_utf8_lossy(&result.stderr).trim()
-                ),
-            )
+            // Strip the per-frame bench lines from the error tail so the
+            // actual ffmpeg error stays readable (the retained 64KiB tail is
+            // dominated by bench lines on any non-trivial render).
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            let message = stderr
+                .lines()
+                .filter(|line| !line.starts_with("bench:"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            failed_response(None, format!("clip render failed: {}", message.trim()))
         }
         Err(error) => {
             let _ = fs::remove_file(&part);
             failed_response(None, format!("clip render failed to start: {error}"))
+        }
+    }
+}
+
+/// BenchAccumulator sums ffmpeg's `-benchmark_all` per-frame bench lines as
+/// they stream on stderr. Line shape (ffmpeg 4.x-7.x):
+///
+///   bench:  <user> user <sys> sys <real> real <task> <n>
+///
+/// where <real> is microseconds of wall time for that decode/encode call.
+/// Only the task labels are honored: decode_video → decode work,
+/// encode_video + flush_video → encode work. These per-frame sums are the
+/// only single-pass decode/encode attribution stock ffmpeg exposes; the
+/// filter graph (subtitles/watermark/composite/conversions) and muxing are
+/// NOT wrapped by any bench line and surface as the residual in render_clip.
+#[derive(Default)]
+struct BenchAccumulator {
+    decode_us: i64,
+    encode_us: i64,
+    saw_bench: bool,
+}
+
+impl BenchAccumulator {
+    fn handle_line(&mut self, line: &str) {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() < 8 || fields[0] != "bench:" || fields[6] != "real" {
+            return;
+        }
+        let real_us: i64 = match fields[5].parse() {
+            Ok(value) => value,
+            Err(_) => return,
+        };
+        self.saw_bench = true;
+        match fields[7] {
+            "decode_video" => self.decode_us += real_us,
+            "encode_video" | "flush_video" => self.encode_us += real_us,
+            _ => {}
         }
     }
 }
@@ -726,6 +830,13 @@ mod tests {
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
             gpu_copy_bytes: None,
+            decode_ms: None,
+            filter_graph_ms: None,
+            subtitle_raster_ms: None,
+            watermark_raster_ms: None,
+            frame_conversion_ms: None,
+            encode_ms: None,
+            audio_mux_ms: None,
         }
     }
 
@@ -1046,5 +1157,36 @@ mod tests {
         let (eligible, passes, _) = audio_policy(&audio, &source_metadata(false), "128k");
         assert!(!eligible);
         assert_eq!(passes, 0);
+    }
+
+    #[test]
+    fn bench_accumulator_sums_decode_and_encode_real_time() {
+        // Real ffmpeg 4.4/6.x -benchmark_all lines (usec): decode_video,
+        // encode_video and flush_video are the only task labels emitted.
+        let mut acc = BenchAccumulator::default();
+        acc.handle_line("bench:      129 user      114 sys       18 real decode_video 0.0 ");
+        acc.handle_line("bench:    28557 user    39220 sys     3924 real decode_video 0.0 ");
+        acc.handle_line("bench:      291 user      340 sys      632 real encode_video 0.0 ");
+        acc.handle_line("bench:      168 user        0 sys       56 real flush_video 0.0 ");
+        acc.handle_line("bench:     1061 user      953 sys      995 real flush_video 0.0 ");
+        assert!(acc.saw_bench);
+        // The REAL column (microseconds) is what the parser sums — never the
+        // user/sys columns, which are CPU-time deltas of the whole process.
+        assert_eq!(acc.decode_us, 18 + 3924);
+        assert_eq!(acc.encode_us, 632 + 56 + 995);
+    }
+
+    #[test]
+    fn bench_accumulator_ignores_non_bench_output() {
+        let mut acc = BenchAccumulator::default();
+        // Non-bench chatter, the maxrss summary line, and malformed bench
+        // lines must never count as measured work.
+        acc.handle_line("Stream mapping:");
+        acc.handle_line("frame=   24 fps=0.0 q=-1.0 Lsize=      29kB time=00:00:00.98");
+        acc.handle_line("bench: maxrss=1234KiB");
+        acc.handle_line("bench:     129 user      114 sys       18 real");
+        assert!(!acc.saw_bench);
+        assert_eq!(acc.decode_us, 0);
+        assert_eq!(acc.encode_us, 0);
     }
 }
