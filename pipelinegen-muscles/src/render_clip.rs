@@ -591,7 +591,18 @@ fn build_gpu_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> Stri
         return format!("[0:v]scale_cuda={w}:{h}[vfinal]");
     }
     let mut graph = String::new();
-    graph.push_str(&format!("[0:v]scale_cuda={w}:{h}[base];"));
+    if text_watermark || burn_subtitles {
+        // FFmpeg's overlay_cuda only accepts matching opaque CUDA YUV
+        // formats.  A transparent subtitle/text canvas is yuva420p/rgba, so
+        // forcing it through overlay_cuda either fails or drops alpha.  Use
+        // the correctness path for this case; NVENC still performs the final
+        // hardware encode and the base is not decoded twice.
+        graph.push_str(&format!(
+            "[0:v]hwdownload,format=rgba,scale={w}:{h}[base];"
+        ));
+    } else {
+        graph.push_str(&format!("[0:v]scale_cuda={w}:{h}[base];"));
+    }
     if text_watermark || burn_subtitles {
         // CPU raster of the transparent canvas: text + libass subtitles.
         graph.push_str("[1:v]format=rgba");
@@ -608,7 +619,9 @@ fn build_gpu_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> Stri
         if burn_subtitles {
             if let Some(subtitles) = &plan.subtitles {
                 let escaped = escape_filter_path(&subtitles.path);
-                graph.push_str(&format!(",subtitles=filename='{escaped}'"));
+                // libass may emit yuva420p; normalize the transparent canvas
+                // back to RGBA before the CPU overlay stage.
+                graph.push_str(&format!(",subtitles=filename='{escaped}',format=rgba"));
             }
         }
         graph.push_str("[canvas];");
@@ -623,18 +636,30 @@ fn build_gpu_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> Stri
                 "[{index}:v]format=rgba,colorchannelmixer=aa={}[wm];[canvas][wm]overlay={x}:{y}:format=auto[composed];",
                 watermark.opacity
             ));
-            graph.push_str("[composed]hwupload_cuda[overlay];[base][overlay]overlay_cuda=x=0:y=0:format=nv12[vfinal]");
+            // overlay_cuda in the deployed FFmpeg build does not expose the
+            // software overlay `format` option.  The negotiated CUDA frame
+            // format is already NV12, so specifying format=nv12 makes the
+            // filter fail before Chronon is reached.
+            graph.push_str(
+                "[base][composed]overlay=x=0:y=0:format=auto[composited];[composited]format=yuv420p[vfinal]"
+            );
         } else {
             // Image-only overlay: upload the logo and position it with
             // overlay_cuda (x/y expressions resolve against the base video).
             graph.push_str(&format!(
-                "[{index}:v]format=rgba,colorchannelmixer=aa={}[wm];[wm]hwupload_cuda[overlay];[base][overlay]overlay_cuda={x}:{y}:format=nv12[vfinal]",
+                "[{index}:v]format=rgba,colorchannelmixer=aa={}[wm];[wm]hwupload_cuda[overlay];[base][overlay]overlay_cuda={x}:{y}[vfinal]",
                 watermark.opacity
             ));
         }
         return graph;
     }
-    graph.push_str("[canvas]hwupload_cuda[overlay];[base][overlay]overlay_cuda=x=0:y=0:format=nv12[vfinal]");
+    if text_watermark || burn_subtitles {
+        graph.push_str(
+            "[base][canvas]overlay=x=0:y=0:format=auto[composited];[composited]format=yuv420p[vfinal]"
+        );
+    } else {
+        graph.push_str("[canvas]hwupload_cuda[overlay];[base][overlay]overlay_cuda=x=0:y=0[vfinal]");
+    }
     graph
 }
 
@@ -967,12 +992,11 @@ mod tests {
         });
         assert!(gpu_native_eligible(&p));
         let graph = build_gpu_filter_graph(&p, &profile());
-        assert!(graph.contains("scale_cuda=1080:1920[base]"), "graph: {graph}");
+        assert!(graph.contains("scale=1080:1920[base]"), "graph: {graph}");
         assert!(graph.contains("drawtext=text='LOGO'"), "graph: {graph}");
         assert!(graph.contains("subtitles=filename="), "graph: {graph}");
-        assert!(graph.contains("hwupload_cuda"), "graph: {graph}");
-        assert!(graph.contains("overlay_cuda=x=0:y=0:format=nv12"), "graph: {graph}");
-        assert!(!graph.contains("hwdownload"), "graph: {graph}");
+        assert!(graph.contains("overlay=x=0:y=0:format=auto"), "graph: {graph}");
+        assert!(graph.contains("hwdownload,format=rgba"), "graph: {graph}");
     }
 
     #[test]
@@ -997,7 +1021,7 @@ mod tests {
         let graph = build_gpu_filter_graph(&p, &profile());
         assert!(graph.contains("colorchannelmixer=aa=0.85"), "graph: {graph}");
         assert!(graph.contains("hwupload_cuda"), "graph: {graph}");
-        assert!(graph.contains("overlay_cuda=x=main_w-overlay_w-24:y=24:format=nv12"), "graph: {graph}");
+        assert!(graph.contains("overlay_cuda=x=main_w-overlay_w-24:y=24"), "graph: {graph}");
         assert!(!graph.contains("hwdownload"), "graph: {graph}");
         assert!(!graph.contains("drawtext"), "graph: {graph}");
     }
@@ -1035,8 +1059,7 @@ mod tests {
         assert!(graph.contains("[2:v]format=rgba,colorchannelmixer=aa=0.85[wm]"), "graph: {graph}");
         assert!(graph.contains("[canvas][wm]overlay="), "graph: {graph}");
         assert!(graph.contains("subtitles=filename="), "graph: {graph}");
-        assert!(graph.contains("hwupload_cuda"), "graph: {graph}");
-        assert!(graph.contains("overlay_cuda=x=0:y=0:format=nv12"), "graph: {graph}");
+        assert!(graph.contains("overlay=x=0:y=0:format=auto"), "graph: {graph}");
     }
 
     #[test]
