@@ -140,14 +140,43 @@ pub(super) fn render_clip(request: Request) -> Response {
         .unwrap_or("ffmpeg_fallback");
     let requested_codec = encoder.codec.trim().to_ascii_lowercase();
     let nvenc_encoder = requested_codec == "nvenc" || requested_codec.ends_with("_nvenc");
-    let gpu_native = backend == "cuda_native" && nvenc_encoder && gpu_native_eligible(&clip_plan);
+    let text_watermark = clip_plan
+        .watermark
+        .as_ref()
+        .map(|wm| !wm.text.trim().is_empty())
+        .unwrap_or(false);
+    let image_watermark = clip_plan
+        .watermark
+        .as_ref()
+        .map(|wm| wm.text.trim().is_empty())
+        .unwrap_or(false);
+    let burn_subtitles = clip_plan
+        .subtitles
+        .as_ref()
+        .map(|s| s.mode == SUBTITLE_BURN)
+        .unwrap_or(false);
+    let gpu_native = backend == "cuda_native"
+        && nvenc_encoder
+        && gpu_native_eligible(&clip_plan)
+        && !text_watermark
+        && !burn_subtitles;
+    // Text/libass overlays are currently rendered by the software filter
+    // graph. Keep the request's CUDA backend, but select that explicit
+    // correctness path instead of forcing incompatible yuva/rgba frames into
+    // overlay_cuda. The base is decoded once and NVENC still performs the
+    // final encode; this is measurable as a readback fallback, not silently
+    // reported as zero-copy.
+    let cpu_overlay_fallback = backend == "cuda_native"
+        && nvenc_encoder
+        && !gpu_native
+        && (text_watermark || burn_subtitles);
     // Zero-readback contract: when cuda_native is selected the plan MUST be
     // renderable device-local. A plan the hybrid cannot do (background
     // plate, scale != 100, software encoder) is a resolver/media-policy
     // mismatch — fail closed loudly instead of silently hwdownload-ing the
     // base video (the historical PATH B readback this implementation
     // eliminates).
-    if backend == "cuda_native" && !gpu_native {
+    if backend == "cuda_native" && !gpu_native && !cpu_overlay_fallback {
         return failed_response(
             None,
             "cuda_native selected but the plan/encoder is not eligible for the zero-readback CUDA hybrid (background, scale or software encoder); resolver/media-policy mismatch".to_string(),
@@ -200,21 +229,6 @@ pub(super) fn render_clip(request: Request) -> Response {
                 .unwrap_or(""),
         ]);
     }
-    let text_watermark = clip_plan
-        .watermark
-        .as_ref()
-        .map(|wm| !wm.text.trim().is_empty())
-        .unwrap_or(false);
-    let image_watermark = clip_plan
-        .watermark
-        .as_ref()
-        .map(|wm| wm.text.trim().is_empty())
-        .unwrap_or(false);
-    let burn_subtitles = clip_plan
-        .subtitles
-        .as_ref()
-        .map(|s| s.mode == SUBTITLE_BURN)
-        .unwrap_or(false);
     // PATH B overlay canvas: transparent full-frame canvas rasterized on CPU
     // (drawtext + libass subtitles), uploaded once and composited on GPU.
     if gpu_native && (text_watermark || burn_subtitles) {
