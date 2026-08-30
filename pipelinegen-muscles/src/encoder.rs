@@ -69,6 +69,7 @@ fn build_video_args(
         .filter(|value| *value > 0)
         .unwrap_or(profile.keyframe_interval);
     if gop == 0 {
+
         return Err("ENCODER_POLICY_REQUIRED: GOP/keyframe interval must be positive".to_string());
     }
 
@@ -90,6 +91,20 @@ fn build_video_args(
         pixel_format.to_string(),
         "-vsync".to_string(),
         "cfr".to_string(),
+        // Assembly-ready H.264 contract: explicit profile/level, no B
+        // frames, closed GOP, and an IDR keyframe at PTS 0.
+        "-profile:v".to_string(),
+        "high".to_string(),
+        "-level:v".to_string(),
+        "4.1".to_string(),
+        "-bf".to_string(),
+        "0".to_string(),
+        "-flags".to_string(),
+        "+cgop".to_string(),
+        "-force_key_frames".to_string(),
+        "0".to_string(),
+        "-r".to_string(),
+        format!("{}/{}", profile.fps_num, profile.fps_den),
     ];
     if nvenc {
         // NVENC quality is controlled by CQ under VBR. CRF is a libx264
@@ -207,6 +222,12 @@ mod tests {
         assert!(pair(&args, "-pix_fmt", "yuv420p"));
         assert!(pair(&args, "-vsync", "cfr"));
         assert!(pair(&args, "-g", "48"));
+        assert!(pair(&args, "-profile:v", "high"));
+        assert!(pair(&args, "-level:v", "4.1"));
+        assert!(pair(&args, "-bf", "0"));
+        assert!(pair(&args, "-flags", "+cgop"));
+        assert!(pair(&args, "-force_key_frames", "0"));
+        assert!(pair(&args, "-r", "24/1"));
         assert!(pair(&args, "-map_metadata", "-1"));
         assert!(pair(&args, "-map_chapters", "-1"));
         assert!(!args.iter().any(|arg| arg == "-rc" || arg == "-cq"));
@@ -227,6 +248,12 @@ mod tests {
         assert!(pair(&args, "-rc", "vbr"));
         assert!(pair(&args, "-cq", "23"));
         assert!(pair(&args, "-g", "60"));
+        assert!(pair(&args, "-profile:v", "high"));
+        assert!(pair(&args, "-level:v", "4.1"));
+        assert!(pair(&args, "-bf", "0"));
+        assert!(pair(&args, "-flags", "+cgop"));
+        assert!(pair(&args, "-force_key_frames", "0"));
+        assert!(pair(&args, "-r", "24/1"));
         assert!(!args.iter().any(|arg| arg == "-crf"));
     }
 

@@ -87,12 +87,20 @@ pub(super) fn render_clip(request: Request) -> Response {
             "clip_plan geometry disagrees with the resolved media profile".to_string(),
         );
     }
-    let audio_bitrate = request
+    let audio_bitrate = match request
         .media
         .audio_bitrate
         .as_deref()
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or("128k");
+    {
+        Some(value) => value,
+        None => {
+            return failed_response(
+                None,
+                "PROFILE_REQUIRED: audio_bitrate is required for encoded media".to_string(),
+            )
+        }
+    };
     let profile = VideoProfile {
         width: clip_plan.output.width as u32,
         height: clip_plan.output.height as u32,
@@ -382,6 +390,7 @@ pub(super) fn render_clip(request: Request) -> Response {
                             None
                         },
                         audio_mux_ms: None,
+                        ..Default::default()
                     }),
                     error: None,
                 },
@@ -849,6 +858,7 @@ mod tests {
             frame_conversion_ms: None,
             encode_ms: None,
             audio_mux_ms: None,
+            ..Default::default()
         }
     }
 

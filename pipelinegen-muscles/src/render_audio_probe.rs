@@ -197,5 +197,6 @@ pub(super) fn probe_audio(
         frame_conversion_ms: None,
         encode_ms: None,
         audio_mux_ms: None,
+        ..Default::default()
     })
 }

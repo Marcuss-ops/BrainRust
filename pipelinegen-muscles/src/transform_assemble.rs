@@ -364,8 +364,13 @@ mod tests {
             fps_den: 1,
             audio_codec: Some("aac".to_string()),
             audio_profile: Some("LC".to_string()),
+            audio_time_base_num: Some(1),
+            audio_time_base_den: Some(48000),
             sample_rate: Some(48000),
             channels: Some(2),
+            channel_layout: Some("stereo".to_string()),
+            audio_bitrate: Some(192000),
+            audio_extradata_sha256: None,
             start_pts: Some(0),
             has_video: true,
             has_audio: true,
@@ -390,6 +395,7 @@ mod tests {
             frame_conversion_ms: None,
             encode_ms: None,
             audio_mux_ms: None,
+            ..Default::default()
         }
     }
 
@@ -409,6 +415,8 @@ mod tests {
             stream_signature_sha256: Some(
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
             ),
+            video_extradata_sha256: None,
+            audio_extradata_sha256: None,
         }
     }
 
@@ -445,7 +453,7 @@ mod tests {
         let err = assembly_compatibility_gate(&cert, &probes).unwrap_err();
         assert!(err.contains("ASSEMBLY_INPUT_CONTRACT_MISMATCH"));
         // Per-input cert verification catches fps before cross-input gate.
-        assert!(err.contains("fps") && err.contains("30.000") && err.contains("24.000"));
+        assert!(err.contains("fps") && err.contains("30/1") && err.contains("24/1"));
     }
 
     #[test]

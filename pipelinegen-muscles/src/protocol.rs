@@ -281,7 +281,7 @@ pub struct Response {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct MediaMetadata {
     pub duration_sec: f64,
     pub bitrate: Option<i64>,
@@ -289,7 +289,37 @@ pub struct MediaMetadata {
     pub height: u32,
     pub fps: f64,
     pub video_codec: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_level: Option<String>,
     pub pixel_format: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_time_base_num: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_time_base_den: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sar_num: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sar_den: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_range: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_space: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_transfer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_primaries: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field_order: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keyframe_interval: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub b_frames: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub closed_gop: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_extradata_sha256: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format_name: Option<String>,
     #[serde(default)]
@@ -304,8 +334,18 @@ pub struct MediaMetadata {
     pub fps_den: u32,
     pub audio_codec: Option<String>,
     pub audio_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_time_base_num: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_time_base_den: Option<u32>,
     pub sample_rate: Option<u32>,
     pub channels: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel_layout: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_bitrate: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_extradata_sha256: Option<String>,
     pub start_pts: Option<i64>,
     pub has_video: bool,
     pub has_audio: bool,
@@ -418,6 +458,10 @@ pub struct CopyCertification {
     /// Empty on legacy certifications; gate enforces it when present on all inputs.
     #[serde(default)]
     pub stream_signature_sha256: Option<String>,
+    #[serde(default)]
+    pub video_extradata_sha256: Option<String>,
+    #[serde(default)]
+    pub audio_extradata_sha256: Option<String>,
 }
 
 impl CopyCertification {
@@ -439,6 +483,22 @@ impl CopyCertification {
         }
         if self.fps_num.unwrap_or(0) == 0 || self.fps_den.unwrap_or(0) == 0 {
             return Err("CERTIFICATION_REQUIRED: fps_num/fps_den are required".to_string());
+        }
+        if self.contract_id.as_deref() == Some("VELOX_ASSEMBLY_READY_V2") {
+            if self.width != Some(1920) || self.height != Some(1080) {
+                return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires 1920x1080".to_string());
+            }
+            if self.fps_num != Some(24) || self.fps_den != Some(1) {
+                return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires fps=24/1".to_string());
+            }
+            if self.codec.as_deref() != Some("h264") || self.codec_profile.as_deref() != Some("high") {
+                return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires h264 High".to_string());
+            }
+            if self.video_extradata_sha256.as_deref().unwrap_or("").is_empty()
+                || self.audio_extradata_sha256.as_deref().unwrap_or("").is_empty()
+            {
+                return Err("CERTIFICATION_REQUIRED: V2 requires audio/video extradata hashes".to_string());
+            }
         }
         if !self.closed_gop.unwrap_or(false) {
             return Err("CERTIFICATION_REQUIRED: closed_gop must be true".to_string());
@@ -462,12 +522,39 @@ impl CopyCertification {
                 metadata.width, metadata.height, width, height
             ));
         }
-        let fps = self.fps_num.unwrap_or(0) as f64 / self.fps_den.unwrap_or(1) as f64;
-        if (metadata.fps - fps).abs() > 0.5 {
+        let expected_num = self.fps_num.unwrap_or(0);
+        let expected_den = self.fps_den.unwrap_or(0);
+        if expected_num == 0 || expected_den == 0 || metadata.fps_num == 0 || metadata.fps_den == 0
+            || metadata.fps_num * expected_den != expected_num * metadata.fps_den
+        {
             return Err(format!(
-                "COPY_CERTIFICATION_VIOLATION: fps {:.3} != certified {:.3}",
-                metadata.fps, fps
+                "COPY_CERTIFICATION_VIOLATION: fps {}/{} != certified {}/{}",
+                metadata.fps_num, metadata.fps_den, expected_num, expected_den
             ));
+        }
+        if self.contract_id.as_deref() == Some("VELOX_ASSEMBLY_READY_V2") {
+            let checks = [
+                (metadata.video_profile.as_deref(), Some("high"), "video profile"),
+                (metadata.video_level.as_deref(), Some("4.1"), "video level"),
+                (metadata.pixel_format.as_deref(), Some("yuv420p"), "pixel format"),
+            ];
+            for (actual, expected, label) in checks {
+                if actual != expected { return Err(format!("OUTPUT_CONTRACT_MISMATCH: {label}")); }
+            }
+            if metadata.video_time_base_num != Some(1) || metadata.video_time_base_den != Some(90000)
+                || metadata.sar_num != Some(1) || metadata.sar_den != Some(1)
+                || metadata.field_order.as_deref() != Some("progressive")
+                || metadata.keyframe_interval != Some(48) || metadata.b_frames != Some(0)
+                || metadata.closed_gop != Some(true)
+            { return Err("OUTPUT_CONTRACT_MISMATCH: V2 video timing/GOP properties".to_string()); }
+            if metadata.audio_codec.as_deref() != Some("aac") || metadata.audio_profile.as_deref() != Some("LC")
+                || metadata.audio_time_base_num != Some(1) || metadata.audio_time_base_den != Some(48000)
+                || metadata.sample_rate != Some(48000) || metadata.channels != Some(2)
+                || metadata.channel_layout.as_deref() != Some("stereo") || metadata.audio_bitrate != Some(192000)
+            { return Err("OUTPUT_CONTRACT_MISMATCH: V2 audio properties".to_string()); }
+            if metadata.video_extradata_sha256.as_deref() != self.video_extradata_sha256.as_deref()
+                || metadata.audio_extradata_sha256.as_deref() != self.audio_extradata_sha256.as_deref()
+            { return Err("OUTPUT_CONTRACT_MISMATCH: extradata hash".to_string()); }
         }
         if !copy_codec_matches(
             metadata.video_codec.as_deref(),
@@ -513,6 +600,8 @@ mod tests {
             first_frame_keyframe: Some(true),
             contract_id: None,
             stream_signature_sha256: None,
+            video_extradata_sha256: None,
+            audio_extradata_sha256: None,
         }
     }
 
@@ -559,6 +648,7 @@ mod tests {
             frame_conversion_ms: None,
             encode_ms: None,
             audio_mux_ms: None,
+            ..Default::default()
         }
     }
 
@@ -619,7 +709,7 @@ mod tests {
             .contains("geometry"));
 
         let mut wrong_fps = metadata();
-        wrong_fps.fps = 30.0;
+        wrong_fps.fps_num = 30;
         assert!(cert
             .verify_metadata(&wrong_fps)
             .unwrap_err()

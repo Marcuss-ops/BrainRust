@@ -212,6 +212,7 @@ pub(super) fn execute_canonical_render(
                         frame_conversion_ms: None,
                         encode_ms: Some(ffmpeg_ms.max(1)),
                         audio_mux_ms: None,
+                        ..Default::default()
                     }),
                     error: None,
                 }
