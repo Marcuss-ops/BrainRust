@@ -358,6 +358,11 @@ pub struct MediaMetadata {
     // collect these GPU metrics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_copy_bytes: Option<u64>,
+    // True only when render_clip built the strict CUDA graph: NVDEC/CUDA
+    // frames stay device-local through overlay_cuda and NVENC. None for
+    // operations that do not own zero-copy instrumentation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_zero_copy: Option<bool>,
     // Fine-grained render phases measured by the owning Rust boundary.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decode_ms: Option<i64>,
@@ -546,6 +551,7 @@ mod tests {
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
             gpu_copy_bytes: None,
+            video_zero_copy: None,
             decode_ms: None,
             filter_graph_ms: None,
             subtitle_raster_ms: None,

@@ -129,11 +129,9 @@ pub(super) fn render_clip(request: Request) -> Response {
 
     // The render backend is resolved by the Go RenderBackendResolver and
     // transported here — Rust never derives hardware usage from the codec
-    // string. cuda_native selects the PATH B CUDA hybrid graph (NVDEC →
-    // scale_cuda base → CPU-rasterized overlay → hwupload_cuda →
-    // overlay_cuda → NVENC) with ZERO readback of the base video; every
-    // other backend uses the software FFmpeg graph (chronon_vulkan is
-    // executed by the Chronon executor, never here).
+    // string. cuda_native is strict: only a device-local graph is accepted.
+    // Text watermark and burned ASS subtitles require CPU rasterization in
+    // this FFmpeg path, so they must never be silently called zero-copy.
     let backend = request
         .render_backend
         .as_deref()
@@ -157,30 +155,55 @@ pub(super) fn render_clip(request: Request) -> Response {
         .unwrap_or(false);
     let gpu_native = backend == "cuda_native"
         && nvenc_encoder
-        && gpu_native_eligible(&clip_plan)
-        && !text_watermark
-        && !burn_subtitles;
-    // Text/libass overlays are currently rendered by the software filter
-    // graph. Keep the request's CUDA backend, but select that explicit
-    // correctness path instead of forcing incompatible yuva/rgba frames into
-    // overlay_cuda. The base is decoded once and NVENC still performs the
-    // final encode; this is measurable as a readback fallback, not silently
-    // reported as zero-copy.
-    let cpu_overlay_fallback = backend == "cuda_native"
-        && nvenc_encoder
-        && !gpu_native
-        && (text_watermark || burn_subtitles);
-    // Zero-readback contract: when cuda_native is selected the plan MUST be
-    // renderable device-local. A plan the hybrid cannot do (background
-    // plate, scale != 100, software encoder) is a resolver/media-policy
-    // mismatch — fail closed loudly instead of silently hwdownload-ing the
-    // base video (the historical PATH B readback this implementation
-    // eliminates).
-    if backend == "cuda_native" && !gpu_native && !cpu_overlay_fallback {
+        && gpu_native_eligible(&clip_plan);
+    // Strict zero-copy contract: cuda_native must never enter the software
+    // overlay graph. drawtext/libass necessarily rasterize on CPU in this
+    // FFmpeg build and therefore are rejected here, rather than causing a
+    // hidden hwdownload/readback. Use an image watermark and subtitle sidecar
+    // for this path; GPU glyph compositing belongs to a GPU text compositor,
+    // not this Rust FFmpeg adapter.
+    if backend == "cuda_native" && (text_watermark || burn_subtitles) {
+        return failed_response(
+            None,
+            "ZERO_COPY_UNSUPPORTED: cuda_native Rust path cannot rasterize text watermark or burned ASS subtitles on GPU; use image watermark + subtitle sidecar or a certified GPU text compositor".to_string(),
+        );
+    }
+    // Other unsupported CUDA plans are also rejected before FFmpeg starts.
+    if backend == "cuda_native" && !gpu_native {
         return failed_response(
             None,
             "cuda_native selected but the plan/encoder is not eligible for the zero-readback CUDA hybrid (background, scale or software encoder); resolver/media-policy mismatch".to_string(),
         );
+    }
+    // The stock overlay_cuda filter in the deployed FFmpeg only accepts a
+    // matching opaque CUDA pixel format. It cannot blend RGBA/YUVA over the
+    // NV12 decoder surface. Reject alpha-bearing assets rather than silently
+    // dropping transparency; opaque RGB assets are normalized to NV12 by the
+    // graph below and remain on the device after upload.
+    if gpu_native && image_watermark {
+        let watermark_path = clip_plan
+            .watermark
+            .as_ref()
+            .map(|watermark| watermark.path.as_str())
+            .unwrap_or("");
+        let watermark_meta = match probe::probe_file(&ffprobe, watermark_path) {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                return failed_response(
+                    None,
+                    format!("ZERO_COPY_UNSUPPORTED: cannot verify watermark pixel format: {error}"),
+                )
+            }
+        };
+        let pixel_format = watermark_meta.pixel_format.as_deref().unwrap_or("");
+        if has_alpha_pixel_format(pixel_format) {
+            return failed_response(
+                None,
+                format!(
+                    "ZERO_COPY_UNSUPPORTED: overlay_cuda cannot alpha-blend watermark format {pixel_format} over NV12; native GPU alpha compositor required"
+                ),
+            );
+        }
     }
     let graph = if gpu_native {
         build_gpu_filter_graph(&clip_plan, &profile)
@@ -211,8 +234,8 @@ pub(super) fn render_clip(request: Request) -> Response {
         "-benchmark_all",
         "-y",
     ]);
-    // Inputs: [0] source, optional background asset, optional watermark, and
-    // for the CUDA hybrid the transparent overlay canvas (lavfi).
+    // Inputs: [0] source, optional background asset, and optional image
+    // watermark. The strict CUDA path has no CPU canvas input.
     if gpu_native {
         // Decode through NVDEC and keep the base video device-local; the
         // PATH B graph never downloads it.
@@ -227,14 +250,6 @@ pub(super) fn render_clip(request: Request) -> Response {
                 .as_ref()
                 .and_then(|bg| bg.path.as_deref())
                 .unwrap_or(""),
-        ]);
-    }
-    // PATH B overlay canvas: transparent full-frame canvas rasterized on CPU
-    // (drawtext + libass subtitles), uploaded once and composited on GPU.
-    if gpu_native && (text_watermark || burn_subtitles) {
-        command.args([
-            "-f", "lavfi", "-i",
-            &format!("color=c=black@0.0:s={}x{}:r={}/{}", profile.width, profile.height, fps_num, fps_den),
         ]);
     }
     if image_watermark {
@@ -339,6 +354,7 @@ pub(super) fn render_clip(request: Request) -> Response {
                         audio_encode_passes: Some(audio_encode_passes),
                         subtitle_raster_cpu: Some(subtitle_raster_cpu),
                         gpu_copy_bytes: None,
+                        video_zero_copy: Some(gpu_native),
                         decode_ms: if saw_bench {
                             Some(decode_ms)
                         } else {
@@ -568,13 +584,12 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
     graph
 }
 
-/// build_gpu_filter_graph composes the PATH B CUDA hybrid chain — ZERO
-/// readback of the base video:
+/// build_gpu_filter_graph composes the strict CUDA chain — ZERO readback of
+/// the base video. Only an image watermark is supported here. Text and burned
+/// subtitles are rejected by render_clip before this function runs.
 ///
 ///   [0:v] NVDEC → scale_cuda (device-local base)
-///   overlay layer rasterized on CPU (drawtext / libass subtitles / image
-///     watermark on a transparent canvas) → hwupload_cuda (only the small
-///     overlay crosses the PCIe bus)
+///   image watermark → hwupload_cuda (only the watermark crosses the PCIe bus)
 ///   [base][overlay] overlay_cuda → NVENC (pix_fmt cuda)
 ///
 /// The base video frames never leave VRAM. Called only when the plan passed
@@ -600,81 +615,38 @@ fn build_gpu_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> Stri
         .map(|s| s.mode == SUBTITLE_BURN)
         .unwrap_or(false);
 
-    if !text_watermark && !image_watermark && !burn_subtitles {
+    if text_watermark || burn_subtitles {
+        // Defensive marker: production rejects these plans before reaching
+        // this builder, preventing any future caller from adding hwdownload.
+        return "ZERO_COPY_UNSUPPORTED".to_string();
+    }
+    if !image_watermark {
         // Plain source-only clip: base video straight to NVENC, all CUDA.
         return format!("[0:v]scale_cuda={w}:{h}[vfinal]");
     }
-    let mut graph = String::new();
-    if text_watermark || burn_subtitles {
-        // FFmpeg's overlay_cuda only accepts matching opaque CUDA YUV
-        // formats.  A transparent subtitle/text canvas is yuva420p/rgba, so
-        // forcing it through overlay_cuda either fails or drops alpha.  Use
-        // the correctness path for this case; NVENC still performs the final
-        // hardware encode and the base is not decoded twice.
-        graph.push_str(&format!(
-            "[0:v]hwdownload,format=rgba,scale={w}:{h}[base];"
-        ));
-    } else {
-        graph.push_str(&format!("[0:v]scale_cuda={w}:{h}[base];"));
-    }
-    if text_watermark || burn_subtitles {
-        // CPU raster of the transparent canvas: text + libass subtitles.
-        graph.push_str("[1:v]format=rgba");
-        if text_watermark {
-            if let Some(watermark) = &plan.watermark {
-                let (x, y) = watermark_text_position(watermark);
-                let text = escape_filter_text(&watermark.text);
-                graph.push_str(&format!(
-                    ",drawtext=text='{text}':fontcolor=white@{}:fontsize=48:borderw=2:bordercolor=black@{}:{x}:{y}",
-                    watermark.opacity, watermark.opacity
-                ));
-            }
-        }
-        if burn_subtitles {
-            if let Some(subtitles) = &plan.subtitles {
-                let escaped = escape_filter_path(&subtitles.path);
-                // libass may emit yuva420p; normalize the transparent canvas
-                // back to RGBA before the CPU overlay stage.
-                graph.push_str(&format!(",subtitles=filename='{escaped}',format=rgba"));
-            }
-        }
-        graph.push_str("[canvas];");
-    }
+    let mut graph = format!("[0:v]scale_cuda={w}:{h}[base];");
     if image_watermark {
-        let index = if text_watermark || burn_subtitles { 2 } else { 1 };
+        let index = 1;
         let watermark = plan.watermark.as_ref().expect("image watermark present");
         let (x, y) = watermark_position(watermark, w, h);
-        if text_watermark || burn_subtitles {
-            // Compose the logo onto the CPU canvas, then upload once.
-            graph.push_str(&format!(
-                "[{index}:v]format=rgba,colorchannelmixer=aa={}[wm];[canvas][wm]overlay={x}:{y}:format=auto[composed];",
-                watermark.opacity
-            ));
-            // overlay_cuda in the deployed FFmpeg build does not expose the
-            // software overlay `format` option.  The negotiated CUDA frame
-            // format is already NV12, so specifying format=nv12 makes the
-            // filter fail before Chronon is reached.
-            graph.push_str(
-                "[base][composed]overlay=x=0:y=0:format=auto[composited];[composited]format=yuv420p[vfinal]"
-            );
-        } else {
-            // Image-only overlay: upload the logo and position it with
-            // overlay_cuda (x/y expressions resolve against the base video).
-            graph.push_str(&format!(
-                "[{index}:v]format=rgba,colorchannelmixer=aa={}[wm];[wm]hwupload_cuda[overlay];[base][overlay]overlay_cuda={x}:{y}[vfinal]",
-                watermark.opacity
-            ));
-        }
+        // Image-only overlay: upload the logo and position it with
+        // overlay_cuda (x/y expressions resolve against the base video).
+        graph.push_str(&format!(
+            "[{index}:v]format=nv12,colorchannelmixer=aa={}[wm];[wm]hwupload_cuda[overlay];[base][overlay]overlay_cuda={x}:{y}[vfinal]",
+            watermark.opacity
+        ));
         return graph;
     }
-    if text_watermark || burn_subtitles {
-        graph.push_str(
-            "[base][canvas]overlay=x=0:y=0:format=auto[composited];[composited]format=yuv420p[vfinal]"
-        );
-    } else {
-        graph.push_str("[canvas]hwupload_cuda[overlay];[base][overlay]overlay_cuda=x=0:y=0[vfinal]");
-    }
     graph
+}
+
+fn has_alpha_pixel_format(pixel_format: &str) -> bool {
+    matches!(
+        pixel_format,
+        "rgba" | "bgra" | "argb" | "abgr" | "yuva420p" | "yuva422p" | "yuva444p"
+            | "yuva420p10le" | "yuva422p10le" | "yuva444p10le" | "gbrap" | "gbrap10le"
+            | "ya8" | "ya16le"
+    )
 }
 
 /// Returns true only for plans the PATH B CUDA hybrid can render entirely
@@ -869,6 +841,7 @@ mod tests {
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
             gpu_copy_bytes: None,
+            video_zero_copy: None,
             decode_ms: None,
             filter_graph_ms: None,
             subtitle_raster_ms: None,
@@ -979,7 +952,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_graph_rasterizes_text_and_subtitles_on_cpu_then_uploads() {
+    fn gpu_graph_rejects_text_and_burn_subtitles_instead_of_reading_back() {
         let mut p = plan();
         p.background = Some(ClipPlanBackground {
             mode: "none".to_string(),
@@ -1006,11 +979,8 @@ mod tests {
         });
         assert!(gpu_native_eligible(&p));
         let graph = build_gpu_filter_graph(&p, &profile());
-        assert!(graph.contains("scale=1080:1920[base]"), "graph: {graph}");
-        assert!(graph.contains("drawtext=text='LOGO'"), "graph: {graph}");
-        assert!(graph.contains("subtitles=filename="), "graph: {graph}");
-        assert!(graph.contains("overlay=x=0:y=0:format=auto"), "graph: {graph}");
-        assert!(graph.contains("hwdownload,format=rgba"), "graph: {graph}");
+        assert_eq!(graph, "ZERO_COPY_UNSUPPORTED");
+        assert!(!graph.contains("hwdownload"), "graph: {graph}");
     }
 
     #[test]
@@ -1041,7 +1011,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_graph_composes_image_watermark_onto_canvas_with_subtitles() {
+    fn gpu_graph_composes_image_watermark_with_sidecar_subtitles() {
         let mut p = plan();
         p.background = Some(ClipPlanBackground {
             mode: "none".to_string(),
@@ -1061,19 +1031,18 @@ mod tests {
         let sub_path = std::env::temp_dir().join("cliprender-gpu-sub2.ass");
         fs::write(&sub_path, b"[Script Info]").unwrap();
         p.subtitles = Some(ClipPlanSubtitles {
-            mode: "burn".to_string(),
+            mode: "sidecar".to_string(),
             style_id: Some("shorts-v1".to_string()),
             path: sub_path.to_string_lossy().into_owned(),
             sha256: "a".repeat(64),
         });
-        // Image watermark + burn subtitles: the canvas is input [1], the logo
-        // input [2], and the logo is composed onto the CPU canvas before the
-        // single hwupload_cuda.
+        // Sidecar subtitles do not enter the video graph. The image watermark
+        // is the only extra input and is uploaded for overlay_cuda.
         let graph = build_gpu_filter_graph(&p, &profile());
-        assert!(graph.contains("[2:v]format=rgba,colorchannelmixer=aa=0.85[wm]"), "graph: {graph}");
-        assert!(graph.contains("[canvas][wm]overlay="), "graph: {graph}");
-        assert!(graph.contains("subtitles=filename="), "graph: {graph}");
-        assert!(graph.contains("overlay=x=0:y=0:format=auto"), "graph: {graph}");
+        assert!(graph.contains("[1:v]format=nv12,colorchannelmixer=aa=0.85[wm]"), "graph: {graph}");
+        assert!(graph.contains("overlay_cuda="), "graph: {graph}");
+        assert!(!graph.contains("subtitles="), "graph: {graph}");
+        assert!(!graph.contains("hwdownload"), "graph: {graph}");
     }
 
     #[test]
@@ -1128,6 +1097,14 @@ mod tests {
             (x.as_str(), y.as_str()),
             ("x=main_w-overlay_w-24", "y=main_h-overlay_h-24")
         );
+    }
+
+    #[test]
+    fn alpha_formats_are_rejected_by_cuda_overlay_contract() {
+        assert!(has_alpha_pixel_format("rgba"));
+        assert!(has_alpha_pixel_format("yuva420p"));
+        assert!(!has_alpha_pixel_format("rgb24"));
+        assert!(!has_alpha_pixel_format("nv12"));
     }
 
     #[test]
