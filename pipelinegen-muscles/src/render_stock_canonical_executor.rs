@@ -109,26 +109,28 @@ pub(super) fn execute_canonical_render(
             let hold_seconds =
                 (hold_frames as f64 * plan.fps_denominator as f64) / plan.fps_numerator as f64;
             filter.push_str(&format!(
-                "[{index}:v]trim=start_frame={}:end_frame={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1,tpad=stop_mode=clone:stop_duration={:.9},setpts=PTS-STARTPTS[v{index}];",
+                "[{index}:v]trim=start_frame={}:end_frame={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{},setsar=1,tpad=stop_mode=clone:stop_duration={:.9},setpts=PTS-STARTPTS[v{index}];",
                 segment.source.start_frame,
                 end_frame,
                 profile.width,
                 profile.height,
                 profile.width,
                 profile.height,
-                format!("{}/{}", plan.fps_numerator, plan.fps_denominator),
+                plan.fps_numerator,
+                plan.fps_denominator,
                 hold_seconds
             ));
         } else {
             filter.push_str(&format!(
-                "[{index}:v]trim=start_frame={}:end_frame={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={},setsar=1[v{index}];",
+                "[{index}:v]trim=start_frame={}:end_frame={},setpts=PTS-STARTPTS,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{},setsar=1[v{index}];",
                 segment.source.start_frame,
                 end_frame,
                 profile.width,
                 profile.height,
                 profile.width,
                 profile.height,
-                format!("{}/{}", plan.fps_numerator, plan.fps_denominator)
+                plan.fps_numerator,
+                plan.fps_denominator
             ));
         }
         concat_labels.push(format!("[v{}]", index));

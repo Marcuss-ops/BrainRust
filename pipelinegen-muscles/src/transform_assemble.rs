@@ -16,7 +16,7 @@ use std::thread;
 ///   3. Enforces cross-input identity: all contract_ids identical, all
 ///      stream_signature_sha256 values identical.
 ///   4. Fails hard with ASSEMBLY_INPUT_CONTRACT_MISMATCH on any difference.
-/// There is deliberately NO re-encode fallback — the assembler is copy-only.
+///      There is deliberately NO re-encode fallback — the assembler is copy-only.
 pub(super) fn execute(request: Request) -> Response {
     let cert = match request.copy_certification.as_ref() {
         Some(cert) => cert,

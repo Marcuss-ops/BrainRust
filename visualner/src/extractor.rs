@@ -33,7 +33,7 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Vec<VisualEntity>
     let mut scored: Vec<VisualEntity> = candidates
         .into_iter()
         .filter_map(|c| validate_evidence(c, source_text))
-        .map(|c| score_entity(c))
+        .map(score_entity)
         .collect();
     // Rank: highest score first; ties broken by earliest start offset so
     // the order is deterministic across 100/100 runs.
@@ -119,20 +119,44 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
             i += 1;
             continue;
         }
-        // Start of a maximal noun phrase. Extend over consecutive
-        // non-stopword tokens whose gaps are ONLY whitespace. A
-        // punctuation byte in the gap breaks the phrase, so "tomatoes, feta"
-        // stays two candidates and "feta cheese" stays one.
+        // Proper names are bounded by the title-case run. The old maximal
+        // noun-phrase rule incorrectly absorbed predicates and their objects
+        // (for example "Floyd Mayweather became one"), producing invalid
+        // semantic spans. Lowercase phrases retain the noun-phrase behavior
+        // used by the media-object fixtures.
         let phrase_start = i;
         let mut j = i;
-        while j < tokens.len() && !is_stop_word(&tokens[j].text) {
-            if j > phrase_start {
+        if starts_uppercase(&tokens[i].text) {
+            while j < tokens.len() && starts_uppercase(&tokens[j].text) {
+                if j > phrase_start {
+                    let gap = &bytes[tokens[j - 1].end..tokens[j].start];
+                    if gap.iter().any(|b| is_phrase_breaking_byte(*b)) {
+                        break;
+                    }
+                }
+                j += 1;
+            }
+            // Keep the curated multi-word visual subjects intact even when
+            // their first token is title-cased at sentence start.
+            if j == phrase_start + 1 && j < tokens.len() && !is_stop_word(&tokens[j].text) {
                 let gap = &bytes[tokens[j - 1].end..tokens[j].start];
-                if gap.iter().any(|b| is_phrase_breaking_byte(*b)) {
-                    break;
+                let compound = format!("{} {}", tokens[phrase_start].text, tokens[j].text).to_lowercase();
+                if !gap.iter().any(|b| is_phrase_breaking_byte(*b))
+                    && (is_visual_object_hint(&compound) || is_subject_phrase(&compound))
+                {
+                    j += 1;
                 }
             }
-            j += 1;
+        } else {
+            while j < tokens.len() && !is_stop_word(&tokens[j].text) {
+                if j > phrase_start {
+                    let gap = &bytes[tokens[j - 1].end..tokens[j].start];
+                    if gap.iter().any(|b| is_phrase_breaking_byte(*b)) {
+                        break;
+                    }
+                }
+                j += 1;
+            }
         }
         let phrase_end = j; // exclusive
         let start = tokens[phrase_start].start;
@@ -161,6 +185,10 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
         i = phrase_end;
     }
     out
+}
+
+fn starts_uppercase(text: &str) -> bool {
+    text.chars().next().map(char::is_uppercase).unwrap_or(false)
 }
 
 /// is_phrase_breaking_byte reports whether a byte in the gap between two
@@ -231,7 +259,7 @@ fn classify_type(text: &str) -> String {
 ///     subject (the dish/category name like "greek salad" — it stays a
 ///     candidate but concrete ingredients must outrank it, since the
 ///     subject belongs on SceneIR.Profile.Subject, not in Entities).
-/// The final score is clamped to `[0.0, 1.0]`.
+///     The final score is clamped to `[0.0, 1.0]`.
 fn score_entity(mut e: VisualEntity) -> VisualEntity {
     let lower = e.text.to_lowercase();
     let word_count = lower.split_whitespace().count().max(1);
@@ -251,12 +279,7 @@ fn score_entity(mut e: VisualEntity) -> VisualEntity {
     if is_subject_phrase(&lower) {
         score -= 0.10;
     }
-    if score < 0.0 {
-        score = 0.0;
-    }
-    if score > 1.0 {
-        score = 1.0;
-    }
+    score = score.clamp(0.0, 1.0);
     e.score = score;
     e
 }
@@ -341,19 +364,19 @@ fn is_stop_word(word: &str) -> bool {
 }
 
 fn is_stop_phrase(normalized: &str) -> bool {
-    STOP_PHRASES.iter().any(|s| *s == normalized)
+    STOP_PHRASES.contains(&normalized)
 }
 
 fn is_visual_object_hint(lower: &str) -> bool {
-    VISUAL_OBJECT_HINTS.iter().any(|s| *s == lower)
+    VISUAL_OBJECT_HINTS.contains(&lower)
 }
 
 fn is_generic_phrase(lower: &str) -> bool {
-    GENERIC_PHRASES.iter().any(|s| *s == lower)
+    GENERIC_PHRASES.contains(&lower)
 }
 
 fn is_subject_phrase(lower: &str) -> bool {
-    SUBJECT_PHRASES.iter().any(|s| *s == lower)
+    SUBJECT_PHRASES.contains(&lower)
 }
 
 // ── Tests ────────────────────────────────────────────────────────────

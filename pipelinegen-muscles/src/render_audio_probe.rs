@@ -130,7 +130,7 @@ pub(super) fn probe_audio(
         || stream
             .profile
             .as_deref()
-            .map_or(true, |profile| !profile.eq_ignore_ascii_case("LC"))
+            .is_none_or(|profile| !profile.eq_ignore_ascii_case("LC"))
         || stream.sample_rate.as_deref() != Some("48000")
         || stream.channels != Some(2)
     {

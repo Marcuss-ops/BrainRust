@@ -14,6 +14,7 @@ pub(crate) fn reject_unresolved_selection(request: &Request) -> Option<String> {
     None
 }
 
+#[allow(dead_code)]
 pub(crate) fn validate_resolved_render_plan(
     input_count: usize,
     no_transitions: bool,
@@ -47,6 +48,7 @@ pub(crate) fn validate_resolved_render_plan(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub(crate) fn supported_transition(name: &str) -> bool {
     matches!(
         name,

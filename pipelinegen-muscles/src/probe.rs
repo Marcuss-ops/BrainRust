@@ -112,7 +112,7 @@ pub(crate) fn validate_output(
         || !video_codec_matches(video.codec_name.as_deref(), &encoder.codec)
         || video.pix_fmt.as_deref() != Some("yuv420p")
         || parse_frame_rate(video.avg_frame_rate.as_deref().unwrap_or(""))
-            .map_or(true, |fps| (fps - profile.fps_float()).abs() > 0.5)
+            .is_none_or(|fps| (fps - profile.fps_float()).abs() > 0.5)
     {
         return Err("canonical video profile violation".to_string());
     }
@@ -284,7 +284,7 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
             .unwrap_or(0.0),
         video_codec: video.and_then(|stream| stream.codec_name.clone()),
         video_profile: video.and_then(|stream| stream.profile.clone()),
-        video_level: video.and_then(|stream| stream.level.map(|value| format_level(value))),
+        video_level: video.and_then(|stream| stream.level.map(format_level)),
         pixel_format: video.and_then(|stream| stream.pix_fmt.clone()),
         video_time_base_num: video.and_then(|stream| stream.time_base.as_deref().and_then(parse_u32_pair).map(|pair| pair.0)),
         video_time_base_den: video.and_then(|stream| stream.time_base.as_deref().and_then(parse_u32_pair).map(|pair| pair.1)),

@@ -99,6 +99,7 @@ fn cut_batch(request: Request) -> Response {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cut_one(
     ffmpeg: &str,
     source: &str,

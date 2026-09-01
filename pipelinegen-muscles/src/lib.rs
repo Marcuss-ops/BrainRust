@@ -9,7 +9,7 @@
 //! - Transactional outbox decisions remain owned by the Go application.
 //! - Google Drive and Qdrant access must arrive through explicit contracts.
 //! - FFmpeg invocation belongs behind a typed execution interface.
-//! - No direct credentials or environment-file loading from this crate.
+//! - No direct credential or environment-file loading from this crate.
 
 #![deny(unsafe_code)]
 

@@ -148,7 +148,7 @@ fn validate(plan: &ClipRenderPlan) -> Result<(), String> {
                 if background
                     .asset_id
                     .as_deref()
-                    .map_or(true, |value| value.trim().is_empty())
+                    .is_none_or(|value| value.trim().is_empty())
                 {
                     return Err("clip_plan background mode=asset requires asset_id".to_string());
                 }

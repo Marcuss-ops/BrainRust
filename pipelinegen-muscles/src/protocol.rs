@@ -155,13 +155,13 @@ impl Request {
             Operation::Probe => require_source(),
             Operation::CutBatch => {
                 require_source()?;
-                if self.jobs.as_ref().map_or(true, Vec::is_empty) {
+                if self.jobs.as_ref().is_none_or(Vec::is_empty) {
                     return Err("jobs are required".to_string());
                 }
                 Ok(())
             }
             Operation::RenderStock => {
-                if self.input_paths.as_ref().map_or(true, Vec::is_empty) {
+                if self.input_paths.as_ref().is_none_or(Vec::is_empty) {
                     return Err("input_paths are required".to_string());
                 }
                 require_output()
@@ -192,7 +192,7 @@ impl Request {
                 require_output()
             }
             Operation::MergeInputs => {
-                if self.input_paths.as_ref().map_or(true, Vec::is_empty) {
+                if self.input_paths.as_ref().is_none_or(Vec::is_empty) {
                     return Err("input_paths are required".to_string());
                 }
                 require_output()
@@ -202,7 +202,7 @@ impl Request {
                 if self.audio_plan.is_none() {
                     return Err("audio_plan is required".to_string());
                 }
-                if self.audio_assets.as_ref().map_or(true, Vec::is_empty) {
+                if self.audio_assets.as_ref().is_none_or(Vec::is_empty) {
                     return Err("audio_assets are required".to_string());
                 }
                 Ok(())
@@ -212,14 +212,14 @@ impl Request {
                 if self
                     .input_paths
                     .as_ref()
-                    .map_or(true, |paths| paths.len() != 2)
+                    .is_none_or(|paths| paths.len() != 2)
                 {
                     return Err("exactly video and final audio inputs are required".to_string());
                 }
                 Ok(())
             }
             Operation::AssembleCopy => {
-                if self.input_paths.as_ref().map_or(true, Vec::is_empty) {
+                if self.input_paths.as_ref().is_none_or(Vec::is_empty) {
                     return Err("input_paths are required".to_string());
                 }
                 require_output()?;
