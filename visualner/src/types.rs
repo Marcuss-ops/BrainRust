@@ -14,6 +14,9 @@ pub struct VisualEntity {
     /// The entity surface form (e.g. "feta cheese"). Preserves the
     /// original case of the source text.
     pub text: String,
+    /// Closed semantic type shared with the Go SceneIR wire contract.
+    #[serde(rename = "type")]
+    pub r#type: String,
     /// The deterministic visualness score in `[0.0, 1.0]`; higher is
     /// more visually concrete. NOT a provider relevance score.
     pub score: f32,

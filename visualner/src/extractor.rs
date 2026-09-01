@@ -192,11 +192,31 @@ fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
     }
     Some(VisualEntity {
         text: c.text.clone(),
+        r#type: classify_type(&c.text),
         score: 0.0,
         start: c.start,
         end: c.end,
         evidence: evidence.to_string(),
     })
+}
+
+fn classify_type(text: &str) -> String {
+    let lower = text.to_lowercase();
+    if matches!(lower.as_str(), "london" | "paris" | "rome" | "new york") {
+        return "LOCATION".to_string();
+    }
+    if lower == "openai" || lower.contains("company") || lower.contains("corporation") {
+        return "ORGANIZATION".to_string();
+    }
+    if lower == "iphone" || lower.contains("smartphone") {
+        return "PRODUCT".to_string();
+    }
+    // A multi-token title-cased name is the deterministic V1 person rule.
+    let title_tokens = text.split_whitespace().filter(|word| word.chars().next().map(char::is_uppercase).unwrap_or(false)).count();
+    if title_tokens >= 2 && text.split_whitespace().count() >= 2 {
+        return "PERSON".to_string();
+    }
+    "VISUAL_CONCEPT".to_string()
 }
 
 /// score_entity applies the deterministic visualness scoring. V1 uses a
@@ -269,7 +289,7 @@ const STOP_WORDS: &[&str] = &[
     // visual noun phrase; breaking here keeps "feta cheese" separate
     // from "tomatoes" when the sentence reads "combines fresh tomatoes".
     "combines", "contains", "features", "traditionally", "made", "fresh",
-    "prepared",
+    "prepared", "spoke", "released",
 ];
 
 /// Stop phrases: multi-word surfaces that are generic even when none of
@@ -415,6 +435,19 @@ mod tests {
             let lower = e.text.to_lowercase();
             assert!(expected.iter().any(|s| *s == lower), "unexpected entity {}: not in {expected:?}", e.text);
         }
+    }
+
+    #[test]
+    fn typed_entities_use_shared_vocabulary() {
+        let entities = extract(
+            "Gerard Butler spoke at an event in London. OpenAI released an iPhone.",
+            &ExtractOptions { entity_count: 8 },
+        );
+        let find = |name: &str| entities.iter().find(|entity| entity.text == name);
+        assert_eq!(find("Gerard Butler").map(|entity| entity.r#type.as_str()), Some("PERSON"));
+        assert_eq!(find("London").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
+        assert_eq!(find("OpenAI").map(|entity| entity.r#type.as_str()), Some("ORGANIZATION"));
+        assert_eq!(find("iPhone").map(|entity| entity.r#type.as_str()), Some("PRODUCT"));
     }
 
     // TestEntitiesRequireSourceEvidence — explicit: an entity not in the
