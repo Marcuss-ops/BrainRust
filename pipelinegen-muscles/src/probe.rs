@@ -46,11 +46,33 @@ struct ProbeStream {
     field_order: Option<String>,
     gop_size: Option<u32>,
     has_b_frames: Option<u32>,
+    #[serde(default, deserialize_with = "deserialize_boolish")]
     closed_captions: Option<bool>,
     bit_rate: Option<String>,
     extradata: Option<String>,
     channel_layout: Option<String>,
     start_time: Option<String>,
+}
+
+// ffprobe emits some boolean-ish stream flags as numeric 0/1 values on
+// common builds, while other builds emit JSON booleans. Accept both forms so
+// the media contract is stable across ffprobe versions.
+fn deserialize_boolish<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Bool(value) => Some(value),
+        serde_json::Value::Number(value) => value.as_i64().map(|value| value != 0),
+        serde_json::Value::String(value) => match value.as_str() {
+            "1" | "true" => Some(true),
+            "0" | "false" => Some(false),
+            _ => None,
+        },
+        serde_json::Value::Null => None,
+        _ => None,
+    })
 }
 
 pub(crate) fn ffprobe_path(ffmpeg: &str) -> String {

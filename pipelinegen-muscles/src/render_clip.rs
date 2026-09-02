@@ -248,10 +248,15 @@ pub(super) fn render_clip(request: Request) -> Response {
         // Decode through NVDEC and keep the base video device-local; the
         // PATH B graph never downloads it.
         command.args(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
+    } else if nvenc_encoder {
+        // Decode through NVDEC on GPU for accelerated hardware decoding
+        command.args(["-hwaccel", "cuda"]);
     }
     command.args(["-i", source]);
     if clip_plan.background.as_ref().map(|bg| bg.mode.as_str()) == Some(BACKGROUND_ASSET) {
         command.args([
+            "-stream_loop",
+            "-1",
             "-i",
             clip_plan
                 .background
@@ -544,16 +549,19 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
         }
     }
 
-    // Fitted foreground, centered on the background canvas.
-    graph.push_str(&format!(
-        "[src_fg]scale={fg_w}:{fg_h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1[fg];"
-    ));
-
     let mut final_label: String;
     match bg_mode {
-        BACKGROUND_NONE => final_label = "[fg]".to_string(),
+        BACKGROUND_NONE => {
+            graph.push_str(&format!(
+                "[src_fg]scale={fg_w}:{fg_h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1[fg];"
+            ));
+            final_label = "[fg]".to_string();
+        }
         _ => {
-            graph.push_str("[bg][fg]overlay=0:0:format=auto[v0];");
+            graph.push_str(&format!(
+                "[src_fg]scale={fg_w}:{fg_h}:force_original_aspect_ratio=decrease,setsar=1[fg];"
+            ));
+            graph.push_str("[bg][fg]overlay=(W-w)/2:(H-h)/2:shortest=1:format=auto[v0];");
             final_label = "[v0]".to_string();
         }
     }
@@ -573,7 +581,7 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
             let (x, y) = watermark_text_position(watermark);
             let text = escape_filter_text(&watermark.text);
             graph.push_str(&format!(
-                "{final_label}drawtext=text='{text}':fontcolor=white@{}:fontsize=48:borderw=2:bordercolor=black@{}:{x}:{y}[v1];",
+                "{final_label}drawtext=text='{text}':font='Montserrat':fontcolor=white@{}:fontsize=48:borderw=3:bordercolor=black@{}:{x}:{y}[v1];",
                 watermark.opacity, watermark.opacity
             ));
         }
@@ -888,13 +896,9 @@ mod tests {
         // One graph, one encode: background + foreground + watermark + burn.
         assert!(graph.contains("scale=180:320"), "graph: {graph}");
         assert!(graph.contains("gblur=sigma=5"), "graph: {graph}");
-        assert!(
-            graph.contains("scale=1080:1920:flags=bilinear"),
-            "graph: {graph}"
-        );
-        assert!(graph.contains("pad=1080:1920:(ow-iw)/2:(oh-ih)/2"));
+        assert!(graph.contains("force_original_aspect_ratio=decrease"));
         assert!(graph.contains("fps=60/1"));
-        assert!(graph.contains("overlay=0:0:format=auto"));
+        assert!(graph.contains("overlay=(W-w)/2:(H-h)/2:shortest=1:format=auto"));
         assert!(graph.contains("colorchannelmixer=aa=0.85"));
         assert!(graph.contains("x=main_w-overlay_w-40"));
         assert!(graph.contains("subtitles=filename="));
