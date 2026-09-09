@@ -279,6 +279,12 @@ fn score_entity(mut e: VisualEntity) -> VisualEntity {
     if is_subject_phrase(&lower) {
         score -= 0.10;
     }
+    // Named people are the highest-value entity surface for the overlay
+    // path. Keep them in the bounded top-N even when a scene contains many
+    // longer generic visual phrases.
+    if e.r#type == "PERSON" {
+        score += 0.50;
+    }
     score = score.clamp(0.0, 1.0);
     e.score = score;
     e
@@ -313,6 +319,9 @@ const STOP_WORDS: &[&str] = &[
     // from "tomatoes" when the sentence reads "combines fresh tomatoes".
     "combines", "contains", "features", "traditionally", "made", "fresh",
     "prepared", "spoke", "released",
+    // sentence-opening gerund; it must not absorb the following proper name
+    // into a false entity such as "Understanding Donald Trump's".
+    "understanding",
 ];
 
 /// Stop phrases: multi-word surfaces that are generic even when none of
@@ -458,6 +467,17 @@ mod tests {
             let lower = e.text.to_lowercase();
             assert!(expected.iter().any(|s| *s == lower), "unexpected entity {}: not in {expected:?}", e.text);
         }
+    }
+
+    #[test]
+    fn trump_is_retained_as_a_person_in_a_dense_scene() {
+        let text = "Donald Trump's trajectory offers a profound case study into the interwoven nature of business success, intense media visibility, and political leadership within American public life. His career has consistently demonstrated how these three elements feed one another, creating a defining narrative arc for Donald Trump. Understanding Donald Trump's influence requires recognizing his public impact.";
+        let entities = extract(text, &ExtractOptions { entity_count: 5 });
+        let trump = entities.iter().find(|entity| entity.r#type == "PERSON" && entity.text.to_lowercase().contains("trump"));
+        assert!(trump.is_some(), "Donald Trump must survive the top-N visual entity bound: {entities:?}");
+        let trump = trump.unwrap();
+        assert_eq!(trump.text, "Donald Trump's");
+        assert_eq!(trump.evidence, trump.text);
     }
 
     #[test]
