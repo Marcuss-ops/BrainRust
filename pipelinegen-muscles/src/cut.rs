@@ -258,8 +258,18 @@ fn gpu_cut_eligibility(
     if !encoder.codec.to_ascii_lowercase().ends_with("_nvenc") {
         return false;
     }
-    let Ok(metadata) = probe_file(ffprobe, source) else {
-        return false;
+    let metadata = match probe_file(ffprobe, source) {
+        Ok(metadata) => metadata,
+        // The GPU→CPU downgrade must be observable, never silent: a persistently
+        // failing probe would otherwise quietly halve throughput on this path
+        // with no trace. The dispatcher's stderr is retained by the Go worker's
+        // bounded buffer and surfaces on transport errors and in diagnostics.
+        Err(error) => {
+            eprintln!(
+                "[cut] gpu_cut_eligibility probe failed ({error}); falling back to CPU filter chain"
+            );
+            return false;
+        }
     };
     metadata.has_video
         && metadata.width == profile.width

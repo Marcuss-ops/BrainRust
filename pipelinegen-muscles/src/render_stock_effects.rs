@@ -1,4 +1,6 @@
-use crate::protocol::{self, Request};
+use crate::protocol::Request;
+#[cfg(test)]
+use crate::protocol;
 
 pub(crate) fn reject_unresolved_selection(request: &Request) -> Option<String> {
     if request.transition_every.is_some()
@@ -14,7 +16,12 @@ pub(crate) fn reject_unresolved_selection(request: &Request) -> Option<String> {
     None
 }
 
-#[allow(dead_code)]
+// Test-only: production render_stock is canonical-plan-only (render_stock.rs
+// routes exclusively to render_stock_canonical); these validators exist so the
+// dispatcher contract tests can pin the Go↔Rust transition/effect selection
+// IDs. Compiled out of production builds instead of silenced with
+// #[allow(dead_code)].
+#[cfg(test)]
 pub(crate) fn validate_resolved_render_plan(
     input_count: usize,
     no_transitions: bool,
@@ -48,7 +55,7 @@ pub(crate) fn validate_resolved_render_plan(
     Ok(())
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub(crate) fn supported_transition(name: &str) -> bool {
     matches!(
         name,

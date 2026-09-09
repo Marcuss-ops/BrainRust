@@ -41,11 +41,11 @@ pub(crate) fn part_path(final_path: &str) -> String {
 }
 
 
-/// sha256_file computes the lowercase SHA256 digest of a file using the same
-/// `sha256sum` invocation the canonical render plan already relies on. It is
-/// the hashing helper for the combined-audio render path so the Go adapter can
-/// trust the digest Rust produced instead of re-hashing the output it just
-/// rendered.
+/// sha256_file is the crate-wide canonical file hasher: it computes the
+/// lowercase SHA256 digest of a file using the same `sha256sum` invocation the
+/// canonical render plan relies on. Every consumer (combined-audio render
+/// hashing, clip-plan artifact validation) routes through this single
+/// implementation so the digest contract has exactly one owner.
 pub(crate) fn sha256_file(path: &str) -> Result<String, String> {
     let output = Command::new("sha256sum")
         .arg("--")

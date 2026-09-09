@@ -1,5 +1,6 @@
 use std::io::{self, Read};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -70,22 +71,35 @@ impl RustProcessRunner {
         let stdout_thread = thread::spawn(move || read_tail(stdout, limit, |_| {}));
         let stderr_thread = thread::spawn(move || read_tail(stderr, limit, on_line));
 
+        // Wait on the child through a watcher thread + channel instead of a
+        // try_wait/sleep poll loop: the waiter blocks in waitpid with zero
+        // wakeups (a 10-minute timeout previously woke ~60k times per render)
+        // and the timeout fires on the deadline, not on the next poll tick.
+        let child_pid = child.id();
+        let (status_tx, status_rx) = mpsc::channel::<io::Result<ExitStatus>>();
+        let wait_thread = {
+            let mut child = child;
+            thread::spawn(move || {
+                let result = child.wait();
+                let _ = status_tx.send(result);
+            })
+        };
         let started = Instant::now();
-        let status = loop {
-            if let Some(status) = child.try_wait()? {
-                break status;
-            }
-            if started.elapsed() >= self.timeout {
-                kill_process_tree(&mut child);
-                let _ = child.wait();
-                let _ = stdout_thread.join();
-                let _ = stderr_thread.join();
+        let status = match status_rx.recv_timeout(self.timeout) {
+            Ok(status) => status?,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                kill_process_tree(child_pid);
+                // Reap the killed child so no zombie outlives the runner.
+                let _ = status_rx.recv();
+                let _ = wait_thread.join();
                 return Err(io::Error::new(
                     io::ErrorKind::TimedOut,
-                    format!("process timed out after {}s", self.timeout.as_secs()),
+                    format!("process timed out after {}s", started.elapsed().as_secs().max(self.timeout.as_secs())),
                 ));
             }
-            thread::sleep(Duration::from_millis(10));
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(io::Error::other("child wait thread panicked"));
+            }
         };
 
         let stdout = stdout_thread
@@ -176,7 +190,12 @@ fn read_tail<R: Read>(
     limit: usize,
     mut on_line: impl FnMut(&str),
 ) -> io::Result<Vec<u8>> {
-    let mut tail = Vec::with_capacity(limit.min(8192));
+    // Tail retention: the buffer grows in chunk steps and is trimmed in bulk
+    // only when it exceeds limit by more than one chunk — amortized O(1) per
+    // byte instead of a full-limit memmove per chunk (~8x traffic reduction
+    // for the per-frame `-benchmark_all` stderr stream). The final trim pins
+    // the retained tail to exactly `limit` bytes before returning.
+    let mut tail: Vec<u8> = Vec::with_capacity(limit.min(8192));
     let mut chunk = [0_u8; 8192];
     let mut line_buf: Vec<u8> = Vec::new();
     loop {
@@ -189,31 +208,43 @@ fn read_tail<R: Read>(
                     on_line(line);
                 }
             }
-            return Ok(tail);
+            break;
         }
-        if count >= limit {
-            tail.clear();
-            tail.extend_from_slice(&chunk[count - limit..count]);
-        } else {
-            tail.extend_from_slice(&chunk[..count]);
-            if tail.len() > limit {
-                let start = tail.len() - limit;
-                tail.drain(..start);
-            }
+        tail.extend_from_slice(&chunk[..count]);
+        if tail.len() > limit.saturating_add(count) {
+            let start = tail.len() - limit;
+            tail.drain(..start);
         }
-        // Feed complete lines to the handler as they stream. A pathological
+        // Feed complete lines to the handler as they stream. Newlines are
+        // located with a slice scan (auto-vectorizable) and complete lines are
+        // passed to the handler zero-copy straight from the chunk — only a
+        // partial line spanning chunks is buffered byte-wise. A pathological
         // line longer than the cap is dropped rather than buffered forever.
-        for &byte in &chunk[..count] {
-            if byte == b'\n' {
+        let mut line_start = 0;
+        while let Some(relative) = chunk[line_start..count].iter().position(|&byte| byte == b'\n') {
+            let newline = line_start + relative;
+            if line_buf.is_empty() {
+                if let Ok(line) = std::str::from_utf8(&chunk[line_start..newline]) {
+                    on_line(line);
+                }
+            } else {
+                line_buf.extend_from_slice(&chunk[line_start..newline]);
                 if let Ok(line) = std::str::from_utf8(&line_buf) {
                     on_line(line);
                 }
                 line_buf.clear();
-            } else if line_buf.len() < limit {
-                line_buf.push(byte);
             }
+            line_start = newline + 1;
+        }
+        if line_start < count && line_buf.len() < limit {
+            line_buf.extend_from_slice(&chunk[line_start..count]);
         }
     }
+    if tail.len() > limit {
+        let start = tail.len() - limit;
+        tail.drain(..start);
+    }
+    Ok(tail)
 }
 
 fn process_command(program: &str, args: &[String]) -> Command {
@@ -234,14 +265,13 @@ fn process_command(program: &str, args: &[String]) -> Command {
     }
 }
 
-fn kill_process_tree(child: &mut Child) {
+fn kill_process_tree(pid: u32) {
     #[cfg(unix)]
     {
         // `setsid` makes the supervised program the leader of a new process
         // group. Signal the negative PGID so FFmpeg and every other descendant
         // are terminated together; killing only the direct child leaves the
         // actual worker alive behind the Rust executor.
-        let pid = child.id().to_string();
         let group = format!("-{pid}");
         let group_killed = Command::new("kill")
             .args(["-KILL", "--", &group])
@@ -249,12 +279,18 @@ fn kill_process_tree(child: &mut Child) {
             .map(|status| status.success())
             .unwrap_or(false);
         if !group_killed {
-            let _ = child.kill();
+            // Fallback: signal the direct child by pid (equivalent of
+            // Child::kill) when the group signal could not be delivered.
+            let _ = Command::new("kill")
+                .args(["-KILL", &pid.to_string()])
+                .status();
         }
     }
     #[cfg(not(unix))]
     {
-        let _ = child.kill();
+        let _ = Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .status();
     }
 }
 

@@ -196,7 +196,15 @@ fn probe_all_inputs_concurrent(
 
     let mut results = Vec::with_capacity(handles.len());
     for (i, handle) in handles.into_iter().enumerate() {
-        match handle.join().unwrap() {
+        // Join-error parity with cut_batch: a panicking probe thread is
+        // converted into the same typed contract failure instead of unwinding
+        // through the dispatcher (which would tear down the persistent worker
+        // and every in-flight request with it).
+        let outcome = match handle.join() {
+            Ok(outcome) => outcome,
+            Err(_) => Err("probe worker thread panicked".to_string()),
+        };
+        match outcome {
             Ok(metadata) => results.push(metadata),
             Err(error) => {
                 return Err(format!(

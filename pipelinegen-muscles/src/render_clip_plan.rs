@@ -1,6 +1,6 @@
+use crate::artifact::sha256_file;
 use serde::Deserialize;
 use std::path::Path;
-use std::process::Command;
 
 pub(super) const CLIP_PLAN_VERSION: &str = "clip-render-plan.v1";
 
@@ -262,25 +262,9 @@ fn validate_artifact(label: &str, path: &str, expected: &str) -> Result<(), Stri
     Ok(())
 }
 
-fn sha256_file(path: &str) -> Result<String, String> {
-    let output = Command::new("sha256sum")
-        .arg("--")
-        .arg(path)
-        .output()
-        .map_err(|error| format!("compute SHA256 for {path}: {error}"))?;
-    if !output.status.success() {
-        return Err(format!("compute SHA256 for {path} failed"));
-    }
-    let digest = String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_string();
-    if !is_lower_sha256(&digest) {
-        return Err(format!("sha256sum returned an invalid digest for {path}"));
-    }
-    Ok(digest)
-}
+// sha256_file is the crate-wide canonical file hasher (artifact.rs); the
+// plan validator hashes every referenced artifact through the same
+// `sha256sum` invocation the combined-audio render path uses.
 
 #[cfg(test)]
 mod tests {
