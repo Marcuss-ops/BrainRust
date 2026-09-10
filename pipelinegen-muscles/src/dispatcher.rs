@@ -144,7 +144,6 @@ mod tests {
             copy_certification: None,
             render_plan: None,
             clip_plan: None,
-            render_backend: None,
         };
         assert!(reject_unresolved_selection(&request).is_some());
         assert_eq!(process(request.clone()).operation, "render_stock");

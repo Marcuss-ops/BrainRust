@@ -13,30 +13,10 @@ pub fn append_video_args(
     profile: &VideoProfile,
     keyframe_interval: Option<u32>,
 ) -> Result<(), String> {
-    append_video_args_with_pixel_format(command, policy, profile, keyframe_interval, "yuv420p")
-}
-
-/// Appends the encoder contract for a CUDA frame (PATH B hybrid). `cuda` is
-/// an FFmpeg hardware pixel format, not a codec pixel format: it tells FFmpeg
-/// to keep the composited CUDA frame on the device until NVENC consumes it —
-/// the base video never leaves VRAM (zero readback).
-pub fn append_video_args_cuda(
-    command: &mut ProcessCommand,
-    policy: &EncoderPolicy,
-    profile: &VideoProfile,
-    keyframe_interval: Option<u32>,
-) -> Result<(), String> {
-    append_video_args_with_pixel_format(command, policy, profile, keyframe_interval, "cuda")
-}
-
-fn append_video_args_with_pixel_format(
-    command: &mut ProcessCommand,
-    policy: &EncoderPolicy,
-    profile: &VideoProfile,
-    keyframe_interval: Option<u32>,
-    pixel_format: &str,
-) -> Result<(), String> {
-    for argument in build_video_args(policy, profile, keyframe_interval, pixel_format)? {
+    // The software baseline always encodes yuv420p. The PATH B hybrid that
+    // kept the frame device-local (pix_fmt cuda until NVENC) was removed —
+    // GPU compositing belongs to the Chronon executor, not Rust.
+    for argument in build_video_args(policy, profile, keyframe_interval, "yuv420p")? {
         command.arg(argument);
     }
     Ok(())
@@ -255,14 +235,6 @@ mod tests {
         assert!(pair(&args, "-force_key_frames", "0"));
         assert!(pair(&args, "-r", "24/1"));
         assert!(!args.iter().any(|arg| arg == "-crf"));
-    }
-
-    #[test]
-    fn cuda_output_keeps_hardware_pixel_format() {
-        let args =
-            build_video_args(&policy("h264_nvenc", "p1", 23), &profile(), None, "cuda").unwrap();
-        assert!(pair(&args, "-pix_fmt", "cuda"));
-        assert!(!pair(&args, "-pix_fmt", "yuv420p"));
     }
 
     #[test]

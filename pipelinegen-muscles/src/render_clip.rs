@@ -19,7 +19,7 @@
 
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::config::VideoProfile;
-use crate::encoder::{append_video_args, append_video_args_cuda};
+use crate::encoder::append_video_args;
 use crate::probe;
 use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};

@@ -205,8 +205,6 @@ pub(super) fn execute_canonical_render(
                         audio_copy_eligible: None,
                         audio_encode_passes: None,
                         subtitle_raster_cpu: None,
-                        gpu_copy_bytes: None,
-                        video_zero_copy: None,
                         decode_ms: None,
                         filter_graph_ms: None,
                         subtitle_raster_ms: None,

@@ -79,11 +79,11 @@ fn audio_policy(
 /// background (none | blur_source | asset) + fitted foreground → overlay →
 /// watermark (position/opacity/margin) → libass burn (mode=burn only).
 /// Input indices are positional: [0] source, [1] background asset (only when
-/// mode=asset), [2] watermark (next free index). This is the ONLY graph: the
-/// CUDA hybrid path (scale_cuda/overlay_cuda/hwupload_cuda) was removed with
-/// the cuda_native backend — certified Chronon owns GPU compositing on the
-/// Chronon executor, and this graph is the software baseline for every other
-/// host.
+/// mode=asset), [2] watermark (next free index). This is the ONLY graph:
+/// certified Chronon owns GPU compositing on the Chronon executor (reached
+/// exclusively through the RenderingGen queue), and this graph is the
+/// software baseline for every other host. The PATH B GPU hybrid filter
+/// chain was removed with the retired backend.
 fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
     let w = profile.width;
     let h = profile.height;
@@ -182,88 +182,6 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
     }
     graph.push_str(&format!("{final_label}null[vfinal]"));
     graph
-}
-
-/// build_gpu_filter_graph composes the strict CUDA chain — ZERO readback of
-/// the base video. Only an image watermark is supported here. Text and burned
-/// subtitles are rejected by render_clip before this function runs.
-///
-///   [0:v] NVDEC → scale_cuda (device-local base)
-///   image watermark → hwupload_cuda (only the watermark crosses the PCIe bus)
-///   [base][overlay] overlay_cuda → NVENC (pix_fmt cuda)
-///
-/// The base video frames never leave VRAM. Called only when the plan passed
-/// gpu_native_eligible (the resolver must route everything else away); the
-/// caller fail-closes before this function if cuda_native was selected for
-/// an ineligible plan.
-fn build_gpu_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
-    let w = profile.width;
-    let h = profile.height;
-    let text_watermark = plan
-        .watermark
-        .as_ref()
-        .map(|wm| !wm.text.trim().is_empty())
-        .unwrap_or(false);
-    let image_watermark = plan
-        .watermark
-        .as_ref()
-        .map(|wm| wm.text.trim().is_empty())
-        .unwrap_or(false);
-    let burn_subtitles = plan
-        .subtitles
-        .as_ref()
-        .map(|s| s.mode == SUBTITLE_BURN)
-        .unwrap_or(false);
-
-    if text_watermark || burn_subtitles {
-        // Defensive marker: production rejects these plans before reaching
-        // this builder, preventing any future caller from adding hwdownload.
-        return "ZERO_COPY_UNSUPPORTED".to_string();
-    }
-    if !image_watermark {
-        // Plain source-only clip: base video straight to NVENC, all CUDA.
-        return format!("[0:v]scale_cuda={w}:{h}[vfinal]");
-    }
-    let mut graph = format!("[0:v]scale_cuda={w}:{h}[base];");
-    if image_watermark {
-        let index = 1;
-        let watermark = plan.watermark.as_ref().expect("image watermark present");
-        let (x, y) = watermark_position(watermark, w, h);
-        // Image-only overlay: upload the logo and position it with
-        // overlay_cuda (x/y expressions resolve against the base video).
-        graph.push_str(&format!(
-            "[{index}:v]format=nv12,colorchannelmixer=aa={}[wm];[wm]hwupload_cuda[overlay];[base][overlay]overlay_cuda={x}:{y}[vfinal]",
-            watermark.opacity
-        ));
-        return graph;
-    }
-    graph
-}
-
-fn has_alpha_pixel_format(pixel_format: &str) -> bool {
-    matches!(
-        pixel_format,
-        "rgba" | "bgra" | "argb" | "abgr" | "yuva420p" | "yuva422p" | "yuva444p"
-            | "yuva420p10le" | "yuva422p10le" | "yuva444p10le" | "gbrap" | "gbrap10le"
-            | "ya8" | "ya16le"
-    )
-}
-
-/// Returns true only for plans the PATH B CUDA hybrid can render entirely
-/// device-local (zero readback of the base video): no background plate
-/// (mode none or absent) and no foreground fit/pad (scale must be 100 — the
-/// pad filter has no device-local CUDA equivalent). Overlays (image/text
-/// watermark, burn subtitles) are fine: they are rasterized on CPU into the
-/// small overlay layer and uploaded, never the base video. Zero is treated
-/// as 100 to mirror Compile's normalizeForegroundScale.
-fn gpu_native_eligible(plan: &ClipRenderPlan) -> bool {
-    let background_none = plan
-        .background
-        .as_ref()
-        .map(|bg| bg.mode == BACKGROUND_NONE)
-        .unwrap_or(true);
-    let scale = plan.output.foreground_scale_percent;
-    background_none && (scale == 100 || scale == 0)
 }
 
 /// watermark_position resolves the overlay x/y expressions for the requested

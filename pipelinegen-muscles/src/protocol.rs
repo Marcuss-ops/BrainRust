@@ -118,11 +118,6 @@ pub struct Request {
     // making zero business selections (background/watermark/subtitles/audio
     // policy/geometry all arrive resolved).
     pub clip_plan: Option<serde_json::Value>,
-    // The render backend resolved by the Go capability's RenderBackendResolver
-    // ("chronon_vulkan" | "cuda_native" | "ffmpeg_fallback"). Rust executes
-    // the selected backend verbatim and never derives it from the codec
-    // string; cuda_native selects the PATH B CUDA hybrid graph.
-    pub render_backend: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -394,15 +389,7 @@ pub struct MediaMetadata {
     // GPU). None when subtitles are disabled or sidecar.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subtitle_raster_cpu: Option<bool>,
-    // Explicit device-copy accounting. None means the operation did not
-    // collect these GPU metrics.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub gpu_copy_bytes: Option<u64>,
-    // True only when render_clip built the strict CUDA graph: NVDEC/CUDA
-    // frames stay device-local through overlay_cuda and NVENC. None for
-    // operations that do not own zero-copy instrumentation.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub video_zero_copy: Option<bool>,
+
     // Fine-grained render phases measured by the owning Rust boundary.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decode_ms: Option<i64>,
@@ -639,8 +626,6 @@ mod tests {
             audio_copy_eligible: None,
             audio_encode_passes: None,
             subtitle_raster_cpu: None,
-            gpu_copy_bytes: None,
-            video_zero_copy: None,
             decode_ms: None,
             filter_graph_ms: None,
             subtitle_raster_ms: None,

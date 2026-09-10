@@ -98,89 +98,21 @@ pub(super) fn render_clip(request: Request) -> Response {
     let (audio_copy_eligible, audio_encode_passes, audio_args) =
         audio_policy(&clip_plan.audio, &source_metadata, audio_bitrate);
 
-    // The render backend is resolved by the Go RenderBackendResolver and
-    // transported here — Rust never derives hardware usage from the codec
-    // string. cuda_native is strict: only a device-local graph is accepted.
-    // Text watermark and burned ASS subtitles require CPU rasterization in
-    // this FFmpeg path, so they must never be silently called zero-copy.
-    let backend = request
-        .render_backend
-        .as_deref()
-        .unwrap_or("ffmpeg_fallback");
+    // The render backend is resolved by the Go capability and executed on
+    // the Chronon executor through the RenderingGen queue; this Rust
+    // operation is the software baseline (single-pass FFmpeg filter graph).
+    // GPU compositing belongs to Chronon — Rust never selects a hardware
+    // compositing path. Hardware decode/encode acceleration still follows
+    // the Go-resolved encoder policy (an NVENC policy may decode through
+    // NVDEC), but compositing is always this CPU graph.
     let requested_codec = encoder.codec.trim().to_ascii_lowercase();
     let nvenc_encoder = requested_codec == "nvenc" || requested_codec.ends_with("_nvenc");
-    let text_watermark = clip_plan
-        .watermark
-        .as_ref()
-        .map(|wm| !wm.text.trim().is_empty())
-        .unwrap_or(false);
     let image_watermark = clip_plan
         .watermark
         .as_ref()
         .map(|wm| wm.text.trim().is_empty())
         .unwrap_or(false);
-    let burn_subtitles = clip_plan
-        .subtitles
-        .as_ref()
-        .map(|s| s.mode == SUBTITLE_BURN)
-        .unwrap_or(false);
-    let gpu_native = backend == "cuda_native"
-        && nvenc_encoder
-        && gpu_native_eligible(&clip_plan);
-    // Strict zero-copy contract: cuda_native must never enter the software
-    // overlay graph. drawtext/libass necessarily rasterize on CPU in this
-    // FFmpeg build and therefore are rejected here, rather than causing a
-    // hidden hwdownload/readback. Use an image watermark and subtitle sidecar
-    // for this path; GPU glyph compositing belongs to a GPU text compositor,
-    // not this Rust FFmpeg adapter.
-    if backend == "cuda_native" && (text_watermark || burn_subtitles) {
-        return failed_response(
-            None,
-            "ZERO_COPY_UNSUPPORTED: cuda_native Rust path cannot rasterize text watermark or burned ASS subtitles on GPU; use image watermark + subtitle sidecar or a certified GPU text compositor".to_string(),
-        );
-    }
-    // Other unsupported CUDA plans are also rejected before FFmpeg starts.
-    if backend == "cuda_native" && !gpu_native {
-        return failed_response(
-            None,
-            "cuda_native selected but the plan/encoder is not eligible for the zero-readback CUDA hybrid (background, scale or software encoder); resolver/media-policy mismatch".to_string(),
-        );
-    }
-    // The stock overlay_cuda filter in the deployed FFmpeg only accepts a
-    // matching opaque CUDA pixel format. It cannot blend RGBA/YUVA over the
-    // NV12 decoder surface. Reject alpha-bearing assets rather than silently
-    // dropping transparency; opaque RGB assets are normalized to NV12 by the
-    // graph below and remain on the device after upload.
-    if gpu_native && image_watermark {
-        let watermark_path = clip_plan
-            .watermark
-            .as_ref()
-            .map(|watermark| watermark.path.as_str())
-            .unwrap_or("");
-        let watermark_meta = match probe::probe_file(&ffprobe, watermark_path) {
-            Ok(metadata) => metadata,
-            Err(error) => {
-                return failed_response(
-                    None,
-                    format!("ZERO_COPY_UNSUPPORTED: cannot verify watermark pixel format: {error}"),
-                )
-            }
-        };
-        let pixel_format = watermark_meta.pixel_format.as_deref().unwrap_or("");
-        if has_alpha_pixel_format(pixel_format) {
-            return failed_response(
-                None,
-                format!(
-                    "ZERO_COPY_UNSUPPORTED: overlay_cuda cannot alpha-blend watermark format {pixel_format} over NV12; native GPU alpha compositor required"
-                ),
-            );
-        }
-    }
-    let graph = if gpu_native {
-        build_gpu_filter_graph(&clip_plan, &profile)
-    } else {
-        build_filter_graph(&clip_plan, &profile)
-    };
+    let graph = build_filter_graph(&clip_plan, &profile);
     let subtitle_raster_cpu = clip_plan
         .subtitles
         .as_ref()
@@ -211,12 +143,10 @@ pub(super) fn render_clip(request: Request) -> Response {
     }
     // Inputs: [0] source, optional background asset, and optional image
     // watermark. The strict CUDA path has no CPU canvas input.
-    if gpu_native {
-        // Decode through NVDEC and keep the base video device-local; the
-        // PATH B graph never downloads it.
-        command.args(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
-    } else if nvenc_encoder {
-        // Decode through NVDEC on GPU for accelerated hardware decoding
+    if nvenc_encoder {
+        // Decode through NVDEC on GPU for accelerated hardware decoding;
+        // the filter graph still composites on CPU (compositing is
+        // Chronon's domain on the Chronon executor, not Rust's).
         command.args(["-hwaccel", "cuda"]);
     }
     command.args(["-i", source]);
@@ -253,11 +183,7 @@ pub(super) fn render_clip(request: Request) -> Response {
     for argument in audio_args {
         command.arg(argument);
     }
-    let encoder_result = if gpu_native {
-        append_video_args_cuda(&mut command, &encoder, &profile, None)
-    } else {
-        append_video_args(&mut command, &encoder, &profile, None)
-    };
+    let encoder_result = append_video_args(&mut command, &encoder, &profile, None);
     if let Err(error) = encoder_result {
         return failed_response(None, error);
     }
@@ -333,8 +259,9 @@ pub(super) fn render_clip(request: Request) -> Response {
                         audio_copy_eligible: Some(audio_copy_eligible),
                         audio_encode_passes: Some(audio_encode_passes),
                         subtitle_raster_cpu: Some(subtitle_raster_cpu),
-                        gpu_copy_bytes: None,
-                        video_zero_copy: Some(gpu_native),
+                        // The zero-copy certification fields were removed
+                        // with the retired hybrid backend: this software
+                        // baseline never certifies a device-local GPU path.
                         decode_ms: if saw_bench {
                             Some(decode_ms)
                         } else {
