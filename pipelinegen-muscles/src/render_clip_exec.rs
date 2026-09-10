@@ -190,21 +190,25 @@ pub(super) fn render_clip(request: Request) -> Response {
     let part = part_path(output);
 
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
-    // -benchmark_all emits a per-frame `bench:` line on stderr for every
-    // decode/encode call — the ONLY decode/encode attribution stock ffmpeg
-    // exposes from a single pass. The lines are logged at INFO, so the
-    // loglevel must be raised from error; -nostats keeps the progress
-    // reports off. The per-frame lines are accumulated incrementally by
-    // BenchAccumulator (the retained stderr tail is capped at 64KiB and
-    // would truncate them on long renders).
-    command.args([
-        "-hide_banner",
-        "-loglevel",
-        "info",
-        "-nostats",
-        "-benchmark_all",
-        "-y",
-    ]);
+    // -benchmark_all is gated: production steady-state omits it to avoid
+    // per-frame instrumentation (bench: line per frame → parse + heap).
+    // Deep profiling / certification enables it via PIPELINEGEN_BENCH_ALL=1.
+    let bench_enabled = std::env::var("PIPELINEGEN_BENCH_ALL")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if bench_enabled {
+        // Per-frame bench lines: decode/encode attribution (INFO + bench).
+        command.args([
+            "-hide_banner",
+            "-loglevel",
+            "info",
+            "-nostats",
+            "-benchmark_all",
+            "-y",
+        ]);
+    } else {
+        command.args(["-hide_banner", "-loglevel", "error", "-nostats", "-y"]);
+    }
     // Inputs: [0] source, optional background asset, and optional image
     // watermark. The strict CUDA path has no CPU canvas input.
     if gpu_native {
