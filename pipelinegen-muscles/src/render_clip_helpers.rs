@@ -19,16 +19,22 @@ struct BenchAccumulator {
 
 impl BenchAccumulator {
     fn handle_line(&mut self, line: &str) {
-        let fields: Vec<&str> = line.split_whitespace().collect();
-        if fields.len() < 8 || fields[0] != "bench:" || fields[6] != "real" {
-            return;
-        }
-        let real_us: i64 = match fields[5].parse() {
-            Ok(value) => value,
-            Err(_) => return,
-        };
+        // Allocation-free: iterate split_whitespace directly, no Vec collect.
+        let mut iter = line.split_whitespace();
+        let f0 = match iter.next() { Some(v) => v, None => return };
+        if f0 != "bench:" { return; }
+        let f1 = match iter.next() { Some(v) => v, None => return };
+        let f2 = match iter.next() { Some(v) => v, None => return };
+        let f3 = match iter.next() { Some(v) => v, None => return };
+        let f4 = match iter.next() { Some(v) => v, None => return };
+        let f5 = match iter.next() { Some(v) => v, None => return };
+        let f6 = match iter.next() { Some(v) => v, None => return };
+        let f7 = match iter.next() { Some(v) => v, None => return };
+        if f2 != "user" || f4 != "sys" || f6 != "real" { return; }
+        let _ = (f1, f3); // user/sys values unused, keep for shape validation
+        let real_us: i64 = match f5.parse() { Ok(v) => v, Err(_) => return };
         self.saw_bench = true;
-        match fields[7] {
+        match f7 {
             "decode_video" => self.decode_us += real_us,
             "encode_video" | "flush_video" => self.encode_us += real_us,
             _ => {}
