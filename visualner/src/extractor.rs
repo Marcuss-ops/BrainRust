@@ -22,6 +22,8 @@
 //! `NO EVIDENCE → NO ENTITY`: every returned entity must be a verbatim
 //! substring of the source text, with byte offsets proving the evidence.
 
+use std::collections::HashMap;
+
 use crate::types::{ExtractOptions, VisualEntity};
 
 /// Extract the top-N source-grounded visual entities from `source_text`.
@@ -38,14 +40,63 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Vec<VisualEntity>
     // Rank: highest score first; ties broken by earliest start offset so
     // the order is deterministic across 100/100 runs.
     scored.sort_by(|a, b| {
-        b.score
+        named_entity_rank(a)
+            .cmp(&named_entity_rank(b))
+            .then(
+                b.score
             .partial_cmp(&a.score)
             .unwrap_or(std::cmp::Ordering::Equal)
+            )
             .then(a.start.cmp(&b.start))
             .then(a.text.cmp(&b.text))
     });
-    scored.truncate(options.top_n());
-    scored
+    // A possessive mention is the same identity as its non-possessive form.
+    // Deduplicate before applying top-N so "Michael Jordan" and
+    // "Michael Jordan's" cannot consume two entity slots.
+    //
+    // The identity key is hashed into an index map: the previous scan
+    // recomputed `entity_identity_key` (a `to_lowercase` + `format!`) for every
+    // already-accepted candidate on every incoming entity, which is O(N²)
+    // String allocations per extraction call.
+    let mut unique: Vec<VisualEntity> = Vec::with_capacity(scored.len());
+    let mut index_by_key: HashMap<String, usize> = HashMap::with_capacity(scored.len());
+    for entity in scored {
+        let key = entity_identity_key(&entity);
+        if let Some(&existing_idx) = index_by_key.get(&key) {
+            // Prefer the shorter non-possessive surface when both mentions
+            // occur; otherwise retain the first deterministic evidence span.
+            let existing = &mut unique[existing_idx];
+            if existing.r#type == "PERSON" && entity.text.len() < existing.text.len() {
+                *existing = entity;
+            }
+            continue;
+        }
+        index_by_key.insert(key, unique.len());
+        unique.push(entity);
+    }
+    unique.truncate(options.top_n());
+    unique
+}
+
+fn named_entity_rank(entity: &VisualEntity) -> u8 {
+    // PERSON is the primary imageable identity surface. Keep it ahead of
+    // locations/organizations when the caller applies a bounded entity
+    // limit, so a nearby place cannot consume a person-image slot.
+    match entity.r#type.as_str() {
+        "PERSON" => 0,
+        _ => 1,
+    }
+}
+
+fn entity_identity_key(entity: &VisualEntity) -> String {
+    let mut value = entity.text.to_lowercase();
+    for suffix in ["'s", "’s"] {
+        if value.ends_with(suffix) {
+            value.truncate(value.len() - suffix.len());
+            break;
+        }
+    }
+    format!("{}:{}", entity.r#type, value.trim())
 }
 
 /// Token is a maximal run of letters (ASCII + accented Latin) and
@@ -113,6 +164,12 @@ struct Candidate {
 fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate> {
     let bytes = source_text.as_bytes();
     let mut out = Vec::new();
+	// Named people/organizations are bounded to the contiguous title-case run.
+	// This prevents lower-case lead-ins such as "figures like Phil Jackson"
+	// from becoming a PERSON entity; the grounded candidate is "Phil Jackson".
+	for (start, end) in proper_name_runs(tokens, bytes) {
+		out.push(candidate_from_tokens(tokens, source_text, start, end));
+	}
     let mut i = 0;
     while i < tokens.len() {
         if is_stop_word(&tokens[i].text) {
@@ -163,6 +220,18 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
         let end = tokens[phrase_end - 1].end;
         let text = source_text[start..end].to_string();
         let normalized = text.to_lowercase();
+		// The run decomposition depends only on the phrase, so it is computed
+		// ONCE here instead of twice (the previous form called
+		// proper_name_runs twice, each allocating a fresh Vec).
+		let phrase_runs = proper_name_runs(&tokens[phrase_start..phrase_end], bytes);
+		let has_inner_run = phrase_runs.iter().any(|(run_start, _)| *run_start > 0);
+		let is_full_run = phrase_runs
+			.iter()
+			.any(|(run_start, run_end)| *run_start == 0 && *run_end == phrase_end - phrase_start);
+		if has_inner_run && !is_full_run {
+			 i = phrase_end;
+			 continue;
+		}
         // Reject phrases whose normalized surface is a stop phrase, a
         // generic phrase, OR a multi-word subject phrase. Multi-word
         // dish names ("greek salad", "grilled sardines", "seafood paella")
@@ -185,6 +254,45 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
         i = phrase_end;
     }
     out
+}
+
+fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
+    let mut runs = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        if is_stop_word(&tokens[i].text) || !starts_uppercase(&tokens[i].text) {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        let mut end = i + 1;
+        while end < tokens.len()
+            && starts_uppercase(&tokens[end].text)
+            && !is_stop_word(&tokens[end].text)
+            && !bytes[tokens[end - 1].end..tokens[end].start]
+                .iter()
+                .any(|b| is_phrase_breaking_byte(*b))
+        {
+            end += 1;
+        }
+        if end - start >= 2 {
+            runs.push((start, end));
+        }
+        i = end;
+    }
+    runs
+}
+
+fn candidate_from_tokens(tokens: &[Token], source_text: &str, start: usize, end: usize) -> Candidate {
+    let byte_start = tokens[start].start;
+    let byte_end = tokens[end - 1].end;
+    let text = source_text[byte_start..byte_end].to_string();
+    Candidate {
+        normalized: text.to_lowercase(),
+        text,
+        start: byte_start,
+        end: byte_end,
+    }
 }
 
 fn starts_uppercase(text: &str) -> bool {
@@ -230,7 +338,10 @@ fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
 
 fn classify_type(text: &str) -> String {
     let lower = text.to_lowercase();
-    if matches!(lower.as_str(), "london" | "paris" | "rome" | "new york") {
+    if matches!(
+        lower.as_str(),
+        "london" | "paris" | "rome" | "new york" | "north carolina"
+    ) {
         return "LOCATION".to_string();
     }
     if lower == "openai" || lower.contains("company") || lower.contains("corporation") {
@@ -476,8 +587,46 @@ mod tests {
         let trump = entities.iter().find(|entity| entity.r#type == "PERSON" && entity.text.to_lowercase().contains("trump"));
         assert!(trump.is_some(), "Donald Trump must survive the top-N visual entity bound: {entities:?}");
         let trump = trump.unwrap();
-        assert_eq!(trump.text, "Donald Trump's");
+        assert_eq!(trump.text, "Donald Trump");
         assert_eq!(trump.evidence, trump.text);
+    }
+
+    #[test]
+    fn person_runs_are_not_prefixed_or_suffixed_by_sentence_text() {
+        let text = "Michael Jordan transformed basketball. Phil Jackson designed the offense. Scottie Pippen supplied versatile defense.";
+        let entities = extract(text, &ExtractOptions { entity_count: 5 });
+        let names: Vec<&str> = entities
+            .iter()
+            .filter(|entity| entity.r#type == "PERSON")
+            .map(|entity| entity.text.as_str())
+            .collect();
+        assert!(names.contains(&"Michael Jordan"), "Michael Jordan missing: {entities:?}");
+        assert!(names.contains(&"Phil Jackson"), "Phil Jackson missing: {entities:?}");
+        assert!(names.contains(&"Scottie Pippen"), "Scottie Pippen missing: {entities:?}");
+        assert!(!names.iter().any(|name| name.contains("designed") || name.contains("supplied")), "predicate leaked into person: {names:?}");
+    }
+
+    #[test]
+    fn stopword_leads_and_known_locations_do_not_consume_person_slots() {
+        let text = "Michael Jordan studied at the University of North Carolina with Dean Smith. When Jordan entered the game, Scottie Pippen and Phil Jackson supported him.";
+        let entities = extract(text, &ExtractOptions { entity_count: 5 });
+        let persons: Vec<&str> = entities
+            .iter()
+            .filter(|entity| entity.r#type == "PERSON")
+            .map(|entity| entity.text.as_str())
+            .collect();
+        assert_eq!(
+            persons,
+            vec!["Michael Jordan", "Dean Smith", "Scottie Pippen", "Phil Jackson"]
+        );
+        assert!(
+            !entities.iter().any(|entity| entity.text == "When Jordan"),
+            "stopword-prefixed false person must be rejected: {entities:?}"
+        );
+        assert!(
+            !persons.iter().any(|person| *person == "North Carolina"),
+            "known location must not be typed as PERSON: {entities:?}"
+        );
     }
 
     #[test]
