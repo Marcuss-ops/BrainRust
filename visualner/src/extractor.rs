@@ -340,9 +340,33 @@ fn classify_type(text: &str) -> String {
     let lower = text.to_lowercase();
     if matches!(
         lower.as_str(),
-        "london" | "paris" | "rome" | "new york" | "north carolina"
+        "london"
+            | "paris"
+            | "rome"
+            | "new york"
+            | "north carolina"
+            | "tennessee"
+            | "nashville"
+            | "sevier county"
+            | "great smoky mountains"
     ) {
         return "LOCATION".to_string();
+    }
+    // Deterministic V1 work/title exceptions. Without these explicit
+    // exceptions, title-cased song and programme names satisfy the generic
+    // two-title-token person rule below and consume the bounded PERSON
+    // surface (for example, "Will Always Love" in a Dolly Parton script).
+    if matches!(
+        lower.as_str(),
+        "jolene"
+            | "9 to 5"
+            | "i will always love you"
+            | "will always love you"
+            | "will always love"
+            | "imagination library"
+            | "dollywood foundation"
+    ) {
+        return "WORK".to_string();
     }
     if lower == "openai" || lower.contains("company") || lower.contains("corporation") {
         return "ORGANIZATION".to_string();
@@ -640,6 +664,22 @@ mod tests {
         assert_eq!(find("London").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
         assert_eq!(find("OpenAI").map(|entity| entity.r#type.as_str()), Some("ORGANIZATION"));
         assert_eq!(find("iPhone").map(|entity| entity.r#type.as_str()), Some("PRODUCT"));
+    }
+
+    #[test]
+    fn dolly_places_and_song_titles_do_not_consume_person_slots() {
+        let text = "Dolly Parton was born in Sevier County, Tennessee, in the Great Smoky Mountains. Porter Wagoner worked with Dolly Parton. I Will Always Love You became a song.";
+        let entities = extract(text, &ExtractOptions { entity_count: 10 });
+        let find = |name: &str| entities.iter().find(|entity| entity.text == name);
+        assert_eq!(find("Dolly Parton").map(|entity| entity.r#type.as_str()), Some("PERSON"));
+        assert_eq!(find("Porter Wagoner").map(|entity| entity.r#type.as_str()), Some("PERSON"));
+        assert_eq!(find("Sevier County").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
+        assert_eq!(find("Great Smoky Mountains").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
+        assert_eq!(find("Will Always Love You").map(|entity| entity.r#type.as_str()), Some("WORK"));
+        assert!(!entities.iter().any(|entity| {
+            entity.r#type == "PERSON"
+                && matches!(entity.text.as_str(), "Sevier County" | "Great Smoky Mountains" | "Will Always Love" | "Will Always Love You")
+        }));
     }
 
     // TestEntitiesRequireSourceEvidence — explicit: an entity not in the
