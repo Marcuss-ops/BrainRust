@@ -1,7 +1,7 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::probe::{ffprobe_path, probe_file};
 use crate::process::FFmpegRunner;
-use crate::protocol::{CopyCertification, MediaMetadata, Request, Response};
+use crate::protocol::{CopyCertification, MediaMetadata, Request, Response, VELOX_ASSEMBLY_READY_V1};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -259,7 +259,7 @@ fn assembly_compatibility_gate(
             // holds no contract-less certs (every row either carries
             // VELOX_ASSEMBLY_READY_V1 or a stream signature); an audit query
             // over stored certs is the evidence, compilation alone is not.
-        } else if contract_id != "VELOX_ASSEMBLY_READY_V1" {
+        } else if contract_id != VELOX_ASSEMBLY_READY_V1 {
             return Err(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: unknown contract_id {contract_id}"
             ));
@@ -408,7 +408,7 @@ mod tests {
     fn canonical_cert() -> CopyCertification {
         CopyCertification {
             copy_eligible: true,
-            profile_id: Some("VELOX_ASSEMBLY_READY_V1".to_string()),
+            profile_id: Some(VELOX_ASSEMBLY_READY_V1.to_string()),
             codec: Some("h264".to_string()),
             codec_profile: Some("high".to_string()),
             width: Some(1920),
@@ -417,7 +417,7 @@ mod tests {
             fps_den: Some(1),
             closed_gop: Some(true),
             first_frame_keyframe: Some(true),
-            contract_id: Some("VELOX_ASSEMBLY_READY_V1".to_string()),
+            contract_id: Some(VELOX_ASSEMBLY_READY_V1.to_string()),
             stream_signature_sha256: Some(
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
             ),

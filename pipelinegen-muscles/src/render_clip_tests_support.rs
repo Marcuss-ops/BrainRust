@@ -1,5 +1,5 @@
 use crate::config::VideoProfile;
-use crate::protocol::MediaMetadata;
+use crate::protocol::{MediaMetadata, VELOX_ASSEMBLY_READY_V1};
 use crate::render_clip::plan::{
     ClipPlanAudio, ClipPlanBackground, ClipPlanOutput, ClipPlanSource, ClipPlanSubtitles,
     ClipPlanWatermark, ClipRenderPlan,
@@ -22,7 +22,7 @@ pub(super) fn plan() -> ClipRenderPlan {
         watermark: None,
         subtitles: None,
         output: ClipPlanOutput {
-            contract_id: "VELOX_ASSEMBLY_READY_V1".to_string(),
+            contract_id: VELOX_ASSEMBLY_READY_V1.to_string(),
             container: "mp4".to_string(),
             video_codec: "h264".to_string(),
             video_profile: Some("high".to_string()),

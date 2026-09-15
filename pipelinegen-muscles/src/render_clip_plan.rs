@@ -269,6 +269,7 @@ fn validate_artifact(label: &str, path: &str, expected: &str) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::VELOX_ASSEMBLY_READY_V1;
     use std::fs;
 
     const VALID_SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -295,13 +296,14 @@ mod tests {
                 "run_id": "job-1",
                 "source": {{"asset_id": "asset-src", "path": "{}", "sha256": "{}"}},
                 "background": {{"mode": "blur_source"}},
-                "output": {{"contract_id": "VELOX_ASSEMBLY_READY_V1", "container": "mp4", "video_codec": "h264", "video_profile": "high", "pixel_format": "yuv420p", "width": 1080, "height": 1920, "fps_num": 60, "fps_den": 1}},
+                "output": {{"contract_id": "{}", "container": "mp4", "video_codec": "h264", "video_profile": "high", "pixel_format": "yuv420p", "width": 1080, "height": 1920, "fps_num": 60, "fps_den": 1}},
                 "audio": {{"mode": "copy_if_compatible", "codec": "aac", "sample_rate": 48000, "channels": 2}},
                 "output_path": "/tmp/out.mp4",
                 "plan_sha256": "{}"
             }}{}"#,
             source_path.to_string_lossy(),
             source_sha,
+            VELOX_ASSEMBLY_READY_V1,
             VALID_SHA,
             patch
         ))

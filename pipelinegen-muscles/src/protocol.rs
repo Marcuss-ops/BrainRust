@@ -4,6 +4,21 @@ use crate::config;
 
 pub const PROTOCOL_VERSION: &str = "mediaexec.v1";
 
+/// Assembly-ready output contract identity, V1 (frozen).
+///
+/// This is the ONE declaration of the string in this crate. It is the same
+/// identity the Go assembly contract carries
+/// (`internal/kernel/media.AssemblyMediaContractID`) and that the RenderingGen
+/// media profile registry exposes; the certification and copy-assembly paths
+/// must reference this constant instead of restating the literal, so a rename
+/// cannot land in one language and not the others.
+pub const VELOX_ASSEMBLY_READY_V1: &str = "VELOX_ASSEMBLY_READY_V1";
+
+/// Assembly-ready output contract identity, V2: the canonical contract for
+/// newly produced assembly-ready clips, and the id that gates the stricter
+/// extradata/level checks.
+pub const VELOX_ASSEMBLY_READY_V2: &str = "VELOX_ASSEMBLY_READY_V2";
+
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Operation {
@@ -471,7 +486,7 @@ impl CopyCertification {
         if self.fps_num.unwrap_or(0) == 0 || self.fps_den.unwrap_or(0) == 0 {
             return Err("CERTIFICATION_REQUIRED: fps_num/fps_den are required".to_string());
         }
-        if self.contract_id.as_deref() == Some("VELOX_ASSEMBLY_READY_V2") {
+        if self.contract_id.as_deref() == Some(VELOX_ASSEMBLY_READY_V2) {
             if self.width != Some(1920) || self.height != Some(1080) {
                 return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires 1920x1080".to_string());
             }
@@ -519,7 +534,7 @@ impl CopyCertification {
                 metadata.fps_num, metadata.fps_den, expected_num, expected_den
             ));
         }
-        if self.contract_id.as_deref() == Some("VELOX_ASSEMBLY_READY_V2") {
+        if self.contract_id.as_deref() == Some(VELOX_ASSEMBLY_READY_V2) {
             let checks = [
                 (metadata.video_profile.as_deref(), Some("high"), "video profile"),
                 (metadata.video_level.as_deref(), Some("4.1"), "video level"),
