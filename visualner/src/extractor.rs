@@ -84,7 +84,8 @@ fn named_entity_rank(entity: &VisualEntity) -> u8 {
     // limit, so a nearby place cannot consume a person-image slot.
     match entity.r#type.as_str() {
         "PERSON" => 0,
-        _ => 1,
+        "LOCATION" | "ORGANIZATION" | "EVENT" | "WORK" | "PRODUCT" => 1,
+        _ => 2,
     }
 }
 
@@ -345,6 +346,7 @@ fn classify_type(text: &str) -> String {
             | "rome"
             | "new york"
             | "las vegas"
+            | "atlantic city"
             | "north carolina"
             | "tennessee"
             | "nashville"
@@ -672,6 +674,23 @@ mod tests {
         let entities = top3("Mike Tyson fought in Las Vegas.");
         let las_vegas = entities.iter().find(|entity| entity.text == "Las Vegas");
         assert_eq!(las_vegas.map(|entity| entity.r#type.as_str()), Some("LOCATION"));
+    }
+
+    #[test]
+    fn named_location_survives_a_dense_top_five() {
+        let text = "On November 22, 1986, in Las Vegas, he faced Trevor Berbick for the WBC heavyweight title. Tyson won by second-round technical knockout and became the youngest heavyweight world champion.";
+        let entities = extract(text, &ExtractOptions { entity_count: 5 });
+        assert!(
+            entities.iter().any(|entity| entity.text == "Las Vegas" && entity.r#type == "LOCATION"),
+            "a named location must not be crowded out by visual-concept phrases: {entities:?}"
+        );
+    }
+
+    #[test]
+    fn atlantic_city_is_a_location_not_a_person() {
+        let entities = top3("In June 1988, Tyson met Michael Spinks in Atlantic City.");
+        let atlantic_city = entities.iter().find(|entity| entity.text == "Atlantic City");
+        assert_eq!(atlantic_city.map(|entity| entity.r#type.as_str()), Some("LOCATION"));
     }
 
     #[test]
