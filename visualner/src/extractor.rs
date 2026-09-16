@@ -344,6 +344,7 @@ fn classify_type(text: &str) -> String {
             | "paris"
             | "rome"
             | "new york"
+            | "las vegas"
             | "north carolina"
             | "tennessee"
             | "nashville"
@@ -664,6 +665,13 @@ mod tests {
         assert_eq!(find("London").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
         assert_eq!(find("OpenAI").map(|entity| entity.r#type.as_str()), Some("ORGANIZATION"));
         assert_eq!(find("iPhone").map(|entity| entity.r#type.as_str()), Some("PRODUCT"));
+    }
+
+    #[test]
+    fn las_vegas_is_a_location_not_a_person() {
+        let entities = top3("Mike Tyson fought in Las Vegas.");
+        let las_vegas = entities.iter().find(|entity| entity.text == "Las Vegas");
+        assert_eq!(las_vegas.map(|entity| entity.r#type.as_str()), Some("LOCATION"));
     }
 
     #[test]
