@@ -10,6 +10,13 @@ use std::thread;
 /// Implements `video.assemble.copy.v1`: assemble certified overlay segments by
 /// packet-copy (stream copy) with zero decode, zero encode and zero compositing.
 ///
+/// PRODUCTION STATUS (2026-09-17): certified but UNWIRED — no production caller
+/// today; overlays are composited inside the single Chronon render pass and the
+/// chunk parent is assembled by RenderingGen's ParentFinalizer -> daemon
+/// `ASSEMBLE_SEGMENTS`, which enforces the same copy-safety facts
+/// (queue.ValidateChildren). This path is the VeloxEditing-side transport of the
+/// same contract, not the live assembly path.
+///
 /// Before concat -c copy, the AssemblyCompatibilityGate:
 ///   1. Probes every input clip concurrently (one ffprobe per file).
 ///   2. Verifies every probe matches the per-input CopyCertification.

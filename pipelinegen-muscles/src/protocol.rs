@@ -437,6 +437,16 @@ pub struct CutItem {
 /// segment (closed GOP, first frame keyframe) that can be assembled by
 /// packet-copy with zero decode/encode.
 ///
+/// PRODUCTION STATUS (2026-09-17): this certification and the gate below are
+/// the VeloxEditing-side half of a SHARED contract. The production assembler
+/// for chunked renders is RenderingGen's `ParentFinalizer` -> daemon
+/// `ASSEMBLE_SEGMENTS`, whose `queue.ValidateChildren` enforces the same three
+/// facts (copy_eligible, closed_gop, first_frame_keyframe) before assembling —
+/// so the two paths cannot disagree about what is assemblable. This Rust path
+/// currently has no production caller (overlays are composited inside the
+/// single Chronon render pass), and it must not be described as the live
+/// assembly path; wiring it is a product decision, not a pending fix.
+///
 /// Assembly-ready gate fields (added Wave 5, Aug 2026):
 ///   - contract_id: MUST be "VELOX_ASSEMBLY_READY_V1"
 ///   - stream_signature_sha256: all inputs in a batch MUST share identical signature
