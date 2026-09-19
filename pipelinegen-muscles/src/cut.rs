@@ -165,9 +165,7 @@ fn cut_one(
     let part_path = part_path(&job.output_path);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-    if gpu_cut {
-        command.args(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
-    }
+    command.args(decode_args(gpu_cut));
     command
         .args(["-ss", &job.start_sec.to_string()])
         .args(["-i", source])
@@ -249,6 +247,28 @@ fn cut_one(
     }
 }
 
+/// Builds the hardware-decode preamble for a cut.
+///
+/// Frames are deliberately NOT kept device-local. `encoder::append_video_args`
+/// is the only builder allowed to emit video encoder flags and it always pins
+/// `-pix_fmt yuv420p`, because software compositing expects system-memory
+/// frames. Asking FFmpeg to hold frames in CUDA memory (`-hwaccel_output_format
+/// cuda`) while the encoder pins a system pixel format forces a software scaler
+/// over CUDA frames, which cannot be initialized: every cut then died with
+/// "Impossible to convert between the formats supported by the filter
+/// 'Parsed_null_0' and the filter 'auto_scaler_0'" — but only for sources whose
+/// geometry already matched the profile, because `gpu_cut_eligibility` gates the
+/// path. Bare `-hwaccel cuda` keeps decode accelerated and hands system-memory
+/// frames to the filter/encode chain, which is what the shared contract expects
+/// (the same form `render_clip_exec` uses).
+fn decode_args(gpu_cut: bool) -> Vec<&'static str> {
+    if gpu_cut {
+        vec!["-hwaccel", "cuda"]
+    } else {
+        Vec::new()
+    }
+}
+
 fn gpu_cut_eligibility(
     encoder: &config::EncoderPolicy,
     profile: &config::VideoProfile,
@@ -274,4 +294,73 @@ fn gpu_cut_eligibility(
     metadata.has_video
         && metadata.width == profile.width
         && metadata.height == profile.height		&& (metadata.fps - profile.fps_float()).abs() <= 0.5
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_args;
+    use crate::config::{EncoderPolicy, VideoProfile};
+    use crate::encoder::append_video_args;
+    use crate::process::FFmpegRunner;
+
+    fn policy() -> EncoderPolicy {
+        EncoderPolicy {
+            codec: "h264_nvenc".to_string(),
+            preset: "p1".to_string(),
+            crf: 23,
+        }
+    }
+
+    fn profile() -> VideoProfile {
+        VideoProfile {
+            width: 1920,
+            height: 1080,
+            fps_num: 24,
+            fps_den: 1,
+            keyframe_interval: 48,
+            audio_codec: "aac".to_string(),
+            audio_bitrate: "128k".to_string(),
+            sample_rate: 48000,
+            channels: 2,
+        }
+    }
+
+    fn pair(args: &[String], flag: &str, value: &str) -> bool {
+        args.windows(2)
+            .any(|window| window[0] == flag && window[1] == value)
+    }
+
+    fn decoded(gpu_cut: bool) -> Vec<String> {
+        decode_args(gpu_cut).iter().map(|arg| arg.to_string()).collect()
+    }
+
+    #[test]
+    fn gpu_decode_keeps_frames_in_system_memory() {
+        let args = decoded(true);
+        assert!(pair(&args, "-hwaccel", "cuda"));
+        assert!(!args.iter().any(|arg| arg == "-hwaccel_output_format"));
+    }
+
+    #[test]
+    fn software_decode_adds_no_hardware_flags() {
+        assert!(decoded(false).is_empty());
+    }
+
+    /// The decode preamble and the shared encoder contract are two halves of one
+    /// decision: the encoder pins a system-memory pixel format, so decode must
+    /// never hold frames device-local. Pinning both produced an uninitializable
+    /// filter graph and failed entire cut batches. Keep them checked together so
+    /// a change to either side fails here instead of in a live acquisition.
+    #[test]
+    fn decode_preamble_is_compatible_with_the_encoder_pixel_format_contract() {
+        let mut command = FFmpegRunner::from_ffmpeg_path("ffmpeg").ffmpeg();
+        append_video_args(&mut command, &policy(), &profile(), None).unwrap();
+        let encoder_args = command.args_snapshot().to_vec();
+
+        assert!(pair(&encoder_args, "-pix_fmt", "yuv420p"));
+        assert!(pair(&encoder_args, "-c:v", "h264_nvenc"));
+        assert!(!decoded(true)
+            .iter()
+            .any(|arg| arg == "-hwaccel_output_format"));
+    }
 }

@@ -138,6 +138,14 @@ impl ProcessCommand {
         self
     }
 
+    /// Inspects the arguments built so far without spawning anything. Used by
+    /// capability tests that must pin the shape of a command the same way
+    /// `build_video_args` is pinned.
+    #[cfg(test)]
+    pub(crate) fn args_snapshot(&self) -> &[String] {
+        &self.args
+    }
+
     pub(crate) fn output(self) -> io::Result<ProcessOutput> {
         self.runner.run(&self.program, &self.args)
     }
