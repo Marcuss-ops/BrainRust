@@ -10,12 +10,20 @@ use std::thread;
 /// Implements `video.assemble.copy.v1`: assemble certified overlay segments by
 /// packet-copy (stream copy) with zero decode, zero encode and zero compositing.
 ///
-/// PRODUCTION STATUS (2026-09-17): certified but UNWIRED — no production caller
-/// today; overlays are composited inside the single Chronon render pass and the
-/// chunk parent is assembled by RenderingGen's ParentFinalizer -> daemon
-/// `ASSEMBLE_SEGMENTS`, which enforces the same copy-safety facts
-/// (queue.ValidateChildren). This path is the VeloxEditing-side transport of the
-/// same contract, not the live assembly path.
+/// PRODUCTION STATUS (2026-09-23): this is the LIVE VeloxEditing assembly
+/// boundary for the durable video.create workflow. PipelineGen hands this
+/// plane the certified scene segments in timeline order (the §15 contract);
+/// the workflow then muxes the canonical final audio over the assembled video
+/// with `mux_audio_copy`. RenderingGen's `ParentFinalizer` -> daemon
+/// `ASSEMBLE_SEGMENTS` keeps assembling the chunks of ONE render job; this
+/// path assembles the independent scene segments of a final video. Both
+/// enforce the same copy-safety facts (queue.ValidateChildren), so the two
+/// lanes cannot disagree about what is assemblable.
+///
+/// Both video AND audio streams are copied: a voiceover-less run keeps the
+/// segments' own audio in the final video, while a mastered run replaces it
+/// with the canonical final audio at mux time (mux_audio_copy maps the master
+/// over the assembled video).
 ///
 /// Before concat -c copy, the AssemblyCompatibilityGate:
 ///   1. Probes every input clip concurrently (one ffprobe per file).
@@ -86,7 +94,7 @@ pub(super) fn execute(request: Request) -> Response {
 
     let mut concat_list: Option<PathBuf> = None;
     if inputs.len() == 1 {
-        command.args(["-i", inputs[0].as_str(), "-map", "0:v:0", "-c", "copy"]);
+        command.args(["-i", inputs[0].as_str(), "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy"]);
     } else {
         let list_path = std::env::temp_dir().join(format!(
             "pipelinegen_assemble_copy_{}.txt",
@@ -118,6 +126,8 @@ pub(super) fn execute(request: Request) -> Response {
             list.as_str(),
             "-map",
             "0:v:0",
+            "-map",
+            "0:a:0?",
             "-c",
             "copy",
         ]);
