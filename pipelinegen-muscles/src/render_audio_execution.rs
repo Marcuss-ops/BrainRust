@@ -160,6 +160,101 @@ fn volume_eval_mode(has_automation: bool) -> &'static str {
 // resampled, and layout-ambiguous stereo streams pinned to an explicit
 // stereo layout so amix sees uniform inputs. The empty string is safe in
 // the filter string: the surrounding commas just join adjacent filters.
+// ── BGM loudness normalization ─────────────────────────────────────────────
+// The canonical mix policy expresses the BGM bed as a gain RELATIVE TO
+// UNITY VOICEOVER (Go: kernel/audio/mix_policy.go BackgroundMusicGainDB),
+// but a gain is only source-independent when every BGM source enters the
+// mix at the same loudness. Sources are not alike: curated beds carry low
+// native loudness (about -37 dB mean) while a full-scale test tone sits
+// near -3 dB, so the same bed gain plays 30+ dB apart — and a loud source
+// drives the master limiter (alimiter limit=0.95) hard enough to shave
+// other tracks' peaks (it cost the SFX presence gate its 6 dB margin).
+//
+// Every BGM source is therefore measured ONCE per render (ffmpeg
+// volumedetect mean_volume, cached per path) and statically trimmed so it
+// enters the graph at BGM_SOURCE_LOUDNESS_TARGET_DB before the plan's
+// canonical gain and duck automation apply. The plan itself is untouched:
+// events keep GainDB == BackgroundMusicGainDB, and because the duck ratio
+// is computed against the event's declared gain, the ducked level shifts
+// by the same trim — bed AND duck stay source-independent.
+//
+// The trim is clamped to ±BGM_LOUDNESS_TRIM_MAX_DB: a boost must not lift
+// a near-silent source's noise floor into audibility, and a cut keeps
+// loud sources from eating the headroom the limiter needs. Measurement
+// failure fails OPEN (no trim, today's behaviour): a render must not die
+// because a loudness probe hiccuped on an otherwise valid source.
+const BGM_SOURCE_LOUDNESS_TARGET_DB: f64 = -23.0;
+const BGM_LOUDNESS_TRIM_MAX_DB: f64 = 24.0;
+
+// bgm_loudness_trim_db maps a measured source mean loudness to the static
+// trim that lands it at the canonical target. Non-finite measurements
+// (digital silence reports -inf) fail open with None.
+fn bgm_loudness_trim_db(mean_db: f64) -> Option<f64> {
+    if !mean_db.is_finite() {
+        return None;
+    }
+    Some(
+        (BGM_SOURCE_LOUDNESS_TARGET_DB - mean_db)
+            .clamp(-BGM_LOUDNESS_TRIM_MAX_DB, BGM_LOUDNESS_TRIM_MAX_DB),
+    )
+}
+
+// loudness_trim_filter formats a trim as the volume-filter fragment that
+// event_filter's normalize prefix can carry ("volume=-19.990000dB,").
+fn loudness_trim_filter(trim_db: f64) -> String {
+    format!("volume={}dB,", num(trim_db))
+}
+
+// measure_mean_volume_db runs one volumedetect pass over the source and
+// returns its mean_volume (the whole-file RMS loudness volumedetect
+// reports on stderr).
+fn measure_mean_volume_db(ffmpeg: &str, path: &str) -> Result<f64, String> {
+    let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
+    command.args([
+        "-hide_banner",
+        "-nostats",
+        "-i",
+        path,
+        "-af",
+        "volumedetect",
+        "-f",
+        "null",
+        "-",
+    ]);
+    let output = command
+        .output()
+        .map_err(|error| format!("volumedetect failed to start: {error}"))?;
+    if !output.status.success() {
+        return Err(format!("volumedetect exited with {}", output.status));
+    }
+    parse_volumedetect_mean(&output.stderr)
+        .ok_or_else(|| format!("volumedetect produced no mean_volume for {path}"))
+}
+
+// parse_volumedetect_mean extracts "mean_volume: <value> dB" from ffmpeg's
+// volumedetect stderr. The -inf sentinel (digital silence) parses to None
+// so the caller fails open instead of computing an absurd boost.
+fn parse_volumedetect_mean(output: &[u8]) -> Option<f64> {
+    let text = String::from_utf8_lossy(output);
+    for line in text.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        for (i, token) in fields.iter().enumerate() {
+            if *token != "mean_volume:" {
+                continue;
+            }
+            let value = fields.get(i + 1)?;
+            if fields.get(i + 2).copied() != Some("dB") {
+                return None;
+            }
+            if *value == "-inf" {
+                return None;
+            }
+            return value.parse::<f64>().ok();
+        }
+    }
+    None
+}
+
 fn source_normalize(probe: &SourceProbe) -> &'static str {
     if probe.sample_rate == Some(48000)
         && probe.channels == Some(2)
@@ -252,6 +347,26 @@ pub(super) fn execute(request: Request) -> Response {
         }
         Ok(probe)
     };
+    // bgm_loudness_prefix returns the static trim filter that lands a BGM
+    // source at the canonical loudness, measured once per unique path (the
+    // loop expander reuses one source across N events — one decode pass,
+    // N references). Non-BGM callers never reach here, and a failed
+    // measurement caches None so the render fails open exactly once.
+    let mut loudness_cache: HashMap<String, Option<f64>> = HashMap::new();
+    let mut bgm_loudness_prefix = |path: &str| -> String {
+        let measured = match loudness_cache.get(path) {
+            Some(cached) => *cached,
+            None => {
+                let measured = measure_mean_volume_db(ffmpeg, path).ok();
+                loudness_cache.insert(path.to_owned(), measured);
+                measured
+            }
+        };
+        measured
+            .and_then(bgm_loudness_trim_db)
+            .map(loudness_trim_filter)
+            .unwrap_or_default()
+    };
     let mut inputs = Vec::new();
     let mut filters = Vec::new();
     for (track_id, event) in track_events(&plan)
@@ -311,7 +426,18 @@ pub(super) fn execute(request: Request) -> Response {
             delay_ms,
             &gain,
             volume_eval_mode(!targeting.is_empty()),
-            source_normalize(&probe),
+            // BGM enters at the canonical loudness (see
+            // BGM_SOURCE_LOUDNESS_TARGET_DB); every other role joins
+            // unmodified, exactly as before.
+            &format!(
+                "{}{}",
+                source_normalize(&probe),
+                if event.r#type.eq_ignore_ascii_case("bgm") {
+                    bgm_loudness_prefix(path)
+                } else {
+                    String::new()
+                }
+            ),
         ));
     }
     for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
@@ -353,7 +479,17 @@ pub(super) fn execute(request: Request) -> Response {
             // windows are absolute output time and must be re-evaluated per
             // frame (eval=frame); a static layer gain takes eval=once.
             let eval_mode = volume_eval_mode(!targeting.is_empty());
-            let normalize = source_normalize(&probe);
+            // Legacy BGM layers get the same canonical-loudness trim as
+            // track-role BGM events; SFX keep their canonical absolute level.
+            let normalize = format!(
+                "{}{}",
+                source_normalize(&probe),
+                if layer_name == "BGM" {
+                    bgm_loudness_prefix(path)
+                } else {
+                    String::new()
+                }
+            );
             filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,{normalize}adelay={delay_ms}|{delay_ms},volume='{gain}':{eval_mode}[a{index}]"));
         }
     }
@@ -502,8 +638,9 @@ pub(super) fn execute(request: Request) -> Response {
 #[cfg(test)]
 mod tests {
     use super::{
-        duck_envelope, event_filter, fade_envelope, linear_gain, source_normalize, track_gain_expr,
-        volume_eval_mode, Automation, SourceProbe,
+        bgm_loudness_trim_db, duck_envelope, event_filter, fade_envelope, linear_gain,
+        loudness_trim_filter, parse_volumedetect_mean, source_normalize, track_gain_expr,
+        volume_eval_mode, Automation, SourceProbe, BGM_SOURCE_LOUDNESS_TARGET_DB,
     };
 
     #[test]
@@ -738,5 +875,64 @@ mod tests {
             let value: f64 = linear_gain(db).parse().unwrap();
             assert!(value.is_finite() && value > 0.0);
         }
+    }
+
+    #[test]
+    fn bgm_loudness_trim_lands_any_source_at_the_canonical_target() {
+        // The bed's whole point: a full-scale tone (-3 dB mean), a curated
+        // quiet bed (-37 dB mean) and a hot source all end up entering the
+        // mix at the SAME loudness, so BackgroundMusicGainDB is
+        // source-independent.
+        for mean_db in [-3.0, -37.0, -18.0, 0.0] {
+            let trim = bgm_loudness_trim_db(mean_db).expect("finite mean must trim");
+            assert!(
+                ((mean_db + trim) - BGM_SOURCE_LOUDNESS_TARGET_DB).abs() < 1e-9,
+                "mean {mean_db} dB + trim {trim} must reach {BGM_SOURCE_LOUDNESS_TARGET_DB} dB"
+            );
+        }
+    }
+
+    #[test]
+    fn bgm_loudness_trim_is_clamped_to_the_headroom_budget() {
+        // A near-silent source must not be boosted more than ±24 dB: the
+        // clamp keeps its noise floor from rising into audibility, and
+        // keeps a loud source from eating the limiter's headroom.
+        let silence = bgm_loudness_trim_db(-91.0).expect("finite mean must trim");
+        assert_eq!(silence, 24.0);
+        let loud = bgm_loudness_trim_db(6.0).expect("finite mean must trim");
+        assert_eq!(loud, -24.0);
+    }
+
+    #[test]
+    fn bgm_loudness_trim_fails_open_on_non_finite_measurement() {
+        // volumedetect reports digital silence as -inf: no trim, the
+        // render proceeds exactly as it did before normalization existed.
+        assert_eq!(bgm_loudness_trim_db(f64::NEG_INFINITY), None);
+        assert_eq!(bgm_loudness_trim_db(f64::NAN), None);
+    }
+
+    #[test]
+    fn parse_volumedetect_mean_reads_the_mean_line() {
+        let stderr = b"[Parsed_volumedetect_0 @ 0x0] n_samples: 480000\n\n[Parsed_volumedetect_0 @ 0x0] mean_volume: -23.4 dB\n[Parsed_volumedetect_0 @ 0x0] max_volume: -3.0 dB\n";
+        assert_eq!(parse_volumedetect_mean(stderr), Some(-23.4));
+    }
+
+    #[test]
+    fn parse_volumedetect_mean_fails_open_on_silence_or_missing_stat() {
+        assert_eq!(
+            parse_volumedetect_mean(b"[Parsed_volumedetect_0] mean_volume: -inf dB\n"),
+            None
+        );
+        assert_eq!(parse_volumedetect_mean(b"no volumedetect here\n"), None);
+    }
+
+    #[test]
+    fn loudness_trim_filter_is_a_volume_fragment_for_the_normalize_prefix() {
+        assert_eq!(loudness_trim_filter(-19.99), "volume=-19.990000dB,");
+        // The fragment must compose into the event filter chain before
+        // adelay without disturbing the canonical volume expression.
+        let filter = event_filter(0, 0, 10_000_000, 0, "0.5", "eval=once", &loudness_trim_filter(-20.0));
+        assert!(filter.contains("volume=-20.000000dB,adelay=0|0"), "{filter}");
+        assert!(filter.contains("volume='0.5':eval=once"), "{filter}");
     }
 }
