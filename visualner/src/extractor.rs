@@ -31,7 +31,8 @@ use crate::types::{ExtractOptions, VisualEntity};
 /// order (ties broken by earliest source position).
 pub fn extract(source_text: &str, options: &ExtractOptions) -> Vec<VisualEntity> {
     let tokens = tokenize(source_text);
-    let candidates = noun_phrase_candidates(&tokens, source_text);
+    let mut candidates = noun_phrase_candidates(&tokens, source_text);
+    candidates.extend(value_candidates(source_text));
     let mut scored: Vec<VisualEntity> = candidates
         .into_iter()
         .filter_map(|c| validate_evidence(c, source_text))
@@ -83,9 +84,10 @@ fn named_entity_rank(entity: &VisualEntity) -> u8 {
     // locations/organizations when the caller applies a bounded entity
     // limit, so a nearby place cannot consume a person-image slot.
     match entity.r#type.as_str() {
-        "PERSON" => 0,
-        "LOCATION" | "ORGANIZATION" | "EVENT" | "WORK" | "PRODUCT" => 1,
-        _ => 2,
+        "PERSON" | "BRAND" => 0,
+        "ORGANIZATION" | "LOCATION" | "EVENT" | "WORK" | "PRODUCT" => 1,
+        "DATE" | "MONEY" | "NUMBER" | "PERCENT" => 2,
+        _ => 3,
     }
 }
 
@@ -153,6 +155,7 @@ struct Candidate {
     normalized: String,
     start: usize,
     end: usize,
+    entity_type: Option<String>,
 }
 
 /// noun_phrase_candidates groups adjacent non-stopword tokens into maximal
@@ -250,6 +253,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
                 normalized,
                 start,
                 end,
+                entity_type: None,
             });
         }
         i = phrase_end;
@@ -293,6 +297,7 @@ fn candidate_from_tokens(tokens: &[Token], source_text: &str, start: usize, end:
         text,
         start: byte_start,
         end: byte_end,
+        entity_type: None,
     }
 }
 
@@ -329,7 +334,7 @@ fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
     }
     Some(VisualEntity {
         text: c.text.clone(),
-        r#type: classify_type(&c.text),
+        r#type: c.entity_type.unwrap_or_else(|| classify_value_type(&c.text)),
         score: 0.0,
         start: c.start,
         end: c.end,
@@ -337,8 +342,40 @@ fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
     })
 }
 
+fn classify_value_type(text: &str) -> String {
+    if text.chars().any(|c| matches!(c, '$' | '£' | '€' | '¥')) || {
+        let lower = text.to_lowercase();
+        ["dollar", "euro", "pound", "yen"].iter().any(|unit| lower.contains(unit))
+    } {
+        return "MONEY".to_string();
+    }
+    if text.contains('%') || text.to_lowercase().contains("percent") {
+        return "PERCENT".to_string();
+    }
+    if text.chars().any(|c| c.is_ascii_digit()) {
+        let lower = text.to_lowercase();
+        let year = text.trim().parse::<u32>().ok().is_some_and(|year| (1000..=2099).contains(&year));
+        let has_month = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+            "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"]
+            .iter().any(|month| lower.contains(month));
+        if year || has_month || text.contains('/') {
+            return "DATE".to_string();
+        }
+        return "NUMBER".to_string();
+    }
+    classify_type(text)
+}
+
 fn classify_type(text: &str) -> String {
     let lower = text.to_lowercase();
+    if matches!(
+        lower.as_str(),
+        "apple" | "google" | "microsoft" | "amazon" | "meta" | "openai"
+            | "tesla" | "spacex" | "nike" | "adidas" | "samsung"
+            | "coca-cola" | "coca cola" | "netflix" | "disney"
+    ) {
+        return "BRAND".to_string();
+    }
     if matches!(
         lower.as_str(),
         "london"
@@ -371,7 +408,7 @@ fn classify_type(text: &str) -> String {
     ) {
         return "WORK".to_string();
     }
-    if lower == "openai" || lower.contains("company") || lower.contains("corporation") {
+    if lower.contains("company") || lower.contains("corporation") {
         return "ORGANIZATION".to_string();
     }
     if lower == "iphone" || lower.contains("smartphone") {
@@ -383,6 +420,195 @@ fn classify_type(text: &str) -> String {
         return "PERSON".to_string();
     }
     "VISUAL_CONCEPT".to_string()
+}
+
+/// value_candidates finds source-grounded numeric spans that the noun phrase
+/// tokenizer intentionally ignores. Explicit semantic types travel with each
+/// candidate so dates, money and metrics are not inferred from lossy surfaces.
+fn value_candidates(source_text: &str) -> Vec<Candidate> {
+    let bytes = source_text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if !bytes[i].is_ascii_digit() {
+            i += 1;
+            continue;
+        }
+        if let Some((start, end)) = numeric_date_span(source_text, i) {
+            let text = source_text[start..end].to_string();
+            out.push(Candidate {
+                normalized: text.to_lowercase(), text, start, end,
+                entity_type: Some("DATE".to_string()),
+            });
+            i = end;
+            continue;
+        }
+        let number_start = i;
+        i += 1;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        while i + 1 < bytes.len() && matches!(bytes[i], b',' | b'.') && bytes[i + 1].is_ascii_digit() {
+            i += 1;
+            while i < bytes.len() && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+        }
+        let number_end = i;
+        let mut start = number_start;
+        let mut end = number_end;
+        let mut kind = "NUMBER";
+        let mut prefix = start;
+        while prefix > 0 && bytes[prefix - 1].is_ascii_whitespace() {
+            prefix -= 1;
+        }
+        if prefix > 0 && matches!(bytes[prefix - 1], b'$' | b'\xC2' | b'\xA3' | b'\xE2' | b'\x82' | b'\xAC') {
+            // Include the common single-byte dollar/yen markers. UTF-8
+            // currency symbols are retained by including the adjacent rune.
+            start = prefix - 1;
+            if bytes[start] & 0x80 != 0 {
+                while start > 0 && bytes[start] & 0xC0 == 0x80 {
+                    start -= 1;
+                }
+            }
+            kind = "MONEY";
+        }
+        let mut suffix = end;
+        while suffix < bytes.len() && bytes[suffix].is_ascii_whitespace() {
+            suffix += 1;
+        }
+        let tail = source_text[suffix..].to_lowercase();
+        let unit = [
+            "percent", "%", "million dollars", "billion dollars", "trillion dollars",
+            "million euros", "billion euros", "dollars", "euros", "pounds", "yen",
+            "million", "billion", "trillion", "thousand", "mandates", "orders", "searches",
+            "people", "years old", "years", "votes", "seats", "cases", "percent",
+        ].iter().find(|unit| tail.starts_with(**unit));
+        if let Some(unit) = unit.filter(|unit| has_word_boundary(&tail, unit.len())) {
+            end = suffix + unit.len();
+            if unit.contains("dollar") || unit.contains("euro") || unit.contains("pound") || *unit == "yen" {
+                kind = "MONEY";
+            } else if *unit == "percent" || *unit == "%" {
+                kind = "PERCENT";
+            } else if matches!(*unit, "million" | "billion" | "trillion") {
+                // Magnitudes are money only when an explicit currency follows.
+                let remainder = source_text[end..].trim_start();
+                let lower = remainder.to_lowercase();
+                if let Some(currency) = ["dollars", "euros", "pounds", "yen"].iter()
+                    .find(|currency| lower.starts_with(**currency) && has_word_boundary(&lower, currency.len()))
+                {
+                    let whitespace = source_text[end..].len() - remainder.len();
+                    end += whitespace + currency.len();
+                    kind = "MONEY";
+                }
+            }
+        }
+        let number = &source_text[number_start..number_end];
+        if kind == "NUMBER" && number.len() == 4 {
+            if let Ok(year) = number.parse::<u32>() {
+                if (1000..=2099).contains(&year) {
+                    kind = "DATE";
+                }
+            }
+        }
+        if kind == "NUMBER" {
+            if let Some(month_start) = month_before_day(source_text, number_start) {
+                start = month_start;
+                kind = "DATE";
+                let suffix_text = source_text[number_end..].trim_start();
+                if let Some(after_comma) = suffix_text.strip_prefix(',') {
+                    let leading_spaces = suffix_text.len() - after_comma.trim_start().len();
+                    let year_text = after_comma.trim_start();
+                    let year_len = year_text.bytes().take_while(u8::is_ascii_digit).count();
+                    if year_len == 4 {
+                        end = number_end + (source_text[number_end..].len() - suffix_text.len()) + 1 + leading_spaces + year_len;
+                    }
+                }
+            } else if let Some(month_end) = month_after_day(source_text, number_end) {
+                end = month_end;
+                kind = "DATE";
+            }
+        }
+        let text = source_text[start..end].to_string();
+        out.push(Candidate {
+            normalized: text.to_lowercase(), text, start, end,
+            entity_type: Some(kind.to_string()),
+        });
+        if kind == "DATE" && start < number_start {
+            i = end;
+        }
+    }
+    out
+}
+
+fn has_word_boundary(text: &str, end: usize) -> bool {
+    text.get(end..).and_then(|tail| tail.chars().next())
+        .map(|next| !next.is_alphanumeric())
+        .unwrap_or(true)
+}
+
+fn currency_symbol_before(source: &str, number_start: usize) -> Option<usize> {
+    source[..number_start].char_indices().rev()
+        .find(|(_, ch)| !ch.is_whitespace())
+        .and_then(|(offset, ch)| matches!(ch, '$' | '£' | '€' | '¥' | '₹').then_some(offset))
+}
+
+fn numeric_date_span(source: &str, start: usize) -> Option<(usize, usize)> {
+    let bytes = source.as_bytes();
+    let mut cursor = start;
+    let mut parts = Vec::new();
+    loop {
+        let part_start = cursor;
+        while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
+            cursor += 1;
+        }
+        if cursor == part_start {
+            return None;
+        }
+        parts.push(&source[part_start..cursor]);
+        if cursor >= bytes.len() || !matches!(bytes[cursor], b'/' | b'-') {
+            break;
+        }
+        cursor += 1;
+        if parts.len() >= 3 || cursor >= bytes.len() || !bytes[cursor].is_ascii_digit() {
+            return None;
+        }
+    }
+    if parts.len() < 2 || parts.iter().any(|part| part.len() > 4) {
+        return None;
+    }
+    let has_year = parts.iter().any(|part| part.len() == 4);
+    if !has_year {
+        let first = parts[0].parse::<u32>().ok()?;
+        let second = parts[1].parse::<u32>().ok()?;
+        if first > 12 || second > 31 {
+            return None;
+        }
+    }
+    Some((start, cursor))
+}
+
+fn month_before_day(source: &str, number_start: usize) -> Option<usize> {
+    let trimmed = source[..number_start].trim_end();
+    let start = trimmed.rfind(|ch: char| !ch.is_alphabetic()).map(|idx| idx + 1).unwrap_or(0);
+    let month = trimmed[start..].to_lowercase();
+    month_names().contains(&month.as_str()).then_some(start)
+}
+
+fn month_after_day(source: &str, number_end: usize) -> Option<usize> {
+    let tail = source[number_end..].trim_start();
+    let month = month_names().iter().find(|month| tail.to_lowercase().starts_with(**month))?;
+    if !has_word_boundary(&tail.to_lowercase(), month.len()) {
+        return None;
+    }
+    Some(number_end + source[number_end..].len() - tail.len() + month.len())
+}
+
+fn month_names() -> &'static [&'static str] {
+    &[
+        "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+        "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+    ]
 }
 
 /// score_entity applies the deterministic visualness scoring. V1 uses a
@@ -420,7 +646,7 @@ fn score_entity(mut e: VisualEntity) -> VisualEntity {
     // Named people are the highest-value entity surface for the overlay
     // path. Keep them in the bounded top-N even when a scene contains many
     // longer generic visual phrases.
-    if e.r#type == "PERSON" {
+    if e.r#type == "PERSON" || e.r#type == "BRAND" {
         score += 0.50;
     }
     score = score.clamp(0.0, 1.0);
@@ -665,8 +891,35 @@ mod tests {
         let find = |name: &str| entities.iter().find(|entity| entity.text == name);
         assert_eq!(find("Gerard Butler").map(|entity| entity.r#type.as_str()), Some("PERSON"));
         assert_eq!(find("London").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
-        assert_eq!(find("OpenAI").map(|entity| entity.r#type.as_str()), Some("ORGANIZATION"));
+        assert_eq!(find("OpenAI").map(|entity| entity.r#type.as_str()), Some("BRAND"));
         assert_eq!(find("iPhone").map(|entity| entity.r#type.as_str()), Some("PRODUCT"));
+    }
+
+    #[test]
+    fn extracts_typed_brands_metrics_money_and_dates_with_exact_spans() {
+        let source = "OpenAI reported 25% growth, $2.5 million in revenue, 42 orders on March 5, 2026 and 03/06/2026.";
+        let entities = extract(source, &ExtractOptions { entity_count: 30 });
+        let find = |kind: &str, text: &str| entities.iter().find(|entity| entity.r#type == kind && entity.text == text);
+        assert!(find("BRAND", "OpenAI").is_some(), "brand missing: {entities:?}");
+        assert!(find("PERCENT", "25%").is_some(), "percentage missing: {entities:?}");
+        assert!(find("MONEY", "$2.5 million in revenue").is_none(), "money span should stop at the currency unit: {entities:?}");
+        assert!(find("MONEY", "$2.5 million").is_some(), "money missing: {entities:?}");
+        assert!(find("NUMBER", "42 orders").is_some(), "metric missing: {entities:?}");
+        assert!(find("DATE", "March 5, 2026").is_some(), "month date missing: {entities:?}");
+        assert!(find("DATE", "03/06/2026").is_some(), "numeric date missing: {entities:?}");
+        for entity in entities.iter().filter(|entity| matches!(entity.r#type.as_str(), "BRAND" | "PERCENT" | "MONEY" | "NUMBER" | "DATE")) {
+            assert_eq!(&source[entity.start..entity.end], entity.text);
+            assert_eq!(entity.evidence, entity.text);
+        }
+    }
+
+    #[test]
+    fn euro_prefix_keeps_utf8_boundaries_and_june_year_is_a_date() {
+        let source = "Revenue was €80,000 in June 1988.";
+        let entities = extract(source, &ExtractOptions { entity_count: 20 });
+        assert!(entities.iter().any(|entity| entity.r#type == "MONEY" && entity.text == "€80,000"), "money span missing: {entities:?}");
+        assert!(entities.iter().any(|entity| entity.r#type == "DATE" && entity.text == "1988"), "year missing: {entities:?}");
+        assert!(entities.iter().all(|entity| source.get(entity.start..entity.end) == Some(entity.text.as_str())), "invalid UTF-8 evidence span: {entities:?}");
     }
 
     #[test]
