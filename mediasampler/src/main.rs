@@ -1,4 +1,4 @@
-use mediasampler::{sample_scene, Candidate, BoundAssets, SampleOptions, Scene, SampleResult};
+use mediasampler::{sample_scene, BoundAssets, Candidate, SampleOptions, SampleResult, Scene};
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 
@@ -42,12 +42,8 @@ fn main() {
             allow_reuse: request.allow_reuse,
             images_per_scene: 0,
         };
-        let (results, winner_id) = sample_scene(
-            &request.scene,
-            &request.candidates,
-            &options,
-            &mut bound,
-        );
+        let (results, winner_id) =
+            sample_scene(&request.scene, &request.candidates, &options, &mut bound);
         serde_json::to_writer(&mut stdout, &SampleResponse { results, winner_id })
             .expect("mediasampler encode");
         stdout.write_all(b"\n").expect("mediasampler write");

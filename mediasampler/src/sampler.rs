@@ -52,7 +52,8 @@ impl BoundAssets {
 
     /// Records that `scene_id` has bound `asset_id`.
     pub fn bind(&mut self, asset_id: &str, scene_id: &str) {
-        self.bound.insert(asset_id.to_string(), scene_id.to_string());
+        self.bound
+            .insert(asset_id.to_string(), scene_id.to_string());
     }
 }
 
@@ -88,20 +89,18 @@ pub fn sample_scene(
     });
     // Sort the full result list for stable output: accepted first (score
     // desc), then rejected (by reason, then id).
-    results.sort_by(|a, b| {
-        match (a.is_accepted(), b.is_accepted()) {
-            (true, true) => b
-                .score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.candidate_id.cmp(&b.candidate_id)),
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            (false, false) => {
-                let ra = format!("{:?}", a.rejection);
-                let rb = format!("{:?}", b.rejection);
-                ra.cmp(&rb).then(a.candidate_id.cmp(&b.candidate_id))
-            }
+    results.sort_by(|a, b| match (a.is_accepted(), b.is_accepted()) {
+        (true, true) => b
+            .score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.candidate_id.cmp(&b.candidate_id)),
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (false, false) => {
+            let ra = format!("{:?}", a.rejection);
+            let rb = format!("{:?}", b.rejection);
+            ra.cmp(&rb).then(a.candidate_id.cmp(&b.candidate_id))
         }
     });
     (results, winner)
@@ -151,7 +150,9 @@ fn evaluate(
     // Final score blends the generic similarity (provider signal) with the
     // semantic grounding (source signal). The semantic score dominates so a
     // high generic similarity cannot rescue a semantically weak candidate.
-    let final_score = (semantic * 0.6) + (candidate.generic_similarity * 0.3) + (action * 0.05)
+    let final_score = (semantic * 0.6)
+        + (candidate.generic_similarity * 0.3)
+        + (action * 0.05)
         + (context * 0.025)
         + (diversity * 0.025);
     let clamped = final_score.clamp(0.0, 1.0);
@@ -268,8 +269,18 @@ fn semantic_score(scene: &Scene, candidate: &Candidate) -> f32 {
 /// about a completely different topic (sport, fitness). References to
 /// these reject a candidate when none of the scene anchors are present.
 const MISMATCHED_SUBJECTS: &[&str] = &[
-    "boxing", "boxer", "gym", "fitness", "workout", "soccer", "football",
-    "basketball", "tennis", "sport", "runner", "running",
+    "boxing",
+    "boxer",
+    "gym",
+    "fitness",
+    "workout",
+    "soccer",
+    "football",
+    "basketball",
+    "tennis",
+    "sport",
+    "runner",
+    "running",
 ];
 
 /// Compatible keywords: lowercase substrings that are weakly compatible
@@ -277,8 +288,16 @@ const MISMATCHED_SUBJECTS: &[&str] = &[
 /// prevents a subject-mismatch rejection even when the subject itself is
 /// not referenced.
 const COMPATIBLE_KEYWORDS: &[&str] = &[
-    "mediterranean", "greek", "italian", "restaurant", "kitchen", "food",
-    "dish", "meal", "cooking", "recipe",
+    "mediterranean",
+    "greek",
+    "italian",
+    "restaurant",
+    "kitchen",
+    "food",
+    "dish",
+    "meal",
+    "cooking",
+    "recipe",
 ];
 
 /// Action verbs: lowercase substrings signalling a preparation action.
@@ -288,7 +307,12 @@ const ACTION_VERBS: &[&str] = &[
 
 /// Context keywords: lowercase substrings signalling a cuisine context.
 const CONTEXT_KEYWORDS: &[&str] = &[
-    "mediterranean", "greek", "italian", "restaurant", "kitchen", "table",
+    "mediterranean",
+    "greek",
+    "italian",
+    "restaurant",
+    "kitchen",
+    "table",
 ];
 
 // ── Tests ────────────────────────────────────────────────────────────
@@ -301,7 +325,11 @@ mod tests {
         Scene {
             id: "mediterranean-01-greek-salad".to_string(),
             subject: "greek salad".to_string(),
-            terms: vec!["feta".to_string(), "tomatoes".to_string(), "olives".to_string()],
+            terms: vec![
+                "feta".to_string(),
+                "tomatoes".to_string(),
+                "olives".to_string(),
+            ],
         }
     }
 
@@ -337,25 +365,48 @@ mod tests {
     #[test]
     fn rejects_subject_mismatch() {
         let scene = greek_salad_scene();
-        let candidates = vec![boxing_candidate(), greek_salad_candidate(), restaurant_candidate()];
+        let candidates = vec![
+            boxing_candidate(),
+            greek_salad_candidate(),
+            restaurant_candidate(),
+        ];
         let mut bound = BoundAssets::new();
-        let (results, winner) = sample_scene(&scene, &candidates, &SampleOptions::default(), &mut bound);
+        let (results, winner) =
+            sample_scene(&scene, &candidates, &SampleOptions::default(), &mut bound);
         // Boxing must be rejected.
-        let boxing = results.iter().find(|r| r.candidate_id == "artlist-boxing-001").unwrap();
+        let boxing = results
+            .iter()
+            .find(|r| r.candidate_id == "artlist-boxing-001")
+            .unwrap();
         assert_eq!(boxing.rejection, Some(RejectionReason::SubjectMismatch));
         // The winner must be the greek-salad candidate, NOT boxing.
         assert_eq!(winner.as_deref(), Some("artlist-greek-salad-001"));
         // The greek-salad winner must score higher than the restaurant backup.
-        let winner_result = results.iter().find(|r| r.candidate_id == "artlist-greek-salad-001").unwrap();
-        let backup = results.iter().find(|r| r.candidate_id == "artlist-restaurant-001").unwrap();
-        assert!(winner_result.score > backup.score, "winner {} should outrank backup {}", winner_result.score, backup.score);
+        let winner_result = results
+            .iter()
+            .find(|r| r.candidate_id == "artlist-greek-salad-001")
+            .unwrap();
+        let backup = results
+            .iter()
+            .find(|r| r.candidate_id == "artlist-restaurant-001")
+            .unwrap();
+        assert!(
+            winner_result.score > backup.score,
+            "winner {} should outrank backup {}",
+            winner_result.score,
+            backup.score
+        );
     }
 
     // TestSamplerDeterministic — 100 runs must produce the same winner.
     #[test]
     fn deterministic_across_runs() {
         let scene = greek_salad_scene();
-        let candidates = vec![boxing_candidate(), greek_salad_candidate(), restaurant_candidate()];
+        let candidates = vec![
+            boxing_candidate(),
+            greek_salad_candidate(),
+            restaurant_candidate(),
+        ];
         let first = {
             let mut bound = BoundAssets::new();
             sample_scene(&scene, &candidates, &SampleOptions::default(), &mut bound).1
@@ -379,7 +430,11 @@ mod tests {
         let scene4 = Scene {
             id: "mediterranean-05-paella".to_string(),
             subject: "paella".to_string(),
-            terms: vec!["shrimp".to_string(), "mussels".to_string(), "rice".to_string()],
+            terms: vec![
+                "shrimp".to_string(),
+                "mussels".to_string(),
+                "rice".to_string(),
+            ],
         };
         let shared = Candidate {
             id: "artlist-shared-001".to_string(),
@@ -394,11 +449,24 @@ mod tests {
             owner_segment_id: String::new(),
         };
         let mut bound = BoundAssets::new();
-        let (_, winner0) = sample_scene(&scene0, &[shared.clone(), paella.clone()], &SampleOptions::default(), &mut bound);
+        let (_, winner0) = sample_scene(
+            &scene0,
+            &[shared.clone(), paella.clone()],
+            &SampleOptions::default(),
+            &mut bound,
+        );
         assert_eq!(winner0.as_deref(), Some("artlist-shared-001"));
         // Now scene 4: the shared candidate must be rejected as already bound.
-        let (results4, winner4) = sample_scene(&scene4, &[shared.clone(), paella.clone()], &SampleOptions::default(), &mut bound);
-        let shared_result = results4.iter().find(|r| r.candidate_id == "artlist-shared-001").unwrap();
+        let (results4, winner4) = sample_scene(
+            &scene4,
+            &[shared.clone(), paella.clone()],
+            &SampleOptions::default(),
+            &mut bound,
+        );
+        let shared_result = results4
+            .iter()
+            .find(|r| r.candidate_id == "artlist-shared-001")
+            .unwrap();
         assert_eq!(shared_result.rejection, Some(RejectionReason::AlreadyBound));
         assert_eq!(winner4.as_deref(), Some("artlist-paella-001"));
     }
@@ -422,9 +490,21 @@ mod tests {
             })
             .collect();
         let mut bound = BoundAssets::new();
-        let (results, _) = sample_scene(&scene, &image_candidates, &SampleOptions { allow_reuse: false, images_per_scene: 3 }, &mut bound);
+        let (results, _) = sample_scene(
+            &scene,
+            &image_candidates,
+            &SampleOptions {
+                allow_reuse: false,
+                images_per_scene: 3,
+            },
+            &mut bound,
+        );
         let accepted: Vec<&SampleResult> = results.iter().filter(|r| r.is_accepted()).collect();
-        assert_eq!(accepted.len(), 3, "expected one accepted image per entity, got {accepted:?}");
+        assert_eq!(
+            accepted.len(),
+            3,
+            "expected one accepted image per entity, got {accepted:?}"
+        );
     }
 
     // TestThreeImagesPerScene — image fanout selects exactly 3 images.
@@ -434,15 +514,31 @@ mod tests {
         let image_candidates: Vec<Candidate> = (0..5)
             .map(|i| Candidate {
                 id: format!("img-{i}"),
-                label: if i < 3 { scene.terms[i].clone() } else { "extra".to_string() },
+                label: if i < 3 {
+                    scene.terms[i].clone()
+                } else {
+                    "extra".to_string()
+                },
                 generic_similarity: 0.5,
                 owner_segment_id: String::new(),
             })
             .collect();
         let mut bound = BoundAssets::new();
-        let (results, _) = sample_scene(&scene, &image_candidates, &SampleOptions { allow_reuse: false, images_per_scene: 3 }, &mut bound);
+        let (results, _) = sample_scene(
+            &scene,
+            &image_candidates,
+            &SampleOptions {
+                allow_reuse: false,
+                images_per_scene: 3,
+            },
+            &mut bound,
+        );
         let accepted: Vec<&SampleResult> = results.iter().filter(|r| r.is_accepted()).collect();
-        assert!(accepted.len() >= 3, "expected at least 3 accepted images, got {}", accepted.len());
+        assert!(
+            accepted.len() >= 3,
+            "expected at least 3 accepted images, got {}",
+            accepted.len()
+        );
     }
 
     // Additional: ownership mismatch rejects a candidate whose
@@ -453,7 +549,8 @@ mod tests {
         let mut candidate = greek_salad_candidate();
         candidate.owner_segment_id = "mediterranean-02-hummus".to_string();
         let mut bound = BoundAssets::new();
-        let (results, winner) = sample_scene(&scene, &[candidate], &SampleOptions::default(), &mut bound);
+        let (results, winner) =
+            sample_scene(&scene, &[candidate], &SampleOptions::default(), &mut bound);
         let r = results.first().unwrap();
         assert_eq!(r.rejection, Some(RejectionReason::OwnerMismatch));
         assert!(winner.is_none());

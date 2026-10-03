@@ -1,5 +1,5 @@
-use super::*;
 use super::tests_support::*;
+use super::*;
 use crate::render_clip::plan::{
     ClipPlanAudio, ClipPlanBackground, ClipPlanSubtitles, ClipPlanWatermark,
 };
@@ -13,8 +13,8 @@ fn blur_source_graph_is_single_pass_with_cpu_subtitle_stage() {
     let sub_path = std::env::temp_dir().join("cliprender-sub.ass");
     fs::write(&sub_path, b"[Script Info]").unwrap();
     p.watermark = Some(ClipPlanWatermark {
-			text: String::new(),
-			asset_id: "wm-1".to_string(),
+        text: String::new(),
+        asset_id: "wm-1".to_string(),
         path: wm_path.to_string_lossy().into_owned(),
         sha256: "a".repeat(64),
         position: "top_right".to_string(),
@@ -86,8 +86,8 @@ fn asset_background_uses_second_input() {
 #[test]
 fn watermark_positions_cover_all_four_corners() {
     let wm = |position: &str| ClipPlanWatermark {
-			text: String::new(),
-			asset_id: "wm-1".to_string(),
+        text: String::new(),
+        asset_id: "wm-1".to_string(),
         path: "/tmp/wm.png".to_string(),
         sha256: "a".repeat(64),
         position: position.to_string(),

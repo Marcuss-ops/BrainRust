@@ -37,6 +37,8 @@ pub struct VisualEntity {
 /// extractor's safe default (3).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExtractOptions {
+    /// Required BCP-47 language tag for locale-sensitive spellout parsing.
+    pub language: String,
     #[serde(default)]
     pub entity_count: usize,
 }

@@ -1,7 +1,9 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::probe::{ffprobe_path, probe_file};
 use crate::process::FFmpegRunner;
-use crate::protocol::{CopyCertification, MediaMetadata, Request, Response, VELOX_ASSEMBLY_READY_V1};
+use crate::protocol::{
+    CopyCertification, MediaMetadata, Request, Response, VELOX_ASSEMBLY_READY_V1,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -94,7 +96,16 @@ pub(super) fn execute(request: Request) -> Response {
 
     let mut concat_list: Option<PathBuf> = None;
     if inputs.len() == 1 {
-        command.args(["-i", inputs[0].as_str(), "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy"]);
+        command.args([
+            "-i",
+            inputs[0].as_str(),
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a:0?",
+            "-c",
+            "copy",
+        ]);
     } else {
         let list_path = std::env::temp_dir().join(format!(
             "pipelinegen_assemble_copy_{}.txt",

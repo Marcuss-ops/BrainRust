@@ -49,7 +49,6 @@ fn build_video_args(
         .filter(|value| *value > 0)
         .unwrap_or(profile.keyframe_interval);
     if gop == 0 {
-
         return Err("ENCODER_POLICY_REQUIRED: GOP/keyframe interval must be positive".to_string());
     }
 

@@ -293,7 +293,8 @@ fn gpu_cut_eligibility(
     };
     metadata.has_video
         && metadata.width == profile.width
-        && metadata.height == profile.height		&& (metadata.fps - profile.fps_float()).abs() <= 0.5
+        && metadata.height == profile.height
+        && (metadata.fps - profile.fps_float()).abs() <= 0.5
 }
 
 #[cfg(test)]
@@ -331,7 +332,10 @@ mod tests {
     }
 
     fn decoded(gpu_cut: bool) -> Vec<String> {
-        decode_args(gpu_cut).iter().map(|arg| arg.to_string()).collect()
+        decode_args(gpu_cut)
+            .iter()
+            .map(|arg| arg.to_string())
+            .collect()
     }
 
     #[test]

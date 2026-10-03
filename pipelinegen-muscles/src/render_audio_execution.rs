@@ -34,10 +34,10 @@ fn secs(us: i64) -> f64 {
 // alone produces exactly the contracted "silence → layer gain → silence"
 // envelope; attack/release of zero collapse that edge to an instant step.
 fn fade_envelope(start_us: i64, end_us: i64, attack_us: i64, release_us: i64) -> String {
-    let rise = (attack_us > 0)
-        .then(|| format!("(t-{})/{}", num(secs(start_us)), num(secs(attack_us))));
-    let fall = (release_us > 0)
-        .then(|| format!("({}-t)/{}", num(secs(end_us)), num(secs(release_us))));
+    let rise =
+        (attack_us > 0).then(|| format!("(t-{})/{}", num(secs(start_us)), num(secs(attack_us))));
+    let fall =
+        (release_us > 0).then(|| format!("({}-t)/{}", num(secs(end_us)), num(secs(release_us))));
     let shape = match (rise, fall) {
         (Some(rise), Some(fall)) => format!("min(min({rise},{fall}),1)"),
         (Some(rise), None) => format!("min({rise},1)"),
@@ -59,7 +59,13 @@ fn fade_envelope(start_us: i64, end_us: i64, attack_us: i64, release_us: i64) ->
 // gain (10^((duck_db - event_db)/20)) — multiplying keeps the absolute
 // value the plan declares while the ramps keep the transition inaudible
 // as a switch. Zero attack/release degrade to the historical step.
-fn duck_envelope(start_us: i64, end_us: i64, attack_us: i64, release_us: i64, ratio: f64) -> String {
+fn duck_envelope(
+    start_us: i64,
+    end_us: i64,
+    attack_us: i64,
+    release_us: i64,
+    ratio: f64,
+) -> String {
     let d = num(ratio);
     let start = num(secs(start_us));
     let end = num(secs(end_us));
@@ -329,24 +335,22 @@ pub(super) fn execute(request: Request) -> Response {
         .collect();
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
     let mut source_probes: HashMap<String, SourceProbe> = HashMap::new();
-    let mut ensure_source = |asset_id: &str,
-                             path: &str,
-                             required_end_us: i64|
-     -> Result<SourceProbe, String> {
-        let probe = if let Some(probe) = source_probes.get(path) {
-            probe.clone()
-        } else {
-            let probe = probe_source(ffmpeg, path)?;
-            source_probes.insert(path.to_owned(), probe.clone());
-            probe
+    let mut ensure_source =
+        |asset_id: &str, path: &str, required_end_us: i64| -> Result<SourceProbe, String> {
+            let probe = if let Some(probe) = source_probes.get(path) {
+                probe.clone()
+            } else {
+                let probe = probe_source(ffmpeg, path)?;
+                source_probes.insert(path.to_owned(), probe.clone());
+                probe
+            };
+            if probe.duration_sec * 1_000_000.0 + 40_000.0 < required_end_us as f64 {
+                return Err(format!(
+                    "audio asset {asset_id} is shorter than required source range"
+                ));
+            }
+            Ok(probe)
         };
-        if probe.duration_sec * 1_000_000.0 + 40_000.0 < required_end_us as f64 {
-            return Err(format!(
-                "audio asset {asset_id} is shorter than required source range"
-            ));
-        }
-        Ok(probe)
-    };
     // bgm_loudness_prefix returns the static trim filter that lands a BGM
     // source at the canonical loudness, measured once per unique path (the
     // loop expander reuses one source across N events — one decode pass,
@@ -715,8 +719,14 @@ mod tests {
         };
         let expr = track_gain_expr(-18.0, &[(&fade, false), (&duck, true)]);
         assert!(expr.starts_with("0.125893*"), "static gain first: {expr}");
-        assert!(expr.contains("if(between(t,0.000000,25.000000)"), "fade shape: {expr}");
-        assert!(expr.contains("0.316228"), "duck ratio is relative to the base gain: {expr}");
+        assert!(
+            expr.contains("if(between(t,0.000000,25.000000)"),
+            "fade shape: {expr}"
+        );
+        assert!(
+            expr.contains("0.316228"),
+            "duck ratio is relative to the base gain: {expr}"
+        );
     }
 
     #[test]
@@ -737,8 +747,21 @@ mod tests {
         // (duck/fade automation targeting its track) must keep eval=frame:
         // only the per-frame evaluation makes between(t, ...) windows land
         // at the declared absolute positions after the adelay.
-        let filter = event_filter(1, 0, 20_000_000, 20_000, "0.063096*if(between(t,0.000000,15.000000),0.316228,1)", "eval=frame", "");
-        assert!(filter.contains("volume='0.063096*if(between(t,0.000000,15.000000),0.316228,1)':eval=frame"), "{filter}");
+        let filter = event_filter(
+            1,
+            0,
+            20_000_000,
+            20_000,
+            "0.063096*if(between(t,0.000000,15.000000),0.316228,1)",
+            "eval=frame",
+            "",
+        );
+        assert!(
+            filter.contains(
+                "volume='0.063096*if(between(t,0.000000,15.000000),0.316228,1)':eval=frame"
+            ),
+            "{filter}"
+        );
         assert!(filter.contains("adelay=20000|20000"), "{filter}");
     }
 
@@ -829,7 +852,10 @@ mod tests {
         let filter = event_filter(1, 0, 20_000_000, 20_000, "0.063096", "eval=once", "");
         assert!(!filter.contains("aresample"), "{filter}");
         assert!(!filter.contains("aformat"), "{filter}");
-        assert!(filter.contains("asetpts=PTS-STARTPTS,adelay=20000|20000"), "{filter}");
+        assert!(
+            filter.contains("asetpts=PTS-STARTPTS,adelay=20000|20000"),
+            "{filter}"
+        );
     }
 
     #[test]
@@ -931,8 +957,19 @@ mod tests {
         assert_eq!(loudness_trim_filter(-19.99), "volume=-19.990000dB,");
         // The fragment must compose into the event filter chain before
         // adelay without disturbing the canonical volume expression.
-        let filter = event_filter(0, 0, 10_000_000, 0, "0.5", "eval=once", &loudness_trim_filter(-20.0));
-        assert!(filter.contains("volume=-20.000000dB,adelay=0|0"), "{filter}");
+        let filter = event_filter(
+            0,
+            0,
+            10_000_000,
+            0,
+            "0.5",
+            "eval=once",
+            &loudness_trim_filter(-20.0),
+        );
+        assert!(
+            filter.contains("volume=-20.000000dB,adelay=0|0"),
+            "{filter}"
+        );
         assert!(filter.contains("volume='0.5':eval=once"), "{filter}");
     }
 }

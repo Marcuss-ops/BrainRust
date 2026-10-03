@@ -20,9 +20,25 @@ execution.
 
 ## Local check
 
+VisualNER uses the system ICU4C RBNF/CLDR spellout rules. Install the ICU
+**development** package (`libicu-dev`, including `pkg-config`) on build hosts;
+runtime hosts that execute `bin/visualner` need the matching ICU shared-library
+major. The build pins rust_icu's generated symbol names to the installed major
+via `RUST_ICU_MAJOR_VERSION_NUMBER`; do not copy that binary to a host with a
+different major. The project Dockerfile builds and runs against Bookworm ICU 72.
+
 ```sh
-RUSTUP_TOOLCHAIN=stable rustup run stable cargo test --manifest-path rust/Cargo.toml
+ICU_MAJOR=$(pkg-config --modversion icu-i18n | cut -d. -f1)
+RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo test --manifest-path rust/Cargo.toml
+
+# Prints distinct language identifiers with installed ICU spellout rules.
+RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo run --manifest-path rust/Cargo.toml -p visualner -- --locale-count
 
 # Build the executable consumed by the Go adapter.
 make build-muscles
 ```
+
+VisualNER requests must include a BCP-47 `language`. ICU does not provide
+spellout rules for every locale and some rule sets are incomplete; missing
+locale data fails closed. `--locale-count` reports the installed ICU count,
+not a guarantee of equivalent parsing quality in every language.

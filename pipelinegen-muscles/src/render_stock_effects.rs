@@ -1,6 +1,6 @@
-use crate::protocol::Request;
 #[cfg(test)]
 use crate::protocol;
+use crate::protocol::Request;
 
 pub(crate) fn reject_unresolved_selection(request: &Request) -> Option<String> {
     if request.transition_every.is_some()

@@ -94,7 +94,10 @@ impl RustProcessRunner {
                 let _ = wait_thread.join();
                 return Err(io::Error::new(
                     io::ErrorKind::TimedOut,
-                    format!("process timed out after {}s", started.elapsed().as_secs().max(self.timeout.as_secs())),
+                    format!(
+                        "process timed out after {}s",
+                        started.elapsed().as_secs().max(self.timeout.as_secs())
+                    ),
                 ));
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -156,7 +159,8 @@ impl ProcessCommand {
         self,
         on_line: impl FnMut(&str) + Send + 'static,
     ) -> io::Result<ProcessOutput> {
-        self.runner.run_with_handler(&self.program, &self.args, on_line)
+        self.runner
+            .run_with_handler(&self.program, &self.args, on_line)
     }
 }
 
@@ -229,7 +233,10 @@ fn read_tail<R: Read>(
         // partial line spanning chunks is buffered byte-wise. A pathological
         // line longer than the cap is dropped rather than buffered forever.
         let mut line_start = 0;
-        while let Some(relative) = chunk[line_start..count].iter().position(|&byte| byte == b'\n') {
+        while let Some(relative) = chunk[line_start..count]
+            .iter()
+            .position(|&byte| byte == b'\n')
+        {
             let newline = line_start + relative;
             if line_buf.is_empty() {
                 if let Ok(line) = std::str::from_utf8(&chunk[line_start..newline]) {

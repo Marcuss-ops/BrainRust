@@ -40,7 +40,6 @@ pub(crate) fn part_path(final_path: &str) -> String {
     }
 }
 
-
 /// sha256_file is the crate-wide canonical file hasher: it computes the
 /// lowercase SHA256 digest of a file using the same `sha256sum` invocation the
 /// canonical render plan relies on. Every consumer (combined-audio render

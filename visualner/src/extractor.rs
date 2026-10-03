@@ -29,12 +29,39 @@ use crate::types::{ExtractOptions, VisualEntity};
 /// Extract the top-N source-grounded visual entities from `source_text`.
 /// This is the single canonical entry point. Returns entities in score-desc
 /// order (ties broken by earliest source position).
-pub fn extract(source_text: &str, options: &ExtractOptions) -> Vec<VisualEntity> {
+pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<VisualEntity>, String> {
+    let language = options.language.trim();
+    if language.is_empty() {
+        return Err("VisualNER language is required".to_string());
+    }
     let tokens = tokenize(source_text);
     let mut candidates = noun_phrase_candidates(&tokens, source_text);
     candidates.extend(value_candidates(source_text));
+    mark_contextual_locations(&mut candidates, &tokens, source_text);
+    let spelled_candidates = crate::spellout::candidates(source_text, language)?;
+    let spelled_ranges: Vec<(usize, usize)> = spelled_candidates
+        .iter()
+        .map(|number| (number.start, number.end))
+        .collect();
+    candidates.extend(spelled_candidates.into_iter().map(|number| {
+        let text = source_text[number.start..number.end].to_string();
+        Candidate {
+            normalized: text.to_lowercase(),
+            text,
+            start: number.start,
+            end: number.end,
+            entity_type: Some(number.entity_type.to_string()),
+        }
+    }));
     let mut scored: Vec<VisualEntity> = candidates
         .into_iter()
+        .filter(|candidate| {
+            !spelled_ranges.iter().any(|(start, end)| {
+                candidate.start < *end
+                    && *start < candidate.end
+                    && !(candidate.start == *start && candidate.end == *end)
+            })
+        })
         .filter_map(|c| validate_evidence(c, source_text))
         .map(score_entity)
         .collect();
@@ -45,8 +72,8 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Vec<VisualEntity>
             .cmp(&named_entity_rank(b))
             .then(
                 b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal),
             )
             .then(a.start.cmp(&b.start))
             .then(a.text.cmp(&b.text))
@@ -76,7 +103,7 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Vec<VisualEntity>
         unique.push(entity);
     }
     unique.truncate(options.top_n());
-    unique
+    Ok(unique)
 }
 
 fn named_entity_rank(entity: &VisualEntity) -> u8 {
@@ -125,7 +152,9 @@ fn tokenize(source_text: &str) -> Vec<Token> {
             while i < n && is_word_byte(bytes[i]) {
                 i += 1;
             }
-            let text = std::str::from_utf8(&bytes[start..i]).unwrap_or("").to_string();
+            let text = std::str::from_utf8(&bytes[start..i])
+                .unwrap_or("")
+                .to_string();
             tokens.push(Token {
                 text,
                 start,
@@ -168,12 +197,12 @@ struct Candidate {
 fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate> {
     let bytes = source_text.as_bytes();
     let mut out = Vec::new();
-	// Named people/organizations are bounded to the contiguous title-case run.
-	// This prevents lower-case lead-ins such as "figures like Phil Jackson"
-	// from becoming a PERSON entity; the grounded candidate is "Phil Jackson".
-	for (start, end) in proper_name_runs(tokens, bytes) {
-		out.push(candidate_from_tokens(tokens, source_text, start, end));
-	}
+    // Named people/organizations are bounded to the contiguous title-case run.
+    // This prevents lower-case lead-ins such as "figures like Phil Jackson"
+    // from becoming a PERSON entity; the grounded candidate is "Phil Jackson".
+    for (start, end) in proper_name_runs(tokens, bytes) {
+        out.push(candidate_from_tokens(tokens, source_text, start, end));
+    }
     let mut i = 0;
     while i < tokens.len() {
         if is_stop_word(&tokens[i].text) {
@@ -201,7 +230,8 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
             // their first token is title-cased at sentence start.
             if j == phrase_start + 1 && j < tokens.len() && !is_stop_word(&tokens[j].text) {
                 let gap = &bytes[tokens[j - 1].end..tokens[j].start];
-                let compound = format!("{} {}", tokens[phrase_start].text, tokens[j].text).to_lowercase();
+                let compound =
+                    format!("{} {}", tokens[phrase_start].text, tokens[j].text).to_lowercase();
                 if !gap.iter().any(|b| is_phrase_breaking_byte(*b))
                     && (is_visual_object_hint(&compound) || is_subject_phrase(&compound))
                 {
@@ -224,18 +254,18 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
         let end = tokens[phrase_end - 1].end;
         let text = source_text[start..end].to_string();
         let normalized = text.to_lowercase();
-		// The run decomposition depends only on the phrase, so it is computed
-		// ONCE here instead of twice (the previous form called
-		// proper_name_runs twice, each allocating a fresh Vec).
-		let phrase_runs = proper_name_runs(&tokens[phrase_start..phrase_end], bytes);
-		let has_inner_run = phrase_runs.iter().any(|(run_start, _)| *run_start > 0);
-		let is_full_run = phrase_runs
-			.iter()
-			.any(|(run_start, run_end)| *run_start == 0 && *run_end == phrase_end - phrase_start);
-		if has_inner_run && !is_full_run {
-			 i = phrase_end;
-			 continue;
-		}
+        // The run decomposition depends only on the phrase, so it is computed
+        // ONCE here instead of twice (the previous form called
+        // proper_name_runs twice, each allocating a fresh Vec).
+        let phrase_runs = proper_name_runs(&tokens[phrase_start..phrase_end], bytes);
+        let has_inner_run = phrase_runs.iter().any(|(run_start, _)| *run_start > 0);
+        let is_full_run = phrase_runs
+            .iter()
+            .any(|(run_start, run_end)| *run_start == 0 && *run_end == phrase_end - phrase_start);
+        if has_inner_run && !is_full_run {
+            i = phrase_end;
+            continue;
+        }
         // Reject phrases whose normalized surface is a stop phrase, a
         // generic phrase, OR a multi-word subject phrase. Multi-word
         // dish names ("greek salad", "grilled sardines", "seafood paella")
@@ -288,7 +318,12 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
     runs
 }
 
-fn candidate_from_tokens(tokens: &[Token], source_text: &str, start: usize, end: usize) -> Candidate {
+fn candidate_from_tokens(
+    tokens: &[Token],
+    source_text: &str,
+    start: usize,
+    end: usize,
+) -> Candidate {
     let byte_start = tokens[start].start;
     let byte_end = tokens[end - 1].end;
     let text = source_text[byte_start..byte_end].to_string();
@@ -299,6 +334,160 @@ fn candidate_from_tokens(tokens: &[Token], source_text: &str, start: usize, end:
         end: byte_end,
         entity_type: None,
     }
+}
+
+/// Mark a source-grounded proper-name candidate as a place when its local
+/// syntax supplies geographic context. The extractor has no gazetteer, so it
+/// does not guess from capitalization alone; cues such as "em Fortaleza" and
+/// "no bairro Aldeota" provide the evidence for this classification.
+fn mark_contextual_locations(candidates: &mut Vec<Candidate>, tokens: &[Token], source_text: &str) {
+    let bytes = source_text.as_bytes();
+    let mut contextual = Vec::new();
+    for index in 0..tokens.len() {
+        if !starts_uppercase(&tokens[index].text)
+            || is_month_name(&tokens[index].text)
+            || !has_location_context(tokens, bytes, index)
+        {
+            continue;
+        }
+        let mut end = index + 1;
+        while end < tokens.len() && starts_uppercase(&tokens[end].text) {
+            if bytes[tokens[end - 1].end..tokens[end].start]
+                .iter()
+                .any(|byte| !byte.is_ascii_whitespace())
+            {
+                break;
+            }
+            end += 1;
+        }
+        let mut place = candidate_from_tokens(tokens, source_text, index, end);
+        if is_generic_location_noun(&place.text) {
+            continue;
+        }
+        place.entity_type = Some("LOCATION".to_string());
+        contextual.push(place);
+    }
+
+    for candidate in candidates.iter_mut() {
+        if candidate.entity_type.is_some() || !starts_uppercase(&candidate.text) {
+            continue;
+        }
+        let Some(token_index) = tokens
+            .iter()
+            .position(|token| token.start == candidate.start)
+        else {
+            continue;
+        };
+        if has_location_context(tokens, bytes, token_index)
+            && !is_month_name(&candidate.text)
+            && !is_generic_location_noun(&candidate.text)
+        {
+            candidate.entity_type = Some("LOCATION".to_string());
+        }
+    }
+    for place in contextual {
+        if !candidates
+            .iter()
+            .any(|candidate| candidate.start == place.start && candidate.end == place.end)
+        {
+            candidates.push(place);
+        }
+    }
+}
+
+fn has_location_context(tokens: &[Token], bytes: &[u8], token_index: usize) -> bool {
+    let Some(previous) = token_index.checked_sub(1).map(|index| &tokens[index]) else {
+        return false;
+    };
+    if bytes[previous.end..tokens[token_index].start]
+        .iter()
+        .any(|byte| !byte.is_ascii_whitespace())
+    {
+        return false;
+    }
+    let previous = previous.text.to_lowercase();
+    matches!(
+        previous.as_str(),
+        "em" | "no"
+            | "na"
+            | "nos"
+            | "nas"
+            | "in"
+            | "at"
+            | "near"
+            | "bairro"
+            | "city"
+            | "county"
+            | "state"
+            | "province"
+            | "municipality"
+            | "município"
+            | "região"
+            | "region"
+    ) || (matches!(previous.as_str(), "de" | "of")
+        && token_index >= 2
+        && matches!(
+            tokens[token_index - 2].text.to_lowercase().as_str(),
+            "cidade"
+                | "city"
+                | "município"
+                | "municipality"
+                | "região"
+                | "region"
+                | "estado"
+                | "state"
+                | "província"
+                | "province"
+                | "county"
+        ))
+}
+
+fn is_month_name(text: &str) -> bool {
+    matches!(
+        text.to_lowercase().as_str(),
+        "january"
+            | "february"
+            | "march"
+            | "april"
+            | "may"
+            | "june"
+            | "july"
+            | "august"
+            | "september"
+            | "october"
+            | "november"
+            | "december"
+            | "janeiro"
+            | "fevereiro"
+            | "março"
+            | "abril"
+            | "maio"
+            | "junho"
+            | "julho"
+            | "agosto"
+            | "setembro"
+            | "outubro"
+            | "novembro"
+            | "dezembro"
+    )
+}
+
+fn is_generic_location_noun(text: &str) -> bool {
+    matches!(
+        text.to_lowercase().as_str(),
+        "city"
+            | "county"
+            | "state"
+            | "province"
+            | "municipality"
+            | "município"
+            | "bairro"
+            | "cidade"
+            | "região"
+            | "region"
+            | "estado"
+            | "província"
+    )
 }
 
 fn starts_uppercase(text: &str) -> bool {
@@ -334,7 +523,9 @@ fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
     }
     Some(VisualEntity {
         text: c.text.clone(),
-        r#type: c.entity_type.unwrap_or_else(|| classify_value_type(&c.text)),
+        r#type: c
+            .entity_type
+            .unwrap_or_else(|| classify_value_type(&c.text)),
         score: 0.0,
         start: c.start,
         end: c.end,
@@ -345,7 +536,9 @@ fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
 fn classify_value_type(text: &str) -> String {
     if text.chars().any(|c| matches!(c, '$' | '£' | '€' | '¥')) || {
         let lower = text.to_lowercase();
-        ["dollar", "euro", "pound", "yen"].iter().any(|unit| lower.contains(unit))
+        ["dollar", "euro", "pound", "yen"]
+            .iter()
+            .any(|unit| lower.contains(unit))
     } {
         return "MONEY".to_string();
     }
@@ -354,10 +547,39 @@ fn classify_value_type(text: &str) -> String {
     }
     if text.chars().any(|c| c.is_ascii_digit()) {
         let lower = text.to_lowercase();
-        let year = text.trim().parse::<u32>().ok().is_some_and(|year| (1000..=2099).contains(&year));
-        let has_month = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
-            "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"]
-            .iter().any(|month| lower.contains(month));
+        let year = text
+            .trim()
+            .parse::<u32>()
+            .ok()
+            .is_some_and(|year| (1000..=2099).contains(&year));
+        let has_month = [
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
+            "gennaio",
+            "febbraio",
+            "marzo",
+            "aprile",
+            "maggio",
+            "giugno",
+            "luglio",
+            "agosto",
+            "settembre",
+            "ottobre",
+            "novembre",
+            "dicembre",
+        ]
+        .iter()
+        .any(|month| lower.contains(month));
         if year || has_month || text.contains('/') {
             return "DATE".to_string();
         }
@@ -370,9 +592,21 @@ fn classify_type(text: &str) -> String {
     let lower = text.to_lowercase();
     if matches!(
         lower.as_str(),
-        "apple" | "google" | "microsoft" | "amazon" | "meta" | "openai"
-            | "tesla" | "spacex" | "nike" | "adidas" | "samsung"
-            | "coca-cola" | "coca cola" | "netflix" | "disney"
+        "apple"
+            | "google"
+            | "microsoft"
+            | "amazon"
+            | "meta"
+            | "openai"
+            | "tesla"
+            | "spacex"
+            | "nike"
+            | "adidas"
+            | "samsung"
+            | "coca-cola"
+            | "coca cola"
+            | "netflix"
+            | "disney"
     ) {
         return "BRAND".to_string();
     }
@@ -415,7 +649,10 @@ fn classify_type(text: &str) -> String {
         return "PRODUCT".to_string();
     }
     // A multi-token title-cased name is the deterministic V1 person rule.
-    let title_tokens = text.split_whitespace().filter(|word| word.chars().next().map(char::is_uppercase).unwrap_or(false)).count();
+    let title_tokens = text
+        .split_whitespace()
+        .filter(|word| word.chars().next().map(char::is_uppercase).unwrap_or(false))
+        .count();
     if title_tokens >= 2 && text.split_whitespace().count() >= 2 {
         return "PERSON".to_string();
     }
@@ -437,7 +674,10 @@ fn value_candidates(source_text: &str) -> Vec<Candidate> {
         if let Some((start, end)) = numeric_date_span(source_text, i) {
             let text = source_text[start..end].to_string();
             out.push(Candidate {
-                normalized: text.to_lowercase(), text, start, end,
+                normalized: text.to_lowercase(),
+                text,
+                start,
+                end,
                 entity_type: Some("DATE".to_string()),
             });
             i = end;
@@ -448,7 +688,10 @@ fn value_candidates(source_text: &str) -> Vec<Candidate> {
         while i < bytes.len() && bytes[i].is_ascii_digit() {
             i += 1;
         }
-        while i + 1 < bytes.len() && matches!(bytes[i], b',' | b'.') && bytes[i + 1].is_ascii_digit() {
+        while i + 1 < bytes.len()
+            && matches!(bytes[i], b',' | b'.')
+            && bytes[i + 1].is_ascii_digit()
+        {
             i += 1;
             while i < bytes.len() && bytes[i].is_ascii_digit() {
                 i += 1;
@@ -462,7 +705,12 @@ fn value_candidates(source_text: &str) -> Vec<Candidate> {
         while prefix > 0 && bytes[prefix - 1].is_ascii_whitespace() {
             prefix -= 1;
         }
-        if prefix > 0 && matches!(bytes[prefix - 1], b'$' | b'\xC2' | b'\xA3' | b'\xE2' | b'\x82' | b'\xAC') {
+        if prefix > 0
+            && matches!(
+                bytes[prefix - 1],
+                b'$' | b'\xC2' | b'\xA3' | b'\xE2' | b'\x82' | b'\xAC'
+            )
+        {
             // Include the common single-byte dollar/yen markers. UTF-8
             // currency symbols are retained by including the adjacent rune.
             start = prefix - 1;
@@ -479,14 +727,41 @@ fn value_candidates(source_text: &str) -> Vec<Candidate> {
         }
         let tail = source_text[suffix..].to_lowercase();
         let unit = [
-            "percent", "%", "million dollars", "billion dollars", "trillion dollars",
-            "million euros", "billion euros", "dollars", "euros", "pounds", "yen",
-            "million", "billion", "trillion", "thousand", "mandates", "orders", "searches",
-            "people", "years old", "years", "votes", "seats", "cases", "percent",
-        ].iter().find(|unit| tail.starts_with(**unit));
+            "percent",
+            "%",
+            "million dollars",
+            "billion dollars",
+            "trillion dollars",
+            "million euros",
+            "billion euros",
+            "dollars",
+            "euros",
+            "pounds",
+            "yen",
+            "million",
+            "billion",
+            "trillion",
+            "thousand",
+            "mandates",
+            "orders",
+            "searches",
+            "people",
+            "years old",
+            "years",
+            "votes",
+            "seats",
+            "cases",
+            "percent",
+        ]
+        .iter()
+        .find(|unit| tail.starts_with(**unit));
         if let Some(unit) = unit.filter(|unit| has_word_boundary(&tail, unit.len())) {
             end = suffix + unit.len();
-            if unit.contains("dollar") || unit.contains("euro") || unit.contains("pound") || *unit == "yen" {
+            if unit.contains("dollar")
+                || unit.contains("euro")
+                || unit.contains("pound")
+                || *unit == "yen"
+            {
                 kind = "MONEY";
             } else if *unit == "percent" || *unit == "%" {
                 kind = "PERCENT";
@@ -494,8 +769,13 @@ fn value_candidates(source_text: &str) -> Vec<Candidate> {
                 // Magnitudes are money only when an explicit currency follows.
                 let remainder = source_text[end..].trim_start();
                 let lower = remainder.to_lowercase();
-                if let Some(currency) = ["dollars", "euros", "pounds", "yen"].iter()
-                    .find(|currency| lower.starts_with(**currency) && has_word_boundary(&lower, currency.len()))
+                if let Some(currency) =
+                    ["dollars", "euros", "pounds", "yen"]
+                        .iter()
+                        .find(|currency| {
+                            lower.starts_with(**currency)
+                                && has_word_boundary(&lower, currency.len())
+                        })
                 {
                     let whitespace = source_text[end..].len() - remainder.len();
                     end += whitespace + currency.len();
@@ -517,11 +797,15 @@ fn value_candidates(source_text: &str) -> Vec<Candidate> {
                 kind = "DATE";
                 let suffix_text = source_text[number_end..].trim_start();
                 if let Some(after_comma) = suffix_text.strip_prefix(',') {
-                    let leading_spaces = suffix_text.len() - after_comma.trim_start().len();
+                    let leading_spaces = after_comma.len() - after_comma.trim_start().len();
                     let year_text = after_comma.trim_start();
                     let year_len = year_text.bytes().take_while(u8::is_ascii_digit).count();
                     if year_len == 4 {
-                        end = number_end + (source_text[number_end..].len() - suffix_text.len()) + 1 + leading_spaces + year_len;
+                        end = number_end
+                            + (source_text[number_end..].len() - suffix_text.len())
+                            + 1
+                            + leading_spaces
+                            + year_len;
                     }
                 }
             } else if let Some(month_end) = month_after_day(source_text, number_end) {
@@ -531,7 +815,10 @@ fn value_candidates(source_text: &str) -> Vec<Candidate> {
         }
         let text = source_text[start..end].to_string();
         out.push(Candidate {
-            normalized: text.to_lowercase(), text, start, end,
+            normalized: text.to_lowercase(),
+            text,
+            start,
+            end,
             entity_type: Some(kind.to_string()),
         });
         if kind == "DATE" && start < number_start {
@@ -542,15 +829,10 @@ fn value_candidates(source_text: &str) -> Vec<Candidate> {
 }
 
 fn has_word_boundary(text: &str, end: usize) -> bool {
-    text.get(end..).and_then(|tail| tail.chars().next())
+    text.get(end..)
+        .and_then(|tail| tail.chars().next())
         .map(|next| !next.is_alphanumeric())
         .unwrap_or(true)
-}
-
-fn currency_symbol_before(source: &str, number_start: usize) -> Option<usize> {
-    source[..number_start].char_indices().rev()
-        .find(|(_, ch)| !ch.is_whitespace())
-        .and_then(|(offset, ch)| matches!(ch, '$' | '£' | '€' | '¥' | '₹').then_some(offset))
 }
 
 fn numeric_date_span(source: &str, start: usize) -> Option<(usize, usize)> {
@@ -590,14 +872,19 @@ fn numeric_date_span(source: &str, start: usize) -> Option<(usize, usize)> {
 
 fn month_before_day(source: &str, number_start: usize) -> Option<usize> {
     let trimmed = source[..number_start].trim_end();
-    let start = trimmed.rfind(|ch: char| !ch.is_alphabetic()).map(|idx| idx + 1).unwrap_or(0);
+    let start = trimmed
+        .rfind(|ch: char| !ch.is_alphabetic())
+        .map(|idx| idx + 1)
+        .unwrap_or(0);
     let month = trimmed[start..].to_lowercase();
     month_names().contains(&month.as_str()).then_some(start)
 }
 
 fn month_after_day(source: &str, number_end: usize) -> Option<usize> {
     let tail = source[number_end..].trim_start();
-    let month = month_names().iter().find(|month| tail.to_lowercase().starts_with(**month))?;
+    let month = month_names()
+        .iter()
+        .find(|month| tail.to_lowercase().starts_with(**month))?;
     if !has_word_boundary(&tail.to_lowercase(), month.len()) {
         return None;
     }
@@ -606,8 +893,30 @@ fn month_after_day(source: &str, number_end: usize) -> Option<usize> {
 
 fn month_names() -> &'static [&'static str] {
     &[
-        "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
-        "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+        "gennaio",
+        "febbraio",
+        "marzo",
+        "aprile",
+        "maggio",
+        "giugno",
+        "luglio",
+        "agosto",
+        "settembre",
+        "ottobre",
+        "novembre",
+        "dicembre",
     ]
 }
 
@@ -665,24 +974,91 @@ fn score_entity(mut e: VisualEntity) -> VisualEntity {
 /// "the", "a", "and", etc. so "Imagine the" / "Get ready" never produce
 /// candidates in the first place.
 const STOP_WORDS: &[&str] = &[
-    "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with",
-    "is", "are", "was", "were", "be", "been", "being", "has", "have", "had",
-    "this", "that", "these", "those", "it", "its", "as", "by", "at", "from",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "to",
+    "in",
+    "on",
+    "for",
+    "with",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "has",
+    "have",
+    "had",
+    "this",
+    "that",
+    "these",
+    "those",
+    "it",
+    "its",
+    "as",
+    "by",
+    "at",
+    "from",
     // hallucination seeds observed in the LIVE test
-    "imagine", "ready", "get", "dive", "into", "discover", "let", "us",
+    "imagine",
+    "ready",
+    "get",
+    "dive",
+    "into",
+    "discover",
+    "let",
+    "us",
     // pronouns / generic verbs
-    "you", "we", "they", "he", "she", "i", "me", "him", "her",
-    "do", "does", "did", "not", "no", "yes",
-    "about", "your", "our", "their", "his",
+    "you",
+    "we",
+    "they",
+    "he",
+    "she",
+    "i",
+    "me",
+    "him",
+    "her",
+    "do",
+    "does",
+    "did",
+    "not",
+    "no",
+    "yes",
+    "about",
+    "your",
+    "our",
+    "their",
+    "his",
     // generic spatial/temporal words
-    "now", "then", "here", "there", "when", "where", "what", "which", "who",
+    "now",
+    "then",
+    "here",
+    "there",
+    "when",
+    "where",
+    "what",
+    "which",
+    "who",
     // connector / descriptive verbs that glue non-visual phrases
     // together in the Mediterranean golden-fixture sentences. These are
     // not visual objects, so a phrase that includes them is not a single
     // visual noun phrase; breaking here keeps "feta cheese" separate
     // from "tomatoes" when the sentence reads "combines fresh tomatoes".
-    "combines", "contains", "features", "traditionally", "made", "fresh",
-    "prepared", "spoke", "released",
+    "combines",
+    "contains",
+    "features",
+    "traditionally",
+    "made",
+    "fresh",
+    "prepared",
+    "spoke",
+    "released",
     // sentence-opening gerund; it must not absorb the following proper name
     // into a false entity such as "Understanding Donald Trump's".
     "understanding",
@@ -708,18 +1084,49 @@ const VISUAL_OBJECT_HINTS: &[&str] = &[
 /// Visual-object keywords: lowercase substrings that signal a concrete
 /// object noun. A phrase containing any of these gets a +0.05 boost.
 const VISUAL_OBJECT_KEYWORDS: &[&str] = &[
-    "cheese", "tomato", "tomatoes", "olive", "olives", "feta", "salad",
-    "hummus", "chickpea", "chickpeas", "tahini", "lemon", "herbs", "sardine",
-    "sardines", "shakshuka", "egg", "eggs", "pepper", "peppers", "paella",
-    "shrimp", "mussel", "mussels", "rice", "oil",
+    "cheese",
+    "tomato",
+    "tomatoes",
+    "olive",
+    "olives",
+    "feta",
+    "salad",
+    "hummus",
+    "chickpea",
+    "chickpeas",
+    "tahini",
+    "lemon",
+    "herbs",
+    "sardine",
+    "sardines",
+    "shakshuka",
+    "egg",
+    "eggs",
+    "pepper",
+    "peppers",
+    "paella",
+    "shrimp",
+    "mussel",
+    "mussels",
+    "rice",
+    "oil",
 ];
 
 /// Generic phrases: lowercase surfaces that are NOT visual objects and
 /// should be demoted. Includes the LIVE-test hallucinations "imagine the",
 /// "ready", "world", "discover" so they never outscore a real object.
 const GENERIC_PHRASES: &[&str] = &[
-    "imagine", "ready", "world", "discover", "vibrant", "cuisine", "mediterranean",
-    "get ready", "let us", "imagine the", "ready to",
+    "imagine",
+    "ready",
+    "world",
+    "discover",
+    "vibrant",
+    "cuisine",
+    "mediterranean",
+    "get ready",
+    "let us",
+    "imagine the",
+    "ready to",
 ];
 
 /// Subject phrases: lowercase multi-word surfaces that name the dish /
@@ -759,7 +1166,14 @@ mod tests {
     use super::*;
 
     fn top3(text: &str) -> Vec<VisualEntity> {
-        extract(text, &ExtractOptions { entity_count: 3 })
+        extract(
+            text,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap()
     }
 
     fn texts(entities: &[VisualEntity]) -> Vec<String> {
@@ -774,7 +1188,9 @@ mod tests {
         let entities = top3("Imagine the vibrant world of Greek cuisine, ready to discover...");
         let surfaces: Vec<&str> = entities.iter().map(|e| e.text.as_str()).collect();
         assert!(
-            !surfaces.iter().any(|s| s.to_lowercase().contains("imagine")),
+            !surfaces
+                .iter()
+                .any(|s| s.to_lowercase().contains("imagine")),
             "Imagine the must not become an entity: {:?}",
             surfaces
         );
@@ -784,7 +1200,9 @@ mod tests {
             surfaces
         );
         assert!(
-            !surfaces.iter().any(|s| s.to_lowercase().contains("discover")),
+            !surfaces
+                .iter()
+                .any(|s| s.to_lowercase().contains("discover")),
             "discover must not become an entity: {:?}",
             surfaces
         );
@@ -794,8 +1212,14 @@ mod tests {
     // has ≥3 candidates.
     #[test]
     fn exactly_three_entities_returned() {
-        let entities = top3("Greek salad combines fresh tomatoes, cucumbers, olives, feta cheese and olive oil.");
-        assert_eq!(entities.len(), 3, "expected exactly 3 entities, got {entities:?}");
+        let entities = top3(
+            "Greek salad combines fresh tomatoes, cucumbers, olives, feta cheese and olive oil.",
+        );
+        assert_eq!(
+            entities.len(),
+            3,
+            "expected exactly 3 entities, got {entities:?}"
+        );
     }
 
     // Greek salad regression — the canonical golden-fixture input.
@@ -804,9 +1228,18 @@ mod tests {
     fn greek_salad_returns_feta_tomatoes_olives() {
         let entities = top3("Greek salad contains tomatoes, feta cheese and olives.");
         let surfaces = texts(&entities);
-        assert!(surfaces.iter().any(|s| s.to_lowercase() == "feta cheese"), "feta cheese missing: {surfaces:?}");
-        assert!(surfaces.iter().any(|s| s.to_lowercase() == "tomatoes"), "tomatoes missing: {surfaces:?}");
-        assert!(surfaces.iter().any(|s| s.to_lowercase() == "olives"), "olives missing: {surfaces:?}");
+        assert!(
+            surfaces.iter().any(|s| s.to_lowercase() == "feta cheese"),
+            "feta cheese missing: {surfaces:?}"
+        );
+        assert!(
+            surfaces.iter().any(|s| s.to_lowercase() == "tomatoes"),
+            "tomatoes missing: {surfaces:?}"
+        );
+        assert!(
+            surfaces.iter().any(|s| s.to_lowercase() == "olives"),
+            "olives missing: {surfaces:?}"
+        );
         // All 3 must be source-grounded.
         for e in &entities {
             assert!(!e.evidence.is_empty(), "evidence empty for {}", e.text);
@@ -819,26 +1252,47 @@ mod tests {
     // top 3 must all be source-grounded.
     #[test]
     fn hummus_returns_source_grounded_entities() {
-        let entities = top3("Hummus is traditionally made with chickpeas, tahini, lemon juice and olive oil.");
+        let entities =
+            top3("Hummus is traditionally made with chickpeas, tahini, lemon juice and olive oil.");
         // All returned entities must be source-grounded (NO EVIDENCE → NO ENTITY).
         for e in &entities {
             assert!(!e.evidence.is_empty(), "evidence empty for {}", e.text);
-            assert_eq!(e.evidence, e.text, "evidence must equal text verbatim for {}", e.text);
+            assert_eq!(
+                e.evidence, e.text,
+                "evidence must equal text verbatim for {}",
+                e.text
+            );
         }
         // The top 3 must come from the expected candidate set.
         let expected = ["hummus", "chickpeas", "tahini", "lemon juice", "olive oil"];
         for e in &entities {
             let lower = e.text.to_lowercase();
-            assert!(expected.iter().any(|s| *s == lower), "unexpected entity {}: not in {expected:?}", e.text);
+            assert!(
+                expected.iter().any(|s| *s == lower),
+                "unexpected entity {}: not in {expected:?}",
+                e.text
+            );
         }
     }
 
     #[test]
     fn trump_is_retained_as_a_person_in_a_dense_scene() {
         let text = "Donald Trump's trajectory offers a profound case study into the interwoven nature of business success, intense media visibility, and political leadership within American public life. His career has consistently demonstrated how these three elements feed one another, creating a defining narrative arc for Donald Trump. Understanding Donald Trump's influence requires recognizing his public impact.";
-        let entities = extract(text, &ExtractOptions { entity_count: 5 });
-        let trump = entities.iter().find(|entity| entity.r#type == "PERSON" && entity.text.to_lowercase().contains("trump"));
-        assert!(trump.is_some(), "Donald Trump must survive the top-N visual entity bound: {entities:?}");
+        let entities = extract(
+            text,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 5,
+            },
+        )
+        .unwrap();
+        let trump = entities.iter().find(|entity| {
+            entity.r#type == "PERSON" && entity.text.to_lowercase().contains("trump")
+        });
+        assert!(
+            trump.is_some(),
+            "Donald Trump must survive the top-N visual entity bound: {entities:?}"
+        );
         let trump = trump.unwrap();
         assert_eq!(trump.text, "Donald Trump");
         assert_eq!(trump.evidence, trump.text);
@@ -847,22 +1301,50 @@ mod tests {
     #[test]
     fn person_runs_are_not_prefixed_or_suffixed_by_sentence_text() {
         let text = "Michael Jordan transformed basketball. Phil Jackson designed the offense. Scottie Pippen supplied versatile defense.";
-        let entities = extract(text, &ExtractOptions { entity_count: 5 });
+        let entities = extract(
+            text,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 5,
+            },
+        )
+        .unwrap();
         let names: Vec<&str> = entities
             .iter()
             .filter(|entity| entity.r#type == "PERSON")
             .map(|entity| entity.text.as_str())
             .collect();
-        assert!(names.contains(&"Michael Jordan"), "Michael Jordan missing: {entities:?}");
-        assert!(names.contains(&"Phil Jackson"), "Phil Jackson missing: {entities:?}");
-        assert!(names.contains(&"Scottie Pippen"), "Scottie Pippen missing: {entities:?}");
-        assert!(!names.iter().any(|name| name.contains("designed") || name.contains("supplied")), "predicate leaked into person: {names:?}");
+        assert!(
+            names.contains(&"Michael Jordan"),
+            "Michael Jordan missing: {entities:?}"
+        );
+        assert!(
+            names.contains(&"Phil Jackson"),
+            "Phil Jackson missing: {entities:?}"
+        );
+        assert!(
+            names.contains(&"Scottie Pippen"),
+            "Scottie Pippen missing: {entities:?}"
+        );
+        assert!(
+            !names
+                .iter()
+                .any(|name| name.contains("designed") || name.contains("supplied")),
+            "predicate leaked into person: {names:?}"
+        );
     }
 
     #[test]
     fn stopword_leads_and_known_locations_do_not_consume_person_slots() {
         let text = "Michael Jordan studied at the University of North Carolina with Dean Smith. When Jordan entered the game, Scottie Pippen and Phil Jackson supported him.";
-        let entities = extract(text, &ExtractOptions { entity_count: 5 });
+        let entities = extract(
+            text,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 5,
+            },
+        )
+        .unwrap();
         let persons: Vec<&str> = entities
             .iter()
             .filter(|entity| entity.r#type == "PERSON")
@@ -870,14 +1352,19 @@ mod tests {
             .collect();
         assert_eq!(
             persons,
-            vec!["Michael Jordan", "Dean Smith", "Scottie Pippen", "Phil Jackson"]
+            vec![
+                "Michael Jordan",
+                "Dean Smith",
+                "Scottie Pippen",
+                "Phil Jackson"
+            ]
         );
         assert!(
             !entities.iter().any(|entity| entity.text == "When Jordan"),
             "stopword-prefixed false person must be rejected: {entities:?}"
         );
         assert!(
-            !persons.iter().any(|person| *person == "North Carolina"),
+            !persons.contains(&"North Carolina"),
             "known location must not be typed as PERSON: {entities:?}"
         );
     }
@@ -886,55 +1373,281 @@ mod tests {
     fn typed_entities_use_shared_vocabulary() {
         let entities = extract(
             "Gerard Butler spoke at an event in London. OpenAI released an iPhone.",
-            &ExtractOptions { entity_count: 8 },
-        );
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 8,
+            },
+        )
+        .unwrap();
         let find = |name: &str| entities.iter().find(|entity| entity.text == name);
-        assert_eq!(find("Gerard Butler").map(|entity| entity.r#type.as_str()), Some("PERSON"));
-        assert_eq!(find("London").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
-        assert_eq!(find("OpenAI").map(|entity| entity.r#type.as_str()), Some("BRAND"));
-        assert_eq!(find("iPhone").map(|entity| entity.r#type.as_str()), Some("PRODUCT"));
+        assert_eq!(
+            find("Gerard Butler").map(|entity| entity.r#type.as_str()),
+            Some("PERSON")
+        );
+        assert_eq!(
+            find("London").map(|entity| entity.r#type.as_str()),
+            Some("LOCATION")
+        );
+        assert_eq!(
+            find("OpenAI").map(|entity| entity.r#type.as_str()),
+            Some("BRAND")
+        );
+        assert_eq!(
+            find("iPhone").map(|entity| entity.r#type.as_str()),
+            Some("PRODUCT")
+        );
     }
 
     #[test]
     fn extracts_typed_brands_metrics_money_and_dates_with_exact_spans() {
-        let source = "OpenAI reported 25% growth, $2.5 million in revenue, 42 orders on March 5, 2026 and 03/06/2026.";
-        let entities = extract(source, &ExtractOptions { entity_count: 30 });
-        let find = |kind: &str, text: &str| entities.iter().find(|entity| entity.r#type == kind && entity.text == text);
-        assert!(find("BRAND", "OpenAI").is_some(), "brand missing: {entities:?}");
-        assert!(find("PERCENT", "25%").is_some(), "percentage missing: {entities:?}");
-        assert!(find("MONEY", "$2.5 million in revenue").is_none(), "money span should stop at the currency unit: {entities:?}");
-        assert!(find("MONEY", "$2.5 million").is_some(), "money missing: {entities:?}");
-        assert!(find("NUMBER", "42 orders").is_some(), "metric missing: {entities:?}");
-        assert!(find("DATE", "March 5, 2026").is_some(), "month date missing: {entities:?}");
-        assert!(find("DATE", "03/06/2026").is_some(), "numeric date missing: {entities:?}");
-        for entity in entities.iter().filter(|entity| matches!(entity.r#type.as_str(), "BRAND" | "PERCENT" | "MONEY" | "NUMBER" | "DATE")) {
+        let source = "OpenAI reported 25% growth, $2.5 million in revenue, 42 orders on March 5, 2026, November 22, 1986 and 03/06/2026.";
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 30,
+            },
+        )
+        .unwrap();
+        let find = |kind: &str, text: &str| {
+            entities
+                .iter()
+                .find(|entity| entity.r#type == kind && entity.text == text)
+        };
+        assert!(
+            find("BRAND", "OpenAI").is_some(),
+            "brand missing: {entities:?}"
+        );
+        assert!(
+            find("PERCENT", "25%").is_some(),
+            "percentage missing: {entities:?}"
+        );
+        assert!(
+            find("MONEY", "$2.5 million in revenue").is_none(),
+            "money span should stop at the currency unit: {entities:?}"
+        );
+        assert!(
+            find("MONEY", "$2.5 million").is_some(),
+            "money missing: {entities:?}"
+        );
+        assert!(
+            find("NUMBER", "42 orders").is_some(),
+            "metric missing: {entities:?}"
+        );
+        assert!(
+            find("DATE", "March 5, 2026").is_some(),
+            "month date missing: {entities:?}"
+        );
+        assert!(
+            find("DATE", "03/06/2026").is_some(),
+            "numeric date missing: {entities:?}"
+        );
+        assert!(
+            find("DATE", "November 22, 1986").is_some(),
+            "month date with multiple spaces must retain the exact year: {entities:?}"
+        );
+        for entity in entities.iter().filter(|entity| {
+            matches!(
+                entity.r#type.as_str(),
+                "BRAND" | "PERCENT" | "MONEY" | "NUMBER" | "DATE"
+            )
+        }) {
             assert_eq!(&source[entity.start..entity.end], entity.text);
             assert_eq!(entity.evidence, entity.text);
         }
     }
 
     #[test]
+    fn spelled_numbers_use_locale_rules_units_and_exact_utf8_evidence() {
+        for (language, source, surface, kind) in [
+            (
+                "en",
+                "Growth reached twenty-five percent.",
+                "twenty-five percent",
+                "PERCENT",
+            ),
+            (
+                "it",
+                "Vendite pari a venticinque percento.",
+                "venticinque percento",
+                "PERCENT",
+            ),
+            (
+                "fr",
+                "La croissance atteint vingt-cinq pour cent.",
+                "vingt-cinq pour cent",
+                "PERCENT",
+            ),
+            (
+                "ru",
+                "Показатель вырос на двадцать пять процентов.",
+                "двадцать пять процентов",
+                "PERCENT",
+            ),
+            (
+                "de",
+                "Die Firma meldete dreißig Bestellungen.",
+                "dreißig Bestellungen",
+                "NUMBER",
+            ),
+        ] {
+            let entities = extract(
+                source,
+                &ExtractOptions {
+                    language: language.to_string(),
+                    entity_count: 30,
+                },
+            )
+            .unwrap();
+            let entity = entities
+                .iter()
+                .find(|entity| entity.r#type == kind && entity.text == surface);
+            assert!(
+                entity.is_some(),
+                "{language} did not extract {surface:?}: {entities:?}"
+            );
+            let entity = entity.unwrap();
+            assert_eq!(source.get(entity.start..entity.end), Some(surface));
+            assert_eq!(entity.evidence, surface);
+        }
+    }
+
+    #[test]
+    fn spelled_number_parser_rejects_ambiguous_words_and_partial_matches() {
+        let source =
+            "One day later, a runner reached the finish, while twenty-five percent of sales rose.";
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 30,
+            },
+        )
+        .unwrap();
+        assert!(
+            !entities.iter().any(
+                |entity| matches!(entity.r#type.as_str(), "NUMBER" | "ORDINAL")
+                    && matches!(entity.text.as_str(), "One" | "one" | "a" | "One day")
+            ),
+            "ambiguous small words and duration phrases must not be typed as numbers: {entities:?}"
+        );
+        assert!(
+            !entities.iter().any(|entity| entity.text == "twenty-five"),
+            "partial parse before a unit must not leak: {entities:?}"
+        );
+        assert!(
+            entities
+                .iter()
+                .any(|entity| entity.r#type == "PERCENT" && entity.text == "twenty-five percent"),
+            "quantity surface missing: {entities:?}"
+        );
+    }
+
+    #[test]
+    fn spelled_number_spans_do_not_absorb_leading_prose() {
+        for (language, source, number) in [
+            (
+                "it",
+                "Vendite pari a venticinque percento oggi.",
+                "venticinque percento",
+            ),
+            (
+                "en",
+                "Revenue reached twenty-five percent today.",
+                "twenty-five percent",
+            ),
+        ] {
+            let candidates = crate::spellout::candidates(source, language).unwrap();
+            assert_eq!(
+                candidates.len(),
+                1,
+                "unexpected spellout candidates for {language}: {candidates:?}"
+            );
+            let candidate = &candidates[0];
+            assert_eq!(source.get(candidate.start..candidate.end), Some(number));
+            assert_eq!(candidate.entity_type, "PERCENT");
+        }
+    }
+
+    #[test]
+    fn language_is_required_and_unsupported_rules_fail_closed() {
+        assert!(extract(
+            "twenty-five orders",
+            &ExtractOptions {
+                language: String::new(),
+                entity_count: 3
+            }
+        )
+        .is_err());
+        let unsupported = extract(
+            "Some text.",
+            &ExtractOptions {
+                language: "zz-ZZ".to_string(),
+                entity_count: 3,
+            },
+        );
+        assert!(
+            unsupported.is_err(),
+            "invalid language tags should fail explicitly"
+        );
+    }
+
+    #[test]
     fn euro_prefix_keeps_utf8_boundaries_and_june_year_is_a_date() {
         let source = "Revenue was €80,000 in June 1988.";
-        let entities = extract(source, &ExtractOptions { entity_count: 20 });
-        assert!(entities.iter().any(|entity| entity.r#type == "MONEY" && entity.text == "€80,000"), "money span missing: {entities:?}");
-        assert!(entities.iter().any(|entity| entity.r#type == "DATE" && entity.text == "1988"), "year missing: {entities:?}");
-        assert!(entities.iter().all(|entity| source.get(entity.start..entity.end) == Some(entity.text.as_str())), "invalid UTF-8 evidence span: {entities:?}");
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        assert!(
+            entities
+                .iter()
+                .any(|entity| entity.r#type == "MONEY" && entity.text == "€80,000"),
+            "money span missing: {entities:?}"
+        );
+        assert!(
+            entities
+                .iter()
+                .any(|entity| entity.r#type == "DATE" && entity.text == "1988"),
+            "year missing: {entities:?}"
+        );
+        assert!(
+            entities
+                .iter()
+                .all(|entity| source.get(entity.start..entity.end) == Some(entity.text.as_str())),
+            "invalid UTF-8 evidence span: {entities:?}"
+        );
     }
 
     #[test]
     fn las_vegas_is_a_location_not_a_person() {
         let entities = top3("Mike Tyson fought in Las Vegas.");
         let las_vegas = entities.iter().find(|entity| entity.text == "Las Vegas");
-        assert_eq!(las_vegas.map(|entity| entity.r#type.as_str()), Some("LOCATION"));
+        assert_eq!(
+            las_vegas.map(|entity| entity.r#type.as_str()),
+            Some("LOCATION")
+        );
     }
 
     #[test]
     fn named_location_survives_a_dense_top_five() {
         let text = "On November 22, 1986, in Las Vegas, he faced Trevor Berbick for the WBC heavyweight title. Tyson won by second-round technical knockout and became the youngest heavyweight world champion.";
-        let entities = extract(text, &ExtractOptions { entity_count: 5 });
+        let entities = extract(
+            text,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 5,
+            },
+        )
+        .unwrap();
         assert!(
-            entities.iter().any(|entity| entity.text == "Las Vegas" && entity.r#type == "LOCATION"),
+            entities
+                .iter()
+                .any(|entity| entity.text == "Las Vegas" && entity.r#type == "LOCATION"),
             "a named location must not be crowded out by visual-concept phrases: {entities:?}"
         );
     }
@@ -942,23 +1655,92 @@ mod tests {
     #[test]
     fn atlantic_city_is_a_location_not_a_person() {
         let entities = top3("In June 1988, Tyson met Michael Spinks in Atlantic City.");
-        let atlantic_city = entities.iter().find(|entity| entity.text == "Atlantic City");
-        assert_eq!(atlantic_city.map(|entity| entity.r#type.as_str()), Some("LOCATION"));
+        let atlantic_city = entities
+            .iter()
+            .find(|entity| entity.text == "Atlantic City");
+        assert_eq!(
+            atlantic_city.map(|entity| entity.r#type.as_str()),
+            Some("LOCATION")
+        );
+    }
+
+    #[test]
+    fn portuguese_geographic_cues_extract_city_and_neighborhood() {
+        let text = "Isabelle Caracristi morreu em Fortaleza, no bairro Aldeota.";
+        let entities = extract(
+            text,
+            &ExtractOptions {
+                language: "pt".to_string(),
+                entity_count: 8,
+            },
+        )
+        .unwrap();
+        for place in ["Fortaleza", "Aldeota"] {
+            let found = entities
+                .iter()
+                .find(|entity| entity.text == place)
+                .unwrap_or_else(|| panic!("missing {place}: {entities:?}"));
+            assert_eq!(found.r#type, "LOCATION", "{found:?}");
+            assert_eq!(text.get(found.start..found.end), Some(place));
+        }
+    }
+
+    #[test]
+    fn month_after_location_preposition_is_not_a_place() {
+        let entities = extract(
+            "The meeting was in May.",
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 8,
+            },
+        )
+        .unwrap();
+        assert!(!entities
+            .iter()
+            .any(|entity| entity.text == "May" && entity.r#type == "LOCATION"));
     }
 
     #[test]
     fn dolly_places_and_song_titles_do_not_consume_person_slots() {
         let text = "Dolly Parton was born in Sevier County, Tennessee, in the Great Smoky Mountains. Porter Wagoner worked with Dolly Parton. I Will Always Love You became a song.";
-        let entities = extract(text, &ExtractOptions { entity_count: 10 });
+        let entities = extract(
+            text,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 10,
+            },
+        )
+        .unwrap();
         let find = |name: &str| entities.iter().find(|entity| entity.text == name);
-        assert_eq!(find("Dolly Parton").map(|entity| entity.r#type.as_str()), Some("PERSON"));
-        assert_eq!(find("Porter Wagoner").map(|entity| entity.r#type.as_str()), Some("PERSON"));
-        assert_eq!(find("Sevier County").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
-        assert_eq!(find("Great Smoky Mountains").map(|entity| entity.r#type.as_str()), Some("LOCATION"));
-        assert_eq!(find("Will Always Love You").map(|entity| entity.r#type.as_str()), Some("WORK"));
+        assert_eq!(
+            find("Dolly Parton").map(|entity| entity.r#type.as_str()),
+            Some("PERSON")
+        );
+        assert_eq!(
+            find("Porter Wagoner").map(|entity| entity.r#type.as_str()),
+            Some("PERSON")
+        );
+        assert_eq!(
+            find("Sevier County").map(|entity| entity.r#type.as_str()),
+            Some("LOCATION")
+        );
+        assert_eq!(
+            find("Great Smoky Mountains").map(|entity| entity.r#type.as_str()),
+            Some("LOCATION")
+        );
+        assert_eq!(
+            find("Will Always Love You").map(|entity| entity.r#type.as_str()),
+            Some("WORK")
+        );
         assert!(!entities.iter().any(|entity| {
             entity.r#type == "PERSON"
-                && matches!(entity.text.as_str(), "Sevier County" | "Great Smoky Mountains" | "Will Always Love" | "Will Always Love You")
+                && matches!(
+                    entity.text.as_str(),
+                    "Sevier County"
+                        | "Great Smoky Mountains"
+                        | "Will Always Love"
+                        | "Will Always Love You"
+                )
         }));
     }
 
@@ -971,7 +1753,11 @@ mod tests {
             // evidence must be a non-empty verbatim slice of the source.
             assert!(e.start < e.end, "empty span for {}", e.text);
             assert!(!e.evidence.is_empty(), "empty evidence for {}", e.text);
-            assert_eq!(e.evidence, e.text, "evidence must equal text verbatim for {}", e.text);
+            assert_eq!(
+                e.evidence, e.text,
+                "evidence must equal text verbatim for {}",
+                e.text
+            );
         }
     }
 

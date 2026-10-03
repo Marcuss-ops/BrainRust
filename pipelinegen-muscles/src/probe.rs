@@ -191,19 +191,37 @@ fn parse_u32_pair(value: &str) -> Option<(u32, u32)> {
 }
 
 fn format_level(level: i32) -> String {
-    if level >= 10 { format!("{}.{}", level / 10, level % 10) } else { level.to_string() }
+    if level >= 10 {
+        format!("{}.{}", level / 10, level % 10)
+    } else {
+        level.to_string()
+    }
 }
 
 fn hash_hex(bytes: &[u8]) -> Result<String, String> {
     let mut command = Command::new("sha256sum");
-    let output = command.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn()
+    let output = command
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
         .and_then(|mut child| {
             use std::io::Write;
-            child.stdin.take().ok_or_else(|| std::io::Error::other("sha256 stdin unavailable"))?.write_all(bytes)?;
+            child
+                .stdin
+                .take()
+                .ok_or_else(|| std::io::Error::other("sha256 stdin unavailable"))?
+                .write_all(bytes)?;
             child.wait_with_output()
-        }).map_err(|error| error.to_string())?;
-    if !output.status.success() { return Err("sha256sum failed".to_string()); }
-    Ok(String::from_utf8_lossy(&output.stdout).split_whitespace().next().unwrap_or("").to_string())
+        })
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err("sha256sum failed".to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_string())
 }
 
 fn parse_frame_rate_rational(value: &str) -> (u32, u32) {
@@ -308,10 +326,34 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
         video_profile: video.and_then(|stream| stream.profile.clone()),
         video_level: video.and_then(|stream| stream.level.map(format_level)),
         pixel_format: video.and_then(|stream| stream.pix_fmt.clone()),
-        video_time_base_num: video.and_then(|stream| stream.time_base.as_deref().and_then(parse_u32_pair).map(|pair| pair.0)),
-        video_time_base_den: video.and_then(|stream| stream.time_base.as_deref().and_then(parse_u32_pair).map(|pair| pair.1)),
-        sar_num: video.and_then(|stream| stream.sample_aspect_ratio.as_deref().and_then(parse_u32_pair).map(|pair| pair.0)),
-        sar_den: video.and_then(|stream| stream.sample_aspect_ratio.as_deref().and_then(parse_u32_pair).map(|pair| pair.1)),
+        video_time_base_num: video.and_then(|stream| {
+            stream
+                .time_base
+                .as_deref()
+                .and_then(parse_u32_pair)
+                .map(|pair| pair.0)
+        }),
+        video_time_base_den: video.and_then(|stream| {
+            stream
+                .time_base
+                .as_deref()
+                .and_then(parse_u32_pair)
+                .map(|pair| pair.1)
+        }),
+        sar_num: video.and_then(|stream| {
+            stream
+                .sample_aspect_ratio
+                .as_deref()
+                .and_then(parse_u32_pair)
+                .map(|pair| pair.0)
+        }),
+        sar_den: video.and_then(|stream| {
+            stream
+                .sample_aspect_ratio
+                .as_deref()
+                .and_then(parse_u32_pair)
+                .map(|pair| pair.1)
+        }),
         color_range: video.and_then(|stream| stream.color_range.clone()),
         color_space: video.and_then(|stream| stream.color_space.clone()),
         color_transfer: video.and_then(|stream| stream.color_transfer.clone()),
@@ -320,7 +362,9 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
         keyframe_interval: video.and_then(|stream| stream.gop_size),
         b_frames: video.and_then(|stream| stream.has_b_frames),
         closed_gop: video.and_then(|stream| stream.closed_captions),
-        video_extradata_sha256: video.and_then(|stream| stream.extradata.as_deref()).and_then(|value| hash_hex(value.as_bytes()).ok()),
+        video_extradata_sha256: video
+            .and_then(|stream| stream.extradata.as_deref())
+            .and_then(|value| hash_hex(value.as_bytes()).ok()),
         format_name: probe.format.format_name.clone(),
         stream_count,
         video_stream_count,
@@ -329,13 +373,27 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
         fps_den,
         audio_codec: audio.and_then(|stream| stream.codec_name.clone()),
         audio_profile: audio.and_then(|stream| stream.profile.clone()),
-        audio_time_base_num: audio.and_then(|stream| stream.time_base.as_deref().and_then(parse_u32_pair).map(|pair| pair.0)),
-        audio_time_base_den: audio.and_then(|stream| stream.time_base.as_deref().and_then(parse_u32_pair).map(|pair| pair.1)),
+        audio_time_base_num: audio.and_then(|stream| {
+            stream
+                .time_base
+                .as_deref()
+                .and_then(parse_u32_pair)
+                .map(|pair| pair.0)
+        }),
+        audio_time_base_den: audio.and_then(|stream| {
+            stream
+                .time_base
+                .as_deref()
+                .and_then(parse_u32_pair)
+                .map(|pair| pair.1)
+        }),
         sample_rate: audio.and_then(|stream| stream.sample_rate.as_deref()?.parse().ok()),
         channels: audio.and_then(|stream| stream.channels),
         channel_layout: audio.and_then(|stream| stream.channel_layout.clone()),
         audio_bitrate: audio.and_then(|stream| stream.bit_rate.as_deref()?.parse().ok()),
-        audio_extradata_sha256: audio.and_then(|stream| stream.extradata.as_deref()).and_then(|value| hash_hex(value.as_bytes()).ok()),
+        audio_extradata_sha256: audio
+            .and_then(|stream| stream.extradata.as_deref())
+            .and_then(|value| hash_hex(value.as_bytes()).ok()),
         start_pts: audio
             .and_then(|stream| stream.start_time.as_deref()?.parse::<f64>().ok())
             .map(|value| value.round() as i64),

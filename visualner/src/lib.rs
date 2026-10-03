@@ -34,7 +34,9 @@
 #![deny(unsafe_code)]
 
 pub mod extractor;
+pub mod spellout;
 pub mod types;
 
 pub use extractor::extract;
+pub use spellout::supported_spellout_language_count;
 pub use types::{ExtractOptions, VisualEntity};

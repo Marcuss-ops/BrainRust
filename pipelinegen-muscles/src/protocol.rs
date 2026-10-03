@@ -502,13 +502,25 @@ impl CopyCertification {
             if self.fps_num != Some(24) || self.fps_den != Some(1) {
                 return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires fps=24/1".to_string());
             }
-            if self.codec.as_deref() != Some("h264") || self.codec_profile.as_deref() != Some("high") {
+            if self.codec.as_deref() != Some("h264")
+                || self.codec_profile.as_deref() != Some("high")
+            {
                 return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires h264 High".to_string());
             }
-            if self.video_extradata_sha256.as_deref().unwrap_or("").is_empty()
-                || self.audio_extradata_sha256.as_deref().unwrap_or("").is_empty()
+            if self
+                .video_extradata_sha256
+                .as_deref()
+                .unwrap_or("")
+                .is_empty()
+                || self
+                    .audio_extradata_sha256
+                    .as_deref()
+                    .unwrap_or("")
+                    .is_empty()
             {
-                return Err("CERTIFICATION_REQUIRED: V2 requires audio/video extradata hashes".to_string());
+                return Err(
+                    "CERTIFICATION_REQUIRED: V2 requires audio/video extradata hashes".to_string(),
+                );
             }
         }
         if !self.closed_gop.unwrap_or(false) {
@@ -535,7 +547,10 @@ impl CopyCertification {
         }
         let expected_num = self.fps_num.unwrap_or(0);
         let expected_den = self.fps_den.unwrap_or(0);
-        if expected_num == 0 || expected_den == 0 || metadata.fps_num == 0 || metadata.fps_den == 0
+        if expected_num == 0
+            || expected_den == 0
+            || metadata.fps_num == 0
+            || metadata.fps_den == 0
             || metadata.fps_num * expected_den != expected_num * metadata.fps_den
         {
             return Err(format!(
@@ -545,27 +560,51 @@ impl CopyCertification {
         }
         if self.contract_id.as_deref() == Some(VELOX_ASSEMBLY_READY_V2) {
             let checks = [
-                (metadata.video_profile.as_deref(), Some("high"), "video profile"),
+                (
+                    metadata.video_profile.as_deref(),
+                    Some("high"),
+                    "video profile",
+                ),
                 (metadata.video_level.as_deref(), Some("4.1"), "video level"),
-                (metadata.pixel_format.as_deref(), Some("yuv420p"), "pixel format"),
+                (
+                    metadata.pixel_format.as_deref(),
+                    Some("yuv420p"),
+                    "pixel format",
+                ),
             ];
             for (actual, expected, label) in checks {
-                if actual != expected { return Err(format!("OUTPUT_CONTRACT_MISMATCH: {label}")); }
+                if actual != expected {
+                    return Err(format!("OUTPUT_CONTRACT_MISMATCH: {label}"));
+                }
             }
-            if metadata.video_time_base_num != Some(1) || metadata.video_time_base_den != Some(90000)
-                || metadata.sar_num != Some(1) || metadata.sar_den != Some(1)
+            if metadata.video_time_base_num != Some(1)
+                || metadata.video_time_base_den != Some(90000)
+                || metadata.sar_num != Some(1)
+                || metadata.sar_den != Some(1)
                 || metadata.field_order.as_deref() != Some("progressive")
-                || metadata.keyframe_interval != Some(48) || metadata.b_frames != Some(0)
+                || metadata.keyframe_interval != Some(48)
+                || metadata.b_frames != Some(0)
                 || metadata.closed_gop != Some(true)
-            { return Err("OUTPUT_CONTRACT_MISMATCH: V2 video timing/GOP properties".to_string()); }
-            if metadata.audio_codec.as_deref() != Some("aac") || metadata.audio_profile.as_deref() != Some("LC")
-                || metadata.audio_time_base_num != Some(1) || metadata.audio_time_base_den != Some(48000)
-                || metadata.sample_rate != Some(48000) || metadata.channels != Some(2)
-                || metadata.channel_layout.as_deref() != Some("stereo") || metadata.audio_bitrate != Some(192000)
-            { return Err("OUTPUT_CONTRACT_MISMATCH: V2 audio properties".to_string()); }
+            {
+                return Err("OUTPUT_CONTRACT_MISMATCH: V2 video timing/GOP properties".to_string());
+            }
+            if metadata.audio_codec.as_deref() != Some("aac")
+                || metadata.audio_profile.as_deref() != Some("LC")
+                || metadata.audio_time_base_num != Some(1)
+                || metadata.audio_time_base_den != Some(48000)
+                || metadata.sample_rate != Some(48000)
+                || metadata.channels != Some(2)
+                || metadata.channel_layout.as_deref() != Some("stereo")
+                || metadata.audio_bitrate != Some(192000)
+            {
+                return Err("OUTPUT_CONTRACT_MISMATCH: V2 audio properties".to_string());
+            }
             if metadata.video_extradata_sha256.as_deref() != self.video_extradata_sha256.as_deref()
-                || metadata.audio_extradata_sha256.as_deref() != self.audio_extradata_sha256.as_deref()
-            { return Err("OUTPUT_CONTRACT_MISMATCH: extradata hash".to_string()); }
+                || metadata.audio_extradata_sha256.as_deref()
+                    != self.audio_extradata_sha256.as_deref()
+            {
+                return Err("OUTPUT_CONTRACT_MISMATCH: extradata hash".to_string());
+            }
         }
         if !copy_codec_matches(
             metadata.video_codec.as_deref(),
