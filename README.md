@@ -42,3 +42,30 @@ VisualNER requests must include a BCP-47 `language`. ICU does not provide
 spellout rules for every locale and some rule sets are incomplete; missing
 locale data fails closed. `--locale-count` reports the installed ICU count,
 not a guarantee of equivalent parsing quality in every language.
+
+## Isolated phrase-impact prototype
+
+`pipelinegen-muscles::phrase_impact` is a library-only, non-production
+transcript pipeline. It accepts precomputed one-vector-per-segment embeddings
+and optional per-sentence microsecond timings; it does not load models, invoke
+inference, or modify the media executor JSON protocol. The summary and bullets
+are extractive source sentences to preserve polarity/entities and avoid
+unsupported paraphrases. They are selected separately from the heavy-sentence
+ranking, but this is not a generative prose summarizer.
+
+The permanently stored label fixture is explicitly synthetic and cannot be
+used as evidence that human Precision@K targets pass. CPU percentage and RSS
+are emitted by the benchmark only when measurable via Linux `/proc`; embedding
+inference measurements must come from the external caller.
+
+Run the optimized local benchmark (10 warmups / 100 samples at each requested
+word count, concurrency sweep, and 10,000-run memory stress):
+
+```sh
+cargo bench --manifest-path rust/Cargo.toml -p pipelinegen-muscles --bench phrase_impact
+```
+
+The JSON report defaults to the ignored
+`rust/pipelinegen-muscles/.cache/phrase-impact/rust_benchmark.json` (Cargo runs
+the benchmark from the package directory); override its path with
+`PHRASE_IMPACT_BENCH_OUTPUT`.

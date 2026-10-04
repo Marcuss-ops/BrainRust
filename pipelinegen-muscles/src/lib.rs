@@ -24,6 +24,7 @@ mod dispatcher;
 mod encoder;
 #[cfg(test)]
 mod golden;
+pub mod phrase_impact;
 mod probe;
 mod process;
 mod protocol;

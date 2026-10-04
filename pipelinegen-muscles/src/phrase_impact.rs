@@ -1,0 +1,1340 @@
+use serde::{Deserialize, Serialize};
+use std::time::Instant;
+
+const GRAPH_K: usize = 6;
+const LOCAL_CONTEXT: usize = 3;
+const DAMPING: f64 = 0.85;
+const MAX_SEGMENT_WORDS: usize = 40;
+const DUPLICATE_COSINE: f64 = 0.96;
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SummaryLength {
+    Short,
+    Medium,
+    Long,
+}
+
+impl Default for SummaryLength {
+    fn default() -> Self {
+        Self::Medium
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Options {
+    #[serde(default)]
+    pub summary_length: SummaryLength,
+    #[serde(default = "default_bullet_count")]
+    pub bullet_count: usize,
+    #[serde(default = "default_min_heavy")]
+    pub min_heavy: usize,
+    #[serde(default = "default_max_heavy")]
+    pub max_heavy: usize,
+    #[serde(default)]
+    pub top_fraction: Option<f64>,
+}
+
+fn default_bullet_count() -> usize {
+    5
+}
+fn default_min_heavy() -> usize {
+    3
+}
+fn default_max_heavy() -> usize {
+    15
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            summary_length: SummaryLength::default(),
+            bullet_count: default_bullet_count(),
+            min_heavy: default_min_heavy(),
+            max_heavy: default_max_heavy(),
+            top_fraction: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Timing {
+    pub start_us: i64,
+    pub end_us: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Request {
+    pub transcript: String,
+    #[serde(default = "default_language")]
+    pub language: String,
+    /// Caller-provided, one-vector-per-segment embeddings. This crate performs no inference.
+    pub embeddings: Vec<Vec<f32>>,
+    #[serde(default)]
+    pub timings: Vec<Timing>,
+    #[serde(default)]
+    pub options: Options,
+    #[serde(default)]
+    pub embedding_ms: f64,
+}
+
+fn default_language() -> String {
+    "en".to_string()
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct RankedSentence {
+    pub index: usize,
+    #[serde(rename = "start")]
+    pub start_sec: Option<f64>,
+    #[serde(rename = "end")]
+    pub end_sec: Option<f64>,
+    pub text: String,
+    pub centrality: f64,
+    pub novelty: f64,
+    pub importance: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BulletPoint {
+    pub sentence_index: usize,
+    pub text: String,
+    #[serde(rename = "start")]
+    pub start_sec: Option<f64>,
+    #[serde(rename = "end")]
+    pub end_sec: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct StageTimings {
+    pub split_ms: f64,
+    pub embedding_ms: f64,
+    pub similarity_ms: f64,
+    pub ranking_ms: f64,
+    pub summary_ms: f64,
+    pub bullet_ms: f64,
+    pub total_ms: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ResultDocument {
+    pub summary: String,
+    pub bullet_points: Vec<BulletPoint>,
+    pub heavy_sentences: Vec<RankedSentence>,
+    /// All sentences in descending importance order.
+    pub ranked: Vec<RankedSentence>,
+    /// Selected heavy sentences in chronological order.
+    pub timeline: Vec<RankedSentence>,
+    pub timings: StageTimings,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Segment {
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub text: String,
+}
+
+#[derive(Clone, Debug)]
+struct Neighbor {
+    index: usize,
+    weight: f64,
+}
+
+pub fn split_sentences(text: &str, language: &str) -> Vec<Segment> {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    if chars.is_empty() {
+        return Vec::new();
+    }
+    let mut cuts = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let ch = chars[i].1;
+        if !matches!(ch, '.' | '!' | '?' | '。' | '！' | '？') {
+            i += 1;
+            continue;
+        }
+        if ch == '.' && is_decimal_point(&chars, i) {
+            i += 1;
+            continue;
+        }
+        let punctuation_end = punctuation_run_end(&chars, i);
+        let next_index = punctuation_end + 1;
+        let next = chars.get(next_index).map(|(_, c)| *c);
+        let following_index = (next_index..chars.len())
+            .find(|&index| !chars[index].1.is_whitespace())
+            .unwrap_or(chars.len());
+
+        // Split before a plausible capitalized sentence even when punctuation
+        // is missing its following space, but never at U.S./U.K. initialisms.
+        if ch == '.'
+            && next.is_some_and(|value| !value.is_whitespace() && value.is_ascii_uppercase())
+            && following_index == next_index
+            && !(i > 0 && chars[i - 1].1.is_ascii_uppercase())
+        {
+            cuts.push(chars[punctuation_end].0 + chars[punctuation_end].1.len_utf8());
+            i = punctuation_end + 1;
+            continue;
+        }
+        if matches!(ch, '。' | '！' | '？')
+            && next.is_some_and(|value| !value.is_whitespace())
+            && chars
+                .get(following_index)
+                .is_some_and(|(_, value)| value.is_uppercase())
+        {
+            cuts.push(chars[punctuation_end].0 + chars[punctuation_end].1.len_utf8());
+            i = punctuation_end + 1;
+            continue;
+        }
+        if next.is_some_and(|value| {
+            !value.is_whitespace()
+                && !matches!(value, '"' | '\'' | '’' | '”' | ')' | ']' | '}' | '»')
+        }) && !matches!(ch, '。' | '！' | '？')
+        {
+            i = punctuation_end + 1;
+            continue;
+        }
+        if matches!(ch, '.' | '。') && is_dotted_initialism(&chars, i, following_index) {
+            i += 1;
+            continue;
+        }
+        if ch == '.' && is_inner_dotted_abbreviation(&chars, i) {
+            i += 1;
+            continue;
+        }
+        if ch == '.' && suppress_abbreviation(&chars, i, following_index, language) {
+            i += 1;
+            continue;
+        }
+        cuts.push(chars[punctuation_end].0 + chars[punctuation_end].1.len_utf8());
+        i = punctuation_end + 1;
+        while i < chars.len()
+            && matches!(chars[i].1, '"' | '\'' | '’' | '”' | ')' | ']' | '}' | '»')
+        {
+            if let Some(last) = cuts.last_mut() {
+                *last = chars[i].0 + chars[i].1.len_utf8();
+            }
+            i += 1;
+        }
+    }
+
+    let mut segments = Vec::new();
+    let mut start = 0;
+    for end in cuts {
+        push_segment(text, start, end, &mut segments);
+        start = end;
+    }
+    push_segment(text, start, text.len(), &mut segments);
+
+    let mut bounded = Vec::new();
+    for segment in segments {
+        if word_count(&segment.text) <= MAX_SEGMENT_WORDS {
+            bounded.push(segment);
+        } else {
+            split_long_segment(text, segment.start_byte, segment.end_byte, &mut bounded);
+        }
+    }
+    bounded
+}
+
+fn push_segment(text: &str, start: usize, end: usize, output: &mut Vec<Segment>) {
+    if start >= end
+        || end > text.len()
+        || !text.is_char_boundary(start)
+        || !text.is_char_boundary(end)
+    {
+        return;
+    }
+    let slice = &text[start..end];
+    let leading = slice.len() - slice.trim_start().len();
+    let value = slice.trim();
+    if value.is_empty() {
+        return;
+    }
+    let start_byte = start + leading;
+    output.push(Segment {
+        start_byte,
+        end_byte: start_byte + value.len(),
+        text: value.to_string(),
+    });
+}
+
+fn split_long_segment(text: &str, start: usize, end: usize, output: &mut Vec<Segment>) {
+    let source = &text[start..end];
+    let mut ranges = Vec::new();
+    let mut word_start = None;
+    for (offset, ch) in source.char_indices() {
+        if ch.is_whitespace() {
+            if let Some(begin) = word_start.take() {
+                ranges.push((begin, offset));
+            }
+        } else if word_start.is_none() {
+            word_start = Some(offset);
+        }
+    }
+    if let Some(begin) = word_start {
+        ranges.push((begin, source.len()));
+    }
+    let mut first = 0;
+    while first < ranges.len() {
+        let end_word = (first + MAX_SEGMENT_WORDS).min(ranges.len());
+        push_segment(
+            text,
+            start + ranges[first].0,
+            start + ranges[end_word - 1].1,
+            output,
+        );
+        first = end_word;
+    }
+}
+
+fn is_decimal_point(chars: &[(usize, char)], i: usize) -> bool {
+    i > 0
+        && i + 1 < chars.len()
+        && chars[i - 1].1.is_ascii_digit()
+        && chars[i + 1].1.is_ascii_digit()
+}
+
+fn punctuation_run_end(chars: &[(usize, char)], i: usize) -> usize {
+    let mut end = i;
+    while end + 1 < chars.len() && matches!(chars[end + 1].1, '.' | '!' | '?' | '。' | '！' | '？')
+    {
+        end += 1;
+    }
+    end
+}
+fn is_dotted_initialism(chars: &[(usize, char)], period: usize, following: usize) -> bool {
+    if chars[period].1 != '.' {
+        return false;
+    }
+    if period + 1 < chars.len()
+        && chars[period + 1].1.is_ascii_uppercase()
+        && (period == 0 || !chars[period - 1].1.is_ascii_uppercase())
+    {
+        return true;
+    }
+
+    if !chars.get(following).is_some_and(|(_, c)| c.is_lowercase())
+        || period == 0
+        || !chars[period - 1].1.is_ascii_uppercase()
+    {
+        return false;
+    }
+    let mut cursor = period - 1;
+    let mut capitals = 1;
+    while cursor >= 2 && chars[cursor - 1].1 == '.' && chars[cursor - 2].1.is_ascii_uppercase() {
+        capitals += 1;
+        cursor -= 2;
+    }
+    capitals >= 2
+}
+
+fn is_inner_dotted_abbreviation(chars: &[(usize, char)], period: usize) -> bool {
+    period >= 1
+        && period + 2 < chars.len()
+        && chars[period - 1].1.is_ascii_alphabetic()
+        && chars[period + 1].1.is_ascii_alphabetic()
+        && chars[period + 2].1 == '.'
+}
+
+fn suppress_abbreviation(
+    chars: &[(usize, char)],
+    period: usize,
+    following: usize,
+    language: &str,
+) -> bool {
+    let mut start = period;
+    while start > 0 && (chars[start - 1].1.is_ascii_alphabetic() || chars[start - 1].1 == '.') {
+        start -= 1;
+    }
+    let token: String = chars[start..=period].iter().map(|(_, c)| *c).collect();
+    let token = token.to_lowercase();
+    let lang = language
+        .split(|ch| ch == '-' || ch == '_')
+        .next()
+        .unwrap_or("en")
+        .to_lowercase();
+    let common = [
+        "dr.", "mr.", "mrs.", "ms.", "prof.", "sr.", "sra.", "srta.", "st.", "vs.", "e.g.", "i.e.",
+        "no.", "ph.d.",
+    ];
+    let localized: &[&str] = match lang.as_str() {
+        "it" => &["dott.", "sig.", "ecc."],
+        "es" => &["dra.", "dpto.", "núm."],
+        "fr" => &["m.", "mme.", "mlle.", "etc."],
+        "de" => &["z.b.", "bzw.", "usw.", "dr."],
+        "pt" => &["dr.", "dra.", "sr.", "sra.", "etc."],
+        _ => &[],
+    };
+    let corporate = ["inc.", "corp.", "ltd.", "co.", "llc.", "gmbh."];
+    let next = chars.get(following).map(|(_, c)| *c);
+    if corporate.contains(&token.as_str()) {
+        return next.is_some_and(|c| c.is_lowercase());
+    }
+    let abbreviation = common.contains(&token.as_str())
+        || localized.contains(&token.as_str())
+        || ["etc.", "ecc."].contains(&token.as_str());
+    abbreviation && next.is_some_and(|c| c.is_alphanumeric())
+}
+
+fn cosine(a: &[f64], b: &[f64]) -> f64 {
+    a.iter()
+        .zip(b)
+        .map(|(x, y)| x * y)
+        .sum::<f64>()
+        .clamp(0.0, 1.0)
+}
+
+fn cosine_matrix(vectors: &[Vec<f64>]) -> Vec<Vec<f64>> {
+    let n = vectors.len();
+    let mut matrix = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        for j in i + 1..n {
+            let value = cosine(&vectors[i], &vectors[j]);
+            matrix[i][j] = value;
+            matrix[j][i] = value;
+        }
+    }
+    matrix
+}
+
+fn top_k_graph(similarities: &[Vec<f64>]) -> Vec<Vec<Neighbor>> {
+    let n = similarities.len();
+    let mut graph = vec![Vec::new(); n];
+    for i in 0..n {
+        let mut candidates: Vec<_> = similarities[i]
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(j, w)| *j != i && *w > 0.0)
+            .collect();
+        candidates.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+        for (j, weight) in candidates.into_iter().take(GRAPH_K) {
+            if !graph[i].iter().any(|edge: &Neighbor| edge.index == j) {
+                graph[i].push(Neighbor { index: j, weight });
+            }
+            if !graph[j].iter().any(|edge: &Neighbor| edge.index == i) {
+                graph[j].push(Neighbor { index: i, weight });
+            }
+        }
+    }
+    for row in &mut graph {
+        row.sort_by_key(|edge| edge.index);
+    }
+    graph
+}
+
+fn page_rank(graph: &[Vec<Neighbor>]) -> Vec<f64> {
+    let n = graph.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let mut rank = vec![1.0 / n as f64; n];
+    let degree: Vec<f64> = graph
+        .iter()
+        .map(|row| row.iter().map(|edge| edge.weight).sum())
+        .collect();
+    for _ in 0..50 {
+        let mut next = vec![(1.0 - DAMPING) / n as f64; n];
+        let mut dangling = 0.0;
+        for i in 0..n {
+            if degree[i] == 0.0 {
+                dangling += rank[i];
+                continue;
+            }
+            for edge in &graph[i] {
+                next[edge.index] += DAMPING * rank[i] * edge.weight / degree[i];
+            }
+        }
+        let share = DAMPING * dangling / n as f64;
+        for value in &mut next {
+            *value += share;
+        }
+        let delta: f64 = next.iter().zip(&rank).map(|(a, b)| (a - b).abs()).sum();
+        rank = next;
+        if delta < 1e-8 {
+            break;
+        }
+    }
+    rank
+}
+
+fn percentile_scale(values: &[f64]) -> Vec<f64> {
+    if values.is_empty() {
+        return Vec::new();
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let low = sorted[((sorted.len() - 1) as f64 * 0.10) as usize];
+    let high = sorted[((sorted.len() - 1) as f64 * 0.90).ceil() as usize];
+    if high - low < 1e-9 {
+        return vec![0.0; values.len()];
+    }
+    values
+        .iter()
+        .map(|value| ((value - low) / (high - low)).clamp(0.0, 1.0))
+        .collect()
+}
+
+fn content_signal(text: &str, language: &str) -> f64 {
+    let text = text.to_lowercase();
+    let language = language.to_lowercase();
+    let cues: &[&str] = match language
+        .split(|ch| ch == '-' || ch == '_')
+        .next()
+        .unwrap_or("en")
+    {
+        "it" => &[
+            "annunc",
+            "licenzi",
+            "bancarott",
+            "acquis",
+            "lanci",
+            "dimess",
+            "arrest",
+            "record",
+            "prima",
+            "uccis",
+            "morto",
+            "approv",
+            "accord",
+        ],
+        "es" => &[
+            "anunci",
+            "despid",
+            "bancarrota",
+            "adquis",
+            "lanz",
+            "renunci",
+            "arrest",
+            "récord",
+            "primer",
+            "muert",
+            "aprob",
+            "acuerdo",
+        ],
+        "pt" => &[
+            "anunci", "demiss", "falên", "aquis", "lanç", "renunci", "preso", "record", "primeir",
+            "mort", "aprov", "acordo",
+        ],
+        "fr" => &[
+            "annonc",
+            "licenci",
+            "faillite",
+            "acquisition",
+            "lancé",
+            "démission",
+            "arrêt",
+            "record",
+            "premièr",
+            "mort",
+            "approuv",
+            "accord",
+        ],
+        "de" => &[
+            "ankündig",
+            "entlass",
+            "insolven",
+            "übernahm",
+            "start",
+            "rücktritt",
+            "verhaft",
+            "rekord",
+            "erstmal",
+            "gestorb",
+            "genehmig",
+            "vereinbar",
+        ],
+        _ => &[
+            "announc",
+            "layoff",
+            "bankrupt",
+            "acquisition",
+            "acquired",
+            "launch",
+            "resign",
+            "arrest",
+            "charged",
+            "denied",
+            "recall",
+            "record",
+            "first",
+            "disaster",
+            "killed",
+            "died",
+            "approved",
+            "settlement",
+            "fired",
+            "warn",
+        ],
+    };
+    if cues.iter().any(|cue| text.contains(cue)) {
+        1.0
+    } else if text
+        .chars()
+        .any(|ch| ch.is_ascii_digit() || matches!(ch, '$' | '€' | '£' | '¥' | '%'))
+    {
+        0.25
+    } else {
+        0.0
+    }
+}
+
+fn apply_noise_penalty(text: &str, importance: f64) -> f64 {
+    let normalized = text.to_lowercase();
+    let words: Vec<&str> = normalized
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect();
+    let mut filler_count = words
+        .iter()
+        .filter(|word| matches!(**word, "um" | "uh" | "erm" | "er" | "hmm" | "ah"))
+        .count();
+    for phrase in [(&["you", "know"][..]), (&["i", "mean"][..])] {
+        filler_count += words
+            .windows(phrase.len())
+            .filter(|window| *window == phrase)
+            .count();
+    }
+    if words.first() == Some(&"well") {
+        filler_count += 1;
+    }
+    let multiplier = match filler_count {
+        0 => 1.0,
+        1 => 0.75,
+        _ => 0.5,
+    };
+    importance * multiplier
+}
+
+fn word_count(text: &str) -> usize {
+    text.split_whitespace().count()
+}
+
+fn target_summary_words(mode: &SummaryLength) -> (usize, usize, usize) {
+    match mode {
+        SummaryLength::Short => (65, 50, 80),
+        SummaryLength::Medium => (125, 100, 150),
+        SummaryLength::Long => (250, 200, 300),
+    }
+}
+
+fn normalized_text(text: &str) -> String {
+    text.to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn equivalent(a: &RankedSentence, b: &RankedSentence, vectors: &[Vec<f64>]) -> bool {
+    normalized_text(&a.text) == normalized_text(&b.text)
+        || cosine(&vectors[a.index], &vectors[b.index]) >= DUPLICATE_COSINE
+}
+
+fn select_diverse(
+    indices: &[usize],
+    ranked: &[RankedSentence],
+    vectors: &[Vec<f64>],
+    limit: usize,
+) -> Vec<usize> {
+    let mut chosen = Vec::new();
+    for &index in indices {
+        if chosen
+            .iter()
+            .any(|&prior| equivalent(&ranked[index], &ranked[prior], vectors))
+        {
+            continue;
+        }
+        chosen.push(index);
+        if chosen.len() >= limit {
+            break;
+        }
+    }
+    chosen
+}
+
+fn extract_summary(
+    ranked: &[RankedSentence],
+    vectors: &[Vec<f64>],
+    mode: &SummaryLength,
+) -> String {
+    let (target, minimum, maximum) = target_summary_words(mode);
+    let mut center = vec![0.0; vectors[0].len()];
+    for vector in vectors {
+        for (out, value) in center.iter_mut().zip(vector) {
+            *out += value;
+        }
+    }
+    let norm = center.iter().map(|value| value * value).sum::<f64>().sqrt();
+    if norm > f64::EPSILON {
+        for value in &mut center {
+            *value /= norm;
+        }
+    }
+    let mut order: Vec<usize> = (0..ranked.len()).collect();
+    order.sort_by(|&a, &b| {
+        let score = |i: usize| 0.8 * cosine(&vectors[i], &center) + 0.2 * ranked[i].centrality;
+        score(b).total_cmp(&score(a)).then(a.cmp(&b))
+    });
+    let order = select_diverse(&order, ranked, vectors, ranked.len());
+    let mut chosen = Vec::new();
+    let mut count = 0;
+    for index in order {
+        let size = word_count(&ranked[index].text);
+        if size == 0 || size > maximum || (count > 0 && count + size > maximum) {
+            continue;
+        }
+        chosen.push(index);
+        count += size;
+        if count >= target {
+            break;
+        }
+    }
+    if count < minimum {
+        for index in 0..ranked.len() {
+            if chosen.contains(&index) {
+                continue;
+            }
+            let size = word_count(&ranked[index].text);
+            if size > 0 && count + size <= maximum {
+                chosen.push(index);
+                count += size;
+            }
+            if count >= minimum {
+                break;
+            }
+        }
+    }
+    chosen.sort_unstable();
+    chosen
+        .into_iter()
+        .map(|index| ranked[index].text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Pure deterministic transcript processing over caller-supplied vectors.
+/// Output summaries and bullets are extractive to prevent generated unsupported claims.
+pub fn run(request: Request) -> Result<ResultDocument, String> {
+    let total = Instant::now();
+    if request.transcript.trim().is_empty() {
+        return Err("transcript is empty".into());
+    }
+    if !request.embedding_ms.is_finite() || request.embedding_ms < 0.0 {
+        return Err("embedding_ms is invalid".into());
+    }
+    if request
+        .options
+        .top_fraction
+        .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+    {
+        return Err("top_fraction must be in [0,1]".into());
+    }
+    let split_start = Instant::now();
+    let segments = split_sentences(&request.transcript, &request.language);
+    let split_ms = split_start.elapsed().as_secs_f64() * 1000.0;
+    if segments.is_empty() {
+        return Err("sentence splitter returned no sentences".into());
+    }
+    if request.embeddings.len() != segments.len() {
+        return Err(format!(
+            "embedding count {} does not match sentence count {}",
+            request.embeddings.len(),
+            segments.len()
+        ));
+    }
+    if !request.timings.is_empty() && request.timings.len() != segments.len() {
+        return Err("timing count does not match sentence count".into());
+    }
+    let mut previous_start = -1_i64;
+    for timing in &request.timings {
+        if timing.start_us < 0
+            || timing.end_us <= timing.start_us
+            || timing.start_us < previous_start
+        {
+            return Err("invalid/nonchronological sentence timing".into());
+        }
+        previous_start = timing.start_us;
+    }
+    let similarity_start = Instant::now();
+    let dimension = request.embeddings.first().map(Vec::len).unwrap_or(0);
+    if dimension == 0 {
+        return Err("embedding dimension is zero".into());
+    }
+    let mut vectors = Vec::with_capacity(request.embeddings.len());
+    for (index, row) in request.embeddings.iter().enumerate() {
+        if row.len() != dimension {
+            return Err(format!("embedding {index} dimension mismatch"));
+        }
+        if row.iter().any(|value| !value.is_finite()) {
+            return Err(format!("embedding {index} is non-finite"));
+        }
+        let mut vector: Vec<f64> = row.iter().map(|value| *value as f64).collect();
+        let norm = vector.iter().map(|value| value * value).sum::<f64>().sqrt();
+        if norm <= f64::EPSILON {
+            return Err(format!("embedding {index} has zero norm"));
+        }
+        for value in &mut vector {
+            *value /= norm;
+        }
+        vectors.push(vector);
+    }
+    let n = segments.len();
+    let similarities = cosine_matrix(&vectors);
+    let mut raw_novelty = vec![0.0; n];
+    for i in 1..n {
+        let begin = i.saturating_sub(LOCAL_CONTEXT);
+        let nearest = (begin..i)
+            .map(|j| similarities[i][j])
+            .fold(0.0_f64, f64::max);
+        raw_novelty[i] = 1.0 - nearest;
+    }
+    let similarity_ms = similarity_start.elapsed().as_secs_f64() * 1000.0;
+    let ranking_start = Instant::now();
+    let graph = top_k_graph(&similarities);
+    let centrality = percentile_scale(&page_rank(&graph));
+    let novelty = percentile_scale(&raw_novelty);
+    let mut source_order = Vec::with_capacity(n);
+    for i in 0..n {
+        let timing = request.timings.get(i);
+        let score = apply_noise_penalty(
+            &segments[i].text,
+            0.65 * centrality[i]
+                + 0.10 * novelty[i]
+                + 0.25 * content_signal(&segments[i].text, &request.language),
+        );
+        source_order.push(RankedSentence {
+            index: i,
+            start_sec: timing.map(|value| value.start_us as f64 / 1_000_000.0),
+            end_sec: timing.map(|value| value.end_us as f64 / 1_000_000.0),
+            text: segments[i].text.clone(),
+            centrality: centrality[i],
+            novelty: novelty[i],
+            importance: score.clamp(0.0, 1.0),
+        });
+    }
+    let mut rank_indices: Vec<usize> = (0..n).collect();
+    rank_indices.sort_by(|&a, &b| {
+        source_order[b]
+            .importance
+            .total_cmp(&source_order[a].importance)
+            .then(a.cmp(&b))
+    });
+    let fraction = request.options.top_fraction.unwrap_or(0.125);
+    let min_heavy = request.options.min_heavy.clamp(1, 15);
+    let max_heavy = request.options.max_heavy.max(min_heavy).min(15);
+    let desired = ((n as f64 * fraction).ceil() as usize)
+        .max(min_heavy)
+        .min(max_heavy)
+        .min(n);
+    let selected = select_diverse(&rank_indices, &source_order, &vectors, desired);
+    let heavy_sentences: Vec<_> = selected
+        .iter()
+        .map(|&index| source_order[index].clone())
+        .collect();
+    let ranking_ms = ranking_start.elapsed().as_secs_f64() * 1000.0;
+
+    let summary_start = Instant::now();
+    let summary = extract_summary(&source_order, &vectors, &request.options.summary_length);
+    let summary_ms = summary_start.elapsed().as_secs_f64() * 1000.0;
+
+    let bullet_start = Instant::now();
+    let bullet_limit = request.options.bullet_count.clamp(1, 10);
+    let bullets = select_diverse(&rank_indices, &source_order, &vectors, bullet_limit)
+        .into_iter()
+        .map(|index| BulletPoint {
+            sentence_index: source_order[index].index,
+            text: source_order[index].text.clone(),
+            start_sec: source_order[index].start_sec,
+            end_sec: source_order[index].end_sec,
+        })
+        .collect();
+    let mut timeline = heavy_sentences.clone();
+    timeline.sort_by(|a, b| match (a.start_sec, b.start_sec) {
+        (Some(start_a), Some(start_b)) => start_a.total_cmp(&start_b).then(a.index.cmp(&b.index)),
+        _ => a.index.cmp(&b.index),
+    });
+    let bullet_ms = bullet_start.elapsed().as_secs_f64() * 1000.0;
+    let mut ranked = source_order;
+    ranked.sort_by(|a, b| {
+        b.importance
+            .total_cmp(&a.importance)
+            .then(a.index.cmp(&b.index))
+    });
+    let elapsed_ms = total.elapsed().as_secs_f64() * 1000.0;
+    Ok(ResultDocument {
+        summary,
+        bullet_points: bullets,
+        heavy_sentences,
+        ranked,
+        timeline,
+        timings: StageTimings {
+            split_ms,
+            embedding_ms: request.embedding_ms,
+            similarity_ms,
+            ranking_ms,
+            summary_ms,
+            bullet_ms,
+            total_ms: elapsed_ms + request.embedding_ms,
+        },
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vec3(x: f32, y: f32, z: f32) -> Vec<f32> {
+        vec![x, y, z]
+    }
+    fn request(lines: &[&str], embeddings: Vec<Vec<f32>>, options: Options) -> Request {
+        Request {
+            transcript: lines.join(" "),
+            language: "en".into(),
+            embeddings,
+            timings: Vec::new(),
+            options,
+            embedding_ms: 0.0,
+        }
+    }
+
+    #[test]
+    fn sentence_split_plain_and_difficult_cases_preserve_surface() {
+        let source =
+            "Apple launched a new phone. Sales increased by 20%. Investors reacted positively.";
+        let parts = split_sentences(source, "en");
+        assert_eq!(
+            parts
+                .iter()
+                .map(|part| part.text.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "Apple launched a new phone.",
+                "Sales increased by 20%.",
+                "Investors reacted positively."
+            ]
+        );
+        assert!(parts
+            .iter()
+            .all(|part| &source[part.start_byte..part.end_byte] == part.text));
+        let difficult = "Dr. Smith joined Apple Inc. in 2025. Revenue reached $2.5 billion. U.S. sales increased.";
+        assert_eq!(
+            split_sentences(difficult, "en")
+                .iter()
+                .map(|part| part.text.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "Dr. Smith joined Apple Inc. in 2025.",
+                "Revenue reached $2.5 billion.",
+                "U.S. sales increased."
+            ]
+        );
+    }
+
+    #[test]
+    fn localized_splitting_and_unpunctuated_fallback() {
+        for (language, text, expected) in [
+            ("it", "La dott. Rossi è arrivata. Poi ha parlato.", 2),
+            ("es", "La Dra. García llegó. Después habló.", 2),
+            ("pt", "O Dr. Silva chegou. Depois falou.", 2),
+            ("fr", "M. Dupont est arrivé. Ensuite il a parlé.", 2),
+            ("de", "Dr. Müller kam an. Danach sprach er.", 2),
+            ("ja", "これは文です。次の文です！", 2),
+        ] {
+            assert_eq!(
+                split_sentences(text, language).len(),
+                expected,
+                "{language}: {text}"
+            );
+        }
+        assert_eq!(
+            split_sentences("Revenue grew.Next the board met.", "en").len(),
+            2
+        );
+        let source = (0..95)
+            .map(|i| format!("word{i}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let chunks = split_sentences(&source, "en");
+        assert!(
+            chunks.len() >= 3
+                && chunks
+                    .iter()
+                    .all(|part| word_count(&part.text) <= MAX_SEGMENT_WORDS)
+        );
+        assert_eq!(
+            chunks
+                .iter()
+                .flat_map(|part| part.text.split_whitespace())
+                .collect::<Vec<_>>(),
+            source.split_whitespace().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn ranked_timing_and_content_fields_match_the_public_json_contract() {
+        let lines = [
+            "Apple reported record revenue.",
+            "20,000 workers were laid off.",
+        ];
+        let result = run(request(
+            &lines,
+            vec![vec3(1., 0., 0.), vec3(0., 1., 0.)],
+            Options {
+                min_heavy: 2,
+                max_heavy: 2,
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+        let json = serde_json::to_value(result).unwrap();
+        assert!(json["ranked"][0]["index"].is_number());
+        assert!(json["ranked"][0]["start"].is_null());
+        assert!(json["ranked"][0]["importance"].is_number());
+        assert!(json["ranked"][0]["centrality"].is_number());
+        assert!(json["ranked"][0]["novelty"].is_number());
+        assert!(json["timings"]["split_ms"].is_number());
+        assert!(json["timings"]["embedding_ms"].is_number());
+    }
+
+    #[test]
+    fn event_cues_outrank_numeric_only_and_filler_heavy_sentences() {
+        assert_eq!(content_signal("The company announced revenue.", "en"), 1.0);
+        assert_eq!(content_signal("The meeting had 20 attendees.", "en"), 0.25);
+        let clean_score = apply_noise_penalty("The company announced layoffs.", 0.8);
+        let filler_score =
+            apply_noise_penalty("Well, you know, um, the company announced layoffs.", 0.8);
+        assert!(filler_score < clean_score);
+
+        let lines = [
+            "Well, you know, um, the company held a routine meeting.",
+            "The company announced 5,000 layoffs today.",
+            "Executives discussed the plan.",
+        ];
+        let result = run(request(
+            &lines,
+            vec![vec3(1., 0., 0.), vec3(1., 0., 0.), vec3(1., 0., 0.)],
+            Options {
+                min_heavy: 3,
+                max_heavy: 3,
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+        assert_eq!(result.ranked[0].text, lines[1]);
+    }
+
+    #[test]
+    fn relevant_event_beats_novelty_outlier_and_duplicates_are_removed() {
+        let lines = [
+            "Apple reported record revenue.",
+            "iPhone sales increased.",
+            "The company expanded in Europe.",
+            "My neighbor owns three cats.",
+            "Apple expects more growth next year.",
+        ];
+        let result = run(request(
+            &lines,
+            vec![
+                vec3(1.0, 0.0, 0.0),
+                vec3(0.98, 0.1, 0.0),
+                vec3(0.96, 0.2, 0.0),
+                vec3(0.0, 1.0, 0.0),
+                vec3(0.97, 0.15, 0.0),
+            ],
+            Options {
+                min_heavy: 1,
+                max_heavy: 5,
+                top_fraction: Some(0.2),
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+        assert!(!result
+            .heavy_sentences
+            .iter()
+            .any(|sentence| sentence.text.contains("neighbor")));
+        let duplicate_lines = [
+            "Apple reported record revenue.",
+            "Apple reported record revenue.",
+            "Apple reported record revenue.",
+            "Sales increased strongly.",
+            "The company announced a major acquisition.",
+        ];
+        let duplicates = run(request(
+            &duplicate_lines,
+            vec![
+                vec3(1., 0., 0.),
+                vec3(1., 0., 0.),
+                vec3(1., 0., 0.),
+                vec3(0.9, 0.1, 0.),
+                vec3(0., 1., 0.),
+            ],
+            Options {
+                min_heavy: 1,
+                max_heavy: 5,
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+        assert_eq!(
+            duplicates
+                .heavy_sentences
+                .iter()
+                .filter(|sentence| sentence.text == duplicate_lines[0])
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn summary_and_bullets_are_extractively_faithful_and_distinct_from_rank() {
+        let lines = [
+            "Tesla opened a new factory in Mexico.",
+            "The factory will produce electric vehicles.",
+            "Production is expected to begin next year.",
+            "The project will employ 5,000 workers.",
+        ];
+        let result = run(request(
+            &lines,
+            vec![
+                vec3(1., 0., 0.),
+                vec3(0., 1., 0.),
+                vec3(0., 0., 1.),
+                vec3(-1., 0., 0.),
+            ],
+            Options {
+                summary_length: SummaryLength::Short,
+                min_heavy: 2,
+                max_heavy: 2,
+                bullet_count: 3,
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+        assert!(result.summary.contains("factory") && result.summary.contains("Mexico"));
+        assert!(!result.summary.to_lowercase().contains("largest"));
+        assert_ne!(
+            result.summary,
+            result
+                .heavy_sentences
+                .iter()
+                .map(|sentence| sentence.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        assert!(result.bullet_points.len() <= 3);
+        assert!(result
+            .bullet_points
+            .iter()
+            .all(|bullet| lines.contains(&bullet.text.as_str())));
+        let polarity = ["The company did not declare bankruptcy."];
+        let result = run(request(
+            &polarity,
+            vec![vec3(1., 0., 0.)],
+            Options {
+                min_heavy: 1,
+                max_heavy: 1,
+                summary_length: SummaryLength::Short,
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+        assert!(result.summary.contains("did not declare bankruptcy"));
+    }
+
+    #[test]
+    fn timeline_is_chronological_and_ranked_is_descending() {
+        let lines = [
+            "Sentence at time five.",
+            "Sentence at time twelve.",
+            "Sentence at time twenty.",
+        ];
+        let result = run(Request {
+            transcript: lines.join(" "),
+            language: "en".into(),
+            embeddings: vec![vec![0., 0., 1.], vec![1., 0., 0.], vec![0., 1., 0.]],
+            timings: vec![
+                Timing {
+                    start_us: 5_000_000,
+                    end_us: 6_000_000,
+                },
+                Timing {
+                    start_us: 12_000_000,
+                    end_us: 13_000_000,
+                },
+                Timing {
+                    start_us: 20_000_000,
+                    end_us: 21_000_000,
+                },
+            ],
+            options: Options {
+                min_heavy: 3,
+                max_heavy: 3,
+                ..Default::default()
+            },
+            embedding_ms: 5.0,
+        })
+        .unwrap();
+        assert_eq!(result.ranked[0].index, 1);
+        assert!(result
+            .ranked
+            .windows(2)
+            .all(|pair| pair[0].importance >= pair[1].importance));
+        assert_eq!(
+            result
+                .timeline
+                .iter()
+                .map(|sentence| sentence.start_sec.unwrap())
+                .collect::<Vec<_>>(),
+            [5., 12., 20.]
+        );
+        assert!((result.timings.total_ms - 5.0) >= result.timings.split_ms);
+        assert!(
+            result.timings.total_ms
+                >= 5.0
+                    + result.timings.split_ms
+                    + result.timings.similarity_ms
+                    + result.timings.ranking_ms
+                    + result.timings.summary_ms
+                    + result.timings.bullet_ms
+        );
+    }
+
+    #[test]
+    fn deterministic_across_one_hundred_runs_and_invalid_vectors_fail_closed() {
+        let lines = [
+            "The board approved a major acquisition.",
+            "Revenue grew by 35% this year.",
+            "The company expects further growth.",
+            "The board met again later.",
+        ];
+        let input = request(
+            &lines,
+            vec![
+                vec3(1., 0., 0.),
+                vec3(0.9, 0.1, 0.),
+                vec3(0.95, 0.05, 0.),
+                vec3(0.8, 0.2, 0.),
+            ],
+            Options::default(),
+        );
+        let first = run(input.clone()).unwrap();
+        for _ in 0..99 {
+            let next = run(input.clone()).unwrap();
+            assert_eq!(next.summary, first.summary);
+            assert_eq!(next.ranked, first.ranked);
+            assert_eq!(next.heavy_sentences, first.heavy_sentences);
+            assert_eq!(next.bullet_points, first.bullet_points);
+            assert_eq!(next.timeline, first.timeline);
+        }
+
+        let invalid = request(&lines, vec![vec3(0., 0., 0.); 4], Options::default());
+        assert!(run(invalid).unwrap_err().contains("zero norm"));
+    }
+
+    #[test]
+    fn synthetic_labeled_corpus_computes_precision_and_recall_transparently() {
+        #[derive(Deserialize)]
+        struct Corpus {
+            dataset_type: String,
+            label_semantics: String,
+            embedding_note: String,
+            cases: Vec<Case>,
+        }
+        #[derive(Deserialize)]
+        struct Case {
+            sentences: Vec<Label>,
+        }
+        #[derive(Deserialize)]
+        struct Label {
+            text: String,
+            label: u8,
+            embedding_group: String,
+        }
+        let corpus: Corpus =
+            serde_json::from_str(include_str!("../fixtures/phrase_impact_labels.json")).unwrap();
+        assert_eq!(
+            corpus.dataset_type,
+            "synthetic_developer_authored_not_human_evaluation"
+        );
+        assert!(corpus.label_semantics.contains("not human validation"));
+        assert!(corpus.embedding_note.contains("not model embeddings"));
+        assert_eq!(corpus.cases.len(), 33);
+        let case_count = corpus.cases.len();
+        let mut p5_hits = 0;
+        let mut p10_hits = 0;
+        let mut relevant = 0;
+        let mut r10_hits = 0;
+        for case in corpus.cases {
+            let vectors = case
+                .sentences
+                .iter()
+                .map(|sentence| match sentence.embedding_group.as_str() {
+                    "topic" => vec![1., 0., 0.],
+                    "outlier" => vec![0., 1., 0.],
+                    _ => panic!("bad embedding group"),
+                })
+                .collect();
+            let text = case
+                .sentences
+                .iter()
+                .map(|sentence| sentence.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let result = run(Request {
+                transcript: text,
+                language: "en".into(),
+                embeddings: vectors,
+                timings: Vec::new(),
+                options: Options {
+                    min_heavy: 1,
+                    max_heavy: 12,
+                    ..Default::default()
+                },
+                embedding_ms: 0.0,
+            })
+            .unwrap();
+            let labels: Vec<bool> = case
+                .sentences
+                .iter()
+                .map(|sentence| {
+                    assert!(sentence.label <= 2);
+                    sentence.label > 0
+                })
+                .collect();
+            assert_eq!(labels.len(), 12);
+            assert!(labels.iter().filter(|&&label| label).count() >= 3);
+            relevant += labels.iter().filter(|&&label| label).count();
+            p5_hits += result
+                .ranked
+                .iter()
+                .take(5)
+                .filter(|sentence| labels[sentence.index])
+                .count();
+            p10_hits += result
+                .ranked
+                .iter()
+                .take(10)
+                .filter(|sentence| labels[sentence.index])
+                .count();
+            r10_hits += result
+                .ranked
+                .iter()
+                .take(10)
+                .filter(|sentence| labels[sentence.index])
+                .count();
+        }
+        let p5 = p5_hits as f64 / (case_count * 5) as f64;
+        let p10 = p10_hits as f64 / (case_count * 10) as f64;
+        let r10 = r10_hits as f64 / relevant as f64;
+        eprintln!(
+            "synthetic fixture only; not human evidence: P@5={p5:.3}, P@10={p10:.3}, R@10={r10:.3}"
+        );
+        // These loose checks protect only the synthetic harness wiring. They
+        // are not evidence for the requested human-judged Precision@K targets.
+        assert!(p5 > 0.45, "synthetic regression P@5={p5:.3}");
+        assert!(p10 > 0.25, "synthetic regression P@10={p10:.3}");
+        assert!(r10 >= 0.75, "synthetic regression R@10={r10:.3}");
+    }
+}
