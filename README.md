@@ -43,20 +43,46 @@ spellout rules for every locale and some rule sets are incomplete; missing
 locale data fails closed. `--locale-count` reports the installed ICU count,
 not a guarantee of equivalent parsing quality in every language.
 
-## Isolated phrase-impact prototype
+## Phrase impact (extractive summary, heavy sentences, bullets)
 
-`pipelinegen-muscles::phrase_impact` is a library-only, non-production
-transcript pipeline. It accepts precomputed one-vector-per-segment embeddings
-and optional per-sentence microsecond timings; it does not load models, invoke
-inference, or modify the media executor JSON protocol. The summary and bullets
-are extractive source sentences to preserve polarity/entities and avoid
-unsupported paraphrases. They are selected separately from the heavy-sentence
-ranking, but this is not a generative prose summarizer.
+`pipelinegen-muscles::phrase_impact` is the extractive editorial summary
+engine. It never loads models, invokes inference, or touches the media
+executor JSON protocol: the caller supplies either one-vector-per-segment
+embeddings (the canonical E5 passage vectors) or asks for the deterministic
+`lexical_only` fallback, and may pass per-sentence microsecond timings. The
+summary and bullets are extractive source sentences, selected separately from
+the heavy-sentence ranking, so nothing it returns is a generative,
+unsupported paraphrase.
+
+The worker is exposed over the same newline-delimited JSON stdio contract as
+the other muscles and is dispatched by binary name (`bin/phrase_impact`) or by
+the `phrase-impact` argument. Besides the full analysis request it serves
+`{"operation":"split_sentences"}`, the canonical sentence splitter the Go
+adapter uses before embedding. The Go side
+(`internal/platform/media/rustexec.PhraseImpactAnalyzer`) drives this worker
+through the persistent process runner and is wired into the script generation
+runner by `wirePhraseImpactAnalyzer`
+(`external.rust_phrase_impact_path`, default `bin/phrase_impact`, installed by
+`make build-muscles`). A missing or broken worker degrades to "no summary"
+rather than failing the run, and the extractive fields are persisted on
+`GenerateResult`/`GenerationResult` as `summary`, `bullet_points` and
+`heavy_sentences`.
 
 The permanently stored label fixture is explicitly synthetic and cannot be
 used as evidence that human Precision@K targets pass. CPU percentage and RSS
 are emitted by the benchmark only when measurable via Linux `/proc`; embedding
 inference measurements must come from the external caller.
+
+Per-title latency of the production worker (one NDJSON request/response per
+titled narration, measured against `bin/phrase_impact`):
+
+```sh
+PHRASE_IMPACT_BIN="$PWD/bin/phrase_impact" go test ./scripts/bench \
+  -run '^$' -bench BenchmarkPhraseImpactTitles -benchmem
+```
+
+The offline Python comparison of extractors over archived scripts stays in
+`scripts/bench/phrase_impact.py`.
 
 Run the optimized local benchmark (10 warmups / 100 samples at each requested
 word count, concurrency sweep, and 10,000-run memory stress):
