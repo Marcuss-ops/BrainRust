@@ -39,6 +39,28 @@ pub(super) fn classify_value_type(text: &str) -> String {
 
 fn classify_type(text: &str) -> String {
     let lower = text.to_lowercase();
+    if matches!(lower.as_str(), "company" | "corporation") {
+        return "VISUAL_CONCEPT".to_string();
+    }
+    let last_token = lower
+        .split_whitespace()
+        .last()
+        .unwrap_or("")
+        .trim_matches(|ch: char| !ch.is_ascii_alphanumeric());
+    if matches!(
+        last_token,
+        "inc"
+            | "incorporated"
+            | "corp"
+            | "corporation"
+            | "ltd"
+            | "limited"
+            | "llc"
+            | "plc"
+            | "gmbh"
+    ) {
+        return "ORGANIZATION".to_string();
+    }
     if matches!(
         lower.as_str(),
         "apple"
@@ -63,7 +85,30 @@ fn classify_type(text: &str) -> String {
         lower.as_str(),
         "london"
             | "paris"
+            | "parís"
+            | "parigi"
             | "rome"
+            | "roma"
+            | "berlin"
+            | "berlino"
+            | "lisbon"
+            | "lisboa"
+            | "madrid"
+            | "barcelona"
+            | "munich"
+            | "münchen"
+            | "vienna"
+            | "wien"
+            | "brussels"
+            | "bruxelles"
+            | "bruselas"
+            | "geneva"
+            | "genève"
+            | "ginevra"
+            | "rio de janeiro"
+            | "são paulo"
+            | "sao paulo"
+            | "new york city"
             | "new york"
             | "las vegas"
             | "atlantic city"
@@ -88,9 +133,6 @@ fn classify_type(text: &str) -> String {
             | "dollywood foundation"
     ) {
         return "WORK".to_string();
-    }
-    if lower.contains("company") || lower.contains("corporation") {
-        return "ORGANIZATION".to_string();
     }
     if lower == "iphone" || lower.contains("smartphone") {
         return "PRODUCT".to_string();
@@ -210,12 +252,13 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
             } else if matches!(*unit, "million" | "billion" | "trillion") {
                 let remainder = source_text[end..].trim_start();
                 let lower = remainder.to_lowercase();
-                if let Some(currency) = ["dollars", "euros", "pounds", "yen"]
-                    .iter()
-                    .find(|currency| {
-                        lower.starts_with(**currency)
-                            && has_word_boundary(&lower, currency.len())
-                    })
+                if let Some(currency) =
+                    ["dollars", "euros", "pounds", "yen"]
+                        .iter()
+                        .find(|currency| {
+                            lower.starts_with(**currency)
+                                && has_word_boundary(&lower, currency.len())
+                        })
                 {
                     let whitespace = source_text[end..].len() - remainder.len();
                     end += whitespace + currency.len();
@@ -360,4 +403,3 @@ fn month_names() -> &'static [&'static str] {
         "dicembre",
     ]
 }
-

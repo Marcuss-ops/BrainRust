@@ -178,7 +178,11 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
     }
     let mut i = 0;
     while i < tokens.len() {
-        if is_stop_word(&tokens[i].text) {
+        // A single uppercase initial between periods is a tokenization
+        // artifact of dotted initialisms (e.g. U.S.), not an entity span.
+        if is_stop_word(&tokens[i].text)
+            || (tokens[i].text.len() == 1 && tokens[i].text.as_bytes()[0].is_ascii_uppercase())
+        {
             i += 1;
             continue;
         }
@@ -190,6 +194,10 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
         let phrase_start = i;
         let mut j = i;
         if starts_uppercase(&tokens[i].text) {
+            if has_dotted_initial_prefix(tokens, bytes, i) {
+                i += 1;
+                continue;
+            }
             while j < tokens.len() && starts_uppercase(&tokens[j].text) {
                 if j > phrase_start {
                     let gap = &bytes[tokens[j - 1].end..tokens[j].start];
@@ -215,7 +223,13 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
             while j < tokens.len() && !is_stop_word(&tokens[j].text) {
                 if j > phrase_start {
                     let gap = &bytes[tokens[j - 1].end..tokens[j].start];
-                    if gap.iter().any(|b| is_phrase_breaking_byte(*b)) {
+                    if gap.iter().any(|b| is_phrase_breaking_byte(*b))
+                        || starts_uppercase(&tokens[j].text)
+                    {
+                        // A lower-case clause/predicate must not absorb the
+                        // next title-cased name into a VISUAL_CONCEPT span
+                        // (e.g. "discussed Tesla"). Let the proper-name
+                        // candidate own the capitalized token instead.
                         break;
                     }
                 }
@@ -268,6 +282,31 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
     let mut runs = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
+        // Dotted initials belong to the following title-cased name (J. D.
+        // Vance), but dotted initialisms such as U.S. have no trailing name
+        // and must not create fragments. Keep the boundary evidence verbatim.
+        if is_uppercase_initial(&tokens[i].text) {
+            let mut final_index = i;
+            while final_index + 1 < tokens.len()
+                && gap_has_period(&bytes[tokens[final_index].end..tokens[final_index + 1].start])
+            {
+                final_index += 1;
+                if !is_uppercase_initial(&tokens[final_index].text) {
+                    break;
+                }
+            }
+            if final_index > i
+                && !is_uppercase_initial(&tokens[final_index].text)
+                && starts_uppercase(&tokens[final_index].text)
+                && !is_stop_word(&tokens[final_index].text)
+            {
+                runs.push((i, final_index + 1));
+                i = final_index + 1;
+                continue;
+            }
+            i += 1;
+            continue;
+        }
         if is_stop_word(&tokens[i].text) || !starts_uppercase(&tokens[i].text) {
             i += 1;
             continue;
@@ -277,6 +316,7 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
         while end < tokens.len()
             && starts_uppercase(&tokens[end].text)
             && !is_stop_word(&tokens[end].text)
+            && !(tokens[end].text.len() == 1 && tokens[end].text.as_bytes()[0].is_ascii_uppercase())
             && !bytes[tokens[end - 1].end..tokens[end].start]
                 .iter()
                 .any(|b| is_phrase_breaking_byte(*b))
@@ -467,6 +507,33 @@ fn starts_uppercase(text: &str) -> bool {
     text.chars().next().map(char::is_uppercase).unwrap_or(false)
 }
 
+fn is_uppercase_initial(text: &str) -> bool {
+    text.len() == 1 && text.as_bytes()[0].is_ascii_uppercase()
+}
+
+fn has_dotted_initial_prefix(tokens: &[Token], bytes: &[u8], name_index: usize) -> bool {
+    if name_index == 0 {
+        return false;
+    }
+    let mut cursor = name_index;
+    let mut initials = 0;
+    while cursor > 0 {
+        let previous = cursor - 1;
+        if !is_uppercase_initial(&tokens[previous].text)
+            || !gap_has_period(&bytes[tokens[previous].end..tokens[cursor].start])
+        {
+            break;
+        }
+        initials += 1;
+        cursor = previous;
+    }
+    initials > 0
+}
+
+fn gap_has_period(gap: &[u8]) -> bool {
+    gap.first() == Some(&b'.') && gap[1..].iter().all(u8::is_ascii_whitespace)
+}
+
 /// is_phrase_breaking_byte reports whether a byte in the gap between two
 /// tokens should break a noun phrase. Whitespace (space, tab, newline)
 /// does NOT break; any other non-word byte (comma, period, semicolon,
@@ -605,6 +672,108 @@ const STOP_WORDS: &[&str] = &[
     // sentence-opening gerund; it must not absorb the following proper name
     // into a false entity such as "Understanding Donald Trump's".
     "understanding",
+    // High-frequency function words and titles in the supported generation
+    // languages. Keep this deterministic vocabulary conservative: removing a
+    // token from candidate construction is safer than emitting it as an entity.
+    "el",
+    "la",
+    "los",
+    "las",
+    "un",
+    "una",
+    "unos",
+    "unas",
+    "y",
+    "de",
+    "del",
+    "en",
+    "por",
+    "con",
+    "para",
+    "es",
+    "son",
+    "fue",
+    "han",
+    "ha",
+    "al",
+    "lo",
+    "le",
+    "les",
+    "des",
+    "du",
+    "un",
+    "une",
+    "et",
+    "est",
+    "sont",
+    "au",
+    "aux",
+    "dans",
+    "sur",
+    "a",
+    "o",
+    "os",
+    "as",
+    "um",
+    "uma",
+    "e",
+    "do",
+    "da",
+    "dos",
+    "das",
+    "no",
+    "na",
+    "nos",
+    "nas",
+    "com",
+    "que",
+    "il",
+    "i",
+    "gli",
+    "lo",
+    "una",
+    "uno",
+    "è",
+    "sono",
+    "ha",
+    "hanno",
+    "nel",
+    "nella",
+    "di",
+    "che",
+    "mit",
+    "der",
+    "die",
+    "das",
+    "den",
+    "dem",
+    "ein",
+    "eine",
+    "einer",
+    "eines",
+    "und",
+    "ist",
+    "sind",
+    "war",
+    "wurde",
+    "nach",
+    "bei",
+    "von",
+    "zu",
+    "zum",
+    "zur",
+    "presidente",
+    "président",
+    "bundeskanzler",
+    "kanzler",
+    "discussed",
+    "visited",
+    "visitó",
+    "visitou",
+    "visitato",
+    "visité",
+    "besuchte",
+    "company",
 ];
 
 /// Stop phrases: multi-word surfaces that are generic even when none of
@@ -614,7 +783,21 @@ const STOP_PHRASES: &[&str] = &["get ready", "let us", "imagine the"];
 fn is_stop_word(word: &str) -> bool {
     let lower = word.to_lowercase();
     STOP_WORDS.iter().any(|s| *s == lower)
+        || word
+            .chars()
+            .any(|ch| matches!(ch, 'à' | 'è' | 'é' | 'ì' | 'ò' | 'ù' | 'ü' | 'ö' | 'ä'))
+            && NON_ASCII_STOP_WORDS.iter().any(|stop| *stop == lower)
 }
+
+const NON_ASCII_STOP_WORDS: &[&str] = &[
+    "è",
+    "président",
+    "présidente",
+    "präsident",
+    "município",
+    "região",
+    "província",
+];
 
 fn is_stop_phrase(normalized: &str) -> bool {
     STOP_PHRASES.contains(&normalized)
@@ -828,6 +1011,223 @@ mod tests {
             !persons.contains(&"North Carolina"),
             "known location must not be typed as PERSON: {entities:?}"
         );
+    }
+
+    #[test]
+    fn company_suffixes_are_classified_as_organizations() {
+        let source = "Acme Inc. reported revenue.";
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        let company = entities
+            .iter()
+            .find(|entity| entity.text == "Acme Inc")
+            .unwrap_or_else(|| panic!("organization missing: {entities:?}"));
+        assert_eq!(company.r#type, "ORGANIZATION");
+        assert_eq!(&source[company.start..company.end], company.text);
+    }
+
+    #[test]
+    fn person_and_brand_mentions_are_not_absorbed_into_predicate_concepts() {
+        let source = "Elon Musk discussed Tesla.";
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        assert!(entities
+            .iter()
+            .any(|entity| entity.text == "Elon Musk" && entity.r#type == "PERSON"));
+        assert!(entities
+            .iter()
+            .any(|entity| entity.text == "Tesla" && entity.r#type == "BRAND"));
+        assert!(!entities.iter().any(|entity| {
+            entity.text == "discussed Tesla" && entity.r#type == "VISUAL_CONCEPT"
+        }));
+        for entity in &entities {
+            assert_eq!(&source[entity.start..entity.end], entity.text);
+            assert_eq!(entity.evidence, entity.text);
+        }
+    }
+
+    #[test]
+    fn dotted_initialism_fragments_are_not_emitted_as_entities() {
+        let entities = extract(
+            "U.S. sales increased.",
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        assert!(!entities
+            .iter()
+            .any(|entity| entity.text == "U" || entity.text == "S"));
+    }
+
+    #[test]
+    fn dotted_person_initials_keep_the_full_grounded_name() {
+        let source = "J. D. Vance visited Berlin.";
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        let vance = entities.iter().find(|entity| entity.text == "J. D. Vance");
+        assert_eq!(
+            vance.map(|entity| entity.r#type.as_str()),
+            Some("PERSON"),
+            "{entities:?}"
+        );
+        let vance = vance.unwrap();
+        assert_eq!(
+            source.get(vance.start..vance.end),
+            Some(vance.text.as_str())
+        );
+        assert!(!entities
+            .iter()
+            .any(|entity| entity.text == "J" || entity.text == "D" || entity.text == "Vance"));
+    }
+
+    #[test]
+    fn multilingual_scene_function_words_and_named_places_are_typed_safely() {
+        for (language, source, expected_place) in [
+            (
+                "en",
+                "The president Emmanuel Macron visited Berlin.",
+                "Berlin",
+            ),
+            ("en", "J. D. Vance visited Berlin.", "Berlin"),
+            (
+                "it",
+                "Il presidente Emmanuel Macron ha visitato Parigi.",
+                "Parigi",
+            ),
+            ("es", "El presidente Emmanuel Macron visitó París.", "París"),
+            (
+                "pt",
+                "O presidente Emmanuel Macron visitou Lisboa.",
+                "Lisboa",
+            ),
+            (
+                "fr",
+                "Le président Emmanuel Macron a visité Paris.",
+                "Paris",
+            ),
+            (
+                "de",
+                "Der Präsident Emmanuel Macron besuchte Berlin.",
+                "Berlin",
+            ),
+        ] {
+            let entities = extract(
+                source,
+                &ExtractOptions {
+                    language: language.to_string(),
+                    entity_count: 20,
+                },
+            )
+            .unwrap();
+            assert!(
+                entities
+                    .iter()
+                    .any(|entity| (entity.text == "Emmanuel Macron"
+                        || entity.text == "J. D. Vance")
+                        && entity.r#type == "PERSON"),
+                "{language}: {entities:?}"
+            );
+            assert!(
+                entities
+                    .iter()
+                    .any(|entity| entity.text == expected_place && entity.r#type == "LOCATION"),
+                "{language}: {entities:?}"
+            );
+            assert!(
+                !entities.iter().any(|entity| matches!(
+                    entity.text.to_lowercase().as_str(),
+                    "il" | "el"
+                        | "o"
+                        | "le"
+                        | "der"
+                        | "presidente"
+                        | "président"
+                        | "visited"
+                        | "visitó"
+                        | "visitato"
+                        | "visitou"
+                        | "visité"
+                        | "besuchte"
+                )),
+                "function word leaked for {language}: {entities:?}"
+            );
+            for entity in &entities {
+                assert_eq!(
+                    source.get(entity.start..entity.end),
+                    Some(entity.text.as_str())
+                );
+                assert_eq!(entity.evidence, entity.text);
+            }
+        }
+    }
+
+    #[test]
+    fn generic_company_nouns_are_not_organizations() {
+        let entities = extract(
+            "Apple Inc. employed 2,000 people.",
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        assert!(
+            entities
+                .iter()
+                .any(|entity| entity.text == "Apple Inc" && entity.r#type == "ORGANIZATION"),
+            "{entities:?}"
+        );
+        assert!(
+            !entities
+                .iter()
+                .any(|entity| entity.text.eq_ignore_ascii_case("company")
+                    || entity.text.eq_ignore_ascii_case("corporation")),
+            "{entities:?}"
+        );
+    }
+
+    #[test]
+    fn entity_candidates_remain_verbatim_spans_and_keep_numeric_values() {
+        let source = "Tesla reported $2.5 billion in revenue and employed 5,000 workers.";
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        assert!(entities.iter().any(|entity| entity.text == "Tesla"));
+        assert!(entities
+            .iter()
+            .any(|entity| entity.r#type == "MONEY" && entity.text == "$2.5 billion"));
+        assert!(entities
+            .iter()
+            .any(|entity| entity.r#type == "NUMBER" && entity.text == "5,000"));
+        for entity in &entities {
+            assert_eq!(&source[entity.start..entity.end], entity.text);
+            assert_eq!(entity.evidence, entity.text);
+        }
     }
 
     #[test]

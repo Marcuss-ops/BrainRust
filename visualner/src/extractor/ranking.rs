@@ -28,7 +28,10 @@ pub(super) fn score_entity(mut entity: VisualEntity) -> VisualEntity {
     if is_visual_object_hint(&lower) {
         score += 0.15;
     }
-    if VISUAL_OBJECT_KEYWORDS.iter().any(|keyword| lower.contains(keyword)) {
+    if VISUAL_OBJECT_KEYWORDS
+        .iter()
+        .any(|keyword| lower.contains(keyword))
+    {
         score += 0.05;
     }
     if is_generic_phrase(&lower) {
@@ -54,10 +57,32 @@ const VISUAL_OBJECT_HINTS: &[&str] = &[
 ];
 
 const VISUAL_OBJECT_KEYWORDS: &[&str] = &[
-    "cheese", "tomato", "tomatoes", "olive", "olives", "feta", "salad", "hummus",
-    "chickpea", "chickpeas", "tahini", "lemon", "herbs", "sardine", "sardines",
-    "shakshuka", "egg", "eggs", "pepper", "peppers", "paella", "shrimp", "mussel",
-    "mussels", "rice", "oil",
+    "cheese",
+    "tomato",
+    "tomatoes",
+    "olive",
+    "olives",
+    "feta",
+    "salad",
+    "hummus",
+    "chickpea",
+    "chickpeas",
+    "tahini",
+    "lemon",
+    "herbs",
+    "sardine",
+    "sardines",
+    "shakshuka",
+    "egg",
+    "eggs",
+    "pepper",
+    "peppers",
+    "paella",
+    "shrimp",
+    "mussel",
+    "mussels",
+    "rice",
+    "oil",
 ];
 
 const GENERIC_PHRASES: &[&str] = &[

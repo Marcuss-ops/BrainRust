@@ -548,6 +548,7 @@ fn content_signal(text: &str, language: &str) -> f64 {
         _ => &[
             "announc",
             "layoff",
+            "laid off",
             "bankrupt",
             "acquisition",
             "acquired",
@@ -898,6 +899,26 @@ mod tests {
         }
     }
 
+    fn orthogonal_embeddings(count: usize) -> Vec<Vec<f32>> {
+        (0..count)
+            .map(|index| {
+                let mut vector = vec![0.0; count];
+                vector[index] = 1.0;
+                vector
+            })
+            .collect()
+    }
+
+    fn labeled_test_sentences(count: usize) -> Vec<String> {
+        (0..count)
+            .map(|index| {
+                format!(
+                    "Sentence {index} explains that the company reported operational details across its regional businesses during the current financial quarter ending in June."
+                )
+            })
+            .collect()
+    }
+
     #[test]
     fn sentence_split_plain_and_difficult_cases_preserve_surface() {
         let source =
@@ -972,6 +993,111 @@ mod tests {
     }
 
     #[test]
+    fn whisper_like_unpunctuated_transcript_keeps_numbers_and_all_surface_text() {
+        let transcript = "well you know the company announced 20,000 layoffs uh investors reacted quickly the board will review the plan next year";
+        let segments = split_sentences(transcript, "en");
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].text, transcript);
+        let result = run(Request {
+            transcript: transcript.into(),
+            language: "en".into(),
+            embeddings: vec![vec3(1., 0., 0.)],
+            timings: Vec::new(),
+            options: Options {
+                min_heavy: 1,
+                max_heavy: 1,
+                summary_length: SummaryLength::Short,
+                bullet_count: 1,
+                ..Options::default()
+            },
+            embedding_ms: 0.0,
+        })
+        .unwrap();
+        assert_eq!(result.heavy_sentences[0].text, transcript);
+        assert!(result.summary.contains("20,000 layoffs"));
+        assert!(result.bullet_points[0].text.contains("20,000 layoffs"));
+    }
+
+    #[test]
+    fn end_to_end_outputs_preserve_sentences_in_supported_languages() {
+        let cases = [
+            (
+                "en",
+                [
+                    "The company announced layoffs.",
+                    "Revenue increased this year.",
+                ],
+            ),
+            (
+                "it",
+                [
+                    "L'azienda ha annunciato licenziamenti.",
+                    "I ricavi sono aumentati quest'anno.",
+                ],
+            ),
+            (
+                "es",
+                [
+                    "La empresa anunció despidos.",
+                    "Los ingresos aumentaron este año.",
+                ],
+            ),
+            (
+                "pt",
+                [
+                    "A empresa anunciou demissões.",
+                    "A receita aumentou este ano.",
+                ],
+            ),
+            (
+                "fr",
+                [
+                    "L'entreprise a annoncé des licenciements.",
+                    "Les revenus ont augmenté cette année.",
+                ],
+            ),
+            (
+                "de",
+                [
+                    "Das Unternehmen kündigte Entlassungen an.",
+                    "Der Umsatz stieg in diesem Jahr.",
+                ],
+            ),
+        ];
+        for (language, lines) in cases {
+            let result = run(Request {
+                transcript: lines.join(" "),
+                language: language.into(),
+                embeddings: orthogonal_embeddings(lines.len()),
+                timings: Vec::new(),
+                options: Options {
+                    summary_length: SummaryLength::Short,
+                    min_heavy: 1,
+                    max_heavy: 2,
+                    top_fraction: Some(1.0),
+                    bullet_count: 2,
+                    ..Options::default()
+                },
+                embedding_ms: 0.0,
+            })
+            .unwrap();
+            assert_eq!(result.ranked.len(), 2, "language: {language}");
+            assert_eq!(result.heavy_sentences.len(), 2, "language: {language}");
+            assert_eq!(result.bullet_points.len(), 2, "language: {language}");
+            for line in lines {
+                assert!(result.summary.contains(line), "language: {language}");
+                assert!(
+                    result
+                        .bullet_points
+                        .iter()
+                        .any(|bullet| bullet.text == line),
+                    "language: {language}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn ranked_timing_and_content_fields_match_the_public_json_contract() {
         let lines = [
             "Apple reported record revenue.",
@@ -993,22 +1119,55 @@ mod tests {
         assert!(json["ranked"][0]["importance"].is_number());
         assert!(json["ranked"][0]["centrality"].is_number());
         assert!(json["ranked"][0]["novelty"].is_number());
-        assert!(json["timings"]["split_ms"].is_number());
-        assert!(json["timings"]["embedding_ms"].is_number());
+        assert!(json["ranked"][0]["text"].is_string());
+        assert!(json["heavy_sentences"][0]["index"].is_number());
+        assert!(json["heavy_sentences"][0]["importance"].is_number());
+        assert!(json["heavy_sentences"][0]["centrality"].is_number());
+        assert!(json["heavy_sentences"][0]["novelty"].is_number());
+        assert!(json["heavy_sentences"][0]["text"].is_string());
+        assert!(json["timeline"][0]["index"].is_number());
+        assert!(json["bullet_points"][0]["sentence_index"].is_number());
+        assert!(json["bullet_points"][0]["text"].is_string());
+        assert!(json["summary"].is_string());
+        assert!(json["bullet_points"].is_array());
+        assert!(json["heavy_sentences"].is_array());
+        assert!(json["timeline"].is_array());
+        for stage in [
+            "split_ms",
+            "embedding_ms",
+            "similarity_ms",
+            "ranking_ms",
+            "summary_ms",
+            "bullet_ms",
+            "total_ms",
+        ] {
+            assert!(json["timings"][stage].is_number(), "missing timing {stage}");
+        }
     }
 
     #[test]
     fn event_cues_outrank_numeric_only_and_filler_heavy_sentences() {
         assert_eq!(content_signal("The company announced revenue.", "en"), 1.0);
         assert_eq!(content_signal("The meeting had 20 attendees.", "en"), 0.25);
+        for numeric_fact in [
+            "Profits reached $14.8 billion.",
+            "Revenue grew by 35%.",
+            "20,000 workers were affected.",
+        ] {
+            assert_eq!(content_signal(numeric_fact, "en"), 0.25, "{numeric_fact}");
+        }
+        assert_eq!(
+            content_signal("The first result in 30 years was announced in 2026.", "en"),
+            1.0
+        );
         let clean_score = apply_noise_penalty("The company announced layoffs.", 0.8);
         let filler_score =
             apply_noise_penalty("Well, you know, um, the company announced layoffs.", 0.8);
         assert!(filler_score < clean_score);
 
         let lines = [
-            "Well, you know, um, the company held a routine meeting.",
-            "The company announced 5,000 layoffs today.",
+            "Well, you know, the company basically, uh, reported revenue growth.",
+            "But the really important thing is they announced 5,000 layoffs.",
             "Executives discussed the plan.",
         ];
         let result = run(request(
@@ -1022,6 +1181,37 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(result.ranked[0].text, lines[1]);
+
+        let event_lines = [
+            "The company held a meeting.",
+            "Employees discussed the new strategy.",
+            "Then the CEO announced that 20,000 employees would be laid off.",
+            "The announcement shocked investors.",
+            "The meeting ended later that afternoon.",
+        ];
+        let event_result = run(request(
+            &event_lines,
+            vec![
+                vec3(0., 0., 1.),
+                vec3(0., 1., 0.),
+                vec3(1., 0., 0.),
+                vec3(0.99, 0.01, 0.),
+                vec3(0., 0., 1.),
+            ],
+            Options {
+                min_heavy: 2,
+                max_heavy: 2,
+                top_fraction: Some(0.4),
+                ..Options::default()
+            },
+        ))
+        .unwrap();
+        assert!(event_result.heavy_sentences.iter().any(|sentence| {
+            sentence.text == "Then the CEO announced that 20,000 employees would be laid off."
+        }));
+        assert!(event_result.ranked.iter().any(|sentence| {
+            sentence.text == "The announcement shocked investors." && sentence.importance >= 0.9
+        }));
     }
 
     #[test]
@@ -1085,6 +1275,37 @@ mod tests {
                 .count(),
             1
         );
+
+        let paraphrases = [
+            "Apple reported record revenue.",
+            "Apple posted record revenue.",
+            "Apple announced record sales.",
+            "Sales increased strongly.",
+        ];
+        let semantic_duplicates = run(request(
+            &paraphrases,
+            vec![
+                vec3(1., 0., 0.),
+                vec3(1., 0., 0.),
+                vec3(1., 0., 0.),
+                vec3(0., 1., 0.),
+            ],
+            Options {
+                min_heavy: 1,
+                max_heavy: 4,
+                top_fraction: Some(1.0),
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+        assert!(
+            semantic_duplicates
+                .heavy_sentences
+                .iter()
+                .filter(|sentence| paraphrases[..3].contains(&sentence.text.as_str()))
+                .count()
+                <= 1
+        );
     }
 
     #[test]
@@ -1128,6 +1349,20 @@ mod tests {
             .bullet_points
             .iter()
             .all(|bullet| lines.contains(&bullet.text.as_str())));
+        let importance_by_index: Vec<f64> = (0..lines.len())
+            .map(|index| {
+                result
+                    .ranked
+                    .iter()
+                    .find(|sentence| sentence.index == index)
+                    .unwrap()
+                    .importance
+            })
+            .collect();
+        assert!(result.bullet_points.windows(2).all(|pair| {
+            importance_by_index[pair[0].sentence_index]
+                >= importance_by_index[pair[1].sentence_index]
+        }));
         let polarity = ["The company did not declare bankruptcy."];
         let result = run(request(
             &polarity,
@@ -1141,6 +1376,38 @@ mod tests {
         ))
         .unwrap();
         assert!(result.summary.contains("did not declare bankruptcy"));
+    }
+
+    #[test]
+    fn extractive_summary_keeps_entity_associations_and_sentence_polarity() {
+        let lines = [
+            "Elon Musk discussed Tesla during the interview.",
+            "Tim Cook discussed Apple during the interview.",
+            "The company did not declare bankruptcy.",
+        ];
+        let result = run(request(
+            &lines,
+            orthogonal_embeddings(lines.len()),
+            Options {
+                summary_length: SummaryLength::Short,
+                min_heavy: 1,
+                max_heavy: 3,
+                bullet_count: 3,
+                ..Options::default()
+            },
+        ))
+        .unwrap();
+        assert!(result
+            .summary
+            .split_inclusive('.')
+            .all(|sentence| lines.contains(&sentence.trim())));
+        assert!(result.summary.contains("Elon Musk discussed Tesla"));
+        assert!(result.summary.contains("Tim Cook discussed Apple"));
+        assert!(result.summary.contains("did not declare bankruptcy"));
+        assert!(result
+            .bullet_points
+            .iter()
+            .all(|bullet| lines.contains(&bullet.text.as_str())));
     }
 
     #[test]
@@ -1231,6 +1498,192 @@ mod tests {
 
         let invalid = request(&lines, vec![vec3(0., 0., 0.); 4], Options::default());
         assert!(run(invalid).unwrap_err().contains("zero norm"));
+
+        let invalid_cases = [
+            (
+                Request {
+                    transcript: "Sentence one. Sentence two.".into(),
+                    language: "en".into(),
+                    embeddings: vec![vec3(1., 0., 0.)],
+                    timings: Vec::new(),
+                    options: Options::default(),
+                    embedding_ms: 0.0,
+                },
+                "embedding count",
+            ),
+            (
+                Request {
+                    transcript: "Sentence one.".into(),
+                    language: "en".into(),
+                    embeddings: vec![vec3(f32::NAN, 0., 0.)],
+                    timings: Vec::new(),
+                    options: Options::default(),
+                    embedding_ms: 0.0,
+                },
+                "non-finite",
+            ),
+            (
+                Request {
+                    transcript: "Sentence one.".into(),
+                    language: "en".into(),
+                    embeddings: vec![vec3(1., 0., 0.)],
+                    timings: vec![Timing {
+                        start_us: 2_000_000,
+                        end_us: 1_000_000,
+                    }],
+                    options: Options::default(),
+                    embedding_ms: 0.0,
+                },
+                "invalid/nonchronological",
+            ),
+            (
+                Request {
+                    transcript: "Sentence one.".into(),
+                    language: "en".into(),
+                    embeddings: vec![vec3(1., 0., 0.)],
+                    timings: Vec::new(),
+                    options: Options {
+                        top_fraction: Some(1.1),
+                        ..Options::default()
+                    },
+                    embedding_ms: 0.0,
+                },
+                "top_fraction",
+            ),
+        ];
+        for (invalid, expected_error) in invalid_cases {
+            assert!(
+                run(invalid).unwrap_err().contains(expected_error),
+                "expected validation error containing {expected_error}"
+            );
+        }
+    }
+
+    #[test]
+    fn heavy_selection_obeys_fraction_and_minimum_maximum_for_transcript_sizes() {
+        for (count, expected) in [(10, 3), (25, 4), (50, 7), (100, 13), (200, 15)] {
+            let lines = labeled_test_sentences(count);
+            let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
+            let result = run(request(
+                &borrowed,
+                orthogonal_embeddings(count),
+                Options {
+                    min_heavy: 3,
+                    max_heavy: 15,
+                    top_fraction: Some(0.125),
+                    ..Options::default()
+                },
+            ))
+            .unwrap();
+            assert_eq!(
+                result.heavy_sentences.len(),
+                expected,
+                "unexpected selection count for {count} sentences"
+            );
+            assert!(result.heavy_sentences.len() <= 15);
+            assert!(result
+                .heavy_sentences
+                .windows(2)
+                .all(|pair| pair[0].importance >= pair[1].importance));
+        }
+    }
+
+    #[test]
+    fn one_thousand_word_transcript_produces_stable_summary_bullets_and_top_ten() {
+        let sentences: Vec<String> = (0..50)
+            .map(|index| {
+                format!("Sentence {index} company announced financial results and increased production across international markets this year during its latest quarterly operating period.")
+            })
+            .collect();
+        assert_eq!(
+            sentences.iter().map(|line| word_count(line)).sum::<usize>(),
+            1_000
+        );
+        let borrowed: Vec<&str> = sentences.iter().map(String::as_str).collect();
+        let input = request(
+            &borrowed,
+            orthogonal_embeddings(sentences.len()),
+            Options {
+                summary_length: SummaryLength::Short,
+                bullet_count: 5,
+                min_heavy: 10,
+                max_heavy: 10,
+                top_fraction: Some(0.1),
+            },
+        );
+        let first = run(input.clone()).unwrap();
+        assert_eq!(first.ranked.len(), 50);
+        assert_eq!(first.heavy_sentences.len(), 10);
+        assert_eq!(first.bullet_points.len(), 5);
+        assert!(!first.summary.is_empty());
+        assert!(first.summary.split_whitespace().count() <= 80);
+        assert!(first
+            .bullet_points
+            .iter()
+            .all(|bullet| sentences.iter().any(|line| line == &bullet.text)));
+        assert!(first.timings.total_ms.is_finite());
+        for _ in 0..9 {
+            let next = run(input.clone()).unwrap();
+            assert_eq!(next.summary, first.summary);
+            assert_eq!(next.ranked, first.ranked);
+            assert_eq!(next.heavy_sentences, first.heavy_sentences);
+            assert_eq!(next.bullet_points, first.bullet_points);
+            assert_eq!(next.timeline, first.timeline);
+            assert!(next.timings.total_ms.is_finite());
+        }
+    }
+
+    #[test]
+    fn bullet_count_modes_return_unique_source_sentences() {
+        let lines = labeled_test_sentences(12);
+        let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
+        for count in [3, 5, 10] {
+            let result = run(request(
+                &borrowed,
+                orthogonal_embeddings(lines.len()),
+                Options {
+                    bullet_count: count,
+                    ..Options::default()
+                },
+            ))
+            .unwrap();
+            assert_eq!(result.bullet_points.len(), count);
+            for (index, bullet) in result.bullet_points.iter().enumerate() {
+                assert!(lines.iter().any(|line| line == &bullet.text));
+                assert!(result.bullet_points[..index]
+                    .iter()
+                    .all(|prior| prior.text != bullet.text));
+            }
+        }
+    }
+
+    #[test]
+    fn summary_length_modes_stay_within_declared_word_bands_when_source_allows() {
+        let lines = labeled_test_sentences(50);
+        let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
+        for (mode, minimum, maximum) in [
+            (SummaryLength::Short, 50, 80),
+            (SummaryLength::Medium, 100, 150),
+            (SummaryLength::Long, 200, 300),
+        ] {
+            let result = run(request(
+                &borrowed,
+                orthogonal_embeddings(lines.len()),
+                Options {
+                    summary_length: mode,
+                    ..Options::default()
+                },
+            ))
+            .unwrap();
+            let words = word_count(&result.summary);
+            assert!(
+                (minimum..=maximum).contains(&words),
+                "summary has {words} words, expected {minimum}..={maximum}"
+            );
+            for sentence in result.summary.split_inclusive('.') {
+                assert!(lines.iter().any(|line| line == sentence.trim()));
+            }
+        }
     }
 
     #[test]
@@ -1265,6 +1718,7 @@ mod tests {
         let mut p5_hits = 0;
         let mut p10_hits = 0;
         let mut relevant = 0;
+        let mut very_important = 0;
         let mut r10_hits = 0;
         for case in corpus.cases {
             let vectors = case
@@ -1306,6 +1760,11 @@ mod tests {
             assert_eq!(labels.len(), 12);
             assert!(labels.iter().filter(|&&label| label).count() >= 3);
             relevant += labels.iter().filter(|&&label| label).count();
+            very_important += case
+                .sentences
+                .iter()
+                .filter(|sentence| sentence.label == 2)
+                .count();
             p5_hits += result
                 .ranked
                 .iter()
@@ -1325,6 +1784,7 @@ mod tests {
                 .filter(|sentence| labels[sentence.index])
                 .count();
         }
+        assert!(very_important > 0, "fixture must include label 2");
         let p5 = p5_hits as f64 / (case_count * 5) as f64;
         let p10 = p10_hits as f64 / (case_count * 10) as f64;
         let r10 = r10_hits as f64 / relevant as f64;
