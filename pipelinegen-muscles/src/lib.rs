@@ -25,6 +25,7 @@ mod encoder;
 #[cfg(test)]
 mod golden;
 pub mod phrase_impact;
+pub mod phrase_impact_worker;
 mod probe;
 mod process;
 mod protocol;

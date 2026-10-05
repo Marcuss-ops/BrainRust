@@ -76,6 +76,9 @@ pub struct Request {
     pub options: Options,
     #[serde(default)]
     pub embedding_ms: f64,
+    /// Bypass semantic vectors with a deterministic lexical-content ranking.
+    #[serde(default)]
+    pub lexical_only: bool,
 }
 
 fn default_language() -> String {
@@ -714,8 +717,66 @@ fn extract_summary(
         .join(" ")
 }
 
-/// Pure deterministic transcript processing over caller-supplied vectors.
-/// Output summaries and bullets are extractive to prevent generated unsupported claims.
+/// Creates a deterministic sparse lexical vector for offline ranking.
+/// Hashing bounds memory use regardless of transcript vocabulary size.
+fn lexical_vector(text: &str, language: &str) -> Vec<f64> {
+    const DIMENSIONS: usize = 512;
+    let stopwords = match language
+        .split('-')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "it" => [
+            "il", "lo", "la", "i", "gli", "le", "di", "a", "da", "in", "con", "su", "per", "tra",
+            "e", "o", "un", "una", "che", "è",
+        ]
+        .as_slice(),
+        "es" => [
+            "el", "la", "los", "las", "de", "a", "en", "con", "y", "o", "un", "una", "que", "es",
+        ]
+        .as_slice(),
+        "fr" => [
+            "le", "la", "les", "de", "des", "du", "à", "en", "et", "ou", "un", "une", "que", "est",
+        ]
+        .as_slice(),
+        _ => [
+            "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with", "is", "are",
+            "was", "were", "that", "this", "it",
+        ]
+        .as_slice(),
+    };
+    let mut vector = vec![0.0; DIMENSIONS];
+    for token in text
+        .split(|ch: char| !ch.is_alphanumeric())
+        .filter(|token| token.chars().count() > 1)
+    {
+        if stopwords
+            .iter()
+            .any(|word| token.eq_ignore_ascii_case(word))
+        {
+            continue;
+        }
+        let mut hash = 2_166_136_261_u32;
+        for byte in token.to_lowercase().bytes() {
+            hash ^= byte as u32;
+            hash = hash.wrapping_mul(16_777_619);
+        }
+        vector[hash as usize % DIMENSIONS] += 1.0;
+    }
+    let norm = vector.iter().map(|value| value * value).sum::<f64>().sqrt();
+    if norm > f64::EPSILON {
+        for value in &mut vector {
+            *value /= norm;
+        }
+    }
+    vector
+}
+
+/// Pure deterministic transcript processing over caller-provided vectors or
+/// the built-in bounded lexical vectors when lexical_only is explicitly true.
+/// Output summaries and bullets are extractive to prevent unsupported claims.
 pub fn run(request: Request) -> Result<ResultDocument, String> {
     let total = Instant::now();
     if request.transcript.trim().is_empty() {
@@ -737,7 +798,11 @@ pub fn run(request: Request) -> Result<ResultDocument, String> {
     if segments.is_empty() {
         return Err("sentence splitter returned no sentences".into());
     }
-    if request.embeddings.len() != segments.len() {
+    if request.lexical_only {
+        if !request.embeddings.is_empty() {
+            return Err("lexical_only cannot be combined with embeddings".into());
+        }
+    } else if request.embeddings.len() != segments.len() {
         return Err(format!(
             "embedding count {} does not match sentence count {}",
             request.embeddings.len(),
@@ -758,28 +823,39 @@ pub fn run(request: Request) -> Result<ResultDocument, String> {
         previous_start = timing.start_us;
     }
     let similarity_start = Instant::now();
-    let dimension = request.embeddings.first().map(Vec::len).unwrap_or(0);
-    if dimension == 0 {
-        return Err("embedding dimension is zero".into());
-    }
-    let mut vectors = Vec::with_capacity(request.embeddings.len());
-    for (index, row) in request.embeddings.iter().enumerate() {
-        if row.len() != dimension {
-            return Err(format!("embedding {index} dimension mismatch"));
+    let vectors = if request.lexical_only {
+        if !request.embeddings.is_empty() {
+            return Err("lexical_only cannot be combined with embeddings".into());
         }
-        if row.iter().any(|value| !value.is_finite()) {
-            return Err(format!("embedding {index} is non-finite"));
+        segments
+            .iter()
+            .map(|segment| lexical_vector(&segment.text, &request.language))
+            .collect()
+    } else {
+        let dimension = request.embeddings.first().map(Vec::len).unwrap_or(0);
+        if dimension == 0 {
+            return Err("embedding dimension is zero".into());
         }
-        let mut vector: Vec<f64> = row.iter().map(|value| *value as f64).collect();
-        let norm = vector.iter().map(|value| value * value).sum::<f64>().sqrt();
-        if norm <= f64::EPSILON {
-            return Err(format!("embedding {index} has zero norm"));
+        let mut vectors = Vec::with_capacity(request.embeddings.len());
+        for (index, row) in request.embeddings.iter().enumerate() {
+            if row.len() != dimension {
+                return Err(format!("embedding {index} dimension mismatch"));
+            }
+            if row.iter().any(|value| !value.is_finite()) {
+                return Err(format!("embedding {index} is non-finite"));
+            }
+            let mut vector: Vec<f64> = row.iter().map(|value| *value as f64).collect();
+            let norm = vector.iter().map(|value| value * value).sum::<f64>().sqrt();
+            if norm <= f64::EPSILON {
+                return Err(format!("embedding {index} has zero norm"));
+            }
+            for value in &mut vector {
+                *value /= norm;
+            }
+            vectors.push(vector);
         }
-        for value in &mut vector {
-            *value /= norm;
-        }
-        vectors.push(vector);
-    }
+        vectors
+    };
     let n = segments.len();
     let similarities = cosine_matrix(&vectors);
     let mut raw_novelty = vec![0.0; n];
@@ -896,6 +972,7 @@ mod tests {
             timings: Vec::new(),
             options,
             embedding_ms: 0.0,
+            lexical_only: false,
         }
     }
 
@@ -1011,6 +1088,7 @@ mod tests {
                 ..Options::default()
             },
             embedding_ms: 0.0,
+            lexical_only: false,
         })
         .unwrap();
         assert_eq!(result.heavy_sentences[0].text, transcript);
@@ -1079,6 +1157,7 @@ mod tests {
                     ..Options::default()
                 },
                 embedding_ms: 0.0,
+                lexical_only: false,
             })
             .unwrap();
             assert_eq!(result.ranked.len(), 2, "language: {language}");
@@ -1441,6 +1520,7 @@ mod tests {
                 ..Default::default()
             },
             embedding_ms: 5.0,
+            lexical_only: false,
         })
         .unwrap();
         assert_eq!(result.ranked[0].index, 1);
@@ -1508,6 +1588,7 @@ mod tests {
                     timings: Vec::new(),
                     options: Options::default(),
                     embedding_ms: 0.0,
+                    lexical_only: false,
                 },
                 "embedding count",
             ),
@@ -1519,6 +1600,7 @@ mod tests {
                     timings: Vec::new(),
                     options: Options::default(),
                     embedding_ms: 0.0,
+                    lexical_only: false,
                 },
                 "non-finite",
             ),
@@ -1533,6 +1615,7 @@ mod tests {
                     }],
                     options: Options::default(),
                     embedding_ms: 0.0,
+                    lexical_only: false,
                 },
                 "invalid/nonchronological",
             ),
@@ -1547,6 +1630,7 @@ mod tests {
                         ..Options::default()
                     },
                     embedding_ms: 0.0,
+                    lexical_only: false,
                 },
                 "top_fraction",
             ),
@@ -1747,6 +1831,7 @@ mod tests {
                     ..Default::default()
                 },
                 embedding_ms: 0.0,
+                lexical_only: false,
             })
             .unwrap();
             let labels: Vec<bool> = case
