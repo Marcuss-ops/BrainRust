@@ -134,6 +134,13 @@ fn classify_type(text: &str) -> String {
     ) {
         return "WORK".to_string();
     }
+    // Recognize single-token people explicitly. Without contextual NER, a
+    // generic capitalization rule would mistake sentence-initial nouns for
+    // people, so keep this deterministic list limited to the Brazil 1970
+    // player names used by the entity-caption pipeline.
+    if matches!(lower.as_str(), "pelé" | "pele" | "gérson" | "gerson" | "jairzinho") {
+        return "PERSON".to_string();
+    }
     if lower == "iphone" || lower.contains("smartphone") {
         return "PRODUCT".to_string();
     }
