@@ -322,11 +322,14 @@ fn is_dotted_initialism(chars: &[(usize, char)], period: usize, following: usize
     if period >= 2
         && chars[period - 1].1.is_ascii_uppercase()
         && chars[period - 2].1.is_ascii_uppercase()
-        && chars.get(following).is_some_and(|(_, value)| value.is_ascii_lowercase())
+        && chars
+            .get(following)
+            .is_some_and(|(_, value)| value.is_ascii_lowercase())
     {
         let mut cursor = period - 1;
         let mut capitals = 1;
-        while cursor >= 2 && chars[cursor - 1].1 == '.' && chars[cursor - 2].1.is_ascii_uppercase() {
+        while cursor >= 2 && chars[cursor - 1].1 == '.' && chars[cursor - 2].1.is_ascii_uppercase()
+        {
             capitals += 1;
             cursor -= 2;
         }
@@ -337,10 +340,14 @@ fn is_dotted_initialism(chars: &[(usize, char)], period: usize, following: usize
     if period == 0 || !chars[period - 1].1.is_ascii_uppercase() {
         return false;
     }
-    if chars.get(following).is_some_and(|(_, value)| value.is_ascii_lowercase()) {
+    if chars
+        .get(following)
+        .is_some_and(|(_, value)| value.is_ascii_lowercase())
+    {
         let mut cursor = period - 1;
         let mut capitals = 1;
-        while cursor >= 2 && chars[cursor - 1].1 == '.' && chars[cursor - 2].1.is_ascii_uppercase() {
+        while cursor >= 2 && chars[cursor - 1].1 == '.' && chars[cursor - 2].1.is_ascii_uppercase()
+        {
             capitals += 1;
             cursor -= 2;
         }
@@ -358,7 +365,9 @@ fn is_dotted_initialism(chars: &[(usize, char)], period: usize, following: usize
         .position(|(_, value)| !value.is_ascii_alphabetic())
         .map_or(chars.len(), |relative| following + relative);
     let next_is_initial = next_token_end == following + 1
-        && chars.get(next_token_end).is_some_and(|(_, value)| *value == '.');
+        && chars
+            .get(next_token_end)
+            .is_some_and(|(_, value)| *value == '.');
     if !next_is_initial && next_token_end <= following + 1 {
         return false;
     }
@@ -1146,7 +1155,10 @@ mod tests {
     fn synthetic_transcript_preserves_long_sentences_abbreviations_and_utf8_offsets() {
         let transcript = include_str!("../fixtures/elon_musk_synthetic_transcript_it.txt");
         let segments = split_sentences(transcript, "it");
-        let segment_texts: Vec<&str> = segments.iter().map(|segment| segment.text.as_str()).collect();
+        let segment_texts: Vec<&str> = segments
+            .iter()
+            .map(|segment| segment.text.as_str())
+            .collect();
         for expected in [
             "Il secondo punto chiave fu l'annuncio sintetico secondo cui Tesla Energy stava valutando, sempre in questo scenario inventato, un investimento da €750 milioni in un impianto di accumulo vicino a Berlino con una decisione finale prevista per il 2 aprile 2026.",
             "Il settimo punto ad alta importanza dichiarò che Tesla non avrebbe annunciato licenziamenti durante l'evento sintetico e che, al contrario, il piano operativo ipotizzava 1,500 nuove assunzioni tecniche tra Texas e Germania entro diciotto mesi.",
@@ -1161,9 +1173,14 @@ mod tests {
             assert!(segment.end_byte <= transcript.len());
             assert!(transcript.is_char_boundary(segment.start_byte));
             assert!(transcript.is_char_boundary(segment.end_byte));
-            assert_eq!(&transcript[segment.start_byte..segment.end_byte], segment.text);
+            assert_eq!(
+                &transcript[segment.start_byte..segment.end_byte],
+                segment.text
+            );
         }
-        assert!(segments.iter().all(|segment| word_count(&segment.text) <= MAX_SEGMENT_WORDS));
+        assert!(segments
+            .iter()
+            .all(|segment| word_count(&segment.text) <= MAX_SEGMENT_WORDS));
     }
 
     fn is_extractive(summary: &str, segments: &[Segment]) -> bool {
@@ -1198,7 +1215,10 @@ mod tests {
         }
 
         let transcript = include_str!("../fixtures/elon_musk_synthetic_transcript_it.txt");
-        let truth: GroundTruth = serde_json::from_str(include_str!("../fixtures/elon_musk_synthetic_ground_truth.json")).unwrap();
+        let truth: GroundTruth = serde_json::from_str(include_str!(
+            "../fixtures/elon_musk_synthetic_ground_truth.json"
+        ))
+        .unwrap();
         let result = run(Request {
             transcript: transcript.to_string(),
             language: "it".into(),
@@ -1215,34 +1235,83 @@ mod tests {
             lexical_only: true,
         })
         .unwrap();
-        assert!(truth.sentences.iter().all(|sentence| matches!(sentence.label.as_str(), "heavy" | "trap")));
+        assert!(truth
+            .sentences
+            .iter()
+            .all(|sentence| matches!(sentence.label.as_str(), "heavy" | "trap")));
         let segments = split_sentences(transcript, "it");
-        let segment_texts: std::collections::HashSet<&str> = segments.iter().map(|segment| segment.text.as_str()).collect();
+        let segment_texts: std::collections::HashSet<&str> = segments
+            .iter()
+            .map(|segment| segment.text.as_str())
+            .collect();
         for sentence in &truth.sentences {
-            assert!(segment_texts.contains(sentence.text.as_str()), "fixture sentence {} not found in source split", sentence.id);
+            assert!(
+                segment_texts.contains(sentence.text.as_str()),
+                "fixture sentence {} not found in source split",
+                sentence.id
+            );
         }
-        let heavy_count = truth.sentences.iter().filter(|sentence| sentence.label == "heavy").count();
+        let heavy_count = truth
+            .sentences
+            .iter()
+            .filter(|sentence| sentence.label == "heavy")
+            .count();
         assert_eq!(heavy_count, 9);
-        let id_by_text: std::collections::HashMap<&str, &str> = truth.sentences.iter().map(|sentence| (sentence.text.as_str(), sentence.id.as_str())).collect();
-        let heavy_ids: std::collections::HashSet<&str> = truth.sentences.iter().filter(|sentence| sentence.label == "heavy").map(|sentence| sentence.id.as_str()).collect();
+        let id_by_text: std::collections::HashMap<&str, &str> = truth
+            .sentences
+            .iter()
+            .map(|sentence| (sentence.text.as_str(), sentence.id.as_str()))
+            .collect();
+        let heavy_ids: std::collections::HashSet<&str> = truth
+            .sentences
+            .iter()
+            .filter(|sentence| sentence.label == "heavy")
+            .map(|sentence| sentence.id.as_str())
+            .collect();
         let mut ranking_metrics = Vec::new();
         for cutoff in [5, 10] {
             let top = result.ranked.iter().take(cutoff).collect::<Vec<_>>();
-            let hits = top.iter().filter(|sentence| id_by_text.get(sentence.text.as_str()).is_some_and(|id| heavy_ids.contains(id))).count();
+            let hits = top
+                .iter()
+                .filter(|sentence| {
+                    id_by_text
+                        .get(sentence.text.as_str())
+                        .is_some_and(|id| heavy_ids.contains(id))
+                })
+                .count();
             let precision = hits as f64 / top.len() as f64;
             assert!(precision.is_finite() && (0.0..=1.0).contains(&precision));
             ranking_metrics.push((cutoff, precision));
         }
         assert_eq!(ranking_metrics.len(), 2);
-        let negation = truth.sentences.iter().find_map(|sentence| sentence.must_preserve_negation.as_deref()).unwrap();
+        let negation = truth
+            .sentences
+            .iter()
+            .find_map(|sentence| sentence.must_preserve_negation.as_deref())
+            .unwrap();
         let summary_contains_claim = result.summary.to_lowercase().contains("licenziamenti");
-        let summary_preserves_negation = result.summary.to_lowercase().contains(&negation.to_lowercase());
+        let summary_preserves_negation = result
+            .summary
+            .to_lowercase()
+            .contains(&negation.to_lowercase());
         if summary_contains_claim {
-            assert!(summary_preserves_negation, "summary mentioned layoffs but dropped negation: {}", result.summary);
+            assert!(
+                summary_preserves_negation,
+                "summary mentioned layoffs but dropped negation: {}",
+                result.summary
+            );
         }
-        assert!(is_extractive(&result.summary, &segments), "summary must only contain complete source sentences: {}", result.summary);
+        assert!(
+            is_extractive(&result.summary, &segments),
+            "summary must only contain complete source sentences: {}",
+            result.summary
+        );
         for bullet in &result.bullet_points {
-            assert!(segments.iter().any(|segment| segment.text == bullet.text), "bullet must be a source sentence: {}", bullet.text);
+            assert!(
+                segments.iter().any(|segment| segment.text == bullet.text),
+                "bullet must be a source sentence: {}",
+                bullet.text
+            );
         }
     }
 
