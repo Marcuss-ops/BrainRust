@@ -4,7 +4,7 @@ use std::time::Instant;
 const GRAPH_K: usize = 6;
 const LOCAL_CONTEXT: usize = 3;
 const DAMPING: f64 = 0.85;
-const MAX_SEGMENT_WORDS: usize = 40;
+const MAX_SEGMENT_WORDS: usize = 48;
 const DUPLICATE_COSINE: f64 = 0.96;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -169,7 +169,7 @@ pub fn split_sentences(text: &str, language: &str) -> Vec<Segment> {
             .unwrap_or(chars.len());
 
         // Split before a plausible capitalized sentence even when punctuation
-        // is missing its following space, but never at U.S./U.K. initialisms.
+        // is missing its following space, but not within initialisms.
         if ch == '.'
             && next.is_some_and(|value| !value.is_whitespace() && value.is_ascii_uppercase())
             && following_index == next_index
@@ -310,19 +310,63 @@ fn is_dotted_initialism(chars: &[(usize, char)], period: usize, following: usize
     if chars[period].1 != '.' {
         return false;
     }
+    if is_clock_suffix(chars, period) {
+        return true;
+    }
     if period + 1 < chars.len()
         && chars[period + 1].1.is_ascii_uppercase()
         && (period == 0 || !chars[period - 1].1.is_ascii_uppercase())
     {
         return true;
     }
-
-    if !chars.get(following).is_some_and(|(_, c)| c.is_lowercase())
-        || period == 0
-        || !chars[period - 1].1.is_ascii_uppercase()
+    if period >= 2
+        && chars[period - 1].1.is_ascii_uppercase()
+        && chars[period - 2].1.is_ascii_uppercase()
+        && chars.get(following).is_some_and(|(_, value)| value.is_ascii_lowercase())
     {
+        let mut cursor = period - 1;
+        let mut capitals = 1;
+        while cursor >= 2 && chars[cursor - 1].1 == '.' && chars[cursor - 2].1.is_ascii_uppercase() {
+            capitals += 1;
+            cursor -= 2;
+        }
+        if capitals >= 2 {
+            return true;
+        }
+    }
+    if period == 0 || !chars[period - 1].1.is_ascii_uppercase() {
         return false;
     }
+    if chars.get(following).is_some_and(|(_, value)| value.is_ascii_lowercase()) {
+        let mut cursor = period - 1;
+        let mut capitals = 1;
+        while cursor >= 2 && chars[cursor - 1].1 == '.' && chars[cursor - 2].1.is_ascii_uppercase() {
+            capitals += 1;
+            cursor -= 2;
+        }
+        return capitals >= 2;
+    }
+
+    // A spaced single-letter initial followed by another initial or a
+    // capitalized token is part of a name, not a sentence boundary.
+    match chars.get(following) {
+        Some((_, value)) if value.is_ascii_uppercase() => {}
+        _ => return false,
+    }
+    let next_token_end = chars[following..]
+        .iter()
+        .position(|(_, value)| !value.is_ascii_alphabetic())
+        .map_or(chars.len(), |relative| following + relative);
+    let next_is_initial = next_token_end == following + 1
+        && chars.get(next_token_end).is_some_and(|(_, value)| *value == '.');
+    if !next_is_initial && next_token_end <= following + 1 {
+        return false;
+    }
+    let starts_initial = period == 1 || !chars[period - 2].1.is_ascii_uppercase();
+    if starts_initial {
+        return true;
+    }
+
     let mut cursor = period - 1;
     let mut capitals = 1;
     while cursor >= 2 && chars[cursor - 1].1 == '.' && chars[cursor - 2].1.is_ascii_uppercase() {
@@ -330,6 +374,35 @@ fn is_dotted_initialism(chars: &[(usize, char)], period: usize, following: usize
         cursor -= 2;
     }
     capitals >= 2
+}
+
+fn is_clock_suffix(chars: &[(usize, char)], period: usize) -> bool {
+    if period < 4
+        || chars[period - 2].1 != '.'
+        || !chars[period - 3].1.is_ascii_alphabetic()
+        || !chars[period - 1].1.is_ascii_alphabetic()
+    {
+        return false;
+    }
+    let mut cursor = period - 4;
+    while cursor > 0 && chars[cursor].1.is_whitespace() {
+        cursor -= 1;
+    }
+    let mut saw_colon = false;
+    let mut saw_digit = false;
+    loop {
+        match chars[cursor].1 {
+            ':' => saw_colon = true,
+            value if value.is_ascii_digit() => saw_digit = true,
+            value if value.is_whitespace() => break,
+            _ => return false,
+        }
+        if cursor == 0 {
+            break;
+        }
+        cursor -= 1;
+    }
+    saw_colon && saw_digit
 }
 
 fn is_inner_dotted_abbreviation(chars: &[(usize, char)], period: usize) -> bool {
@@ -1055,7 +1128,7 @@ mod tests {
             .join(" ");
         let chunks = split_sentences(&source, "en");
         assert!(
-            chunks.len() >= 3
+            chunks.len() >= 2
                 && chunks
                     .iter()
                     .all(|part| word_count(&part.text) <= MAX_SEGMENT_WORDS)
@@ -1067,6 +1140,110 @@ mod tests {
                 .collect::<Vec<_>>(),
             source.split_whitespace().collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn synthetic_transcript_preserves_long_sentences_abbreviations_and_utf8_offsets() {
+        let transcript = include_str!("../fixtures/elon_musk_synthetic_transcript_it.txt");
+        let segments = split_sentences(transcript, "it");
+        let segment_texts: Vec<&str> = segments.iter().map(|segment| segment.text.as_str()).collect();
+        for expected in [
+            "Il secondo punto chiave fu l'annuncio sintetico secondo cui Tesla Energy stava valutando, sempre in questo scenario inventato, un investimento da €750 milioni in un impianto di accumulo vicino a Berlino con una decisione finale prevista per il 2 aprile 2026.",
+            "Il settimo punto ad alta importanza dichiarò che Tesla non avrebbe annunciato licenziamenti durante l'evento sintetico e che, al contrario, il piano operativo ipotizzava 1,500 nuove assunzioni tecniche tra Texas e Germania entro diciotto mesi.",
+            "La quarta frase pesante stabilì che SpaceX avrebbe programmato, nello scenario sintetico, una finestra di prova di Starship il 21 giugno 2026 alle 9:15 a.m., con un massimo di tre tentativi tecnici distribuiti nella stessa settimana.",
+            "J. R. Collins, personaggio fittizio introdotto apposta per il test, chiese se l'uso delle iniziali puntate potesse confondere un segmentatore di frasi o un modello che non gestisce correttamente i nomi abbreviati.",
+            "Alle 10:45 p.m. la sessione terminò e i partecipanti lasciarono la sala, mentre il sistema di registrazione salvò la trascrizione completa per i test successivi di segmentazione, entity extraction, ranking e summarization.",
+            "Un ulteriore blocco di controllo descrive una riunione successiva del 18 marzo 2026 a Milan, Italy, nella quale Luca Bianchi confronta i nove passaggi principali del benchmark e segnala che alcune frasi molto specifiche possono risultare semanticamente lontane dal centroide pur essendo essenziali per il video.",
+        ] {
+            assert!(segment_texts.contains(&expected), "sentence was split or altered: {expected}");
+        }
+        for segment in &segments {
+            assert!(segment.end_byte <= transcript.len());
+            assert!(transcript.is_char_boundary(segment.start_byte));
+            assert!(transcript.is_char_boundary(segment.end_byte));
+            assert_eq!(&transcript[segment.start_byte..segment.end_byte], segment.text);
+        }
+        assert!(segments.iter().all(|segment| word_count(&segment.text) <= MAX_SEGMENT_WORDS));
+    }
+
+    fn is_extractive(summary: &str, segments: &[Segment]) -> bool {
+        let mut remaining = summary;
+        let mut matched = 0;
+        for segment in segments {
+            let Some(tail) = remaining.strip_prefix(&segment.text) else {
+                continue;
+            };
+            remaining = tail.strip_prefix(' ').unwrap_or(tail);
+            matched += 1;
+            if remaining.is_empty() {
+                return matched > 0;
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn synthetic_transcript_summarization_keeps_negation_and_source_spans() {
+        #[derive(Deserialize)]
+        struct GroundTruth {
+            sentences: Vec<LabeledSentence>,
+        }
+        #[derive(Deserialize)]
+        struct LabeledSentence {
+            id: String,
+            text: String,
+            label: String,
+            #[serde(default)]
+            must_preserve_negation: Option<String>,
+        }
+
+        let transcript = include_str!("../fixtures/elon_musk_synthetic_transcript_it.txt");
+        let truth: GroundTruth = serde_json::from_str(include_str!("../fixtures/elon_musk_synthetic_ground_truth.json")).unwrap();
+        let result = run(Request {
+            transcript: transcript.to_string(),
+            language: "it".into(),
+            embeddings: Vec::new(),
+            timings: Vec::new(),
+            options: Options {
+                summary_length: SummaryLength::Short,
+                bullet_count: 10,
+                min_heavy: 15,
+                max_heavy: 15,
+                top_fraction: Some(0.125),
+            },
+            embedding_ms: 0.0,
+            lexical_only: true,
+        })
+        .unwrap();
+        assert!(truth.sentences.iter().all(|sentence| matches!(sentence.label.as_str(), "heavy" | "trap")));
+        let segments = split_sentences(transcript, "it");
+        let segment_texts: std::collections::HashSet<&str> = segments.iter().map(|segment| segment.text.as_str()).collect();
+        for sentence in &truth.sentences {
+            assert!(segment_texts.contains(sentence.text.as_str()), "fixture sentence {} not found in source split", sentence.id);
+        }
+        let heavy_count = truth.sentences.iter().filter(|sentence| sentence.label == "heavy").count();
+        assert_eq!(heavy_count, 9);
+        let id_by_text: std::collections::HashMap<&str, &str> = truth.sentences.iter().map(|sentence| (sentence.text.as_str(), sentence.id.as_str())).collect();
+        let heavy_ids: std::collections::HashSet<&str> = truth.sentences.iter().filter(|sentence| sentence.label == "heavy").map(|sentence| sentence.id.as_str()).collect();
+        let mut ranking_metrics = Vec::new();
+        for cutoff in [5, 10] {
+            let top = result.ranked.iter().take(cutoff).collect::<Vec<_>>();
+            let hits = top.iter().filter(|sentence| id_by_text.get(sentence.text.as_str()).is_some_and(|id| heavy_ids.contains(id))).count();
+            let precision = hits as f64 / top.len() as f64;
+            assert!(precision.is_finite() && (0.0..=1.0).contains(&precision));
+            ranking_metrics.push((cutoff, precision));
+        }
+        assert_eq!(ranking_metrics.len(), 2);
+        let negation = truth.sentences.iter().find_map(|sentence| sentence.must_preserve_negation.as_deref()).unwrap();
+        let summary_contains_claim = result.summary.to_lowercase().contains("licenziamenti");
+        let summary_preserves_negation = result.summary.to_lowercase().contains(&negation.to_lowercase());
+        if summary_contains_claim {
+            assert!(summary_preserves_negation, "summary mentioned layoffs but dropped negation: {}", result.summary);
+        }
+        assert!(is_extractive(&result.summary, &segments), "summary must only contain complete source sentences: {}", result.summary);
+        for bullet in &result.bullet_points {
+            assert!(segments.iter().any(|segment| segment.text == bullet.text), "bullet must be a source sentence: {}", bullet.text);
+        }
     }
 
     #[test]

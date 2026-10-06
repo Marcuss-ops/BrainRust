@@ -1,0 +1,25 @@
+{
+  "dataset_type": "synthetic_developer_authored_not_human_evaluation",
+  "source": "elon_musk_synthetic_transcript_it.txt",
+  "label_semantics": "sentence labels are copied from the synthetic fixture author; entity labels are manually curated regression checks and are not independently adjudicated NER gold",
+  "heavy_sentence_ids": ["S006", "S011", "S017", "S023", "S029", "S035", "S041", "S047", "S052"],
+  "sentences": [
+    {"id":"S006","text":"La prima frase davvero importante arrivò quando Elon Musk dichiarò, nel contesto fittizio di questo benchmark, che Tesla avrebbe puntato ad aumentare del 17.5% la capacità produttiva del sito di Austin entro il 2027 senza costruire una seconda linea completa.","label":"heavy"},
+    {"id":"S011","text":"Il secondo punto chiave fu l'annuncio sintetico secondo cui Tesla Energy stava valutando, sempre in questo scenario inventato, un investimento da €750 milioni in un impianto di accumulo vicino a Berlino con una decisione finale prevista per il 2 aprile 2026.","label":"heavy","entities":[["Tesla Energy","ORG"],["€750 milioni","MONEY"],["Berlino","GPE"],["2 aprile 2026","DATE"]]},
+    {"id":"S017","text":"Il terzo momento ad alta importanza arrivò quando Musk disse che un aggiornamento software fittizio per Model Y avrebbe ridotto dell'8% il consumo energetico medio nei test interni, con una distribuzione prevista a partire da maggio 2026.","label":"heavy"},
+    {"id":"S023","text":"La quarta frase pesante stabilì che SpaceX avrebbe programmato, nello scenario sintetico, una finestra di prova di Starship il 21 giugno 2026 alle 9:15 a.m., con un massimo di tre tentativi tecnici distribuiti nella stessa settimana.","label":"heavy"},
+    {"id":"S029","text":"Il quinto punto chiave affermò che xAI avrebbe allocato, nel benchmark inventato, $4.8 billion a un programma triennale di infrastruttura computazionale tra Austin e Memphis, con la prima fase operativa prevista nel Q4 2026.","label":"heavy"},
+    {"id":"S035","text":"Il sesto momento importante fu una frase che indicava, sempre nel test sintetico, che Neuralink avrebbe aperto un centro di ricerca da $120 million a São Paulo, Brazil, nel 2027, impiegando circa 320 persone.","label":"heavy"},
+    {"id":"S041","text":"Il settimo punto ad alta importanza dichiarò che Tesla non avrebbe annunciato licenziamenti durante l'evento sintetico e che, al contrario, il piano operativo ipotizzava 1,500 nuove assunzioni tecniche tra Texas e Germania entro diciotto mesi.","label":"heavy","must_preserve_negation":"non avrebbe annunciato licenziamenti"},
+    {"id":"S047","text":"L'ottavo punto chiave indicò che Tesla avrebbe ridotto del 22% il tempo medio di approvvigionamento per alcuni componenti elettronici entro dicembre 2026, secondo un piano pilota limitato a tre fornitori e due stabilimenti.","label":"heavy"},
+    {"id":"S052","text":"La nona e ultima frase pesante riassunse il quadro operativo fittizio: entro il 2027 i progetti descritti avrebbero coinvolto Austin, Berlino e São Paulo, oltre 1,800 nuove posizioni e investimenti pianificati superiori a $5.6 billion.","label":"heavy"},
+    {"id":"TRAP_99_PENS","text":"Durante quella riunione, Maya Chen osserva che una frase con un numero elevato o con un nome famoso non deve ricevere automaticamente il punteggio massimo: per esempio, la stringa Elon Musk possiede 99 penne blu è intenzionalmente irrilevante anche se contiene PERSON e CARDINAL.","label":"trap"},
+    {"id":"TRAP_PARIS","text":"Per lo stesso motivo, una frase come Paris is a city non dovrebbe superare l'annuncio sull'investimento da €750 milioni soltanto perché contiene un luogo riconoscibile; il ranking deve combinare centralità, novità e contesto invece di premiare in modo meccanico le entità.","label":"trap"}
+  ],
+  "metrics": ["precision_at_5", "precision_at_10", "heavy_recall_at_5", "heavy_recall_at_10", "ndcg_at_5", "ndcg_at_10"],
+  "constraints": {
+    "summary_must_be_extractive": true,
+    "summary_and_bullets_must_not_reverse_negation": true,
+    "offset_unit": "UTF-8 byte offsets"
+  }
+}

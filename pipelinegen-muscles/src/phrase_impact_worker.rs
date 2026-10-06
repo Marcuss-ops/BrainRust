@@ -8,7 +8,7 @@ pub fn process_line(line: &str) -> String {
         Ok(value) if value["operation"] == "split_sentences" => {
             let transcript = value["transcript"].as_str().unwrap_or_default();
             let language = value["language"].as_str().unwrap_or("en");
-            serde_json::json!({"ok": true, "sentences": phrase_impact::split_sentences(transcript, language).iter().map(|sentence| sentence.text.clone()).collect::<Vec<_>>()})
+            serde_json::json!({"ok": true, "sentences": phrase_impact::split_sentences(transcript, language).iter().map(|sentence| serde_json::json!({"text": sentence.text, "start_byte": sentence.start_byte, "end_byte": sentence.end_byte})).collect::<Vec<_>>()})
         }
         Ok(value) => match serde_json::from_value::<Request>(value) {
             Ok(request) => match phrase_impact::run(request) {
@@ -66,10 +66,37 @@ mod tests {
 
     #[test]
     fn splits_sentences_using_the_canonical_rust_boundary() {
+        let transcript = "Il Milan vinse. Poi celebrò!";
         let response: Value = serde_json::from_str(&process_line(
             r#"{"operation":"split_sentences","transcript":"Il Milan vinse. Poi celebrò!","language":"it"}"#,
         )).unwrap();
-        assert_eq!(response["sentences"].as_array().unwrap().len(), 2);
+        let sentences = response["sentences"].as_array().unwrap();
+        assert_eq!(sentences.len(), 2);
+        for sentence in sentences {
+            let start = sentence["start_byte"].as_u64().unwrap() as usize;
+            let end = sentence["end_byte"].as_u64().unwrap() as usize;
+            assert_eq!(&transcript.as_bytes()[start..end], sentence["text"].as_str().unwrap().as_bytes());
+        }
+    }
+
+    #[test]
+    fn exposes_utf8_byte_offsets_for_the_full_synthetic_transcript() {
+        let transcript = include_str!("../fixtures/elon_musk_synthetic_transcript_it.txt");
+        let request = serde_json::json!({
+            "operation": "split_sentences",
+            "transcript": transcript,
+            "language": "it"
+        });
+        let response: Value = serde_json::from_str(&process_line(&request.to_string())).unwrap();
+        let sentences = response["sentences"].as_array().unwrap();
+        assert!(sentences.len() > 50);
+        for sentence in sentences {
+            let start = sentence["start_byte"].as_u64().unwrap() as usize;
+            let end = sentence["end_byte"].as_u64().unwrap() as usize;
+            assert!(transcript.is_char_boundary(start));
+            assert!(transcript.is_char_boundary(end));
+            assert_eq!(&transcript[start..end], sentence["text"].as_str().unwrap());
+        }
     }
 
     #[test]
