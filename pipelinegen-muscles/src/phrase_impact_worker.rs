@@ -75,7 +75,10 @@ mod tests {
         for sentence in sentences {
             let start = sentence["start_byte"].as_u64().unwrap() as usize;
             let end = sentence["end_byte"].as_u64().unwrap() as usize;
-            assert_eq!(&transcript.as_bytes()[start..end], sentence["text"].as_str().unwrap().as_bytes());
+            assert_eq!(
+                &transcript.as_bytes()[start..end],
+                sentence["text"].as_str().unwrap().as_bytes()
+            );
         }
     }
 
