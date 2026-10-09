@@ -10,15 +10,33 @@ pub fn process_line(line: &str) -> String {
             let language = value["language"].as_str().unwrap_or("en");
             serde_json::json!({"ok": true, "sentences": phrase_impact::split_sentences(transcript, language).iter().map(|sentence| serde_json::json!({"text": sentence.text, "start_byte": sentence.start_byte, "end_byte": sentence.end_byte})).collect::<Vec<_>>()})
         }
-        Ok(value) => match serde_json::from_value::<Request>(value) {
-            Ok(request) => match phrase_impact::run(request) {
-                Ok(result) => serde_json::json!({"ok": true, "result": result}),
-                Err(error) => serde_json::json!({"ok": false, "error": error}),
-            },
-            Err(error) => {
-                serde_json::json!({"ok": false, "error": format!("invalid phrase-impact request: {error}")})
+        Ok(value) => {
+            let scenes: Vec<String> =
+                serde_json::from_value(value.get("scenes").cloned().unwrap_or_default())
+                    .unwrap_or_default();
+            let topics: Vec<String> =
+                serde_json::from_value(value.get("scene_topics").cloned().unwrap_or_default())
+                    .unwrap_or_default();
+            let chapter_options = value.get("chapter_options").cloned().and_then(|options| {
+                serde_json::from_value::<phrase_impact::ChapterOptions>(options).ok()
+            });
+            match serde_json::from_value::<Request>(value) {
+                Ok(request) => {
+                    let result = if let Some(options) = chapter_options {
+                        phrase_impact::run_with_chapter_options(request, &scenes, &topics, &options)
+                    } else {
+                        phrase_impact::run_with_scene_context(request, &scenes, &topics)
+                    };
+                    match result {
+                        Ok(result) => serde_json::json!({"ok": true, "result": result}),
+                        Err(error) => serde_json::json!({"ok": false, "error": error}),
+                    }
+                }
+                Err(error) => {
+                    serde_json::json!({"ok": false, "error": format!("invalid phrase-impact request: {error}")})
+                }
             }
-        },
+        }
         Err(error) => {
             serde_json::json!({"ok": false, "error": format!("invalid phrase-impact request JSON: {error}")})
         }

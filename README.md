@@ -73,6 +73,31 @@ used as evidence that human Precision@K targets pass. CPU percentage and RSS
 are emitted by the benchmark only when measurable via Linux `/proc`; embedding
 inference measurements must come from the external caller.
 
+The same analysis emits `chapter_manifest.v1`. The versioned
+`segmentation.v1` profile combines semantic and lexical boundary evidence,
+optional scene-boundary evidence, editor-configured size constraints, and a
+complexity penalty. A global dynamic program selects the partition rather than
+making a local threshold decision. Titles rank source-derived keyphrases and
+brief topics by chapter overlap and token specificity; bullets remain
+contiguous source spans selected using sentence importance and adjacent
+semantic coherence. Every chapter and bullet carries sentence-index provenance.
+Timestamps are emitted only when aligned sentence timings are supplied. The
+profile weights are defaults, not empirically calibrated claims: changing them
+requires a separate annotated development/validation set, with a held-out
+quality evaluation before claiming segmentation quality.
+
+The chapter regression suite includes behavioral and metamorphic checks for
+unrelated topic blocks, repeated and paraphrased topics, scene-boundary
+neutrality, gradual transitions, returning topics, grounded conceptual titles,
+negation-preserving extractive bullets, duplicate reduction, profile bounds,
+cross-language operation, deterministic replay, lexical-only fallback, and
+empty/malformed/short inputs. These tests intentionally assert structural and
+source-grounding properties rather than fixed title strings. They are not a
+replacement for the planned 60/20/20 human-annotated split: no independent
+100-script corpus or held-out human title judgments currently ship with this
+repository, so WindowDiff, Boundary F1, baseline comparisons, and the proposed
+90% title-acceptance target remain unclaimed.
+
 Per-title latency of the production worker (one NDJSON request/response per
 titled narration, measured against `bin/phrase_impact`):
 

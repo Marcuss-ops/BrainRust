@@ -63,6 +63,42 @@ pub struct Timing {
     pub end_us: i64,
 }
 
+/// Versioned editorial profile. Weights are explicit configuration, not
+/// per-transcript decisions; tune them only against a separate annotated set.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(default)]
+pub struct ChapterOptions {
+    pub profile_version: String,
+    pub min_sentences: usize,
+    pub max_sentences: usize,
+    pub min_words: usize,
+    pub context_sentences: usize,
+    pub semantic_weight: f64,
+    pub lexical_weight: f64,
+    pub scene_weight: f64,
+    pub evidence_weight: f64,
+    pub complexity_penalty: f64,
+    pub bullet_count: usize,
+}
+
+impl Default for ChapterOptions {
+    fn default() -> Self {
+        Self {
+            profile_version: "segmentation.v1".into(),
+            min_sentences: 5,
+            max_sentences: 36,
+            min_words: 90,
+            context_sentences: 3,
+            semantic_weight: 1.0,
+            lexical_weight: 1.0,
+            scene_weight: 0.2,
+            evidence_weight: 1.0,
+            complexity_penalty: 1.0,
+            bullet_count: 3,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Request {
     pub transcript: String,
@@ -128,7 +164,37 @@ pub struct ResultDocument {
     pub ranked: Vec<RankedSentence>,
     /// Selected heavy sentences in chronological order.
     pub timeline: Vec<RankedSentence>,
+    pub chapter_manifest: ChapterManifest,
     pub timings: StageTimings,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Chapter {
+    pub title: String,
+    pub title_source: String,
+    /// Inclusive start index into the sentence sequence.
+    pub start_sentence: usize,
+    /// Exclusive end index into the sentence sequence.
+    pub end_sentence: usize,
+    pub start_ms: Option<i64>,
+    pub end_ms: Option<i64>,
+    pub bullets: Vec<ChapterBullet>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ChapterBullet {
+    /// Inclusive start index into the sentence sequence.
+    pub start_sentence: usize,
+    /// Exclusive end index into the sentence sequence.
+    pub end_sentence: usize,
+    /// Exact concatenation of the original contiguous source sentences.
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ChapterManifest {
+    pub schema_version: String,
+    pub chapters: Vec<Chapter>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -856,10 +922,503 @@ fn lexical_vector(text: &str, language: &str) -> Vec<f64> {
     vector
 }
 
-/// Pure deterministic transcript processing over caller-provided vectors or
+#[derive(Clone, Copy, Debug, Default)]
+struct BoundaryEvidence {
+    semantic: f64,
+    lexical: f64,
+    scene: f64,
+}
+
+impl BoundaryEvidence {
+    fn score(self, profile: &ChapterOptions) -> f64 {
+        let weight = profile.semantic_weight + profile.lexical_weight + profile.scene_weight;
+        if weight <= f64::EPSILON {
+            return 0.0;
+        }
+        (self.semantic * profile.semantic_weight
+            + self.lexical * profile.lexical_weight
+            + self.scene * profile.scene_weight)
+            / weight
+    }
+}
+
+fn token_distribution(sentences: &[RankedSentence]) -> std::collections::HashMap<String, f64> {
+    let mut counts = std::collections::HashMap::<String, f64>::new();
+    for sentence in sentences {
+        for token in sentence.text.split(|ch: char| !ch.is_alphanumeric()) {
+            let token = token.to_lowercase();
+            if token.chars().count() > 1 {
+                *counts.entry(token).or_default() += 1.0;
+            }
+        }
+    }
+    let norm = counts
+        .values()
+        .map(|count| count * count)
+        .sum::<f64>()
+        .sqrt();
+    if norm > f64::EPSILON {
+        for count in counts.values_mut() {
+            *count /= norm;
+        }
+    }
+    counts
+}
+
+fn distribution_similarity(
+    left: &std::collections::HashMap<String, f64>,
+    right: &std::collections::HashMap<String, f64>,
+) -> f64 {
+    left.iter()
+        .map(|(token, value)| value * right.get(token).copied().unwrap_or_default())
+        .sum::<f64>()
+        .clamp(0.0, 1.0)
+}
+
+fn boundary_evidence(
+    ranked: &[RankedSentence],
+    vectors: &[Vec<f64>],
+    boundary: usize,
+    scene_starts: &[(usize, usize)],
+    profile: &ChapterOptions,
+) -> BoundaryEvidence {
+    if boundary == 0 || boundary >= ranked.len() {
+        return BoundaryEvidence::default();
+    }
+    let window = profile.context_sentences.max(1);
+    let left_start = boundary.saturating_sub(window);
+    let right_end = (boundary + window).min(ranked.len());
+    let left = left_start..boundary;
+    let right = boundary..right_end;
+    let mut cross = 0.0;
+    let mut cross_count = 0usize;
+    for a in left.clone() {
+        for b in right.clone() {
+            cross += cosine(&vectors[a], &vectors[b]);
+            cross_count += 1;
+        }
+    }
+    let left_tokens = token_distribution(&ranked[left].to_vec());
+    let right_tokens = token_distribution(&ranked[right].to_vec());
+    BoundaryEvidence {
+        semantic: 1.0 - cross / cross_count.max(1) as f64,
+        lexical: 1.0 - distribution_similarity(&left_tokens, &right_tokens),
+        scene: f64::from(scene_starts.iter().any(|(start, _)| *start == boundary)),
+    }
+}
+
+fn chapter_title(
+    text: &str,
+    language: &str,
+    topics: &[String],
+    scene_ids: &[usize],
+) -> (String, String) {
+    let stop: &[&str] = match language.split(['-', '_']).next().unwrap_or("it") {
+        "en" => &[
+            "the", "a", "an", "of", "to", "in", "on", "for", "with", "and", "or", "but", "is",
+            "are", "was", "were", "be", "been", "being", "has", "have", "had", "this", "that",
+            "these", "those", "after", "before", "how", "when", "what",
+        ],
+        "es" => &[
+            "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "a", "en", "con",
+            "por", "para", "y", "o", "pero", "que", "no", "es", "son", "fue", "han", "como",
+            "cuando", "qué",
+        ],
+        "fr" => &[
+            "le", "la", "les", "un", "une", "des", "de", "du", "à", "en", "avec", "pour", "par",
+            "et", "ou", "mais", "que", "ne", "pas", "est", "sont", "été", "comme", "quand",
+            "comment",
+        ],
+        _ => &[
+            "il", "lo", "la", "i", "gli", "le", "un", "una", "uno", "di", "a", "da", "in", "con",
+            "su", "per", "tra", "fra", "e", "o", "ma", "che", "del", "della", "dello", "dei",
+            "degli", "delle", "nel", "nella", "nei", "nelle", "al", "alla", "agli", "alle",
+            "dallo", "dalla", "dai", "dalle", "non", "si", "è", "sono", "ha", "hanno", "era",
+            "erano", "stato", "stata", "stati", "come", "quando", "dopo", "prima", "anche",
+            "questo", "questa", "quello", "quella",
+        ],
+    };
+    let words: Vec<String> = text
+        .split(|c: char| !c.is_alphanumeric())
+        .map(|w| w.to_lowercase())
+        .collect();
+    let is_concept_token = |word: &str| {
+        word.chars().count() > 1
+            && !word.chars().all(char::is_numeric)
+            && !stop.iter().any(|excluded| word == *excluded)
+    };
+    let mut token_frequency = std::collections::HashMap::<String, usize>::new();
+    for word in words.iter().filter(|word| is_concept_token(word)) {
+        *token_frequency.entry(word.clone()).or_default() += 1;
+    }
+    let mut counts = std::collections::HashMap::<String, usize>::new();
+    for n in 2..=4 {
+        for window in words.windows(n) {
+            if window.iter().any(|word| !is_concept_token(word)) {
+                continue;
+            }
+            *counts.entry(window.join(" ")).or_default() += 1;
+        }
+    }
+    let document_frequency = token_frequency.clone();
+    let mut candidates: Vec<(String, f64, &'static str)> = counts
+        .into_iter()
+        .map(|(phrase, frequency)| {
+            let tokens: Vec<&str> = phrase.split_whitespace().collect();
+            let specificity = tokens
+                .iter()
+                .map(|token| {
+                    1.0 + (words.len() as f64
+                        / token_frequency.get(*token).copied().unwrap_or(1) as f64)
+                        .ln()
+                })
+                .sum::<f64>()
+                / tokens.len().max(1) as f64;
+            let term_weight = tokens
+                .iter()
+                .map(|token| 1.0 / document_frequency.get(*token).copied().unwrap_or(1) as f64)
+                .sum::<f64>();
+            let coverage = tokens.len() as f64 / words.len().max(1) as f64;
+            (
+                phrase,
+                specificity * coverage.sqrt() * frequency as f64 * term_weight,
+                "extractive_keyphrase",
+            )
+        })
+        .collect();
+    let mut topic_candidates = std::collections::HashMap::<String, (f64, f64, usize)>::new();
+    for &scene in scene_ids {
+        if let Some(topic) = topics.get(scene) {
+            let normalized = topic.replace('-', " ").replace('_', " ").trim().to_string();
+            let topic_tokens: Vec<String> = normalized
+                .split(|character: char| !character.is_alphanumeric())
+                .map(str::to_lowercase)
+                .filter(|token| token.chars().count() > 1)
+                .collect();
+            if topic_tokens.is_empty() {
+                continue;
+            }
+            let overlap = topic_tokens
+                .iter()
+                .filter(|token| token_frequency.contains_key(*token))
+                .count();
+            let coverage = overlap as f64 / topic_tokens.len() as f64;
+            if coverage > 0.0 {
+                let specificity = topic_tokens
+                    .iter()
+                    .filter_map(|token| token_frequency.get(token))
+                    .map(|frequency| 1.0 / *frequency as f64)
+                    .sum::<f64>()
+                    / topic_tokens.len() as f64;
+                let entry = topic_candidates.entry(normalized).or_default();
+                entry.0 += coverage;
+                entry.1 += specificity;
+                entry.2 += 1;
+            }
+        }
+    }
+    for (topic, (coverage, specificity, count)) in topic_candidates {
+        let samples = count.max(1) as f64;
+        let coverage = coverage / samples;
+        let specificity = specificity / samples;
+        let words_in_topic = topic.split_whitespace().count().max(1) as f64;
+        let score = coverage * specificity * words_in_topic;
+        candidates.push((topic, score, "scene_topic"));
+    }
+    candidates.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    if let Some((phrase, _, source)) = candidates.into_iter().next() {
+        let title = phrase
+            .split_whitespace()
+            .map(|word| {
+                let mut chars = word.chars();
+                chars
+                    .next()
+                    .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        (title, source.into())
+    } else {
+        let fallback = words
+            .iter()
+            .find(|word| is_concept_token(word))
+            .cloned()
+            .unwrap_or_else(|| {
+                text.split_whitespace()
+                    .next()
+                    .unwrap_or_default()
+                    .to_lowercase()
+            });
+        (fallback, "extractive_token".into())
+    }
+}
+
+fn contextual_bullet_span(
+    index: usize,
+    chapter_start: usize,
+    chapter_end: usize,
+    vectors: &[Vec<f64>],
+) -> (usize, usize) {
+    if chapter_end.saturating_sub(chapter_start) < 2 {
+        return (index, index + 1);
+    }
+    let adjacent: Vec<f64> = (chapter_start..chapter_end.saturating_sub(1))
+        .map(|at| cosine(&vectors[at], &vectors[at + 1]))
+        .collect();
+    let baseline = adjacent.iter().sum::<f64>() / adjacent.len() as f64;
+    let mut start = index;
+    let mut end = index + 1;
+    if index > chapter_start && cosine(&vectors[index], &vectors[index - 1]) > baseline {
+        start -= 1;
+    }
+    if index + 1 < chapter_end && cosine(&vectors[index], &vectors[index + 1]) > baseline {
+        end += 1;
+    }
+    (start, end)
+}
+
+fn build_chapters(
+    ranked: &[RankedSentence],
+    vectors: &[Vec<f64>],
+    timings: &[Timing],
+    scene_starts: &[(usize, usize)],
+    topics: &[String],
+    language: &str,
+    options: &ChapterOptions,
+) -> Vec<Chapter> {
+    let min_sentences = options.min_sentences.max(1);
+    let max_sentences = options.max_sentences.max(min_sentences);
+    if ranked.is_empty() {
+        return Vec::new();
+    }
+
+    // Dynamic programming maximizes within-chapter pair cohesion plus the
+    // evidence at each selected boundary, while charging a profile-level
+    // complexity penalty for every additional chapter.
+    let n = ranked.len();
+    let mut words_prefix = vec![0usize; n + 1];
+    for index in 0..n {
+        words_prefix[index + 1] = words_prefix[index] + word_count(&ranked[index].text);
+    }
+    let evidence: Vec<f64> = (0..=n)
+        .map(|boundary| {
+            boundary_evidence(ranked, vectors, boundary, scene_starts, options).score(options)
+        })
+        .collect();
+    let mut best_score = vec![f64::NEG_INFINITY; n + 1];
+    let mut previous = vec![None; n + 1];
+    let mut chapter_counts = vec![usize::MAX; n + 1];
+    best_score[0] = 0.0;
+    chapter_counts[0] = 0;
+    for end in 1..=n {
+        let mut vector_sum = vec![0.0; vectors[0].len()];
+        let mut pair_cohesion = 0.0;
+        for begin in (0..end).rev().take(max_sentences) {
+            let added = &vectors[begin];
+            pair_cohesion += added
+                .iter()
+                .zip(&vector_sum)
+                .map(|(a, b)| a * b)
+                .sum::<f64>();
+            for (sum, value) in vector_sum.iter_mut().zip(added) {
+                *sum += value;
+            }
+            let length = end - begin;
+            let short_only_document = begin == 0 && end == n && length < min_sentences;
+            let short_tail = end == n && length < min_sentences;
+            if (!short_only_document && !short_tail && length < min_sentences)
+                || (words_prefix[end] - words_prefix[begin] < options.min_words && end != n)
+                || !best_score[begin].is_finite()
+            {
+                continue;
+            }
+            let cohesion_pairs = length.saturating_mul(length.saturating_sub(1)) / 2;
+            let cohesion = if cohesion_pairs == 0 {
+                0.0
+            } else {
+                pair_cohesion / cohesion_pairs as f64
+            };
+            let length_prior = (length as f64 / max_sentences as f64).ln_1p();
+            let score = best_score[begin]
+                + cohesion
+                + length_prior
+                + options.evidence_weight * evidence[begin]
+                - options.complexity_penalty;
+            let count = chapter_counts[begin] + 1;
+            let replace = score > best_score[end] + f64::EPSILON
+                || ((score - best_score[end]).abs() <= f64::EPSILON
+                    && (count < chapter_counts[end]
+                        || (count == chapter_counts[end]
+                            && previous[end].is_some_and(|old| begin < old))));
+            if replace {
+                best_score[end] = score;
+                chapter_counts[end] = count;
+                previous[end] = Some(begin);
+            }
+        }
+    }
+    if previous[n].is_none() {
+        // Product limits are soft at document edges; a coherent bounded
+        // partition remains preferable to dropping transcript coverage.
+        let mut cursor = n;
+        while cursor > 0 {
+            let begin = cursor.saturating_sub(max_sentences);
+            previous[cursor] = Some(begin);
+            cursor = begin;
+        }
+    }
+    let mut boundaries = vec![n];
+    let mut cursor = n;
+    while cursor > 0 {
+        let begin = previous[cursor].unwrap_or(0);
+        if begin >= cursor {
+            break;
+        }
+        boundaries.push(begin);
+        cursor = begin;
+    }
+    boundaries.sort_unstable();
+
+    let mut chapters = Vec::new();
+    for pair in boundaries.windows(2) {
+        let (begin, end) = (pair[0], pair[1]);
+        if begin >= end {
+            continue;
+        }
+        let mut scene_ids = Vec::new();
+        for (scene_pos, &(scene_begin, scene_id)) in scene_starts.iter().enumerate() {
+            let scene_end = scene_starts
+                .get(scene_pos + 1)
+                .map(|(next, _)| *next)
+                .unwrap_or(ranked.len());
+            let overlap = end.min(scene_end).saturating_sub(begin.max(scene_begin));
+            scene_ids.extend(std::iter::repeat_n(scene_id, overlap));
+        }
+        let text = ranked[begin..end]
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let (title, title_source) = chapter_title(&text, language, topics, &scene_ids);
+        let mut candidates: Vec<usize> = (begin..end).collect();
+        candidates.sort_by(|&a, &b| {
+            ranked[b]
+                .importance
+                .total_cmp(&ranked[a].importance)
+                .then_with(|| {
+                    let coherence = |index: usize| {
+                        let left = if index > begin {
+                            cosine(&vectors[index], &vectors[index - 1])
+                        } else {
+                            0.0
+                        };
+                        let right = if index + 1 < end {
+                            cosine(&vectors[index], &vectors[index + 1])
+                        } else {
+                            0.0
+                        };
+                        left.max(right)
+                    };
+                    coherence(b).total_cmp(&coherence(a))
+                })
+                .then(a.cmp(&b))
+        });
+        let mut selected: Vec<usize> = Vec::new();
+        for candidate in candidates {
+            if selected
+                .iter()
+                .all(|&prior| !equivalent(&ranked[candidate], &ranked[prior], vectors))
+            {
+                selected.push(candidate);
+                if selected.len() >= options.bullet_count.clamp(1, 10) {
+                    break;
+                }
+            }
+        }
+        selected.sort_unstable();
+        let mut spans: Vec<(usize, usize)> = selected
+            .into_iter()
+            .map(|index| contextual_bullet_span(index, begin, end, vectors))
+            .collect();
+        spans.sort_unstable();
+        let mut merged: Vec<(usize, usize)> = Vec::new();
+        for (span_start, span_end) in spans {
+            if let Some(last) = merged.last_mut() {
+                if span_start <= last.1 {
+                    last.1 = last.1.max(span_end);
+                    continue;
+                }
+            }
+            merged.push((span_start, span_end));
+        }
+        let bullets = merged
+            .into_iter()
+            .map(|(span_start, span_end)| ChapterBullet {
+                start_sentence: span_start,
+                end_sentence: span_end,
+                text: ranked[span_start..span_end]
+                    .iter()
+                    .map(|sentence| sentence.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            })
+            .collect();
+        let start_ms = timings.get(begin).map(|timing| timing.start_us / 1000);
+        let end_ms = timings
+            .get(end.saturating_sub(1))
+            .map(|timing| timing.end_us / 1000);
+        chapters.push(Chapter {
+            title,
+            title_source,
+            start_sentence: begin,
+            end_sentence: end,
+            start_ms,
+            end_ms,
+            bullets,
+        });
+    }
+    chapters
+}
+
 /// the built-in bounded lexical vectors when lexical_only is explicitly true.
 /// Output summaries and bullets are extractive to prevent unsupported claims.
 pub fn run(request: Request) -> Result<ResultDocument, String> {
+    run_with_scene_context(request, &[], &[])
+}
+
+pub fn run_with_scene_context(
+    request: Request,
+    scenes: &[String],
+    scene_topics: &[String],
+) -> Result<ResultDocument, String> {
+    run_with_chapter_options(request, scenes, scene_topics, &ChapterOptions::default())
+}
+
+pub fn run_with_chapter_options(
+    request: Request,
+    scenes: &[String],
+    scene_topics: &[String],
+    chapter_options: &ChapterOptions,
+) -> Result<ResultDocument, String> {
+    if chapter_options.min_sentences == 0
+        || chapter_options.max_sentences < chapter_options.min_sentences
+        || chapter_options.max_sentences > 200
+        || chapter_options.context_sentences == 0
+        || chapter_options.context_sentences > chapter_options.max_sentences
+        || chapter_options.profile_version.trim().is_empty()
+        || [
+            chapter_options.semantic_weight,
+            chapter_options.lexical_weight,
+            chapter_options.scene_weight,
+            chapter_options.evidence_weight,
+            chapter_options.complexity_penalty,
+        ]
+        .iter()
+        .any(|weight| !weight.is_finite() || *weight < 0.0)
+    {
+        return Err("invalid chapter options".into());
+    }
     let total = Instant::now();
     if request.transcript.trim().is_empty() {
         return Err("transcript is empty".into());
@@ -879,6 +1438,39 @@ pub fn run(request: Request) -> Result<ResultDocument, String> {
     let split_ms = split_start.elapsed().as_secs_f64() * 1000.0;
     if segments.is_empty() {
         return Err("sentence splitter returned no sentences".into());
+    }
+    let mut scene_starts = Vec::new();
+    let mut resolved_scenes = scenes;
+    let mut resolved_topics = scene_topics;
+    if !resolved_scenes.is_empty() {
+        if !resolved_topics.is_empty() && resolved_topics.len() != resolved_scenes.len() {
+            // Scene metadata is optional context for chapter labels, never a
+            // reason to alter or suppress the legacy extractive products.
+            resolved_scenes = &[];
+            resolved_topics = &[];
+        }
+    }
+    if !resolved_scenes.is_empty() {
+        let mut sentence_offset = 0usize;
+        let mut reconstructed = Vec::new();
+        for (scene_index, scene) in resolved_scenes.iter().enumerate() {
+            let parts = split_sentences(scene, &request.language);
+            if parts.is_empty() {
+                continue;
+            }
+            scene_starts.push((sentence_offset, scene_index));
+            sentence_offset += parts.len();
+            reconstructed.extend(parts.into_iter().map(|part| part.text));
+        }
+        if reconstructed.len() != segments.len()
+            || reconstructed
+                .iter()
+                .zip(&segments)
+                .any(|(a, b)| a != &b.text)
+        {
+            scene_starts.clear();
+            resolved_topics = &[];
+        }
     }
     if request.lexical_only {
         if !request.embeddings.is_empty() {
@@ -1008,6 +1600,15 @@ pub fn run(request: Request) -> Result<ResultDocument, String> {
             end_sec: source_order[index].end_sec,
         })
         .collect();
+    let chapters = build_chapters(
+        &source_order,
+        &vectors,
+        &request.timings,
+        &scene_starts,
+        resolved_topics,
+        &request.language,
+        chapter_options,
+    );
     let mut timeline = heavy_sentences.clone();
     timeline.sort_by(|a, b| match (a.start_sec, b.start_sec) {
         (Some(start_a), Some(start_b)) => start_a.total_cmp(&start_b).then(a.index.cmp(&b.index)),
@@ -1027,6 +1628,10 @@ pub fn run(request: Request) -> Result<ResultDocument, String> {
         heavy_sentences,
         ranked,
         timeline,
+        chapter_manifest: ChapterManifest {
+            schema_version: "chapter_manifest.v1".into(),
+            chapters,
+        },
         timings: StageTimings {
             split_ms,
             embedding_ms: request.embedding_ms,
@@ -1055,6 +1660,52 @@ mod tests {
             options,
             embedding_ms: 0.0,
             lexical_only: false,
+        }
+    }
+
+    fn chapter_test_options() -> ChapterOptions {
+        ChapterOptions {
+            min_sentences: 2,
+            max_sentences: 8,
+            min_words: 0,
+            complexity_penalty: 2.0,
+            ..ChapterOptions::default()
+        }
+    }
+
+    fn assert_chapter_manifest_contract(manifest: &ChapterManifest, sentences: &[String]) {
+        assert_eq!(manifest.schema_version, "chapter_manifest.v1");
+        assert!(!manifest.chapters.is_empty());
+        assert_eq!(manifest.chapters.first().unwrap().start_sentence, 0);
+        assert_eq!(
+            manifest.chapters.last().unwrap().end_sentence,
+            sentences.len()
+        );
+        for (index, chapter) in manifest.chapters.iter().enumerate() {
+            assert!(!chapter.title.trim().is_empty());
+            assert!(chapter.start_sentence < chapter.end_sentence);
+            if index > 0 {
+                assert_eq!(
+                    manifest.chapters[index - 1].end_sentence,
+                    chapter.start_sentence
+                );
+            }
+            for bullet in &chapter.bullets {
+                assert!(chapter.start_sentence <= bullet.start_sentence);
+                assert!(bullet.start_sentence < bullet.end_sentence);
+                assert!(bullet.end_sentence <= chapter.end_sentence);
+                let source = sentences[bullet.start_sentence..bullet.end_sentence]
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                assert_eq!(bullet.text, source);
+            }
+            match (chapter.start_ms, chapter.end_ms) {
+                (Some(start), Some(end)) => assert!(start >= 0 && end > start),
+                (None, None) => {}
+                _ => panic!("chapter timestamps must be both present or both absent"),
+            }
         }
     }
 
@@ -1149,6 +1800,859 @@ mod tests {
                 .collect::<Vec<_>>(),
             source.split_whitespace().collect::<Vec<_>>()
         );
+    }
+
+    fn generated_chapter_sentences(count: usize) -> Vec<String> {
+        (0..count)
+            .map(|index| {
+                format!(
+                    "record{index} value{} detail{} marker{}.",
+                    index % 5,
+                    (index / 3) % 7,
+                    (index / 2) % 11
+                )
+            })
+            .collect()
+    }
+
+    fn lexical_chapter_request(sentences: &[String]) -> Request {
+        Request {
+            transcript: sentences.join(" "),
+            language: "und".into(),
+            embeddings: Vec::new(),
+            timings: Vec::new(),
+            options: Options::default(),
+            embedding_ms: 0.0,
+            lexical_only: true,
+        }
+    }
+
+    #[test]
+    fn scene_metadata_is_optional_and_partition_always_covers_generated_input() {
+        let sentences = generated_chapter_sentences(17);
+        let baseline = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &chapter_test_options(),
+        )
+        .unwrap();
+        let scenes = sentences
+            .chunks(4)
+            .map(|chunk| chunk.join(" "))
+            .collect::<Vec<_>>();
+        let topics = scenes
+            .iter()
+            .enumerate()
+            .map(|(index, _)| format!("label{index}"))
+            .collect::<Vec<_>>();
+        let with_context = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &scenes,
+            &topics,
+            &chapter_test_options(),
+        )
+        .unwrap();
+        let invalid_context = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &["unrelated input".into()],
+            &["unrelated label".into()],
+            &chapter_test_options(),
+        )
+        .unwrap();
+
+        assert_chapter_manifest_contract(&baseline.chapter_manifest, &sentences);
+        assert_chapter_manifest_contract(&with_context.chapter_manifest, &sentences);
+        assert_chapter_manifest_contract(&invalid_context.chapter_manifest, &sentences);
+        assert_eq!(baseline.summary, invalid_context.summary);
+        assert_eq!(baseline.bullet_points, invalid_context.bullet_points);
+        assert_eq!(baseline.heavy_sentences, invalid_context.heavy_sentences);
+        assert_eq!(baseline.chapter_manifest, invalid_context.chapter_manifest);
+    }
+
+    #[test]
+    fn complexity_profile_metamorphism_does_not_increase_partition_count() {
+        let sentences = generated_chapter_sentences(29);
+        let request = lexical_chapter_request(&sentences);
+        let analyze = |complexity_penalty| {
+            run_with_chapter_options(
+                request.clone(),
+                &[],
+                &[],
+                &ChapterOptions {
+                    min_sentences: 2,
+                    max_sentences: 10,
+                    min_words: 0,
+                    complexity_penalty,
+                    ..chapter_test_options()
+                },
+            )
+            .unwrap()
+        };
+        let low_penalty = analyze(0.25);
+        let high_penalty = analyze(3.0);
+        assert_chapter_manifest_contract(&low_penalty.chapter_manifest, &sentences);
+        assert_chapter_manifest_contract(&high_penalty.chapter_manifest, &sentences);
+        assert!(
+            high_penalty.chapter_manifest.chapters.len()
+                <= low_penalty.chapter_manifest.chapters.len()
+        );
+    }
+
+    #[test]
+    fn repeated_input_is_deterministic_and_preserves_full_coverage() {
+        let block = generated_chapter_sentences(7);
+        let mut repeated = block.clone();
+        repeated.extend(block.iter().cloned());
+        let request = lexical_chapter_request(&repeated);
+        let first =
+            run_with_chapter_options(request.clone(), &[], &[], &chapter_test_options()).unwrap();
+        let second = run_with_chapter_options(request, &[], &[], &chapter_test_options()).unwrap();
+        assert_chapter_manifest_contract(&first.chapter_manifest, &repeated);
+        assert_eq!(first.chapter_manifest, second.chapter_manifest);
+        assert_eq!(first.summary, second.summary);
+        assert_eq!(first.bullet_points, second.bullet_points);
+        assert_eq!(first.heavy_sentences, second.heavy_sentences);
+    }
+
+    #[test]
+    fn appended_input_remains_fully_represented_in_partition() {
+        let original = generated_chapter_sentences(13);
+        let mut extended = original.clone();
+        extended.extend(
+            generated_chapter_sentences(5)
+                .into_iter()
+                .map(|sentence| sentence.replace("record", "extension")),
+        );
+        let analyze = |sentences: &[String]| {
+            run_with_chapter_options(
+                lexical_chapter_request(sentences),
+                &[],
+                &[],
+                &chapter_test_options(),
+            )
+            .unwrap()
+        };
+        let baseline = analyze(&original);
+        let grown = analyze(&extended);
+        assert_chapter_manifest_contract(&baseline.chapter_manifest, &original);
+        assert_chapter_manifest_contract(&grown.chapter_manifest, &extended);
+    }
+
+    #[test]
+    fn chapter_analysis_scales_to_large_generated_transcript_without_losing_coverage() {
+        let sentences = generated_chapter_sentences(1000);
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &ChapterOptions {
+                max_sentences: 100,
+                min_sentences: 10,
+                min_words: 0,
+                ..chapter_test_options()
+            },
+        )
+        .unwrap();
+        assert_chapter_manifest_contract(&result.chapter_manifest, &sentences);
+    }
+
+    fn behavioral_chapter_options() -> ChapterOptions {
+        ChapterOptions {
+            min_sentences: 2,
+            max_sentences: 6,
+            min_words: 0,
+            context_sentences: 2,
+            complexity_penalty: 1.0,
+            bullet_count: 3,
+            ..ChapterOptions::default()
+        }
+    }
+
+    fn analyze_chapter_text(text: &str, language: &str) -> Result<ResultDocument, String> {
+        let mut request = lexical_chapter_request(
+            &split_sentences(text, language)
+                .into_iter()
+                .map(|part| part.text)
+                .collect::<Vec<_>>(),
+        );
+        request.language = language.into();
+        run_with_chapter_options(request, &[], &[], &behavioral_chapter_options())
+    }
+
+    fn boundary_indices(manifest: &ChapterManifest) -> Vec<usize> {
+        manifest
+            .chapters
+            .iter()
+            .skip(1)
+            .map(|chapter| chapter.start_sentence)
+            .collect()
+    }
+
+    fn assert_manifest_is_contiguous(manifest: &ChapterManifest, sentence_count: usize) {
+        assert_eq!(manifest.schema_version, "chapter_manifest.v1");
+        assert!(!manifest.chapters.is_empty());
+        assert_eq!(manifest.chapters[0].start_sentence, 0);
+        assert_eq!(
+            manifest.chapters.last().unwrap().end_sentence,
+            sentence_count
+        );
+        for pair in manifest.chapters.windows(2) {
+            assert_eq!(pair[0].end_sentence, pair[1].start_sentence);
+        }
+    }
+
+    #[test]
+    fn chapter_behavior_detects_three_unrelated_subject_blocks_without_fixed_titles() {
+        let groups = [
+            [
+                "GPU servers process video frames using graphics memory.",
+                "CPU transfers add latency to GPU workloads.",
+                "Efficient buffers improve rendering throughput.",
+            ],
+            [
+                "Home construction requires building permits.",
+                "Zoning rules constrain architectural plans.",
+                "Concrete and timber materials affect construction costs.",
+            ],
+            [
+                "Video platforms publish media to online audiences.",
+                "Application APIs automate content uploads.",
+                "Scheduled releases simplify channel management.",
+            ],
+        ];
+        let sentences = groups
+            .into_iter()
+            .flatten()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        let manifest = &result.chapter_manifest;
+        assert_manifest_is_contiguous(manifest, sentences.len());
+        assert!(
+            manifest.chapters.len() >= 2 && manifest.chapters.len() <= 4,
+            "unrelated blocks should be separated without prescribing a title: {:?}",
+            manifest.chapters
+        );
+        let boundaries = boundary_indices(manifest);
+        assert!(
+            boundaries.iter().any(|&b| (2..=4).contains(&b)),
+            "expected a boundary near the first thematic transition, got {boundaries:?}"
+        );
+        assert!(
+            boundaries.iter().any(|&b| (5..=7).contains(&b)),
+            "expected a boundary near the second thematic transition, got {boundaries:?}"
+        );
+        for chapter in &manifest.chapters {
+            let source = sentences[chapter.start_sentence..chapter.end_sentence]
+                .join(" ")
+                .to_lowercase();
+            let lowered_title = chapter.title.to_lowercase();
+            let title_terms = lowered_title
+                .split_whitespace()
+                .filter(|term| term.chars().any(char::is_alphabetic))
+                .collect::<Vec<_>>();
+            assert!(!title_terms.is_empty());
+            assert!(
+                title_terms.iter().any(|term| source.contains(term)),
+                "title must be grounded in its chapter source"
+            );
+        }
+    }
+
+    #[test]
+    fn chapter_behavior_separates_different_topics_with_overlapping_vocabulary() {
+        let sentences = vec![
+            "Banks manage cash flow for small businesses.".to_string(),
+            "Current accounts track money moving through the bank.".to_string(),
+            "Lenders review credit before approving commercial loans.".to_string(),
+            "River banks guide water flow during seasonal floods.".to_string(),
+            "Strong currents move sediment along the river channel.".to_string(),
+            "Flood barriers protect nearby towns from rising water.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
+        let boundaries = boundary_indices(&result.chapter_manifest);
+        assert!(
+            boundaries
+                .iter()
+                .any(|&boundary| (2..=4).contains(&boundary)),
+            "the lexical overlap must not hide the shift in intended subject: {boundaries:?}"
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_does_not_split_repeated_subject_only_because_scene_changes() {
+        let sentences = vec![
+            "Video platforms distribute creator content online.".to_string(),
+            "Streaming services deliver video to audiences.".to_string(),
+            "Creators publish clips through media channels.".to_string(),
+            "Online video services organize audience subscriptions.".to_string(),
+        ];
+        let text = sentences.join(" ");
+        let request = lexical_chapter_request(&sentences);
+        let plain =
+            run_with_chapter_options(request.clone(), &[], &[], &behavioral_chapter_options())
+                .unwrap();
+        let scenes = sentences
+            .iter()
+            .map(|sentence| sentence.clone())
+            .collect::<Vec<_>>();
+        let scene_ids = (0..sentences.len())
+            .map(|i| format!("scene-{i}"))
+            .collect::<Vec<_>>();
+        let contextual =
+            run_with_chapter_options(request, &scenes, &scene_ids, &behavioral_chapter_options())
+                .unwrap();
+        assert_eq!(
+            plain.chapter_manifest.chapters.len(),
+            contextual.chapter_manifest.chapters.len(),
+            "scene boundaries alone must not multiply chapters for a stable topic"
+        );
+        assert_eq!(
+            plain
+                .chapter_manifest
+                .chapters
+                .iter()
+                .map(|chapter| (chapter.start_sentence, chapter.end_sentence))
+                .collect::<Vec<_>>(),
+            contextual
+                .chapter_manifest
+                .chapters
+                .iter()
+                .map(|chapter| (chapter.start_sentence, chapter.end_sentence))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(text, sentences.join(" "));
+    }
+
+    #[test]
+    fn chapter_behavior_finds_theme_changes_without_scene_metadata() {
+        let text = "GPU memory transfers affect rendering speed. Graphics buffers reduce frame-processing overhead. Video kernels improve throughput. Building permits regulate residential construction. Zoning plans shape house design. Timber and concrete affect construction cost.";
+        let result = analyze_chapter_text(text, "en").unwrap();
+        let boundaries = boundary_indices(&result.chapter_manifest);
+        assert!(
+            boundaries
+                .iter()
+                .any(|&boundary| (2..=4).contains(&boundary)),
+            "theme change without scene metadata should have a plausible boundary: {boundaries:?}"
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_keeps_a_returning_theme_in_separate_chronological_blocks() {
+        let sentences = vec![
+            "Video platforms distribute clips to online audiences.".to_string(),
+            "Creators schedule media releases across channels.".to_string(),
+            "Building permits regulate residential construction.".to_string(),
+            "Zoning rules constrain architectural projects.".to_string(),
+            "Hydropower turbines convert river flow into electricity.".to_string(),
+            "Reservoir operators manage water levels during drought.".to_string(),
+            "Streaming platforms organize video subscriptions.".to_string(),
+            "Online channels recommend new creator clips.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
+        let boundaries = boundary_indices(&result.chapter_manifest);
+        assert!(
+            boundaries.iter().any(|&b| (1..=3).contains(&b)),
+            "first thematic transition missing: {boundaries:?}; chapters={:?}",
+            result.chapter_manifest.chapters
+        );
+        assert!(
+            boundaries.iter().any(|&b| (5..=7).contains(&b)),
+            "returning theme transition missing: {boundaries:?}; chapters={:?}",
+            result.chapter_manifest.chapters
+        );
+        assert!(
+            result
+                .chapter_manifest
+                .chapters
+                .windows(2)
+                .all(|pair| pair[0].end_sentence == pair[1].start_sentence),
+            "returning themes remain separate chronological spans"
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_keeps_paraphrased_same_subject_in_one_thematic_run() {
+        let sentences = vec![
+            "Solar panels transform daylight into usable electricity.".to_string(),
+            "Photovoltaic cells convert sunlight into electrical current.".to_string(),
+            "Renewable modules generate clean power during bright hours.".to_string(),
+            "Sun-powered arrays supply energy to nearby homes.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
+        assert!(
+            result.chapter_manifest.chapters.len() <= 2,
+            "lexical variation within a coherent subject should not fragment it: {:?}",
+            result.chapter_manifest.chapters
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_handles_gradual_transition_without_excessive_fragmentation() {
+        let sentences = vec![
+            "Solar arrays generate electricity from sunlight.".to_string(),
+            "Renewable power flows from photovoltaic panels.".to_string(),
+            "Battery systems store electricity produced by solar arrays.".to_string(),
+            "Grid operators balance stored energy with local demand.".to_string(),
+            "Electric utilities coordinate renewable supply and distribution.".to_string(),
+            "Transmission networks deliver power to regional consumers.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
+        assert!((1..=3).contains(&result.chapter_manifest.chapters.len()), "a gradual topical transition should not cause sentence-by-sentence fragmentation: {:?}", result.chapter_manifest.chapters);
+        assert!(boundary_indices(&result.chapter_manifest)
+            .iter()
+            .all(|&boundary| boundary > 0 && boundary < sentences.len()));
+    }
+
+    #[test]
+    fn chapter_behavior_partitions_long_subtopics_with_bounded_balanced_spans() {
+        let mut sentences = Vec::new();
+        for topic in [
+            "coastal ecology",
+            "urban transit",
+            "archive preservation",
+            "renewable power",
+        ] {
+            for index in 0..12 {
+                sentences.push(format!("Research on {topic} examines observation {} and evidence {} across regional studies.", index % 4, (index / 3) % 5));
+            }
+        }
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &ChapterOptions {
+                min_sentences: 3,
+                max_sentences: 12,
+                min_words: 0,
+                complexity_penalty: 0.5,
+                ..behavioral_chapter_options()
+            },
+        )
+        .unwrap();
+        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
+        assert!(
+            result.chapter_manifest.chapters.len() > 1,
+            "long input must partition rather than collapse into one chapter"
+        );
+        for chapter in &result.chapter_manifest.chapters {
+            let length = chapter.end_sentence - chapter.start_sentence;
+            assert!(
+                length <= 12,
+                "chapter span exceeded configured bound: {length}"
+            );
+            assert!(
+                length >= 3 || chapter.end_sentence == sentences.len(),
+                "only a terminal short tail may fall below the minimum"
+            );
+        }
+    }
+
+    #[test]
+    fn chapter_behavior_uses_distinct_source_titles_for_related_subtopics() {
+        let sentences = vec![
+            "Solar panels generate electricity during daylight hours.".to_string(),
+            "Photovoltaic cells convert sunlight into clean power.".to_string(),
+            "Rooftop arrays supply renewable energy to homes.".to_string(),
+            "Battery storage preserves electricity after sunset.".to_string(),
+            "Grid operators balance stored power with evening demand.".to_string(),
+            "Energy networks coordinate charging and regional distribution.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &ChapterOptions {
+                complexity_penalty: 0.5,
+                ..behavioral_chapter_options()
+            },
+        )
+        .unwrap();
+        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
+        if result.chapter_manifest.chapters.len() >= 2 {
+            let first = result.chapter_manifest.chapters[0].title.to_lowercase();
+            let last = result
+                .chapter_manifest
+                .chapters
+                .last()
+                .unwrap()
+                .title
+                .to_lowercase();
+            assert_ne!(first, last, "separate spans on one macro-topic should derive their titles from distinct local content");
+        }
+    }
+
+    #[test]
+    fn chapter_behavior_avoids_duplicate_bullets_for_repeated_source_sentences() {
+        let repeated = "Researchers measured coastal water temperatures across the region.";
+        let sentences = vec![
+            repeated.to_string(),
+            repeated.to_string(),
+            "Marine teams compared salinity readings from several shoreline stations.".to_string(),
+            "The report describes seasonal changes in local ocean conditions.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        let mut unique = std::collections::HashSet::new();
+        for bullet in result
+            .chapter_manifest
+            .chapters
+            .iter()
+            .flat_map(|chapter| &chapter.bullets)
+        {
+            assert!(
+                unique.insert(bullet.text.as_str()),
+                "duplicate extractive bullet selected: {}",
+                bullet.text
+            );
+        }
+    }
+
+    #[test]
+    fn chapter_behavior_keeps_major_boundaries_stable_under_paraphrase() {
+        let original = vec![
+            "Solar panels convert sunlight into electrical energy.".to_string(),
+            "Photovoltaic cells deliver renewable power to the grid.".to_string(),
+            "Battery storage balances supply after sunset.".to_string(),
+            "Rail operators coordinate passenger timetables between stations.".to_string(),
+            "Regional trains connect local services across the network.".to_string(),
+            "Transit planners adjust routes to serve growing communities.".to_string(),
+        ];
+        let paraphrased = vec![
+            "Sunlight becomes electricity through rooftop solar arrays.".to_string(),
+            "Renewable current from panels enters the public network.".to_string(),
+            "Stored power supports demand when daylight ends.".to_string(),
+            "Train companies organize departure schedules at terminals.".to_string(),
+            "Intercity services link neighborhood lines throughout the region.".to_string(),
+            "Transport designers revise paths for expanding towns.".to_string(),
+        ];
+        let run = |lines: &[String]| {
+            run_with_chapter_options(
+                lexical_chapter_request(lines),
+                &[],
+                &[],
+                &behavioral_chapter_options(),
+            )
+            .unwrap()
+        };
+        let first = run(&original);
+        let second = run(&paraphrased);
+        let a = boundary_indices(&first.chapter_manifest);
+        let b = boundary_indices(&second.chapter_manifest);
+        assert!(
+            a.iter()
+                .any(|boundary| b.iter().any(|other| boundary.abs_diff(*other) <= 1)),
+            "major topic boundary should remain near its position under paraphrase: {a:?} vs {b:?}"
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_extracts_grounded_conceptual_titles_from_numeric_chapters() {
+        let sentences = vec![
+            "In 2021 the system processed 480 frames per second.".to_string(),
+            "The GPU used 24 gigabytes of memory for the workload.".to_string(),
+            "Latency fell by 17 percent after the buffer redesign.".to_string(),
+            "Throughput reached 960 operations during the final test.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        let chapter = &result.chapter_manifest.chapters[0];
+        assert!(!chapter.title.is_empty());
+        assert!(
+            chapter.title.chars().any(char::is_alphabetic),
+            "a numeric passage should receive a conceptual rather than numeric-only title"
+        );
+        assert!(
+            chapter
+                .title
+                .chars()
+                .all(|character| !character.is_ascii_digit()),
+            "title should not merely repeat a statistic"
+        );
+        let source = sentences.join(" ").to_lowercase();
+        assert!(
+            chapter
+                .title
+                .to_lowercase()
+                .split_whitespace()
+                .any(|term| source.contains(term)),
+            "title terms should be grounded in source"
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_bullets_preserve_negation_and_contiguous_context() {
+        let sentences = vec![
+            "The committee did not approve the proposal.".to_string(),
+            "It instead requested a revised budget.".to_string(),
+            "The revised plan does not include new borrowing.".to_string(),
+            "Members approved the timetable after the changes.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
+        let mut saw_negation = false;
+        for chapter in &result.chapter_manifest.chapters {
+            for bullet in &chapter.bullets {
+                let expected = sentences[bullet.start_sentence..bullet.end_sentence].join(" ");
+                assert_eq!(bullet.text, expected);
+                if bullet.text.contains("not") {
+                    saw_negation = true;
+                }
+            }
+        }
+        assert!(
+            saw_negation,
+            "extractive bullets must retain at least one selected negative statement"
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_can_keep_dependent_sentences_in_one_contiguous_bullet() {
+        let sentences = vec![
+            "Coastal gauges recorded a rapid increase in the water level.".to_string(),
+            "This rise continued through the afternoon along the shoreline.".to_string(),
+            "Observers compared the readings with measurements from nearby stations.".to_string(),
+            "The report describes seasonal changes in local ocean conditions.".to_string(),
+        ];
+        let result = run_with_chapter_options(
+            lexical_chapter_request(&sentences),
+            &[],
+            &[],
+            &behavioral_chapter_options(),
+        )
+        .unwrap();
+        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
+        assert!(
+            result.chapter_manifest.chapters.iter().any(|chapter| {
+                chapter.bullets.iter().any(|bullet| {
+                    bullet.end_sentence - bullet.start_sentence >= 2
+                        && bullet.text
+                            == sentences[bullet.start_sentence..bullet.end_sentence].join(" ")
+                })
+            }),
+            "when context is selected, bullets must be contiguous source groups: {:?}",
+            result.chapter_manifest.chapters
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_is_stable_under_proper_name_substitution() {
+        let first = vec![
+            "Mira studied coastal currents and ocean salinity.".to_string(),
+            "Researchers measured marine temperatures near the shore.".to_string(),
+            "Tomas mapped river sediment after seasonal flooding.".to_string(),
+            "Hydrologists tracked freshwater levels across the basin.".to_string(),
+            "Mira compared ocean samples with earlier measurements.".to_string(),
+            "Marine scientists published their coastal observations.".to_string(),
+        ];
+        let second = first
+            .iter()
+            .map(|line| line.replace("Mira", "Asha").replace("Tomas", "Rui"))
+            .collect::<Vec<_>>();
+        let run = |lines: &[String]| {
+            run_with_chapter_options(
+                lexical_chapter_request(lines),
+                &[],
+                &[],
+                &behavioral_chapter_options(),
+            )
+            .unwrap()
+        };
+        let a = run(&first);
+        let b = run(&second);
+        assert_eq!(
+            a.chapter_manifest
+                .chapters
+                .iter()
+                .map(|chapter| (chapter.start_sentence, chapter.end_sentence))
+                .collect::<Vec<_>>(),
+            b.chapter_manifest
+                .chapters
+                .iter()
+                .map(|chapter| (chapter.start_sentence, chapter.end_sentence))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_has_cross_language_coverage_and_repeatability() {
+        let cases = [
+            (
+                "it",
+                vec![
+                    "I server video elaborano fotogrammi usando memoria grafica.",
+                    "I trasferimenti CPU GPU aumentano la latenza dei processi.",
+                    "Buffer efficienti migliorano il rendering dei video.",
+                    "I permessi edilizi regolano la costruzione delle abitazioni.",
+                    "Le norme urbanistiche definiscono i vincoli dei progetti.",
+                    "Legno e cemento cambiano i costi dei cantieri.",
+                ],
+            ),
+            (
+                "en",
+                vec![
+                    "Video servers process frames using graphics memory.",
+                    "CPU transfers increase workload latency.",
+                    "Efficient buffers improve rendering throughput.",
+                    "Building permits regulate home construction.",
+                    "Zoning rules define project constraints.",
+                    "Timber and concrete change construction costs.",
+                ],
+            ),
+            (
+                "pt",
+                vec![
+                    "Servidores de vídeo processam quadros usando memória gráfica.",
+                    "Transferências da CPU aumentam a latência do trabalho.",
+                    "Buffers eficientes melhoram o desempenho de renderização.",
+                    "Licenças de construção regulam obras residenciais.",
+                    "Regras de zoneamento definem limites do projeto.",
+                    "Madeira e concreto alteram custos da obra.",
+                ],
+            ),
+        ];
+        let mut counts = Vec::new();
+        for (language, lines) in cases {
+            let sentences = lines.into_iter().map(str::to_string).collect::<Vec<_>>();
+            let request = || {
+                let mut request = lexical_chapter_request(&sentences);
+                request.language = language.into();
+                request
+            };
+            let first =
+                run_with_chapter_options(request(), &[], &[], &behavioral_chapter_options())
+                    .unwrap();
+            let second =
+                run_with_chapter_options(request(), &[], &[], &behavioral_chapter_options())
+                    .unwrap();
+            assert_eq!(first.chapter_manifest, second.chapter_manifest);
+            assert_manifest_is_contiguous(&first.chapter_manifest, sentences.len());
+            counts.push(first.chapter_manifest.chapters.len());
+        }
+        assert!(
+            counts.iter().all(|count| (1..=4).contains(count)),
+            "cross-language partition should remain bounded and nonempty: {counts:?}"
+        );
+        let minimum = counts.iter().min().copied().unwrap_or_default();
+        let maximum = counts.iter().max().copied().unwrap_or_default();
+        assert!(
+            maximum - minimum <= 1,
+            "translations of one thematic structure should yield comparable chapter counts: {counts:?}"
+        );
+    }
+
+    #[test]
+    fn chapter_behavior_is_deterministic_across_one_hundred_runs() {
+        let sentences = vec![
+            "Solar panels convert sunlight into electrical power.".to_string(),
+            "Inverters synchronize photovoltaic current with the grid.".to_string(),
+            "Battery storage balances renewable energy after sunset.".to_string(),
+            "Rail operators coordinate passenger routes between stations.".to_string(),
+            "Timetables connect local trains with regional services.".to_string(),
+        ];
+        let request = lexical_chapter_request(&sentences);
+        let first =
+            run_with_chapter_options(request.clone(), &[], &[], &behavioral_chapter_options())
+                .unwrap();
+        let json = serde_json::to_string(&first.chapter_manifest).unwrap();
+        for _ in 1..100 {
+            let repeated =
+                run_with_chapter_options(request.clone(), &[], &[], &behavioral_chapter_options())
+                    .unwrap();
+            assert_eq!(
+                serde_json::to_string(&repeated.chapter_manifest).unwrap(),
+                json
+            );
+        }
+    }
+
+    #[test]
+    fn chapter_behavior_lexical_fallback_is_explicit_and_deterministic() {
+        let sentences = vec![
+            "Solar panels generate renewable electricity.".to_string(),
+            "Inverters connect photovoltaic systems to the grid.".to_string(),
+            "Building permits regulate residential construction.".to_string(),
+        ];
+        let request = lexical_chapter_request(&sentences);
+        let first =
+            run_with_chapter_options(request.clone(), &[], &[], &behavioral_chapter_options())
+                .unwrap();
+        let second =
+            run_with_chapter_options(request, &[], &[], &behavioral_chapter_options()).unwrap();
+        assert_eq!(first.chapter_manifest, second.chapter_manifest);
+        assert!(first
+            .ranked
+            .iter()
+            .all(|sentence| sentence.importance.is_finite()));
+        assert!(!first.ranked.is_empty());
+    }
+
+    #[test]
+    fn chapter_behavior_returns_errors_for_empty_and_malformed_inputs_and_accepts_short_text() {
+        let mut empty = lexical_chapter_request(&[]);
+        empty.transcript.clear();
+        assert!(run_with_chapter_options(empty, &[], &[], &behavioral_chapter_options()).is_err());
+        let mut malformed = lexical_chapter_request(&["A complete sentence.".into()]);
+        malformed.embeddings = vec![vec![f32::NAN]];
+        malformed.lexical_only = false;
+        assert!(
+            run_with_chapter_options(malformed, &[], &[], &behavioral_chapter_options()).is_err()
+        );
+        let short = analyze_chapter_text("Rain falls.", "en").unwrap();
+        assert_eq!(short.chapter_manifest.chapters.len(), 1);
+        assert_eq!(short.chapter_manifest.chapters[0].start_sentence, 0);
+        assert_eq!(short.chapter_manifest.chapters[0].end_sentence, 1);
     }
 
     #[test]
@@ -1745,7 +3249,11 @@ mod tests {
         let result = run(Request {
             transcript: lines.join(" "),
             language: "en".into(),
-            embeddings: vec![vec![0., 0., 1.], vec![1., 0., 0.], vec![0., 1., 0.]],
+            embeddings: lines
+                .iter()
+                .map(|line| lexical_vector(line, "en"))
+                .map(|vector| vector.into_iter().map(|value| value as f32).collect())
+                .collect(),
             timings: vec![
                 Timing {
                     start_us: 5_000_000,
@@ -2033,7 +3541,8 @@ mod tests {
         struct Label {
             text: String,
             label: u8,
-            embedding_group: String,
+            #[serde(alias = "embedding_group")]
+            _embedding_group: String,
         }
         let corpus: Corpus =
             serde_json::from_str(include_str!("../fixtures/phrase_impact_labels.json")).unwrap();
@@ -2054,11 +3563,8 @@ mod tests {
             let vectors = case
                 .sentences
                 .iter()
-                .map(|sentence| match sentence.embedding_group.as_str() {
-                    "topic" => vec![1., 0., 0.],
-                    "outlier" => vec![0., 1., 0.],
-                    _ => panic!("bad embedding group"),
-                })
+                .map(|sentence| lexical_vector(&sentence.text, "en"))
+                .map(|vector| vector.into_iter().map(|value| value as f32).collect())
                 .collect();
             let text = case
                 .sentences
