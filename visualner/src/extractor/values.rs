@@ -281,7 +281,8 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
                 }
             }
         }
-        if kind == "NUMBER" {
+        let is_year_date = kind == "DATE" && number.len() == 4;
+        if kind == "NUMBER" || is_year_date {
             if let Some(month_start) = month_before_day(source_text, number_start) {
                 start = month_start;
                 kind = "DATE";
@@ -361,13 +362,35 @@ fn numeric_date_span(source: &str, start: usize) -> Option<(usize, usize)> {
 }
 
 fn month_before_day(source: &str, number_start: usize) -> Option<usize> {
-    let trimmed = source[..number_start].trim_end();
+    let prefix = source.get(..number_start)?;
+    let trimmed = prefix.trim_end();
     let start = trimmed
-        .rfind(|ch: char| !ch.is_alphabetic())
-        .map(|idx| idx + 1)
+        .char_indices()
+        .rev()
+        .find(|(_, ch)| !ch.is_alphabetic())
+        .map(|(idx, ch)| idx + ch.len_utf8())
         .unwrap_or(0);
-    let month = trimmed[start..].to_lowercase();
+    let month = trimmed.get(start..)?.to_lowercase();
     month_names().contains(&month.as_str()).then_some(start)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn month_before_day_handles_multibyte_punctuation_before_date() {
+        let source = "L’indagine proseguì fino a giugno 1988.";
+        let number_start = source.find("1988").unwrap();
+        let month_start = month_before_day(source, number_start).unwrap();
+        assert_eq!(source.get(month_start..number_start), Some("giugno "));
+
+        let candidates = value_candidates(source);
+        assert!(candidates.iter().any(|candidate| {
+            candidate.text == "giugno 1988"
+                && source.get(candidate.start..candidate.end) == Some("giugno 1988")
+        }));
+    }
 }
 
 fn month_after_day(source: &str, number_end: usize) -> Option<usize> {

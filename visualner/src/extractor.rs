@@ -1473,8 +1473,8 @@ mod tests {
         assert!(
             entities
                 .iter()
-                .any(|entity| entity.r#type == "DATE" && entity.text == "1988"),
-            "year missing: {entities:?}"
+                .any(|entity| entity.r#type == "DATE" && entity.text == "June 1988"),
+            "month-year date missing: {entities:?}"
         );
         assert!(
             entities
