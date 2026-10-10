@@ -11,6 +11,10 @@ pub fn process_line(line: &str) -> String {
             serde_json::json!({"ok": true, "sentences": phrase_impact::split_sentences(transcript, language).iter().map(|sentence| serde_json::json!({"text": sentence.text, "start_byte": sentence.start_byte, "end_byte": sentence.end_byte})).collect::<Vec<_>>()})
         }
         Ok(value) => {
+            let scene_inputs: Option<Vec<phrase_impact::SceneInput>> = value
+                .get("scene_inputs")
+                .cloned()
+                .and_then(|v| serde_json::from_value(v).ok());
             let scenes: Vec<String> =
                 serde_json::from_value(value.get("scenes").cloned().unwrap_or_default())
                     .unwrap_or_default();
@@ -22,10 +26,21 @@ pub fn process_line(line: &str) -> String {
             });
             match serde_json::from_value::<Request>(value) {
                 Ok(request) => {
-                    let result = if let Some(options) = chapter_options {
-                        phrase_impact::run_with_chapter_options(request, &scenes, &topics, &options)
-                    } else {
-                        phrase_impact::run_with_scene_context(request, &scenes, &topics)
+                    let result = match (scene_inputs, chapter_options) {
+                        (Some(inputs), Some(options)) => {
+                            phrase_impact::run_with_scene_inputs(request, &inputs, &options)
+                        }
+                        (Some(inputs), None) => phrase_impact::run_with_scene_inputs(
+                            request,
+                            &inputs,
+                            &phrase_impact::ChapterOptions::default(),
+                        ),
+                        (None, Some(options)) => {
+                            phrase_impact::run_with_chapter_options(request, &scenes, &topics, &options)
+                        }
+                        (None, None) => {
+                            phrase_impact::run_with_scene_context(request, &scenes, &topics)
+                        }
                     };
                     match result {
                         Ok(result) => serde_json::json!({"ok": true, "result": result}),

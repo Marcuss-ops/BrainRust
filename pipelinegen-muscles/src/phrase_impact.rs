@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::time::Instant;
 
 const GRAPH_K: usize = 6;
@@ -6,6 +7,22 @@ const LOCAL_CONTEXT: usize = 3;
 const DAMPING: f64 = 0.85;
 const MAX_SEGMENT_WORDS: usize = 48;
 const DUPLICATE_COSINE: f64 = 0.96;
+/// Longest keyphrase a title may quote. Five tokens is the overlay budget the
+/// renderer treats as one visual line, so a longer span would not fit it.
+const MAX_TITLE_TOKENS: usize = 5;
+/// Score multiplier for a candidate span that covers a whole content run: the
+/// span IS the phrase, so nothing was cut off it.
+const WHOLE_RUN_SPAN: f64 = 1.0;
+/// Score multiplier for the TAIL of a content run longer than the title budget.
+/// Such a run cannot be quoted whole, so it must be trimmed, and the tail is
+/// the only window of it that is ever recorded — see the run enumeration below.
+/// It stays close to an intact phrase in score, so a complete short run still
+/// outranks a trimmed one while neither can be outranked by a mid-phrase cut.
+const TRIMMED_RUN_TAIL_SPAN: f64 = 0.9;
+/// Score multiplier for a window cut out of a content run that DOES fit the
+/// title budget: a sub-window of a short run is allowed (it may be the better
+/// phrase) but ranks below the whole run.
+const PARTIAL_SPAN: f64 = 0.5;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -99,6 +116,54 @@ impl Default for ChapterOptions {
     }
 }
 
+/// Verified scene identity for per-scene highlights (editorial.v1).
+/// start_byte/end_byte locate the scene verbatim inside transcript when known;
+/// None means local-only analysis (no global offsets fabricated).
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SceneInput {
+    pub scene_id: String,
+    pub text: String,
+    #[serde(default)]
+    pub topic: Option<String>,
+    #[serde(default)]
+    pub start_byte: Option<usize>,
+    #[serde(default)]
+    pub end_byte: Option<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SceneBulletSpan {
+    pub sentence_start: usize,
+    pub sentence_end: usize,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ScenePhraseSpan {
+    pub sentence_index: usize,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub text: String,
+    pub score: f64,
+    /// True when the span fits the visual overlay budget (<=5 tokens).
+    /// Longer editorial candidates are kept with false so the renderer,
+    /// not the engine, decides admissibility.
+    pub visual_eligible: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SceneHighlight {
+    pub scene_id: String,
+    /// None when no reliable candidate exists; diagnostics may use scene_id.
+    pub title: Option<String>,
+    pub title_status: String,
+    pub title_source: String,
+    pub bullets: Vec<SceneBulletSpan>,
+    pub highlights: Vec<ScenePhraseSpan>,
+    /// True when scene slice verified against transcript (global offsets valid).
+    pub globally_indexed: bool,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Request {
     pub transcript: String,
@@ -115,10 +180,29 @@ pub struct Request {
     /// Bypass semantic vectors with a deterministic lexical-content ranking.
     #[serde(default)]
     pub lexical_only: bool,
+    /// The caller-supplied phrase stop-word set for `language`, resolved from
+    /// the repository lexicon (config/lexicons/<lang>/) at request time. This
+    /// crate carries no language word lists of its own: keyphrase extraction is
+    /// ONE language-independent algorithm whose only language-specific input is
+    /// this set, so the same code path serves every language the lexicon
+    /// profiles and the cross-linguistic `fallback` profile for the rest.
+    /// Empty means "no filtering"; the Go adapter always injects the set.
+    #[serde(default)]
+    pub stopwords: Vec<String>,
 }
 
 fn default_language() -> String {
     "en".to_string()
+}
+
+/// Normalizes the injected phrase stop-word set once per request so every
+/// downstream stage tests exactly the same tokens.
+fn phrase_stopwords(words: &[String]) -> HashSet<String> {
+    words
+        .iter()
+        .map(|word| word.trim().to_lowercase())
+        .filter(|word| !word.is_empty())
+        .collect()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -165,6 +249,8 @@ pub struct ResultDocument {
     /// Selected heavy sentences in chronological order.
     pub timeline: Vec<RankedSentence>,
     pub chapter_manifest: ChapterManifest,
+    #[serde(default)]
+    pub scene_highlights: Vec<SceneHighlight>,
     pub timings: StageTimings,
 }
 
@@ -867,47 +953,20 @@ fn extract_summary(
 
 /// Creates a deterministic sparse lexical vector for offline ranking.
 /// Hashing bounds memory use regardless of transcript vocabulary size.
-fn lexical_vector(text: &str, language: &str) -> Vec<f64> {
+/// The stop-word set is the caller's per-language input: the crate owns none.
+fn lexical_vector(text: &str, stopwords: &HashSet<String>) -> Vec<f64> {
     const DIMENSIONS: usize = 512;
-    let stopwords = match language
-        .split('-')
-        .next()
-        .unwrap_or("")
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        "it" => [
-            "il", "lo", "la", "i", "gli", "le", "di", "a", "da", "in", "con", "su", "per", "tra",
-            "e", "o", "un", "una", "che", "è",
-        ]
-        .as_slice(),
-        "es" => [
-            "el", "la", "los", "las", "de", "a", "en", "con", "y", "o", "un", "una", "que", "es",
-        ]
-        .as_slice(),
-        "fr" => [
-            "le", "la", "les", "de", "des", "du", "à", "en", "et", "ou", "un", "une", "que", "est",
-        ]
-        .as_slice(),
-        _ => [
-            "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with", "is", "are",
-            "was", "were", "that", "this", "it",
-        ]
-        .as_slice(),
-    };
     let mut vector = vec![0.0; DIMENSIONS];
     for token in text
         .split(|ch: char| !ch.is_alphanumeric())
         .filter(|token| token.chars().count() > 1)
     {
-        if stopwords
-            .iter()
-            .any(|word| token.eq_ignore_ascii_case(word))
-        {
+        let lowered = token.to_lowercase();
+        if stopwords.contains(&lowered) {
             continue;
         }
         let mut hash = 2_166_136_261_u32;
-        for byte in token.to_lowercase().bytes() {
+        for byte in lowered.bytes() {
             hash ^= byte as u32;
             hash = hash.wrapping_mul(16_777_619);
         }
@@ -1007,57 +1066,85 @@ fn boundary_evidence(
     }
 }
 
+/// Extracts a chapter/scene title from `text`. The only language-specific input
+/// is the injected `stopwords` set: this function knows nothing about any
+/// particular language, so it behaves identically for every language whose
+/// stop-word set the caller supplies.
 fn chapter_title(
     text: &str,
-    language: &str,
     topics: &[String],
     scene_ids: &[usize],
+    stopwords: &HashSet<String>,
 ) -> (String, String) {
-    let stop: &[&str] = match language.split(['-', '_']).next().unwrap_or("it") {
-        "en" => &[
-            "the", "a", "an", "of", "to", "in", "on", "for", "with", "and", "or", "but", "is",
-            "are", "was", "were", "be", "been", "being", "has", "have", "had", "this", "that",
-            "these", "those", "after", "before", "how", "when", "what",
-        ],
-        "es" => &[
-            "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "a", "en", "con",
-            "por", "para", "y", "o", "pero", "que", "no", "es", "son", "fue", "han", "como",
-            "cuando", "qué",
-        ],
-        "fr" => &[
-            "le", "la", "les", "un", "une", "des", "de", "du", "à", "en", "avec", "pour", "par",
-            "et", "ou", "mais", "que", "ne", "pas", "est", "sont", "été", "comme", "quand",
-            "comment",
-        ],
-        _ => &[
-            "il", "lo", "la", "i", "gli", "le", "un", "una", "uno", "di", "a", "da", "in", "con",
-            "su", "per", "tra", "fra", "e", "o", "ma", "che", "del", "della", "dello", "dei",
-            "degli", "delle", "nel", "nella", "nei", "nelle", "al", "alla", "agli", "alle",
-            "dallo", "dalla", "dai", "dalle", "non", "si", "è", "sono", "ha", "hanno", "era",
-            "erano", "stato", "stata", "stati", "come", "quando", "dopo", "prima", "anche",
-            "questo", "questa", "quello", "quella",
-        ],
-    };
     let words: Vec<String> = text
         .split(|c: char| !c.is_alphanumeric())
         .map(|w| w.to_lowercase())
         .collect();
+    // Every language-specific token this function filters on arrives through
+    // `stopwords`. The authoritative multi-language resource is the repository
+    // lexicon (config/lexicons/<lang>/, injected through the Go adapter), so the
+    // crate needs no hand-maintained list per language and a language the
+    // lexicon does not enumerate degrades to the cross-linguistic fallback
+    // profile instead of to an unrelated language's words.
     let is_concept_token = |word: &str| {
         word.chars().count() > 1
             && !word.chars().all(char::is_numeric)
-            && !stop.iter().any(|excluded| word == *excluded)
+            && !stopwords.contains(word)
     };
     let mut token_frequency = std::collections::HashMap::<String, usize>::new();
     for word in words.iter().filter(|word| is_concept_token(word)) {
         *token_frequency.entry(word.clone()).or_default() += 1;
     }
+    // Candidate spans are enumerated over MAXIMAL RUNS of content tokens, which
+    // lets each one be checked for completeness: a span is complete when it
+    // covers a whole run, i.e. the tokens on both sides of it are stop words (or
+    // the text boundary). Completeness is a purely structural property that
+    // needs only the injected stop set, so this one rule works in every
+    // language and is what stops a title from being cut mid-phrase.
+    let mut runs: Vec<(usize, usize)> = Vec::new();
+    let mut cursor = 0;
+    while cursor < words.len() {
+        if !is_concept_token(&words[cursor]) {
+            cursor += 1;
+            continue;
+        }
+        let start = cursor;
+        while cursor < words.len() && is_concept_token(&words[cursor]) {
+            cursor += 1;
+        }
+        runs.push((start, cursor));
+    }
     let mut counts = std::collections::HashMap::<String, usize>::new();
-    for n in 2..=4 {
-        for window in words.windows(n) {
-            if window.iter().any(|word| !is_concept_token(word)) {
-                continue;
+    let mut span_quality = std::collections::HashMap::<String, f64>::new();
+    let mut record = |phrase: String, quality: f64| {
+        *counts.entry(phrase.clone()).or_default() += 1;
+        let slot = span_quality.entry(phrase).or_insert(0.0);
+        if quality > *slot {
+            *slot = quality;
+        }
+    };
+    for (start, end) in runs {
+        let span = end - start;
+        if span > MAX_TITLE_TOKENS {
+            // The run cannot be quoted whole, so it must be trimmed. It
+            // contributes exactly ONE candidate — its TAIL — and never its head
+            // or an interior window: that rule is what stops a title from being
+            // a cut that starts or ends mid-phrase, and it removes the arbitrary
+            // choice the old code made by term rarity and then by the sort
+            // tie-break. A tail that shares a token with a longer run elsewhere
+            // still has to win on its own score.
+            record(words[end - MAX_TITLE_TOKENS..end].join(" "), TRIMMED_RUN_TAIL_SPAN);
+            continue;
+        }
+        for length in 2..=span {
+            for offset in 0..=(span - length) {
+                let quality = if length == span {
+                    WHOLE_RUN_SPAN
+                } else {
+                    PARTIAL_SPAN
+                };
+                record(words[start + offset..start + offset + length].join(" "), quality);
             }
-            *counts.entry(window.join(" ")).or_default() += 1;
         }
     }
     let document_frequency = token_frequency.clone();
@@ -1079,9 +1166,10 @@ fn chapter_title(
                 .map(|token| 1.0 / document_frequency.get(*token).copied().unwrap_or(1) as f64)
                 .sum::<f64>();
             let coverage = tokens.len() as f64 / words.len().max(1) as f64;
+            let quality = span_quality.get(&phrase).copied().unwrap_or(PARTIAL_SPAN);
             (
                 phrase,
-                specificity * coverage.sqrt() * frequency as f64 * term_weight,
+                specificity * coverage.sqrt() * frequency as f64 * term_weight * quality,
                 "extractive_keyphrase",
             )
         })
@@ -1178,14 +1266,315 @@ fn contextual_bullet_span(
     (start, end)
 }
 
+/// True for full statistical propositions ("sales rose 40%", "down 6% since
+/// 2020"): penalized as titles, still valid as bullets. Short nominals with
+/// digits ("Formula 1", "Industria 4.0", "G7", "Windows 11") return false.
+fn is_statistical_sentence(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    let has_digit = text.chars().any(|c| c.is_ascii_digit());
+    if !has_digit {
+        return false;
+    }
+    let words = text.split_whitespace().count();
+    if words <= 4 {
+        return false;
+    }
+    let stat_markers = [
+        '%', '$', '€', '£',
+    ];
+    if text.chars().any(|c| stat_markers.contains(&c)) {
+        return true;
+    }
+    let verbs = [
+        " rose ", " fell ", " grew ", " dropped ", " increased ", " decreased ",
+        " declined ", " surged ", " shrank ", " down ", " up ", " by ",
+        " aumentate ", " aumentato ", " diminuito ", " calo ", " crescita ",
+        " riduzione ", " rispetto ", " since ", " from ", " dal ",
+    ];
+    let padded = format!(" {lower} ");
+    verbs.iter().any(|v| padded.contains(v))
+}
+
+fn title_case_phrase(phrase: &str) -> String {
+    phrase
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            chars
+                .next()
+                .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Topic-first title selection: topic is a prioritized candidate validated
+/// against the real scene text, never blind truth. Falls back to an extracted
+/// nominal keyphrase; returns None (unavailable) instead of inventing one.
+fn select_scene_title(
+    scene_text: &str,
+    topic: Option<&str>,
+    stopwords: &HashSet<String>,
+) -> (Option<String>, String, String) {
+    if let Some(raw) = topic.map(str::trim).filter(|t| !t.is_empty()) {
+        let normalized = raw.replace('-', " ").replace('_', " ");
+        let topic_tokens: Vec<String> = normalized
+            .split(|c: char| !c.is_alphanumeric())
+            .map(str::to_lowercase)
+            .filter(|t| t.chars().count() > 1)
+            .collect();
+        if !topic_tokens.is_empty() {
+            let lower_scene = scene_text.to_lowercase();
+            let overlap = topic_tokens
+                .iter()
+                .filter(|t| lower_scene.contains(t.as_str()))
+                .count();
+            let coverage = overlap as f64 / topic_tokens.len() as f64;
+            if coverage >= 0.34 && !is_statistical_sentence(&normalized) {
+                return (
+                    Some(title_case_phrase(&normalized)),
+                    "resolved".into(),
+                    "topic_validated".into(),
+                );
+            }
+        }
+    }
+    let (title, source) = chapter_title(scene_text, &[], &[], stopwords);
+    if title.trim().is_empty() || is_statistical_sentence(&title) && title.split_whitespace().count() > 5 {
+        return (None, "unavailable".into(), "none".into());
+    }
+    if is_statistical_sentence(scene_text) && title == scene_text.trim() {
+        return (None, "unavailable".into(), "none".into());
+    }
+    (Some(title), "resolved".into(), source)
+}
+
+/// Extract short overlay spans inside top sentences. The engine may score
+/// longer candidates; visual_eligible marks the <=5-token budget subset.
+fn select_phrase_spans(
+    sentences: &[Segment],
+    importance: &[f64],
+    stopwords: &HashSet<String>,
+    limit: usize,
+) -> Vec<ScenePhraseSpan> {
+    let mut order: Vec<usize> = (0..sentences.len()).collect();
+    order.sort_by(|&a, &b| importance[b].total_cmp(&importance[a]).then(a.cmp(&b)));
+    let mut out = Vec::new();
+    for &si in order.iter().take(limit * 2 + 2) {
+        let seg = &sentences[si];
+        let tokens: Vec<(usize, usize, &str)> = {
+            let mut v = Vec::new();
+            let mut idx = 0usize;
+            for tok in seg.text.split_whitespace() {
+                if let Some(pos) = seg.text[idx..].find(tok) {
+                    let s = idx + pos;
+                    v.push((seg.start_byte + s, seg.start_byte + s + tok.len(), tok));
+                    idx = s + tok.len();
+                }
+            }
+            v
+        };
+        if tokens.len() < 2 {
+            continue;
+        }
+        let mut best: Option<(usize, usize, f64)> = None;
+        for len in 2..=tokens.len().min(8) {
+            for win in tokens.windows(len) {
+                let first = win.first().unwrap().2.to_lowercase();
+                let last = win.last().unwrap().2.to_lowercase();
+                if stopwords.contains(&first) || stopwords.contains(&last) {
+                    continue;
+                }
+                let text = win.iter().map(|(_, _, t)| *t).collect::<Vec<_>>().join(" ");
+                if text.chars().count() < 4 {
+                    continue;
+                }
+                let rarity = win
+                    .iter()
+                    .map(|(_, _, t)| if t.chars().all(|c| c.is_alphabetic()) && t.len() > 5 { 1.5 } else { 1.0 })
+                    .sum::<f64>()
+                    / len as f64;
+                let brevity = if len <= 5 { 1.2 } else { 0.85 };
+                let score = importance[si] * rarity * brevity;
+                if best.map(|(_, _, s)| score > s).unwrap_or(true) {
+                    best = Some((win.first().unwrap().0, win.last().unwrap().1, score));
+                }
+            }
+        }
+        if let Some((s, e, score)) = best {
+            let bytes = &sentences[si].text.as_bytes()[s - seg.start_byte..e - seg.start_byte];
+            let text = String::from_utf8_lossy(bytes).into_owned();
+            let visual = text.split_whitespace().count() <= 5;
+            out.push(ScenePhraseSpan {
+                sentence_index: si,
+                start_byte: s,
+                end_byte: e,
+                text,
+                score,
+                visual_eligible: visual,
+            });
+            if out.len() >= limit {
+                break;
+            }
+        }
+        if out.len() >= limit {
+            break;
+        }
+    }
+    out.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.sentence_index.cmp(&b.sentence_index)));
+    out.truncate(limit);
+    out
+}
+
+fn build_scene_highlights(
+    transcript: &str,
+    global_segments: &[Segment],
+    global_importance: &[f64],
+    scenes: &[SceneInput],
+    language: &str,
+    stopwords: &HashSet<String>,
+) -> (Vec<SceneHighlight>, bool) {
+    let mut out = Vec::new();
+    let mut certified = true;
+    let mut seen_ids = std::collections::HashSet::new();
+    for scene in scenes {
+        if scene.scene_id.trim().is_empty() || !seen_ids.insert(scene.scene_id.clone()) {
+            certified = false;
+            continue;
+        }
+        let globally_indexed;
+        let scene_segments: Vec<Segment>;
+        let local_importance: Vec<f64>;
+        if let (Some(s), Some(e)) = (scene.start_byte, scene.end_byte) {
+            let valid = e <= transcript.len()
+                && s < e
+                && transcript.is_char_boundary(s)
+                && transcript.is_char_boundary(e)
+                && transcript[s..e] == *scene.text;
+            if !valid {
+                // Slice mismatch: local-only analysis, no fabricated globals.
+                globally_indexed = false;
+                let parts = split_sentences(&scene.text, language);
+                if parts.is_empty() {
+                    out.push(SceneHighlight {
+                        scene_id: scene.scene_id.clone(),
+                        title: None,
+                        title_status: "unavailable".into(),
+                        title_source: "none".into(),
+                        bullets: Vec::new(),
+                        highlights: Vec::new(),
+                        globally_indexed,
+                    });
+                    continue;
+                }
+                // Map local sentences onto overlapping global range when the
+                // raw bytes match somewhere (repeated text => first match is
+                // NOT assumed; require the declared slice, else local-only).
+                certified = false;
+                scene_segments = parts;
+                local_importance = vec![0.5; scene_segments.len()];
+            } else {
+                globally_indexed = true;
+                let mut v = Vec::new();
+                let mut imp = Vec::new();
+                for (gi, seg) in global_segments.iter().enumerate() {
+                    if seg.start_byte >= s && seg.end_byte <= e {
+                        v.push(seg.clone());
+                        imp.push(*global_importance.get(gi).unwrap_or(&0.5));
+                    }
+                }
+                if v.is_empty() {
+                    let parts = split_sentences(&scene.text, language);
+                    scene_segments = parts;
+                    local_importance = vec![0.5; scene_segments.len()];
+                } else {
+                    scene_segments = v;
+                    local_importance = imp;
+                }
+            }
+        } else {
+            globally_indexed = false;
+            let parts = split_sentences(&scene.text, language);
+            if parts.is_empty() {
+                out.push(SceneHighlight {
+                    scene_id: scene.scene_id.clone(),
+                    title: None,
+                    title_status: "unavailable".into(),
+                    title_source: "none".into(),
+                    bullets: Vec::new(),
+                    highlights: Vec::new(),
+                    globally_indexed,
+                });
+                continue;
+            }
+            scene_segments = parts;
+            local_importance = vec![0.5; scene_segments.len()];
+        }
+        if scene_segments.is_empty() {
+            out.push(SceneHighlight {
+                scene_id: scene.scene_id.clone(),
+                title: None,
+                title_status: "unavailable".into(),
+                title_source: "none".into(),
+                bullets: Vec::new(),
+                highlights: Vec::new(),
+                globally_indexed,
+            });
+            continue;
+        }
+        let (title, title_status, title_source) =
+            select_scene_title(&scene.text, scene.topic.as_deref(), stopwords);
+        // Bullet budget scales with scene length; short scenes get none invented.
+        let words: usize = scene.text.split_whitespace().count();
+        let bullet_n = if words < 15 || scene_segments.len() < 1 {
+            0
+        } else if words < 60 {
+            1.min(scene_segments.len())
+        } else {
+            3.min(scene_segments.len())
+        };
+        let mut order: Vec<usize> = (0..scene_segments.len()).collect();
+        order.sort_by(|&a, &b| local_importance[b].total_cmp(&local_importance[a]).then(a.cmp(&b)));
+        let mut bullets = Vec::new();
+        for &li in order.iter().take(bullet_n) {
+            // Global sentence index when indexed, else local index.
+            let (gs, ge) = if globally_indexed {
+                let seg = &scene_segments[li];
+                let gi = global_segments.iter().position(|g| g.start_byte == seg.start_byte).unwrap_or(li);
+                (gi, gi + 1)
+            } else {
+                (li, li + 1)
+            };
+            bullets.push(SceneBulletSpan {
+                sentence_start: gs,
+                sentence_end: ge,
+                text: scene_segments[li].text.clone(),
+            });
+        }
+        bullets.sort_by(|a, b| a.sentence_start.cmp(&b.sentence_start));
+        let highlights = select_phrase_spans(&scene_segments, &local_importance, stopwords, 2);
+        out.push(SceneHighlight {
+            scene_id: scene.scene_id.clone(),
+            title,
+            title_status,
+            title_source,
+            bullets,
+            highlights,
+            globally_indexed,
+        });
+    }
+    (out, certified)
+}
+
 fn build_chapters(
     ranked: &[RankedSentence],
     vectors: &[Vec<f64>],
     timings: &[Timing],
     scene_starts: &[(usize, usize)],
     topics: &[String],
-    language: &str,
     options: &ChapterOptions,
+    stopwords: &HashSet<String>,
 ) -> Vec<Chapter> {
     let min_sentences = options.min_sentences.max(1);
     let max_sentences = options.max_sentences.max(min_sentences);
@@ -1300,7 +1689,7 @@ fn build_chapters(
             .map(|s| s.text.as_str())
             .collect::<Vec<_>>()
             .join(" ");
-        let (title, title_source) = chapter_title(&text, language, topics, &scene_ids);
+        let (title, title_source) = chapter_title(&text, topics, &scene_ids, stopwords);
         let mut candidates: Vec<usize> = (begin..end).collect();
         candidates.sort_by(|&a, &b| {
             ranked[b]
@@ -1385,6 +1774,51 @@ fn build_chapters(
 /// Output summaries and bullets are extractive to prevent unsupported claims.
 pub fn run(request: Request) -> Result<ResultDocument, String> {
     run_with_scene_context(request, &[], &[])
+}
+
+/// Per-scene highlights entry point (editorial.v1). Legacy extractive
+/// products are computed by the canonical path; highlights reuse the ranked
+/// importance so there is exactly one analysis, not two engines.
+/// Duplicate scene ids are a contract error (manifest not certified);
+/// slice mismatches degrade to local-only analysis for that scene.
+pub fn run_with_scene_inputs(
+    request: Request,
+    inputs: &[SceneInput],
+    chapter_options: &ChapterOptions,
+) -> Result<ResultDocument, String> {
+    let mut seen = std::collections::HashSet::new();
+    for input in inputs {
+        if input.scene_id.trim().is_empty() || !seen.insert(input.scene_id.clone()) {
+            return Err("duplicate scene identity".into());
+        }
+    }
+    let scenes: Vec<String> = inputs.iter().map(|s| s.text.clone()).collect();
+    let topics: Vec<String> = inputs
+        .iter()
+        .map(|s| s.topic.clone().unwrap_or_default())
+        .collect();
+    let mut doc = run_with_chapter_options(request.clone(), &scenes, &topics, chapter_options)?;
+    let segments = split_sentences(&request.transcript, &request.language);
+    let mut importance_by_index = vec![0.5; segments.len()];
+    for ranked in &doc.ranked {
+        if ranked.index < importance_by_index.len() {
+            importance_by_index[ranked.index] = ranked.importance;
+        }
+    }
+    let stopwords = phrase_stopwords(&request.stopwords);
+    let (highlights, certified) = build_scene_highlights(
+        &request.transcript,
+        &segments,
+        &importance_by_index,
+        inputs,
+        &request.language,
+        &stopwords,
+    );
+    if !certified {
+        return Err("incoherent scene identity".into());
+    }
+    doc.scene_highlights = highlights;
+    Ok(doc)
 }
 
 pub fn run_with_scene_context(
@@ -1496,6 +1930,7 @@ pub fn run_with_chapter_options(
         }
         previous_start = timing.start_us;
     }
+    let stopwords = phrase_stopwords(&request.stopwords);
     let similarity_start = Instant::now();
     let vectors = if request.lexical_only {
         if !request.embeddings.is_empty() {
@@ -1503,7 +1938,7 @@ pub fn run_with_chapter_options(
         }
         segments
             .iter()
-            .map(|segment| lexical_vector(&segment.text, &request.language))
+            .map(|segment| lexical_vector(&segment.text, &stopwords))
             .collect()
     } else {
         let dimension = request.embeddings.first().map(Vec::len).unwrap_or(0);
@@ -1606,8 +2041,8 @@ pub fn run_with_chapter_options(
         &request.timings,
         &scene_starts,
         resolved_topics,
-        &request.language,
         chapter_options,
+        &stopwords,
     );
     let mut timeline = heavy_sentences.clone();
     timeline.sort_by(|a, b| match (a.start_sec, b.start_sec) {
@@ -1632,6 +2067,7 @@ pub fn run_with_chapter_options(
             schema_version: "chapter_manifest.v1".into(),
             chapters,
         },
+        scene_highlights: Vec::new(),
         timings: StageTimings {
             split_ms,
             embedding_ms: request.embedding_ms,
@@ -1644,1994 +2080,7 @@ pub fn run_with_chapter_options(
     })
 }
 
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn vec3(x: f32, y: f32, z: f32) -> Vec<f32> {
-        vec![x, y, z]
-    }
-    fn request(lines: &[&str], embeddings: Vec<Vec<f32>>, options: Options) -> Request {
-        Request {
-            transcript: lines.join(" "),
-            language: "en".into(),
-            embeddings,
-            timings: Vec::new(),
-            options,
-            embedding_ms: 0.0,
-            lexical_only: false,
-        }
-    }
-
-    fn chapter_test_options() -> ChapterOptions {
-        ChapterOptions {
-            min_sentences: 2,
-            max_sentences: 8,
-            min_words: 0,
-            complexity_penalty: 2.0,
-            ..ChapterOptions::default()
-        }
-    }
-
-    fn assert_chapter_manifest_contract(manifest: &ChapterManifest, sentences: &[String]) {
-        assert_eq!(manifest.schema_version, "chapter_manifest.v1");
-        assert!(!manifest.chapters.is_empty());
-        assert_eq!(manifest.chapters.first().unwrap().start_sentence, 0);
-        assert_eq!(
-            manifest.chapters.last().unwrap().end_sentence,
-            sentences.len()
-        );
-        for (index, chapter) in manifest.chapters.iter().enumerate() {
-            assert!(!chapter.title.trim().is_empty());
-            assert!(chapter.start_sentence < chapter.end_sentence);
-            if index > 0 {
-                assert_eq!(
-                    manifest.chapters[index - 1].end_sentence,
-                    chapter.start_sentence
-                );
-            }
-            for bullet in &chapter.bullets {
-                assert!(chapter.start_sentence <= bullet.start_sentence);
-                assert!(bullet.start_sentence < bullet.end_sentence);
-                assert!(bullet.end_sentence <= chapter.end_sentence);
-                let source = sentences[bullet.start_sentence..bullet.end_sentence]
-                    .iter()
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                assert_eq!(bullet.text, source);
-            }
-            match (chapter.start_ms, chapter.end_ms) {
-                (Some(start), Some(end)) => assert!(start >= 0 && end > start),
-                (None, None) => {}
-                _ => panic!("chapter timestamps must be both present or both absent"),
-            }
-        }
-    }
-
-    fn orthogonal_embeddings(count: usize) -> Vec<Vec<f32>> {
-        (0..count)
-            .map(|index| {
-                let mut vector = vec![0.0; count];
-                vector[index] = 1.0;
-                vector
-            })
-            .collect()
-    }
-
-    fn labeled_test_sentences(count: usize) -> Vec<String> {
-        (0..count)
-            .map(|index| {
-                format!(
-                    "Sentence {index} explains that the company reported operational details across its regional businesses during the current financial quarter ending in June."
-                )
-            })
-            .collect()
-    }
-
-    #[test]
-    fn sentence_split_plain_and_difficult_cases_preserve_surface() {
-        let source =
-            "Apple launched a new phone. Sales increased by 20%. Investors reacted positively.";
-        let parts = split_sentences(source, "en");
-        assert_eq!(
-            parts
-                .iter()
-                .map(|part| part.text.as_str())
-                .collect::<Vec<_>>(),
-            [
-                "Apple launched a new phone.",
-                "Sales increased by 20%.",
-                "Investors reacted positively."
-            ]
-        );
-        assert!(parts
-            .iter()
-            .all(|part| &source[part.start_byte..part.end_byte] == part.text));
-        let difficult = "Dr. Smith joined Apple Inc. in 2025. Revenue reached $2.5 billion. U.S. sales increased.";
-        assert_eq!(
-            split_sentences(difficult, "en")
-                .iter()
-                .map(|part| part.text.as_str())
-                .collect::<Vec<_>>(),
-            [
-                "Dr. Smith joined Apple Inc. in 2025.",
-                "Revenue reached $2.5 billion.",
-                "U.S. sales increased."
-            ]
-        );
-    }
-
-    #[test]
-    fn localized_splitting_and_unpunctuated_fallback() {
-        for (language, text, expected) in [
-            ("it", "La dott. Rossi è arrivata. Poi ha parlato.", 2),
-            ("es", "La Dra. García llegó. Después habló.", 2),
-            ("pt", "O Dr. Silva chegou. Depois falou.", 2),
-            ("fr", "M. Dupont est arrivé. Ensuite il a parlé.", 2),
-            ("de", "Dr. Müller kam an. Danach sprach er.", 2),
-            ("ja", "これは文です。次の文です！", 2),
-        ] {
-            assert_eq!(
-                split_sentences(text, language).len(),
-                expected,
-                "{language}: {text}"
-            );
-        }
-        assert_eq!(
-            split_sentences("Revenue grew.Next the board met.", "en").len(),
-            2
-        );
-        let source = (0..95)
-            .map(|i| format!("word{i}"))
-            .collect::<Vec<_>>()
-            .join(" ");
-        let chunks = split_sentences(&source, "en");
-        assert!(
-            chunks.len() >= 2
-                && chunks
-                    .iter()
-                    .all(|part| word_count(&part.text) <= MAX_SEGMENT_WORDS)
-        );
-        assert_eq!(
-            chunks
-                .iter()
-                .flat_map(|part| part.text.split_whitespace())
-                .collect::<Vec<_>>(),
-            source.split_whitespace().collect::<Vec<_>>()
-        );
-    }
-
-    fn generated_chapter_sentences(count: usize) -> Vec<String> {
-        (0..count)
-            .map(|index| {
-                format!(
-                    "record{index} value{} detail{} marker{}.",
-                    index % 5,
-                    (index / 3) % 7,
-                    (index / 2) % 11
-                )
-            })
-            .collect()
-    }
-
-    fn lexical_chapter_request(sentences: &[String]) -> Request {
-        Request {
-            transcript: sentences.join(" "),
-            language: "und".into(),
-            embeddings: Vec::new(),
-            timings: Vec::new(),
-            options: Options::default(),
-            embedding_ms: 0.0,
-            lexical_only: true,
-        }
-    }
-
-    #[test]
-    fn scene_metadata_is_optional_and_partition_always_covers_generated_input() {
-        let sentences = generated_chapter_sentences(17);
-        let baseline = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &chapter_test_options(),
-        )
-        .unwrap();
-        let scenes = sentences
-            .chunks(4)
-            .map(|chunk| chunk.join(" "))
-            .collect::<Vec<_>>();
-        let topics = scenes
-            .iter()
-            .enumerate()
-            .map(|(index, _)| format!("label{index}"))
-            .collect::<Vec<_>>();
-        let with_context = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &scenes,
-            &topics,
-            &chapter_test_options(),
-        )
-        .unwrap();
-        let invalid_context = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &["unrelated input".into()],
-            &["unrelated label".into()],
-            &chapter_test_options(),
-        )
-        .unwrap();
-
-        assert_chapter_manifest_contract(&baseline.chapter_manifest, &sentences);
-        assert_chapter_manifest_contract(&with_context.chapter_manifest, &sentences);
-        assert_chapter_manifest_contract(&invalid_context.chapter_manifest, &sentences);
-        assert_eq!(baseline.summary, invalid_context.summary);
-        assert_eq!(baseline.bullet_points, invalid_context.bullet_points);
-        assert_eq!(baseline.heavy_sentences, invalid_context.heavy_sentences);
-        assert_eq!(baseline.chapter_manifest, invalid_context.chapter_manifest);
-    }
-
-    #[test]
-    fn complexity_profile_metamorphism_does_not_increase_partition_count() {
-        let sentences = generated_chapter_sentences(29);
-        let request = lexical_chapter_request(&sentences);
-        let analyze = |complexity_penalty| {
-            run_with_chapter_options(
-                request.clone(),
-                &[],
-                &[],
-                &ChapterOptions {
-                    min_sentences: 2,
-                    max_sentences: 10,
-                    min_words: 0,
-                    complexity_penalty,
-                    ..chapter_test_options()
-                },
-            )
-            .unwrap()
-        };
-        let low_penalty = analyze(0.25);
-        let high_penalty = analyze(3.0);
-        assert_chapter_manifest_contract(&low_penalty.chapter_manifest, &sentences);
-        assert_chapter_manifest_contract(&high_penalty.chapter_manifest, &sentences);
-        assert!(
-            high_penalty.chapter_manifest.chapters.len()
-                <= low_penalty.chapter_manifest.chapters.len()
-        );
-    }
-
-    #[test]
-    fn repeated_input_is_deterministic_and_preserves_full_coverage() {
-        let block = generated_chapter_sentences(7);
-        let mut repeated = block.clone();
-        repeated.extend(block.iter().cloned());
-        let request = lexical_chapter_request(&repeated);
-        let first =
-            run_with_chapter_options(request.clone(), &[], &[], &chapter_test_options()).unwrap();
-        let second = run_with_chapter_options(request, &[], &[], &chapter_test_options()).unwrap();
-        assert_chapter_manifest_contract(&first.chapter_manifest, &repeated);
-        assert_eq!(first.chapter_manifest, second.chapter_manifest);
-        assert_eq!(first.summary, second.summary);
-        assert_eq!(first.bullet_points, second.bullet_points);
-        assert_eq!(first.heavy_sentences, second.heavy_sentences);
-    }
-
-    #[test]
-    fn appended_input_remains_fully_represented_in_partition() {
-        let original = generated_chapter_sentences(13);
-        let mut extended = original.clone();
-        extended.extend(
-            generated_chapter_sentences(5)
-                .into_iter()
-                .map(|sentence| sentence.replace("record", "extension")),
-        );
-        let analyze = |sentences: &[String]| {
-            run_with_chapter_options(
-                lexical_chapter_request(sentences),
-                &[],
-                &[],
-                &chapter_test_options(),
-            )
-            .unwrap()
-        };
-        let baseline = analyze(&original);
-        let grown = analyze(&extended);
-        assert_chapter_manifest_contract(&baseline.chapter_manifest, &original);
-        assert_chapter_manifest_contract(&grown.chapter_manifest, &extended);
-    }
-
-    #[test]
-    fn chapter_analysis_scales_to_large_generated_transcript_without_losing_coverage() {
-        let sentences = generated_chapter_sentences(1000);
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &ChapterOptions {
-                max_sentences: 100,
-                min_sentences: 10,
-                min_words: 0,
-                ..chapter_test_options()
-            },
-        )
-        .unwrap();
-        assert_chapter_manifest_contract(&result.chapter_manifest, &sentences);
-    }
-
-    fn behavioral_chapter_options() -> ChapterOptions {
-        ChapterOptions {
-            min_sentences: 2,
-            max_sentences: 6,
-            min_words: 0,
-            context_sentences: 2,
-            complexity_penalty: 1.0,
-            bullet_count: 3,
-            ..ChapterOptions::default()
-        }
-    }
-
-    fn analyze_chapter_text(text: &str, language: &str) -> Result<ResultDocument, String> {
-        let mut request = lexical_chapter_request(
-            &split_sentences(text, language)
-                .into_iter()
-                .map(|part| part.text)
-                .collect::<Vec<_>>(),
-        );
-        request.language = language.into();
-        run_with_chapter_options(request, &[], &[], &behavioral_chapter_options())
-    }
-
-    fn boundary_indices(manifest: &ChapterManifest) -> Vec<usize> {
-        manifest
-            .chapters
-            .iter()
-            .skip(1)
-            .map(|chapter| chapter.start_sentence)
-            .collect()
-    }
-
-    fn assert_manifest_is_contiguous(manifest: &ChapterManifest, sentence_count: usize) {
-        assert_eq!(manifest.schema_version, "chapter_manifest.v1");
-        assert!(!manifest.chapters.is_empty());
-        assert_eq!(manifest.chapters[0].start_sentence, 0);
-        assert_eq!(
-            manifest.chapters.last().unwrap().end_sentence,
-            sentence_count
-        );
-        for pair in manifest.chapters.windows(2) {
-            assert_eq!(pair[0].end_sentence, pair[1].start_sentence);
-        }
-    }
-
-    #[test]
-    fn chapter_behavior_detects_three_unrelated_subject_blocks_without_fixed_titles() {
-        let groups = [
-            [
-                "GPU servers process video frames using graphics memory.",
-                "CPU transfers add latency to GPU workloads.",
-                "Efficient buffers improve rendering throughput.",
-            ],
-            [
-                "Home construction requires building permits.",
-                "Zoning rules constrain architectural plans.",
-                "Concrete and timber materials affect construction costs.",
-            ],
-            [
-                "Video platforms publish media to online audiences.",
-                "Application APIs automate content uploads.",
-                "Scheduled releases simplify channel management.",
-            ],
-        ];
-        let sentences = groups
-            .into_iter()
-            .flatten()
-            .map(str::to_string)
-            .collect::<Vec<_>>();
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        let manifest = &result.chapter_manifest;
-        assert_manifest_is_contiguous(manifest, sentences.len());
-        assert!(
-            manifest.chapters.len() >= 2 && manifest.chapters.len() <= 4,
-            "unrelated blocks should be separated without prescribing a title: {:?}",
-            manifest.chapters
-        );
-        let boundaries = boundary_indices(manifest);
-        assert!(
-            boundaries.iter().any(|&b| (2..=4).contains(&b)),
-            "expected a boundary near the first thematic transition, got {boundaries:?}"
-        );
-        assert!(
-            boundaries.iter().any(|&b| (5..=7).contains(&b)),
-            "expected a boundary near the second thematic transition, got {boundaries:?}"
-        );
-        for chapter in &manifest.chapters {
-            let source = sentences[chapter.start_sentence..chapter.end_sentence]
-                .join(" ")
-                .to_lowercase();
-            let lowered_title = chapter.title.to_lowercase();
-            let title_terms = lowered_title
-                .split_whitespace()
-                .filter(|term| term.chars().any(char::is_alphabetic))
-                .collect::<Vec<_>>();
-            assert!(!title_terms.is_empty());
-            assert!(
-                title_terms.iter().any(|term| source.contains(term)),
-                "title must be grounded in its chapter source"
-            );
-        }
-    }
-
-    #[test]
-    fn chapter_behavior_separates_different_topics_with_overlapping_vocabulary() {
-        let sentences = vec![
-            "Banks manage cash flow for small businesses.".to_string(),
-            "Current accounts track money moving through the bank.".to_string(),
-            "Lenders review credit before approving commercial loans.".to_string(),
-            "River banks guide water flow during seasonal floods.".to_string(),
-            "Strong currents move sediment along the river channel.".to_string(),
-            "Flood barriers protect nearby towns from rising water.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
-        let boundaries = boundary_indices(&result.chapter_manifest);
-        assert!(
-            boundaries
-                .iter()
-                .any(|&boundary| (2..=4).contains(&boundary)),
-            "the lexical overlap must not hide the shift in intended subject: {boundaries:?}"
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_does_not_split_repeated_subject_only_because_scene_changes() {
-        let sentences = vec![
-            "Video platforms distribute creator content online.".to_string(),
-            "Streaming services deliver video to audiences.".to_string(),
-            "Creators publish clips through media channels.".to_string(),
-            "Online video services organize audience subscriptions.".to_string(),
-        ];
-        let text = sentences.join(" ");
-        let request = lexical_chapter_request(&sentences);
-        let plain =
-            run_with_chapter_options(request.clone(), &[], &[], &behavioral_chapter_options())
-                .unwrap();
-        let scenes = sentences
-            .iter()
-            .map(|sentence| sentence.clone())
-            .collect::<Vec<_>>();
-        let scene_ids = (0..sentences.len())
-            .map(|i| format!("scene-{i}"))
-            .collect::<Vec<_>>();
-        let contextual =
-            run_with_chapter_options(request, &scenes, &scene_ids, &behavioral_chapter_options())
-                .unwrap();
-        assert_eq!(
-            plain.chapter_manifest.chapters.len(),
-            contextual.chapter_manifest.chapters.len(),
-            "scene boundaries alone must not multiply chapters for a stable topic"
-        );
-        assert_eq!(
-            plain
-                .chapter_manifest
-                .chapters
-                .iter()
-                .map(|chapter| (chapter.start_sentence, chapter.end_sentence))
-                .collect::<Vec<_>>(),
-            contextual
-                .chapter_manifest
-                .chapters
-                .iter()
-                .map(|chapter| (chapter.start_sentence, chapter.end_sentence))
-                .collect::<Vec<_>>()
-        );
-        assert_eq!(text, sentences.join(" "));
-    }
-
-    #[test]
-    fn chapter_behavior_finds_theme_changes_without_scene_metadata() {
-        let text = "GPU memory transfers affect rendering speed. Graphics buffers reduce frame-processing overhead. Video kernels improve throughput. Building permits regulate residential construction. Zoning plans shape house design. Timber and concrete affect construction cost.";
-        let result = analyze_chapter_text(text, "en").unwrap();
-        let boundaries = boundary_indices(&result.chapter_manifest);
-        assert!(
-            boundaries
-                .iter()
-                .any(|&boundary| (2..=4).contains(&boundary)),
-            "theme change without scene metadata should have a plausible boundary: {boundaries:?}"
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_keeps_a_returning_theme_in_separate_chronological_blocks() {
-        let sentences = vec![
-            "Video platforms distribute clips to online audiences.".to_string(),
-            "Creators schedule media releases across channels.".to_string(),
-            "Building permits regulate residential construction.".to_string(),
-            "Zoning rules constrain architectural projects.".to_string(),
-            "Hydropower turbines convert river flow into electricity.".to_string(),
-            "Reservoir operators manage water levels during drought.".to_string(),
-            "Streaming platforms organize video subscriptions.".to_string(),
-            "Online channels recommend new creator clips.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
-        let boundaries = boundary_indices(&result.chapter_manifest);
-        assert!(
-            boundaries.iter().any(|&b| (1..=3).contains(&b)),
-            "first thematic transition missing: {boundaries:?}; chapters={:?}",
-            result.chapter_manifest.chapters
-        );
-        assert!(
-            boundaries.iter().any(|&b| (5..=7).contains(&b)),
-            "returning theme transition missing: {boundaries:?}; chapters={:?}",
-            result.chapter_manifest.chapters
-        );
-        assert!(
-            result
-                .chapter_manifest
-                .chapters
-                .windows(2)
-                .all(|pair| pair[0].end_sentence == pair[1].start_sentence),
-            "returning themes remain separate chronological spans"
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_keeps_paraphrased_same_subject_in_one_thematic_run() {
-        let sentences = vec![
-            "Solar panels transform daylight into usable electricity.".to_string(),
-            "Photovoltaic cells convert sunlight into electrical current.".to_string(),
-            "Renewable modules generate clean power during bright hours.".to_string(),
-            "Sun-powered arrays supply energy to nearby homes.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
-        assert!(
-            result.chapter_manifest.chapters.len() <= 2,
-            "lexical variation within a coherent subject should not fragment it: {:?}",
-            result.chapter_manifest.chapters
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_handles_gradual_transition_without_excessive_fragmentation() {
-        let sentences = vec![
-            "Solar arrays generate electricity from sunlight.".to_string(),
-            "Renewable power flows from photovoltaic panels.".to_string(),
-            "Battery systems store electricity produced by solar arrays.".to_string(),
-            "Grid operators balance stored energy with local demand.".to_string(),
-            "Electric utilities coordinate renewable supply and distribution.".to_string(),
-            "Transmission networks deliver power to regional consumers.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
-        assert!((1..=3).contains(&result.chapter_manifest.chapters.len()), "a gradual topical transition should not cause sentence-by-sentence fragmentation: {:?}", result.chapter_manifest.chapters);
-        assert!(boundary_indices(&result.chapter_manifest)
-            .iter()
-            .all(|&boundary| boundary > 0 && boundary < sentences.len()));
-    }
-
-    #[test]
-    fn chapter_behavior_partitions_long_subtopics_with_bounded_balanced_spans() {
-        let mut sentences = Vec::new();
-        for topic in [
-            "coastal ecology",
-            "urban transit",
-            "archive preservation",
-            "renewable power",
-        ] {
-            for index in 0..12 {
-                sentences.push(format!("Research on {topic} examines observation {} and evidence {} across regional studies.", index % 4, (index / 3) % 5));
-            }
-        }
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &ChapterOptions {
-                min_sentences: 3,
-                max_sentences: 12,
-                min_words: 0,
-                complexity_penalty: 0.5,
-                ..behavioral_chapter_options()
-            },
-        )
-        .unwrap();
-        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
-        assert!(
-            result.chapter_manifest.chapters.len() > 1,
-            "long input must partition rather than collapse into one chapter"
-        );
-        for chapter in &result.chapter_manifest.chapters {
-            let length = chapter.end_sentence - chapter.start_sentence;
-            assert!(
-                length <= 12,
-                "chapter span exceeded configured bound: {length}"
-            );
-            assert!(
-                length >= 3 || chapter.end_sentence == sentences.len(),
-                "only a terminal short tail may fall below the minimum"
-            );
-        }
-    }
-
-    #[test]
-    fn chapter_behavior_uses_distinct_source_titles_for_related_subtopics() {
-        let sentences = vec![
-            "Solar panels generate electricity during daylight hours.".to_string(),
-            "Photovoltaic cells convert sunlight into clean power.".to_string(),
-            "Rooftop arrays supply renewable energy to homes.".to_string(),
-            "Battery storage preserves electricity after sunset.".to_string(),
-            "Grid operators balance stored power with evening demand.".to_string(),
-            "Energy networks coordinate charging and regional distribution.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &ChapterOptions {
-                complexity_penalty: 0.5,
-                ..behavioral_chapter_options()
-            },
-        )
-        .unwrap();
-        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
-        if result.chapter_manifest.chapters.len() >= 2 {
-            let first = result.chapter_manifest.chapters[0].title.to_lowercase();
-            let last = result
-                .chapter_manifest
-                .chapters
-                .last()
-                .unwrap()
-                .title
-                .to_lowercase();
-            assert_ne!(first, last, "separate spans on one macro-topic should derive their titles from distinct local content");
-        }
-    }
-
-    #[test]
-    fn chapter_behavior_avoids_duplicate_bullets_for_repeated_source_sentences() {
-        let repeated = "Researchers measured coastal water temperatures across the region.";
-        let sentences = vec![
-            repeated.to_string(),
-            repeated.to_string(),
-            "Marine teams compared salinity readings from several shoreline stations.".to_string(),
-            "The report describes seasonal changes in local ocean conditions.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        let mut unique = std::collections::HashSet::new();
-        for bullet in result
-            .chapter_manifest
-            .chapters
-            .iter()
-            .flat_map(|chapter| &chapter.bullets)
-        {
-            assert!(
-                unique.insert(bullet.text.as_str()),
-                "duplicate extractive bullet selected: {}",
-                bullet.text
-            );
-        }
-    }
-
-    #[test]
-    fn chapter_behavior_keeps_major_boundaries_stable_under_paraphrase() {
-        let original = vec![
-            "Solar panels convert sunlight into electrical energy.".to_string(),
-            "Photovoltaic cells deliver renewable power to the grid.".to_string(),
-            "Battery storage balances supply after sunset.".to_string(),
-            "Rail operators coordinate passenger timetables between stations.".to_string(),
-            "Regional trains connect local services across the network.".to_string(),
-            "Transit planners adjust routes to serve growing communities.".to_string(),
-        ];
-        let paraphrased = vec![
-            "Sunlight becomes electricity through rooftop solar arrays.".to_string(),
-            "Renewable current from panels enters the public network.".to_string(),
-            "Stored power supports demand when daylight ends.".to_string(),
-            "Train companies organize departure schedules at terminals.".to_string(),
-            "Intercity services link neighborhood lines throughout the region.".to_string(),
-            "Transport designers revise paths for expanding towns.".to_string(),
-        ];
-        let run = |lines: &[String]| {
-            run_with_chapter_options(
-                lexical_chapter_request(lines),
-                &[],
-                &[],
-                &behavioral_chapter_options(),
-            )
-            .unwrap()
-        };
-        let first = run(&original);
-        let second = run(&paraphrased);
-        let a = boundary_indices(&first.chapter_manifest);
-        let b = boundary_indices(&second.chapter_manifest);
-        assert!(
-            a.iter()
-                .any(|boundary| b.iter().any(|other| boundary.abs_diff(*other) <= 1)),
-            "major topic boundary should remain near its position under paraphrase: {a:?} vs {b:?}"
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_extracts_grounded_conceptual_titles_from_numeric_chapters() {
-        let sentences = vec![
-            "In 2021 the system processed 480 frames per second.".to_string(),
-            "The GPU used 24 gigabytes of memory for the workload.".to_string(),
-            "Latency fell by 17 percent after the buffer redesign.".to_string(),
-            "Throughput reached 960 operations during the final test.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        let chapter = &result.chapter_manifest.chapters[0];
-        assert!(!chapter.title.is_empty());
-        assert!(
-            chapter.title.chars().any(char::is_alphabetic),
-            "a numeric passage should receive a conceptual rather than numeric-only title"
-        );
-        assert!(
-            chapter
-                .title
-                .chars()
-                .all(|character| !character.is_ascii_digit()),
-            "title should not merely repeat a statistic"
-        );
-        let source = sentences.join(" ").to_lowercase();
-        assert!(
-            chapter
-                .title
-                .to_lowercase()
-                .split_whitespace()
-                .any(|term| source.contains(term)),
-            "title terms should be grounded in source"
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_bullets_preserve_negation_and_contiguous_context() {
-        let sentences = vec![
-            "The committee did not approve the proposal.".to_string(),
-            "It instead requested a revised budget.".to_string(),
-            "The revised plan does not include new borrowing.".to_string(),
-            "Members approved the timetable after the changes.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
-        let mut saw_negation = false;
-        for chapter in &result.chapter_manifest.chapters {
-            for bullet in &chapter.bullets {
-                let expected = sentences[bullet.start_sentence..bullet.end_sentence].join(" ");
-                assert_eq!(bullet.text, expected);
-                if bullet.text.contains("not") {
-                    saw_negation = true;
-                }
-            }
-        }
-        assert!(
-            saw_negation,
-            "extractive bullets must retain at least one selected negative statement"
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_can_keep_dependent_sentences_in_one_contiguous_bullet() {
-        let sentences = vec![
-            "Coastal gauges recorded a rapid increase in the water level.".to_string(),
-            "This rise continued through the afternoon along the shoreline.".to_string(),
-            "Observers compared the readings with measurements from nearby stations.".to_string(),
-            "The report describes seasonal changes in local ocean conditions.".to_string(),
-        ];
-        let result = run_with_chapter_options(
-            lexical_chapter_request(&sentences),
-            &[],
-            &[],
-            &behavioral_chapter_options(),
-        )
-        .unwrap();
-        assert_manifest_is_contiguous(&result.chapter_manifest, sentences.len());
-        assert!(
-            result.chapter_manifest.chapters.iter().any(|chapter| {
-                chapter.bullets.iter().any(|bullet| {
-                    bullet.end_sentence - bullet.start_sentence >= 2
-                        && bullet.text
-                            == sentences[bullet.start_sentence..bullet.end_sentence].join(" ")
-                })
-            }),
-            "when context is selected, bullets must be contiguous source groups: {:?}",
-            result.chapter_manifest.chapters
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_is_stable_under_proper_name_substitution() {
-        let first = vec![
-            "Mira studied coastal currents and ocean salinity.".to_string(),
-            "Researchers measured marine temperatures near the shore.".to_string(),
-            "Tomas mapped river sediment after seasonal flooding.".to_string(),
-            "Hydrologists tracked freshwater levels across the basin.".to_string(),
-            "Mira compared ocean samples with earlier measurements.".to_string(),
-            "Marine scientists published their coastal observations.".to_string(),
-        ];
-        let second = first
-            .iter()
-            .map(|line| line.replace("Mira", "Asha").replace("Tomas", "Rui"))
-            .collect::<Vec<_>>();
-        let run = |lines: &[String]| {
-            run_with_chapter_options(
-                lexical_chapter_request(lines),
-                &[],
-                &[],
-                &behavioral_chapter_options(),
-            )
-            .unwrap()
-        };
-        let a = run(&first);
-        let b = run(&second);
-        assert_eq!(
-            a.chapter_manifest
-                .chapters
-                .iter()
-                .map(|chapter| (chapter.start_sentence, chapter.end_sentence))
-                .collect::<Vec<_>>(),
-            b.chapter_manifest
-                .chapters
-                .iter()
-                .map(|chapter| (chapter.start_sentence, chapter.end_sentence))
-                .collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_has_cross_language_coverage_and_repeatability() {
-        let cases = [
-            (
-                "it",
-                vec![
-                    "I server video elaborano fotogrammi usando memoria grafica.",
-                    "I trasferimenti CPU GPU aumentano la latenza dei processi.",
-                    "Buffer efficienti migliorano il rendering dei video.",
-                    "I permessi edilizi regolano la costruzione delle abitazioni.",
-                    "Le norme urbanistiche definiscono i vincoli dei progetti.",
-                    "Legno e cemento cambiano i costi dei cantieri.",
-                ],
-            ),
-            (
-                "en",
-                vec![
-                    "Video servers process frames using graphics memory.",
-                    "CPU transfers increase workload latency.",
-                    "Efficient buffers improve rendering throughput.",
-                    "Building permits regulate home construction.",
-                    "Zoning rules define project constraints.",
-                    "Timber and concrete change construction costs.",
-                ],
-            ),
-            (
-                "pt",
-                vec![
-                    "Servidores de vídeo processam quadros usando memória gráfica.",
-                    "Transferências da CPU aumentam a latência do trabalho.",
-                    "Buffers eficientes melhoram o desempenho de renderização.",
-                    "Licenças de construção regulam obras residenciais.",
-                    "Regras de zoneamento definem limites do projeto.",
-                    "Madeira e concreto alteram custos da obra.",
-                ],
-            ),
-        ];
-        let mut counts = Vec::new();
-        for (language, lines) in cases {
-            let sentences = lines.into_iter().map(str::to_string).collect::<Vec<_>>();
-            let request = || {
-                let mut request = lexical_chapter_request(&sentences);
-                request.language = language.into();
-                request
-            };
-            let first =
-                run_with_chapter_options(request(), &[], &[], &behavioral_chapter_options())
-                    .unwrap();
-            let second =
-                run_with_chapter_options(request(), &[], &[], &behavioral_chapter_options())
-                    .unwrap();
-            assert_eq!(first.chapter_manifest, second.chapter_manifest);
-            assert_manifest_is_contiguous(&first.chapter_manifest, sentences.len());
-            counts.push(first.chapter_manifest.chapters.len());
-        }
-        assert!(
-            counts.iter().all(|count| (1..=4).contains(count)),
-            "cross-language partition should remain bounded and nonempty: {counts:?}"
-        );
-        let minimum = counts.iter().min().copied().unwrap_or_default();
-        let maximum = counts.iter().max().copied().unwrap_or_default();
-        assert!(
-            maximum - minimum <= 1,
-            "translations of one thematic structure should yield comparable chapter counts: {counts:?}"
-        );
-    }
-
-    #[test]
-    fn chapter_behavior_is_deterministic_across_one_hundred_runs() {
-        let sentences = vec![
-            "Solar panels convert sunlight into electrical power.".to_string(),
-            "Inverters synchronize photovoltaic current with the grid.".to_string(),
-            "Battery storage balances renewable energy after sunset.".to_string(),
-            "Rail operators coordinate passenger routes between stations.".to_string(),
-            "Timetables connect local trains with regional services.".to_string(),
-        ];
-        let request = lexical_chapter_request(&sentences);
-        let first =
-            run_with_chapter_options(request.clone(), &[], &[], &behavioral_chapter_options())
-                .unwrap();
-        let json = serde_json::to_string(&first.chapter_manifest).unwrap();
-        for _ in 1..100 {
-            let repeated =
-                run_with_chapter_options(request.clone(), &[], &[], &behavioral_chapter_options())
-                    .unwrap();
-            assert_eq!(
-                serde_json::to_string(&repeated.chapter_manifest).unwrap(),
-                json
-            );
-        }
-    }
-
-    #[test]
-    fn chapter_behavior_lexical_fallback_is_explicit_and_deterministic() {
-        let sentences = vec![
-            "Solar panels generate renewable electricity.".to_string(),
-            "Inverters connect photovoltaic systems to the grid.".to_string(),
-            "Building permits regulate residential construction.".to_string(),
-        ];
-        let request = lexical_chapter_request(&sentences);
-        let first =
-            run_with_chapter_options(request.clone(), &[], &[], &behavioral_chapter_options())
-                .unwrap();
-        let second =
-            run_with_chapter_options(request, &[], &[], &behavioral_chapter_options()).unwrap();
-        assert_eq!(first.chapter_manifest, second.chapter_manifest);
-        assert!(first
-            .ranked
-            .iter()
-            .all(|sentence| sentence.importance.is_finite()));
-        assert!(!first.ranked.is_empty());
-    }
-
-    #[test]
-    fn chapter_behavior_returns_errors_for_empty_and_malformed_inputs_and_accepts_short_text() {
-        let mut empty = lexical_chapter_request(&[]);
-        empty.transcript.clear();
-        assert!(run_with_chapter_options(empty, &[], &[], &behavioral_chapter_options()).is_err());
-        let mut malformed = lexical_chapter_request(&["A complete sentence.".into()]);
-        malformed.embeddings = vec![vec![f32::NAN]];
-        malformed.lexical_only = false;
-        assert!(
-            run_with_chapter_options(malformed, &[], &[], &behavioral_chapter_options()).is_err()
-        );
-        let short = analyze_chapter_text("Rain falls.", "en").unwrap();
-        assert_eq!(short.chapter_manifest.chapters.len(), 1);
-        assert_eq!(short.chapter_manifest.chapters[0].start_sentence, 0);
-        assert_eq!(short.chapter_manifest.chapters[0].end_sentence, 1);
-    }
-
-    #[test]
-    fn synthetic_transcript_preserves_long_sentences_abbreviations_and_utf8_offsets() {
-        let transcript = include_str!("../fixtures/elon_musk_synthetic_transcript_it.txt");
-        let segments = split_sentences(transcript, "it");
-        let segment_texts: Vec<&str> = segments
-            .iter()
-            .map(|segment| segment.text.as_str())
-            .collect();
-        for expected in [
-            "Il secondo punto chiave fu l'annuncio sintetico secondo cui Tesla Energy stava valutando, sempre in questo scenario inventato, un investimento da €750 milioni in un impianto di accumulo vicino a Berlino con una decisione finale prevista per il 2 aprile 2026.",
-            "Il settimo punto ad alta importanza dichiarò che Tesla non avrebbe annunciato licenziamenti durante l'evento sintetico e che, al contrario, il piano operativo ipotizzava 1,500 nuove assunzioni tecniche tra Texas e Germania entro diciotto mesi.",
-            "La quarta frase pesante stabilì che SpaceX avrebbe programmato, nello scenario sintetico, una finestra di prova di Starship il 21 giugno 2026 alle 9:15 a.m., con un massimo di tre tentativi tecnici distribuiti nella stessa settimana.",
-            "J. R. Collins, personaggio fittizio introdotto apposta per il test, chiese se l'uso delle iniziali puntate potesse confondere un segmentatore di frasi o un modello che non gestisce correttamente i nomi abbreviati.",
-            "Alle 10:45 p.m. la sessione terminò e i partecipanti lasciarono la sala, mentre il sistema di registrazione salvò la trascrizione completa per i test successivi di segmentazione, entity extraction, ranking e summarization.",
-            "Un ulteriore blocco di controllo descrive una riunione successiva del 18 marzo 2026 a Milan, Italy, nella quale Luca Bianchi confronta i nove passaggi principali del benchmark e segnala che alcune frasi molto specifiche possono risultare semanticamente lontane dal centroide pur essendo essenziali per il video.",
-        ] {
-            assert!(segment_texts.contains(&expected), "sentence was split or altered: {expected}");
-        }
-        for segment in &segments {
-            assert!(segment.end_byte <= transcript.len());
-            assert!(transcript.is_char_boundary(segment.start_byte));
-            assert!(transcript.is_char_boundary(segment.end_byte));
-            assert_eq!(
-                &transcript[segment.start_byte..segment.end_byte],
-                segment.text
-            );
-        }
-        assert!(segments
-            .iter()
-            .all(|segment| word_count(&segment.text) <= MAX_SEGMENT_WORDS));
-    }
-
-    fn is_extractive(summary: &str, segments: &[Segment]) -> bool {
-        let mut remaining = summary;
-        let mut matched = 0;
-        for segment in segments {
-            let Some(tail) = remaining.strip_prefix(&segment.text) else {
-                continue;
-            };
-            remaining = tail.strip_prefix(' ').unwrap_or(tail);
-            matched += 1;
-            if remaining.is_empty() {
-                return matched > 0;
-            }
-        }
-        false
-    }
-
-    #[test]
-    fn synthetic_transcript_summarization_keeps_negation_and_source_spans() {
-        #[derive(Deserialize)]
-        struct GroundTruth {
-            sentences: Vec<LabeledSentence>,
-        }
-        #[derive(Deserialize)]
-        struct LabeledSentence {
-            id: String,
-            text: String,
-            label: String,
-            #[serde(default)]
-            must_preserve_negation: Option<String>,
-        }
-
-        let transcript = include_str!("../fixtures/elon_musk_synthetic_transcript_it.txt");
-        let truth: GroundTruth = serde_json::from_str(include_str!(
-            "../fixtures/elon_musk_synthetic_ground_truth.json"
-        ))
-        .unwrap();
-        let result = run(Request {
-            transcript: transcript.to_string(),
-            language: "it".into(),
-            embeddings: Vec::new(),
-            timings: Vec::new(),
-            options: Options {
-                summary_length: SummaryLength::Short,
-                bullet_count: 10,
-                min_heavy: 15,
-                max_heavy: 15,
-                top_fraction: Some(0.125),
-            },
-            embedding_ms: 0.0,
-            lexical_only: true,
-        })
-        .unwrap();
-        assert!(truth
-            .sentences
-            .iter()
-            .all(|sentence| matches!(sentence.label.as_str(), "heavy" | "trap")));
-        let segments = split_sentences(transcript, "it");
-        let segment_texts: std::collections::HashSet<&str> = segments
-            .iter()
-            .map(|segment| segment.text.as_str())
-            .collect();
-        for sentence in &truth.sentences {
-            assert!(
-                segment_texts.contains(sentence.text.as_str()),
-                "fixture sentence {} not found in source split",
-                sentence.id
-            );
-        }
-        let heavy_count = truth
-            .sentences
-            .iter()
-            .filter(|sentence| sentence.label == "heavy")
-            .count();
-        assert_eq!(heavy_count, 9);
-        let id_by_text: std::collections::HashMap<&str, &str> = truth
-            .sentences
-            .iter()
-            .map(|sentence| (sentence.text.as_str(), sentence.id.as_str()))
-            .collect();
-        let heavy_ids: std::collections::HashSet<&str> = truth
-            .sentences
-            .iter()
-            .filter(|sentence| sentence.label == "heavy")
-            .map(|sentence| sentence.id.as_str())
-            .collect();
-        let mut ranking_metrics = Vec::new();
-        for cutoff in [5, 10] {
-            let top = result.ranked.iter().take(cutoff).collect::<Vec<_>>();
-            let hits = top
-                .iter()
-                .filter(|sentence| {
-                    id_by_text
-                        .get(sentence.text.as_str())
-                        .is_some_and(|id| heavy_ids.contains(id))
-                })
-                .count();
-            let precision = hits as f64 / top.len() as f64;
-            assert!(precision.is_finite() && (0.0..=1.0).contains(&precision));
-            ranking_metrics.push((cutoff, precision));
-        }
-        assert_eq!(ranking_metrics.len(), 2);
-        let negation = truth
-            .sentences
-            .iter()
-            .find_map(|sentence| sentence.must_preserve_negation.as_deref())
-            .unwrap();
-        let summary_contains_claim = result.summary.to_lowercase().contains("licenziamenti");
-        let summary_preserves_negation = result
-            .summary
-            .to_lowercase()
-            .contains(&negation.to_lowercase());
-        if summary_contains_claim {
-            assert!(
-                summary_preserves_negation,
-                "summary mentioned layoffs but dropped negation: {}",
-                result.summary
-            );
-        }
-        assert!(
-            is_extractive(&result.summary, &segments),
-            "summary must only contain complete source sentences: {}",
-            result.summary
-        );
-        for bullet in &result.bullet_points {
-            assert!(
-                segments.iter().any(|segment| segment.text == bullet.text),
-                "bullet must be a source sentence: {}",
-                bullet.text
-            );
-        }
-    }
-
-    #[test]
-    fn whisper_like_unpunctuated_transcript_keeps_numbers_and_all_surface_text() {
-        let transcript = "well you know the company announced 20,000 layoffs uh investors reacted quickly the board will review the plan next year";
-        let segments = split_sentences(transcript, "en");
-        assert_eq!(segments.len(), 1);
-        assert_eq!(segments[0].text, transcript);
-        let result = run(Request {
-            transcript: transcript.into(),
-            language: "en".into(),
-            embeddings: vec![vec3(1., 0., 0.)],
-            timings: Vec::new(),
-            options: Options {
-                min_heavy: 1,
-                max_heavy: 1,
-                summary_length: SummaryLength::Short,
-                bullet_count: 1,
-                ..Options::default()
-            },
-            embedding_ms: 0.0,
-            lexical_only: false,
-        })
-        .unwrap();
-        assert_eq!(result.heavy_sentences[0].text, transcript);
-        assert!(result.summary.contains("20,000 layoffs"));
-        assert!(result.bullet_points[0].text.contains("20,000 layoffs"));
-    }
-
-    #[test]
-    fn end_to_end_outputs_preserve_sentences_in_supported_languages() {
-        let cases = [
-            (
-                "en",
-                [
-                    "The company announced layoffs.",
-                    "Revenue increased this year.",
-                ],
-            ),
-            (
-                "it",
-                [
-                    "L'azienda ha annunciato licenziamenti.",
-                    "I ricavi sono aumentati quest'anno.",
-                ],
-            ),
-            (
-                "es",
-                [
-                    "La empresa anunció despidos.",
-                    "Los ingresos aumentaron este año.",
-                ],
-            ),
-            (
-                "pt",
-                [
-                    "A empresa anunciou demissões.",
-                    "A receita aumentou este ano.",
-                ],
-            ),
-            (
-                "fr",
-                [
-                    "L'entreprise a annoncé des licenciements.",
-                    "Les revenus ont augmenté cette année.",
-                ],
-            ),
-            (
-                "de",
-                [
-                    "Das Unternehmen kündigte Entlassungen an.",
-                    "Der Umsatz stieg in diesem Jahr.",
-                ],
-            ),
-        ];
-        for (language, lines) in cases {
-            let result = run(Request {
-                transcript: lines.join(" "),
-                language: language.into(),
-                embeddings: orthogonal_embeddings(lines.len()),
-                timings: Vec::new(),
-                options: Options {
-                    summary_length: SummaryLength::Short,
-                    min_heavy: 1,
-                    max_heavy: 2,
-                    top_fraction: Some(1.0),
-                    bullet_count: 2,
-                    ..Options::default()
-                },
-                embedding_ms: 0.0,
-                lexical_only: false,
-            })
-            .unwrap();
-            assert_eq!(result.ranked.len(), 2, "language: {language}");
-            assert_eq!(result.heavy_sentences.len(), 2, "language: {language}");
-            assert_eq!(result.bullet_points.len(), 2, "language: {language}");
-            for line in lines {
-                assert!(result.summary.contains(line), "language: {language}");
-                assert!(
-                    result
-                        .bullet_points
-                        .iter()
-                        .any(|bullet| bullet.text == line),
-                    "language: {language}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn ranked_timing_and_content_fields_match_the_public_json_contract() {
-        let lines = [
-            "Apple reported record revenue.",
-            "20,000 workers were laid off.",
-        ];
-        let result = run(request(
-            &lines,
-            vec![vec3(1., 0., 0.), vec3(0., 1., 0.)],
-            Options {
-                min_heavy: 2,
-                max_heavy: 2,
-                ..Default::default()
-            },
-        ))
-        .unwrap();
-        let json = serde_json::to_value(result).unwrap();
-        assert!(json["ranked"][0]["index"].is_number());
-        assert!(json["ranked"][0]["start"].is_null());
-        assert!(json["ranked"][0]["importance"].is_number());
-        assert!(json["ranked"][0]["centrality"].is_number());
-        assert!(json["ranked"][0]["novelty"].is_number());
-        assert!(json["ranked"][0]["text"].is_string());
-        assert!(json["heavy_sentences"][0]["index"].is_number());
-        assert!(json["heavy_sentences"][0]["importance"].is_number());
-        assert!(json["heavy_sentences"][0]["centrality"].is_number());
-        assert!(json["heavy_sentences"][0]["novelty"].is_number());
-        assert!(json["heavy_sentences"][0]["text"].is_string());
-        assert!(json["timeline"][0]["index"].is_number());
-        assert!(json["bullet_points"][0]["sentence_index"].is_number());
-        assert!(json["bullet_points"][0]["text"].is_string());
-        assert!(json["summary"].is_string());
-        assert!(json["bullet_points"].is_array());
-        assert!(json["heavy_sentences"].is_array());
-        assert!(json["timeline"].is_array());
-        for stage in [
-            "split_ms",
-            "embedding_ms",
-            "similarity_ms",
-            "ranking_ms",
-            "summary_ms",
-            "bullet_ms",
-            "total_ms",
-        ] {
-            assert!(json["timings"][stage].is_number(), "missing timing {stage}");
-        }
-    }
-
-    #[test]
-    fn event_cues_outrank_numeric_only_and_filler_heavy_sentences() {
-        assert_eq!(content_signal("The company announced revenue.", "en"), 1.0);
-        assert_eq!(content_signal("The meeting had 20 attendees.", "en"), 0.25);
-        for numeric_fact in [
-            "Profits reached $14.8 billion.",
-            "Revenue grew by 35%.",
-            "20,000 workers were affected.",
-        ] {
-            assert_eq!(content_signal(numeric_fact, "en"), 0.25, "{numeric_fact}");
-        }
-        assert_eq!(
-            content_signal("The first result in 30 years was announced in 2026.", "en"),
-            1.0
-        );
-        let clean_score = apply_noise_penalty("The company announced layoffs.", 0.8);
-        let filler_score =
-            apply_noise_penalty("Well, you know, um, the company announced layoffs.", 0.8);
-        assert!(filler_score < clean_score);
-
-        let lines = [
-            "Well, you know, the company basically, uh, reported revenue growth.",
-            "But the really important thing is they announced 5,000 layoffs.",
-            "Executives discussed the plan.",
-        ];
-        let result = run(request(
-            &lines,
-            vec![vec3(1., 0., 0.), vec3(1., 0., 0.), vec3(1., 0., 0.)],
-            Options {
-                min_heavy: 3,
-                max_heavy: 3,
-                ..Default::default()
-            },
-        ))
-        .unwrap();
-        assert_eq!(result.ranked[0].text, lines[1]);
-
-        let event_lines = [
-            "The company held a meeting.",
-            "Employees discussed the new strategy.",
-            "Then the CEO announced that 20,000 employees would be laid off.",
-            "The announcement shocked investors.",
-            "The meeting ended later that afternoon.",
-        ];
-        let event_result = run(request(
-            &event_lines,
-            vec![
-                vec3(0., 0., 1.),
-                vec3(0., 1., 0.),
-                vec3(1., 0., 0.),
-                vec3(0.99, 0.01, 0.),
-                vec3(0., 0., 1.),
-            ],
-            Options {
-                min_heavy: 2,
-                max_heavy: 2,
-                top_fraction: Some(0.4),
-                ..Options::default()
-            },
-        ))
-        .unwrap();
-        assert!(event_result.heavy_sentences.iter().any(|sentence| {
-            sentence.text == "Then the CEO announced that 20,000 employees would be laid off."
-        }));
-        assert!(event_result.ranked.iter().any(|sentence| {
-            sentence.text == "The announcement shocked investors." && sentence.importance >= 0.9
-        }));
-    }
-
-    #[test]
-    fn relevant_event_beats_novelty_outlier_and_duplicates_are_removed() {
-        let lines = [
-            "Apple reported record revenue.",
-            "iPhone sales increased.",
-            "The company expanded in Europe.",
-            "My neighbor owns three cats.",
-            "Apple expects more growth next year.",
-        ];
-        let result = run(request(
-            &lines,
-            vec![
-                vec3(1.0, 0.0, 0.0),
-                vec3(0.98, 0.1, 0.0),
-                vec3(0.96, 0.2, 0.0),
-                vec3(0.0, 1.0, 0.0),
-                vec3(0.97, 0.15, 0.0),
-            ],
-            Options {
-                min_heavy: 1,
-                max_heavy: 5,
-                top_fraction: Some(0.2),
-                ..Default::default()
-            },
-        ))
-        .unwrap();
-        assert!(!result
-            .heavy_sentences
-            .iter()
-            .any(|sentence| sentence.text.contains("neighbor")));
-        let duplicate_lines = [
-            "Apple reported record revenue.",
-            "Apple reported record revenue.",
-            "Apple reported record revenue.",
-            "Sales increased strongly.",
-            "The company announced a major acquisition.",
-        ];
-        let duplicates = run(request(
-            &duplicate_lines,
-            vec![
-                vec3(1., 0., 0.),
-                vec3(1., 0., 0.),
-                vec3(1., 0., 0.),
-                vec3(0.9, 0.1, 0.),
-                vec3(0., 1., 0.),
-            ],
-            Options {
-                min_heavy: 1,
-                max_heavy: 5,
-                ..Default::default()
-            },
-        ))
-        .unwrap();
-        assert_eq!(
-            duplicates
-                .heavy_sentences
-                .iter()
-                .filter(|sentence| sentence.text == duplicate_lines[0])
-                .count(),
-            1
-        );
-
-        let paraphrases = [
-            "Apple reported record revenue.",
-            "Apple posted record revenue.",
-            "Apple announced record sales.",
-            "Sales increased strongly.",
-        ];
-        let semantic_duplicates = run(request(
-            &paraphrases,
-            vec![
-                vec3(1., 0., 0.),
-                vec3(1., 0., 0.),
-                vec3(1., 0., 0.),
-                vec3(0., 1., 0.),
-            ],
-            Options {
-                min_heavy: 1,
-                max_heavy: 4,
-                top_fraction: Some(1.0),
-                ..Default::default()
-            },
-        ))
-        .unwrap();
-        assert!(
-            semantic_duplicates
-                .heavy_sentences
-                .iter()
-                .filter(|sentence| paraphrases[..3].contains(&sentence.text.as_str()))
-                .count()
-                <= 1
-        );
-    }
-
-    #[test]
-    fn summary_and_bullets_are_extractively_faithful_and_distinct_from_rank() {
-        let lines = [
-            "Tesla opened a new factory in Mexico.",
-            "The factory will produce electric vehicles.",
-            "Production is expected to begin next year.",
-            "The project will employ 5,000 workers.",
-        ];
-        let result = run(request(
-            &lines,
-            vec![
-                vec3(1., 0., 0.),
-                vec3(0., 1., 0.),
-                vec3(0., 0., 1.),
-                vec3(-1., 0., 0.),
-            ],
-            Options {
-                summary_length: SummaryLength::Short,
-                min_heavy: 2,
-                max_heavy: 2,
-                bullet_count: 3,
-                ..Default::default()
-            },
-        ))
-        .unwrap();
-        assert!(result.summary.contains("factory") && result.summary.contains("Mexico"));
-        assert!(!result.summary.to_lowercase().contains("largest"));
-        assert_ne!(
-            result.summary,
-            result
-                .heavy_sentences
-                .iter()
-                .map(|sentence| sentence.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" ")
-        );
-        assert!(result.bullet_points.len() <= 3);
-        assert!(result
-            .bullet_points
-            .iter()
-            .all(|bullet| lines.contains(&bullet.text.as_str())));
-        let importance_by_index: Vec<f64> = (0..lines.len())
-            .map(|index| {
-                result
-                    .ranked
-                    .iter()
-                    .find(|sentence| sentence.index == index)
-                    .unwrap()
-                    .importance
-            })
-            .collect();
-        assert!(result.bullet_points.windows(2).all(|pair| {
-            importance_by_index[pair[0].sentence_index]
-                >= importance_by_index[pair[1].sentence_index]
-        }));
-        let polarity = ["The company did not declare bankruptcy."];
-        let result = run(request(
-            &polarity,
-            vec![vec3(1., 0., 0.)],
-            Options {
-                min_heavy: 1,
-                max_heavy: 1,
-                summary_length: SummaryLength::Short,
-                ..Default::default()
-            },
-        ))
-        .unwrap();
-        assert!(result.summary.contains("did not declare bankruptcy"));
-    }
-
-    #[test]
-    fn extractive_summary_keeps_entity_associations_and_sentence_polarity() {
-        let lines = [
-            "Elon Musk discussed Tesla during the interview.",
-            "Tim Cook discussed Apple during the interview.",
-            "The company did not declare bankruptcy.",
-        ];
-        let result = run(request(
-            &lines,
-            orthogonal_embeddings(lines.len()),
-            Options {
-                summary_length: SummaryLength::Short,
-                min_heavy: 1,
-                max_heavy: 3,
-                bullet_count: 3,
-                ..Options::default()
-            },
-        ))
-        .unwrap();
-        assert!(result
-            .summary
-            .split_inclusive('.')
-            .all(|sentence| lines.contains(&sentence.trim())));
-        assert!(result.summary.contains("Elon Musk discussed Tesla"));
-        assert!(result.summary.contains("Tim Cook discussed Apple"));
-        assert!(result.summary.contains("did not declare bankruptcy"));
-        assert!(result
-            .bullet_points
-            .iter()
-            .all(|bullet| lines.contains(&bullet.text.as_str())));
-    }
-
-    #[test]
-    fn timeline_is_chronological_and_ranked_is_descending() {
-        let lines = [
-            "Sentence at time five.",
-            "Sentence at time twelve.",
-            "Sentence at time twenty.",
-        ];
-        let result = run(Request {
-            transcript: lines.join(" "),
-            language: "en".into(),
-            embeddings: lines
-                .iter()
-                .map(|line| lexical_vector(line, "en"))
-                .map(|vector| vector.into_iter().map(|value| value as f32).collect())
-                .collect(),
-            timings: vec![
-                Timing {
-                    start_us: 5_000_000,
-                    end_us: 6_000_000,
-                },
-                Timing {
-                    start_us: 12_000_000,
-                    end_us: 13_000_000,
-                },
-                Timing {
-                    start_us: 20_000_000,
-                    end_us: 21_000_000,
-                },
-            ],
-            options: Options {
-                min_heavy: 3,
-                max_heavy: 3,
-                ..Default::default()
-            },
-            embedding_ms: 5.0,
-            lexical_only: false,
-        })
-        .unwrap();
-        assert_eq!(result.ranked[0].index, 1);
-        assert!(result
-            .ranked
-            .windows(2)
-            .all(|pair| pair[0].importance >= pair[1].importance));
-        assert_eq!(
-            result
-                .timeline
-                .iter()
-                .map(|sentence| sentence.start_sec.unwrap())
-                .collect::<Vec<_>>(),
-            [5., 12., 20.]
-        );
-        assert!((result.timings.total_ms - 5.0) >= result.timings.split_ms);
-        assert!(
-            result.timings.total_ms
-                >= 5.0
-                    + result.timings.split_ms
-                    + result.timings.similarity_ms
-                    + result.timings.ranking_ms
-                    + result.timings.summary_ms
-                    + result.timings.bullet_ms
-        );
-    }
-
-    #[test]
-    fn deterministic_across_one_hundred_runs_and_invalid_vectors_fail_closed() {
-        let lines = [
-            "The board approved a major acquisition.",
-            "Revenue grew by 35% this year.",
-            "The company expects further growth.",
-            "The board met again later.",
-        ];
-        let input = request(
-            &lines,
-            vec![
-                vec3(1., 0., 0.),
-                vec3(0.9, 0.1, 0.),
-                vec3(0.95, 0.05, 0.),
-                vec3(0.8, 0.2, 0.),
-            ],
-            Options::default(),
-        );
-        let first = run(input.clone()).unwrap();
-        for _ in 0..99 {
-            let next = run(input.clone()).unwrap();
-            assert_eq!(next.summary, first.summary);
-            assert_eq!(next.ranked, first.ranked);
-            assert_eq!(next.heavy_sentences, first.heavy_sentences);
-            assert_eq!(next.bullet_points, first.bullet_points);
-            assert_eq!(next.timeline, first.timeline);
-        }
-
-        let invalid = request(&lines, vec![vec3(0., 0., 0.); 4], Options::default());
-        assert!(run(invalid).unwrap_err().contains("zero norm"));
-
-        let invalid_cases = [
-            (
-                Request {
-                    transcript: "Sentence one. Sentence two.".into(),
-                    language: "en".into(),
-                    embeddings: vec![vec3(1., 0., 0.)],
-                    timings: Vec::new(),
-                    options: Options::default(),
-                    embedding_ms: 0.0,
-                    lexical_only: false,
-                },
-                "embedding count",
-            ),
-            (
-                Request {
-                    transcript: "Sentence one.".into(),
-                    language: "en".into(),
-                    embeddings: vec![vec3(f32::NAN, 0., 0.)],
-                    timings: Vec::new(),
-                    options: Options::default(),
-                    embedding_ms: 0.0,
-                    lexical_only: false,
-                },
-                "non-finite",
-            ),
-            (
-                Request {
-                    transcript: "Sentence one.".into(),
-                    language: "en".into(),
-                    embeddings: vec![vec3(1., 0., 0.)],
-                    timings: vec![Timing {
-                        start_us: 2_000_000,
-                        end_us: 1_000_000,
-                    }],
-                    options: Options::default(),
-                    embedding_ms: 0.0,
-                    lexical_only: false,
-                },
-                "invalid/nonchronological",
-            ),
-            (
-                Request {
-                    transcript: "Sentence one.".into(),
-                    language: "en".into(),
-                    embeddings: vec![vec3(1., 0., 0.)],
-                    timings: Vec::new(),
-                    options: Options {
-                        top_fraction: Some(1.1),
-                        ..Options::default()
-                    },
-                    embedding_ms: 0.0,
-                    lexical_only: false,
-                },
-                "top_fraction",
-            ),
-        ];
-        for (invalid, expected_error) in invalid_cases {
-            assert!(
-                run(invalid).unwrap_err().contains(expected_error),
-                "expected validation error containing {expected_error}"
-            );
-        }
-    }
-
-    #[test]
-    fn heavy_selection_obeys_fraction_and_minimum_maximum_for_transcript_sizes() {
-        for (count, expected) in [(10, 3), (25, 4), (50, 7), (100, 13), (200, 15)] {
-            let lines = labeled_test_sentences(count);
-            let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
-            let result = run(request(
-                &borrowed,
-                orthogonal_embeddings(count),
-                Options {
-                    min_heavy: 3,
-                    max_heavy: 15,
-                    top_fraction: Some(0.125),
-                    ..Options::default()
-                },
-            ))
-            .unwrap();
-            assert_eq!(
-                result.heavy_sentences.len(),
-                expected,
-                "unexpected selection count for {count} sentences"
-            );
-            assert!(result.heavy_sentences.len() <= 15);
-            assert!(result
-                .heavy_sentences
-                .windows(2)
-                .all(|pair| pair[0].importance >= pair[1].importance));
-        }
-    }
-
-    #[test]
-    fn one_thousand_word_transcript_produces_stable_summary_bullets_and_top_ten() {
-        let sentences: Vec<String> = (0..50)
-            .map(|index| {
-                format!("Sentence {index} company announced financial results and increased production across international markets this year during its latest quarterly operating period.")
-            })
-            .collect();
-        assert_eq!(
-            sentences.iter().map(|line| word_count(line)).sum::<usize>(),
-            1_000
-        );
-        let borrowed: Vec<&str> = sentences.iter().map(String::as_str).collect();
-        let input = request(
-            &borrowed,
-            orthogonal_embeddings(sentences.len()),
-            Options {
-                summary_length: SummaryLength::Short,
-                bullet_count: 5,
-                min_heavy: 10,
-                max_heavy: 10,
-                top_fraction: Some(0.1),
-            },
-        );
-        let first = run(input.clone()).unwrap();
-        assert_eq!(first.ranked.len(), 50);
-        assert_eq!(first.heavy_sentences.len(), 10);
-        assert_eq!(first.bullet_points.len(), 5);
-        assert!(!first.summary.is_empty());
-        assert!(first.summary.split_whitespace().count() <= 80);
-        assert!(first
-            .bullet_points
-            .iter()
-            .all(|bullet| sentences.iter().any(|line| line == &bullet.text)));
-        assert!(first.timings.total_ms.is_finite());
-        for _ in 0..9 {
-            let next = run(input.clone()).unwrap();
-            assert_eq!(next.summary, first.summary);
-            assert_eq!(next.ranked, first.ranked);
-            assert_eq!(next.heavy_sentences, first.heavy_sentences);
-            assert_eq!(next.bullet_points, first.bullet_points);
-            assert_eq!(next.timeline, first.timeline);
-            assert!(next.timings.total_ms.is_finite());
-        }
-    }
-
-    #[test]
-    fn bullet_count_modes_return_unique_source_sentences() {
-        let lines = labeled_test_sentences(12);
-        let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
-        for count in [3, 5, 10] {
-            let result = run(request(
-                &borrowed,
-                orthogonal_embeddings(lines.len()),
-                Options {
-                    bullet_count: count,
-                    ..Options::default()
-                },
-            ))
-            .unwrap();
-            assert_eq!(result.bullet_points.len(), count);
-            for (index, bullet) in result.bullet_points.iter().enumerate() {
-                assert!(lines.iter().any(|line| line == &bullet.text));
-                assert!(result.bullet_points[..index]
-                    .iter()
-                    .all(|prior| prior.text != bullet.text));
-            }
-        }
-    }
-
-    #[test]
-    fn summary_length_modes_stay_within_declared_word_bands_when_source_allows() {
-        let lines = labeled_test_sentences(50);
-        let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
-        for (mode, minimum, maximum) in [
-            (SummaryLength::Short, 50, 80),
-            (SummaryLength::Medium, 100, 150),
-            (SummaryLength::Long, 200, 300),
-        ] {
-            let result = run(request(
-                &borrowed,
-                orthogonal_embeddings(lines.len()),
-                Options {
-                    summary_length: mode,
-                    ..Options::default()
-                },
-            ))
-            .unwrap();
-            let words = word_count(&result.summary);
-            assert!(
-                (minimum..=maximum).contains(&words),
-                "summary has {words} words, expected {minimum}..={maximum}"
-            );
-            for sentence in result.summary.split_inclusive('.') {
-                assert!(lines.iter().any(|line| line == sentence.trim()));
-            }
-        }
-    }
-
-    #[test]
-    fn synthetic_labeled_corpus_computes_precision_and_recall_transparently() {
-        #[derive(Deserialize)]
-        struct Corpus {
-            dataset_type: String,
-            label_semantics: String,
-            embedding_note: String,
-            cases: Vec<Case>,
-        }
-        #[derive(Deserialize)]
-        struct Case {
-            sentences: Vec<Label>,
-        }
-        #[derive(Deserialize)]
-        struct Label {
-            text: String,
-            label: u8,
-            #[serde(alias = "embedding_group")]
-            _embedding_group: String,
-        }
-        let corpus: Corpus =
-            serde_json::from_str(include_str!("../fixtures/phrase_impact_labels.json")).unwrap();
-        assert_eq!(
-            corpus.dataset_type,
-            "synthetic_developer_authored_not_human_evaluation"
-        );
-        assert!(corpus.label_semantics.contains("not human validation"));
-        assert!(corpus.embedding_note.contains("not model embeddings"));
-        assert_eq!(corpus.cases.len(), 33);
-        let case_count = corpus.cases.len();
-        let mut p5_hits = 0;
-        let mut p10_hits = 0;
-        let mut relevant = 0;
-        let mut very_important = 0;
-        let mut r10_hits = 0;
-        for case in corpus.cases {
-            let vectors = case
-                .sentences
-                .iter()
-                .map(|sentence| lexical_vector(&sentence.text, "en"))
-                .map(|vector| vector.into_iter().map(|value| value as f32).collect())
-                .collect();
-            let text = case
-                .sentences
-                .iter()
-                .map(|sentence| sentence.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" ");
-            let result = run(Request {
-                transcript: text,
-                language: "en".into(),
-                embeddings: vectors,
-                timings: Vec::new(),
-                options: Options {
-                    min_heavy: 1,
-                    max_heavy: 12,
-                    ..Default::default()
-                },
-                embedding_ms: 0.0,
-                lexical_only: false,
-            })
-            .unwrap();
-            let labels: Vec<bool> = case
-                .sentences
-                .iter()
-                .map(|sentence| {
-                    assert!(sentence.label <= 2);
-                    sentence.label > 0
-                })
-                .collect();
-            assert_eq!(labels.len(), 12);
-            assert!(labels.iter().filter(|&&label| label).count() >= 3);
-            relevant += labels.iter().filter(|&&label| label).count();
-            very_important += case
-                .sentences
-                .iter()
-                .filter(|sentence| sentence.label == 2)
-                .count();
-            p5_hits += result
-                .ranked
-                .iter()
-                .take(5)
-                .filter(|sentence| labels[sentence.index])
-                .count();
-            p10_hits += result
-                .ranked
-                .iter()
-                .take(10)
-                .filter(|sentence| labels[sentence.index])
-                .count();
-            r10_hits += result
-                .ranked
-                .iter()
-                .take(10)
-                .filter(|sentence| labels[sentence.index])
-                .count();
-        }
-        assert!(very_important > 0, "fixture must include label 2");
-        let p5 = p5_hits as f64 / (case_count * 5) as f64;
-        let p10 = p10_hits as f64 / (case_count * 10) as f64;
-        let r10 = r10_hits as f64 / relevant as f64;
-        eprintln!(
-            "synthetic fixture only; not human evidence: P@5={p5:.3}, P@10={p10:.3}, R@10={r10:.3}"
-        );
-        // These loose checks protect only the synthetic harness wiring. They
-        // are not evidence for the requested human-judged Precision@K targets.
-        assert!(p5 > 0.45, "synthetic regression P@5={p5:.3}");
-        assert!(p10 > 0.25, "synthetic regression P@10={p10:.3}");
-        assert!(r10 >= 0.75, "synthetic regression R@10={r10:.3}");
-    }
-}
+#[path = "phrase_impact_tests.rs"]
+mod tests;
