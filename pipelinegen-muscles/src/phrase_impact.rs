@@ -23,6 +23,13 @@ const TRIMMED_RUN_TAIL_SPAN: f64 = 0.9;
 /// title budget: a sub-window of a short run is allowed (it may be the better
 /// phrase) but ranks below the whole run.
 const PARTIAL_SPAN: f64 = 0.5;
+/// A scene bullet must reach this many words to be published: two-word tails
+/// like "impronta 33." are fragments, not points. Scripts without spaces are
+/// measured by MIN_BULLET_CHARS instead, so a whole CJK sentence stays
+/// eligible where word counting cannot see token boundaries.
+const MIN_BULLET_WORDS: usize = 4;
+/// Alphanumeric-character floor for the same substance rule (CJK text).
+const MIN_BULLET_CHARS: usize = 16;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -1427,6 +1434,80 @@ fn select_phrase_spans(
     out
 }
 
+/// Terminal punctuation (optionally followed by a closing quote or bracket)
+/// means the segment closes a sentence. A head chunk cut at
+/// MAX_SEGMENT_WORDS ends mid-sentence and is never published as a bullet.
+fn bullet_closes_sentence(text: &str) -> bool {
+    let trimmed = text.trim_end();
+    let mut chars = trimmed.chars().rev();
+    match chars.next() {
+        Some('.' | '!' | '?' | '…' | '。' | '！' | '？') => true,
+        Some('"' | '\'' | '’' | '”' | ')' | ']' | '}' | '»') => matches!(
+            chars.next(),
+            Some('.' | '!' | '?' | '…' | '。' | '！' | '？')
+        ),
+        _ => false,
+    }
+}
+
+/// A bullet needs a minimum of substance: two-word tails like "impronta 33."
+/// are fragments, not points. CJK sentences carry no spaces, so the
+/// alphanumeric-character floor keeps whole non-spaced sentences eligible.
+fn bullet_has_substance(text: &str) -> bool {
+    word_count(text) >= MIN_BULLET_WORDS
+        || text.chars().filter(|ch| ch.is_alphanumeric()).count() >= MIN_BULLET_CHARS
+}
+
+/// Whitespace-collapsed, case-folded identity used for cross-scene bullet
+/// dedup, so a repeated sentence is recognized even when spacing varies.
+fn bullet_identity(text: &str) -> String {
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+/// A bullet must START a sentence: index 0, or the previous segment closes a
+/// sentence. A continuation chunk of a long sentence is not a sentence start.
+fn bullet_starts_sentence(texts: &[&str], index: usize) -> bool {
+    index == 0 || bullet_closes_sentence(texts[index - 1])
+}
+
+/// A bullet must COMPLETE a sentence: the segment closes one, or it is the
+/// transcript tail (the final segment may legitimately end without
+/// punctuation).
+fn bullet_completes_sentence(texts: &[&str], index: usize) -> bool {
+    bullet_closes_sentence(texts[index]) || index + 1 == texts.len()
+}
+
+/// Expand (start, end) to the boundaries of the sentence it touches, inside
+/// [lower, upper). Returns None when the sentence crosses the window: it
+/// cannot be quoted whole, so the extractor drops it instead of publishing a
+/// truncated slice.
+fn sentence_complete_span(
+    texts: &[&str],
+    start: usize,
+    end: usize,
+    lower: usize,
+    upper: usize,
+) -> Option<(usize, usize)> {
+    let mut start = start;
+    let mut end = end;
+    while start > lower && !bullet_closes_sentence(texts[start - 1]) {
+        start -= 1;
+    }
+    if start > 0 && !bullet_closes_sentence(texts[start - 1]) {
+        return None;
+    }
+    while end < upper && !bullet_closes_sentence(texts[end - 1]) {
+        end += 1;
+    }
+    if end == upper && end < texts.len() && !bullet_closes_sentence(texts[end - 1]) {
+        return None;
+    }
+    Some((start, end))
+}
+
 fn build_scene_highlights(
     transcript: &str,
     global_segments: &[Segment],
@@ -1438,6 +1519,10 @@ fn build_scene_highlights(
     let mut out = Vec::new();
     let mut certified = true;
     let mut seen_ids = std::collections::HashSet::new();
+    // A sentence the model repeats verbatim in every scene (the mandated
+    // opening line) is document material: it must be published once, not
+    // once per scene.
+    let mut used_bullet_texts: HashSet<String> = HashSet::new();
     for scene in scenes {
         if scene.scene_id.trim().is_empty() || !seen_ids.insert(scene.scene_id.clone()) {
             certified = false;
@@ -1536,20 +1621,63 @@ fn build_scene_highlights(
         };
         let mut order: Vec<usize> = (0..scene_segments.len()).collect();
         order.sort_by(|&a, &b| local_importance[b].total_cmp(&local_importance[a]).then(a.cmp(&b)));
+        let scene_texts: Vec<&str> = scene_segments
+            .iter()
+            .map(|segment| segment.text.as_str())
+            .collect();
         let mut bullets = Vec::new();
-        for &li in order.iter().take(bullet_n) {
-            // Global sentence index when indexed, else local index.
+        for &li in &order {
+            if bullets.len() >= bullet_n {
+                break;
+            }
+            // A bullet must OPEN a sentence: the continuation chunk of a
+            // sentence longer than MAX_SEGMENT_WORDS is not one.
+            if !bullet_starts_sentence(&scene_texts, li) {
+                continue;
+            }
+            // Rejoin the chunks of a long sentence so a bullet is never a
+            // truncated mid-sentence slice ("...con la tutela dei diritti di").
+            let mut end = li + 1;
+            while end < scene_segments.len()
+                && !bullet_closes_sentence(&scene_segments[end - 1].text)
+            {
+                end += 1;
+            }
+            let text = scene_segments[li..end]
+                .iter()
+                .map(|segment| segment.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            // Fragments are not bullets: "impronta 33." is noise, not a point.
+            if !bullet_has_substance(&text) {
+                continue;
+            }
+            // A sentence repeated verbatim across scenes is published once.
+            // Only verified (globally indexed) scenes participate: a local-only
+            // scene cannot prove the shared identity, so it keeps its own
+            // extractive bullets.
+            if globally_indexed && !used_bullet_texts.insert(bullet_identity(&text)) {
+                continue;
+            }
+            // Global sentence indices when indexed, else local indices.
             let (gs, ge) = if globally_indexed {
-                let seg = &scene_segments[li];
-                let gi = global_segments.iter().position(|g| g.start_byte == seg.start_byte).unwrap_or(li);
-                (gi, gi + 1)
+                let gs = global_segments
+                    .iter()
+                    .position(|g| g.start_byte == scene_segments[li].start_byte)
+                    .unwrap_or(li);
+                let ge = global_segments
+                    .iter()
+                    .position(|g| g.start_byte == scene_segments[end - 1].start_byte)
+                    .map(|index| index + 1)
+                    .unwrap_or(end);
+                (gs, ge)
             } else {
-                (li, li + 1)
+                (li, end)
             };
             bullets.push(SceneBulletSpan {
                 sentence_start: gs,
                 sentence_end: ge,
-                text: scene_segments[li].text.clone(),
+                text,
             });
         }
         bullets.sort_by(|a, b| a.sentence_start.cmp(&b.sentence_start));
@@ -1713,8 +1841,18 @@ fn build_chapters(
                 })
                 .then(a.cmp(&b))
         });
+        let ranked_texts: Vec<&str> = ranked.iter().map(|sentence| sentence.text.as_str()).collect();
         let mut selected: Vec<usize> = Vec::new();
         for candidate in candidates {
+            // Same extraction contract as every other bullet surface: a
+            // chapter bullet anchors on a complete, substantive sentence,
+            // never on a fragment or the continuation chunk of a long one.
+            if !bullet_starts_sentence(&ranked_texts, candidate)
+                || !bullet_completes_sentence(&ranked_texts, candidate)
+                || !bullet_has_substance(ranked_texts[candidate])
+            {
+                continue;
+            }
             if selected
                 .iter()
                 .all(|&prior| !equivalent(&ranked[candidate], &ranked[prior], vectors))
@@ -1729,6 +1867,12 @@ fn build_chapters(
         let mut spans: Vec<(usize, usize)> = selected
             .into_iter()
             .map(|index| contextual_bullet_span(index, begin, end, vectors))
+            // Contextual expansion must not end on a sentence boundary either:
+            // widen to the whole sentence when it fits inside the chapter, and
+            // drop the span when the sentence crosses the chapter edge.
+            .filter_map(|(span_start, span_end)| {
+                sentence_complete_span(&ranked_texts, span_start, span_end, begin, end)
+            })
             .collect();
         spans.sort_unstable();
         let mut merged: Vec<(usize, usize)> = Vec::new();
@@ -1743,14 +1887,17 @@ fn build_chapters(
         }
         let bullets = merged
             .into_iter()
-            .map(|(span_start, span_end)| ChapterBullet {
-                start_sentence: span_start,
-                end_sentence: span_end,
-                text: ranked[span_start..span_end]
+            .filter_map(|(span_start, span_end)| {
+                let text = ranked[span_start..span_end]
                     .iter()
                     .map(|sentence| sentence.text.as_str())
                     .collect::<Vec<_>>()
-                    .join(" "),
+                    .join(" ");
+                bullet_has_substance(&text).then(|| ChapterBullet {
+                    start_sentence: span_start,
+                    end_sentence: span_end,
+                    text,
+                })
             })
             .collect();
         let start_ms = timings.get(begin).map(|timing| timing.start_us / 1000);
@@ -2026,7 +2173,21 @@ pub fn run_with_chapter_options(
 
     let bullet_start = Instant::now();
     let bullet_limit = request.options.bullet_count.clamp(1, 10);
-    let bullets = select_diverse(&rank_indices, &source_order, &vectors, bullet_limit)
+    // Global bullets obey the same extraction contract as the scene and
+    // chapter surfaces: a bullet is a complete, substantive sentence — never a
+    // fragment and never a mid-sentence chunk of a sentence longer than
+    // MAX_SEGMENT_WORDS.
+    let segment_texts: Vec<&str> = segments.iter().map(|segment| segment.text.as_str()).collect();
+    let bullet_candidates: Vec<usize> = rank_indices
+        .iter()
+        .copied()
+        .filter(|&index| {
+            bullet_starts_sentence(&segment_texts, index)
+                && bullet_completes_sentence(&segment_texts, index)
+                && bullet_has_substance(segment_texts[index])
+        })
+        .collect();
+    let bullets = select_diverse(&bullet_candidates, &source_order, &vectors, bullet_limit)
         .into_iter()
         .map(|index| BulletPoint {
             sentence_index: source_order[index].index,

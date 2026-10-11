@@ -18,14 +18,19 @@ pub const COMPONENT: &str = "pipelinegen-muscles";
 
 mod admin_media;
 mod artifact;
+mod audio_copy;
 mod config;
 mod cut;
 mod dispatcher;
 mod encoder;
 #[cfg(test)]
 mod golden;
+pub mod overlay_fingerprint;
 pub mod phrase_impact;
 pub mod phrase_impact_worker;
+pub mod preflight;
+pub mod scene_intelligence;
+pub mod scene_intelligence_worker;
 mod probe;
 mod process;
 mod protocol;

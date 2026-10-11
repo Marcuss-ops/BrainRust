@@ -334,7 +334,67 @@ pub(super) fn execute(request: Request) -> Response {
         .map(|asset: AudioAsset| (asset.asset_id, asset.path))
         .collect();
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
+    // Parallel source probes (P1.6): every event/layer probe is an
+    // independent ffprobe subprocess, so pre-probe all unique asset paths
+    // at once instead of paying them sequentially inside the build loops.
+    // Best-effort only: failures here are swallowed and the authoritative
+    // per-event loop below re-probes (sequentially) and reports the typed
+    // error in plan order, so pre-probing can never change the outcome —
+    // only collapse N sequential waits into one parallel wait.
     let mut source_probes: HashMap<String, SourceProbe> = HashMap::new();
+    {
+        let mut unique_paths: Vec<String> = Vec::new();
+        let mut consider = |path: &str| {
+            if Path::new(path).is_file() && !unique_paths.iter().any(|p| p == path) {
+                unique_paths.push(path.to_string());
+            }
+        };
+        for (_, event) in track_events(&plan)
+            .into_iter()
+            .filter(|(_, event)| event.r#type != "SILENCE")
+        {
+            if let Some(path) = event
+                .asset_id
+                .as_ref()
+                .and_then(|id| by_id.get(id))
+            {
+                consider(path);
+            }
+        }
+        for layers in [&plan.background_music, &plan.sfx] {
+            for layer in layers {
+                if let Some(path) = by_id.get(&layer.asset_id) {
+                    consider(path);
+                }
+            }
+        }
+        if !unique_paths.is_empty() {
+            let probed: Vec<(String, Result<SourceProbe, String>)> =
+                std::thread::scope(|scope| {
+                    unique_paths
+                        .iter()
+                        .map(|path| {
+                            let ffmpeg = ffmpeg.to_string();
+                            let path_owned = path.clone();
+                            scope.spawn(move || {
+                                let result = probe_source(&ffmpeg, &path_owned);
+                                (path_owned, result)
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .map(|handle| handle.join().unwrap_or_else(|_| {
+                            (String::new(), Err("audio probe thread panicked".to_string()))
+                        }))
+                        .collect()
+                });
+            for (path, result) in probed {
+                if let Ok(probe) = result {
+                    source_probes.insert(path, probe);
+                }
+            }
+        }
+    }
     let mut ensure_source =
         |asset_id: &str, path: &str, required_end_us: i64| -> Result<SourceProbe, String> {
             let probe = if let Some(probe) = source_probes.get(path) {

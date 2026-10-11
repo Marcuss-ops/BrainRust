@@ -47,31 +47,33 @@ impl BenchAccumulator {
 /// copies verbatim only when the source stream already satisfies the plan
 /// contract; transcode always runs one conversion. A source without an audio
 /// stream yields no stream (mapped 0:a?) and records the ineligible outcome.
+///
+/// The compatibility rule itself lives in `crate::audio_copy` (P0.3: one
+/// rule shared by clip, mux and future stock-audio paths).
 fn audio_policy(
     audio: &ClipPlanAudio,
     source: &MediaMetadata,
     bitrate: &str,
 ) -> (bool, i32, Vec<String>) {
-    let compatible = source.has_audio
-        && source.audio_codec.as_deref() == Some(audio.codec.as_str())
-        && source.sample_rate == Some(audio.sample_rate as u32)
-        && source.channels == Some(audio.channels as u32);
-    if audio.mode == AUDIO_COPY_IF_COMPATIBLE && compatible {
-        return (true, 0, vec!["-c:a".to_string(), "copy".to_string()]);
+    if audio.mode == AUDIO_COPY_IF_COMPATIBLE
+        && crate::audio_copy::is_compatible(
+            source,
+            &audio.codec,
+            audio.sample_rate,
+            audio.channels,
+        )
+    {
+        return (true, 0, crate::audio_copy::copy_args());
     }
     (
         false,
         i32::from(source.has_audio),
-        vec![
-            "-c:a".to_string(),
-            audio.codec.clone(),
-            "-ar".to_string(),
-            audio.sample_rate.to_string(),
-            "-ac".to_string(),
-            audio.channels.to_string(),
-            "-b:a".to_string(),
-            bitrate.to_string(),
-        ],
+        crate::audio_copy::transcode_args(
+            &audio.codec,
+            audio.sample_rate,
+            audio.channels,
+            bitrate,
+        ),
     )
 }
 

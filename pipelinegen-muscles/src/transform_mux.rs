@@ -1,6 +1,6 @@
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::process::FFmpegRunner;
-use crate::protocol::{Request, Response};
+use crate::protocol::{MediaMetadata, Request, Response};
 use std::fs;
 use std::path::Path;
 
@@ -79,7 +79,26 @@ pub(super) fn execute(request: Request) -> Response {
     // rendered video and the certified final audio must agree within the
     // encoder-padding tolerance; `-shortest` is deliberately NOT used to
     // reconcile them, so a mismatch aborts the render instead of truncating.
-    let video_sec = match crate::probe::probe_file(&ffprobe, &inputs[0]) {
+    // The two input probes are independent ffprobe subprocesses: run them in
+    // parallel (P1.6). The single mux below still runs once; only the wait
+    // for both probes collapses from sum to max.
+    let (video_probe, audio_probe) = std::thread::scope(|scope| {
+        let ffprobe_video = ffprobe.clone();
+        let ffprobe_audio = ffprobe.clone();
+        let video_path = &inputs[0];
+        let audio_path = &inputs[1];
+        let video = scope.spawn(move || crate::probe::probe_file(&ffprobe_video, video_path));
+        let audio = scope.spawn(move || crate::probe::probe_file(&ffprobe_audio, audio_path));
+        (
+            video.join().unwrap_or_else(|_| {
+                Err("video probe thread panicked".to_string())
+            }),
+            audio.join().unwrap_or_else(|_| {
+                Err("final audio probe thread panicked".to_string())
+            }),
+        )
+    });
+    let video_sec = match video_probe {
         Ok(metadata) if metadata.duration_sec.is_finite() && metadata.duration_sec > 0.0 => {
             metadata.duration_sec
         }
@@ -96,9 +115,9 @@ pub(super) fn execute(request: Request) -> Response {
             )
         }
     };
-    let audio_sec = match crate::probe::probe_file(&ffprobe, &inputs[1]) {
+    let audio_metadata = match audio_probe {
         Ok(metadata) if metadata.duration_sec.is_finite() && metadata.duration_sec > 0.0 => {
-            metadata.duration_sec
+            metadata
         }
         Ok(_) => {
             return failed_response(
@@ -113,6 +132,22 @@ pub(super) fn execute(request: Request) -> Response {
             )
         }
     };
+    // Copy-only certification (P0.3, shared rule): `-c:a copy` below is
+    // verbatim, so the final master must ALREADY be the canonical AAC-LC
+    // 48kHz stereo contract. Anything else fails closed here instead of
+    // producing an unplayable MP4 downstream.
+    if !crate::audio_copy::is_canonically_compatible(&audio_metadata) {
+        return failed_response(
+            Some(inputs[1].to_string()),
+            format!(
+                "FINAL_MUX_AUDIO_NOT_COPY_ELIGIBLE: final audio is {:?}/{:?}/{:?}, want aac/48000/stereo",
+                audio_metadata.audio_codec,
+                audio_metadata.sample_rate,
+                audio_metadata.channels,
+            ),
+        );
+    }
+    let audio_sec = audio_metadata.duration_sec;
     if let Some(error) = duration_mismatch(video_sec, audio_sec) {
         return failed_response(Some(inputs[0].to_string()), error);
     }
@@ -147,7 +182,10 @@ pub(super) fn execute(request: Request) -> Response {
                 operation: "mux_audio_copy".to_string(),
                 source_path: Some(inputs[0].to_string()),
                 items: Vec::new(),
-                metadata: None,
+                metadata: Some(MediaMetadata {
+                    audio_copy_eligible: Some(true),
+                    ..Default::default()
+                }),
                 error: None,
             },
             Err(error) => failed_response(Some(inputs[0].to_string()), error),
