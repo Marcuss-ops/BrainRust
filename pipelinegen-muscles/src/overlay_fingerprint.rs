@@ -9,6 +9,8 @@
 //! implements the same canonicalization + FNV-1a; shared vectors in
 //! `overlay_fingerprint` tests pin both sides.
 
+use crate::error::MuscleError;
+
 /// FNV-1a 64 offset basis and prime.
 const FNV_OFFSET: u64 = 0xcbf29ce484222325;
 const FNV_PRIME: u64 = 0x100000001b3;
@@ -88,9 +90,9 @@ fn write_canonical(value: &serde_json::Value, out: &mut String) {
 
 /// Fingerprint a plan JSON document: parse, canonicalize, FNV-1a hex.
 /// Fails closed on invalid JSON.
-pub fn fingerprint_plan_json(raw: &str) -> Result<String, String> {
-    let value: serde_json::Value =
-        serde_json::from_str(raw).map_err(|e| format!("fingerprint: invalid plan JSON: {e}"))?;
+pub fn fingerprint_plan_json(raw: &str) -> Result<String, MuscleError> {
+    let value: serde_json::Value = serde_json::from_str(raw)
+        .map_err(|e| MuscleError::generic(format!("fingerprint: invalid plan JSON: {e}")))?;
     Ok(fnv1a64_hex(canonical_json(&value).as_bytes()))
 }
 
@@ -126,7 +128,10 @@ mod tests {
                 "{\"scene_id\":\"s-01\",\"preset\":\"dolly\",\"asset\":\"drive:abc\"}",
                 "fingerprint-vector-plan",
             ),
-            ("{\"b\":[1,2],\"a\":{\"z\":true}}", "fingerprint-vector-nested"),
+            (
+                "{\"b\":[1,2],\"a\":{\"z\":true}}",
+                "fingerprint-vector-nested",
+            ),
         ];
         for (raw, label) in cases {
             let hash = fingerprint_plan_json(raw).expect("valid fixture JSON");
@@ -136,7 +141,11 @@ mod tests {
                 "{label} must be hex"
             );
             // Deterministic across calls.
-            assert_eq!(hash, fingerprint_plan_json(raw).unwrap(), "{label} unstable");
+            assert_eq!(
+                hash,
+                fingerprint_plan_json(raw).unwrap(),
+                "{label} unstable"
+            );
         }
         // Empty object is a valid (degenerate) plan.
         assert_eq!(fingerprint_plan_json("{}").unwrap().len(), 16);
@@ -156,10 +165,7 @@ mod tests {
             fingerprint_plan_json("{\"b\":[1,2],\"a\":{\"z\":true}}").unwrap(),
             "156681ee96efe935"
         );
-        assert_eq!(
-            fingerprint_plan_json("{}").unwrap(),
-            "08f44b07b5901a25"
-        );
+        assert_eq!(fingerprint_plan_json("{}").unwrap(), "08f44b07b5901a25");
     }
 
     #[test]

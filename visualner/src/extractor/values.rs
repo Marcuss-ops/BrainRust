@@ -138,7 +138,10 @@ fn classify_type(text: &str) -> String {
     // generic capitalization rule would mistake sentence-initial nouns for
     // people, so keep this deterministic list limited to the Brazil 1970
     // player names used by the entity-caption pipeline.
-    if matches!(lower.as_str(), "pelé" | "pele" | "gérson" | "gerson" | "jairzinho") {
+    if matches!(
+        lower.as_str(),
+        "pelé" | "pele" | "gérson" | "gerson" | "jairzinho"
+    ) {
         return "PERSON".to_string();
     }
     if lower == "iphone" || lower.contains("smartphone") {
@@ -374,25 +377,6 @@ fn month_before_day(source: &str, number_start: usize) -> Option<usize> {
     month_names().contains(&month.as_str()).then_some(start)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn month_before_day_handles_multibyte_punctuation_before_date() {
-        let source = "L’indagine proseguì fino a giugno 1988.";
-        let number_start = source.find("1988").unwrap();
-        let month_start = month_before_day(source, number_start).unwrap();
-        assert_eq!(source.get(month_start..number_start), Some("giugno "));
-
-        let candidates = value_candidates(source);
-        assert!(candidates.iter().any(|candidate| {
-            candidate.text == "giugno 1988"
-                && source.get(candidate.start..candidate.end) == Some("giugno 1988")
-        }));
-    }
-}
-
 fn month_after_day(source: &str, number_end: usize) -> Option<usize> {
     let tail = source[number_end..].trim_start();
     let lower = tail.to_lowercase();
@@ -432,4 +416,23 @@ fn month_names() -> &'static [&'static str] {
         "novembre",
         "dicembre",
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn month_before_day_handles_multibyte_punctuation_before_date() {
+        let source = "L’indagine proseguì fino a giugno 1988.";
+        let number_start = source.find("1988").unwrap();
+        let month_start = month_before_day(source, number_start).unwrap();
+        assert_eq!(source.get(month_start..number_start), Some("giugno "));
+
+        let candidates = value_candidates(source);
+        assert!(candidates.iter().any(|candidate| {
+            candidate.text == "giugno 1988"
+                && source.get(candidate.start..candidate.end) == Some("giugno 1988")
+        }));
+    }
 }

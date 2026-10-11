@@ -1,4 +1,6 @@
 use crate::process::FFmpegRunner;
+
+use crate::error::MuscleError;
 use crate::protocol::MediaMetadata;
 
 #[derive(serde::Deserialize)]
@@ -41,7 +43,7 @@ pub(super) struct SourceProbe {
 // single ffprobe call. It replaces the old duration-only probe: the format
 // facts let the graph skip aresample/aformat for assets that are already
 // canonical, without paying a second subprocess per unique path.
-pub(super) fn probe_source(ffmpeg: &str, path: &str) -> Result<SourceProbe, String> {
+pub(super) fn probe_source(ffmpeg: &str, path: &str) -> Result<SourceProbe, MuscleError> {
     let ffprobe = crate::probe::ffprobe_path(ffmpeg);
     let mut command = FFmpegRunner::from_ffprobe_path(&ffprobe).ffprobe();
     command.args([
@@ -53,23 +55,32 @@ pub(super) fn probe_source(ffmpeg: &str, path: &str) -> Result<SourceProbe, Stri
         "-show_streams",
         path,
     ]);
-    let output = command
-        .output()
-        .map_err(|error| format!("ffprobe source failed to start: {error}"))?;
+    let output = command.output().map_err(|error| {
+        MuscleError::generic(format!("ffprobe source failed to start: {error}"))
+    })?;
     if !output.status.success() {
-        return Err(format!("source asset is corrupt or unreadable: {path}"));
+        return Err(MuscleError::generic(format!(
+            "source asset is corrupt or unreadable: {path}"
+        )));
     }
-    let probe: Probe = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("ffprobe source parse failed for {path}: {error}"))?;
+    let probe: Probe = serde_json::from_slice(&output.stdout).map_err(|error| {
+        MuscleError::generic(format!("ffprobe source parse failed for {path}: {error}"))
+    })?;
     let duration = probe
         .format
         .duration
         .as_deref()
-        .ok_or_else(|| format!("source asset has no usable duration: {path}"))?
+        .ok_or_else(|| {
+            MuscleError::generic(format!("source asset has no usable duration: {path}"))
+        })?
         .parse::<f64>()
-        .map_err(|error| format!("invalid source duration for {path}: {error}"))?;
+        .map_err(|error| {
+            MuscleError::generic(format!("invalid source duration for {path}: {error}"))
+        })?;
     if !duration.is_finite() || duration <= 0.0 {
-        return Err(format!("source asset has no usable duration: {path}"));
+        return Err(MuscleError::generic(format!(
+            "source asset has no usable duration: {path}"
+        )));
     }
     let audio = probe
         .streams
@@ -87,7 +98,7 @@ pub(super) fn probe_audio(
     ffmpeg: &str,
     path: &str,
     expected_duration: f64,
-) -> Result<MediaMetadata, String> {
+) -> Result<MediaMetadata, MuscleError> {
     let ffprobe = crate::probe::ffprobe_path(ffmpeg);
     let mut command = FFmpegRunner::from_ffprobe_path(&ffprobe).ffprobe();
     command.args([
@@ -101,29 +112,32 @@ pub(super) fn probe_audio(
     ]);
     let output = command
         .output()
-        .map_err(|error| format!("ffprobe failed to start: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("ffprobe failed to start: {error}")))?;
     if !output.status.success() {
-        return Err(format!("ffprobe exited with {}", output.status));
+        return Err(MuscleError::generic(format!(
+            "ffprobe exited with {}",
+            output.status
+        )));
     }
     let probe: Probe = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("ffprobe parse failed: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("ffprobe parse failed: {error}")))?;
     let duration = probe
         .format
         .duration
         .as_deref()
-        .ok_or("ffprobe returned no duration")?
+        .ok_or_else(|| MuscleError::generic("ffprobe returned no duration"))?
         .parse::<f64>()
-        .map_err(|error| format!("invalid duration: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("invalid duration: {error}")))?;
     let audio = probe
         .streams
         .iter()
         .filter(|stream| stream.codec_type.as_deref() == Some("audio"))
         .collect::<Vec<_>>();
     if audio.len() != 1 {
-        return Err(format!(
+        return Err(MuscleError::generic(format!(
             "expected exactly one audio stream, found {}",
             audio.len()
-        ));
+        )));
     }
     let stream = audio[0];
     if stream.codec_name.as_deref() != Some("aac")
@@ -140,9 +154,9 @@ pub(super) fn probe_audio(
     // only the AAC encoder padding may remain. Fail closed beyond ±40ms — the
     // same window the Go adapter certifies (ValidateFinalAudioReference).
     if (duration - expected_duration).abs() > 0.040 {
-        return Err(format!(
+        return Err(MuscleError::generic(format!(
             "rendered audio duration {duration:.3}s differs from expected {expected_duration:.3}s"
-        ));
+        )));
     }
     Ok(MediaMetadata {
         duration_sec: duration,

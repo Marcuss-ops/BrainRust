@@ -16,12 +16,7 @@ use crate::protocol::MediaMetadata;
 
 /// Returns true when the probed source stream already satisfies the output
 /// contract and may be copied verbatim (`-c:a copy`).
-pub fn is_compatible(
-    source: &MediaMetadata,
-    codec: &str,
-    sample_rate: i64,
-    channels: i64,
-) -> bool {
+pub fn is_compatible(source: &MediaMetadata, codec: &str, sample_rate: i64, channels: i64) -> bool {
     source.has_audio
         && source
             .audio_codec
@@ -71,7 +66,11 @@ pub fn transcode_args(codec: &str, sample_rate: i64, channels: i64, bitrate: &st
 mod tests {
     use super::*;
 
-    fn metadata(codec: Option<&str>, sample_rate: Option<u32>, channels: Option<u32>) -> MediaMetadata {
+    fn metadata(
+        codec: Option<&str>,
+        sample_rate: Option<u32>,
+        channels: Option<u32>,
+    ) -> MediaMetadata {
         MediaMetadata {
             duration_sec: 10.0,
             width: 1920,

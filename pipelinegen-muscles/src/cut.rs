@@ -1,4 +1,5 @@
 use crate::artifact::{failed_response, part_path};
+
 use crate::config;
 use crate::encoder;
 use crate::probe::{ffprobe_path, probe_file, validate_output};
@@ -178,7 +179,7 @@ fn cut_one(
         command.args(["-map", "0:a:0?"]);
     }
     if let Err(error) = encoder::append_video_args(&mut command, encoder, &profile, None) {
-        return failed(error);
+        return failed(error.to_string());
     }
     command.args(["-avoid_negative_ts", "make_zero"]);
     if no_audio {

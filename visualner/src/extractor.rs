@@ -805,7 +805,6 @@ fn is_stop_phrase(normalized: &str) -> bool {
 
 // ── Tests ────────────────────────────────────────────────────────────
 
-
 #[cfg(test)]
 #[path = "extractor_tests.rs"]
 mod tests;

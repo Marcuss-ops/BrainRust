@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+
+use crate::error::MuscleError;
 use std::collections::HashSet;
 use std::time::Instant;
 
@@ -31,18 +33,13 @@ const MIN_BULLET_WORDS: usize = 4;
 /// Alphanumeric-character floor for the same substance rule (CJK text).
 const MIN_BULLET_CHARS: usize = 16;
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryLength {
     Short,
+    #[default]
     Medium,
     Long,
-}
-
-impl Default for SummaryLength {
-    fn default() -> Self {
-        Self::Medium
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -304,6 +301,17 @@ struct Neighbor {
 }
 
 pub fn split_sentences(text: &str, language: &str) -> Vec<Segment> {
+    split_sentence_spans(text, language, Some(MAX_SEGMENT_WORDS))
+}
+
+/// Canonical sentence boundary detector shared with Scene Intelligence. The
+/// optional word limit preserves phrase-impact's bounded embedding chunks
+/// while letting SI retain its original whole-sentence granularity.
+pub(crate) fn split_sentence_spans(
+    text: &str,
+    language: &str,
+    max_words: Option<usize>,
+) -> Vec<Segment> {
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     if chars.is_empty() {
         return Vec::new();
@@ -388,12 +396,21 @@ pub fn split_sentences(text: &str, language: &str) -> Vec<Segment> {
     }
     push_segment(text, start, text.len(), &mut segments);
 
+    let Some(max_words) = max_words else {
+        return segments;
+    };
     let mut bounded = Vec::new();
     for segment in segments {
-        if word_count(&segment.text) <= MAX_SEGMENT_WORDS {
+        if word_count(&segment.text) <= max_words {
             bounded.push(segment);
         } else {
-            split_long_segment(text, segment.start_byte, segment.end_byte, &mut bounded);
+            split_long_segment(
+                text,
+                segment.start_byte,
+                segment.end_byte,
+                max_words,
+                &mut bounded,
+            );
         }
     }
     bounded
@@ -421,7 +438,13 @@ fn push_segment(text: &str, start: usize, end: usize, output: &mut Vec<Segment>)
     });
 }
 
-fn split_long_segment(text: &str, start: usize, end: usize, output: &mut Vec<Segment>) {
+fn split_long_segment(
+    text: &str,
+    start: usize,
+    end: usize,
+    max_words: usize,
+    output: &mut Vec<Segment>,
+) {
     let source = &text[start..end];
     let mut ranges = Vec::new();
     let mut word_start = None;
@@ -439,7 +462,7 @@ fn split_long_segment(text: &str, start: usize, end: usize, output: &mut Vec<Seg
     }
     let mut first = 0;
     while first < ranges.len() {
-        let end_word = (first + MAX_SEGMENT_WORDS).min(ranges.len());
+        let end_word = (first + max_words).min(ranges.len());
         push_segment(
             text,
             start + ranges[first].0,
@@ -594,7 +617,7 @@ fn suppress_abbreviation(
     let token: String = chars[start..=period].iter().map(|(_, c)| *c).collect();
     let token = token.to_lowercase();
     let lang = language
-        .split(|ch| ch == '-' || ch == '_')
+        .split(['-', '_'])
         .next()
         .unwrap_or("en")
         .to_lowercase();
@@ -723,11 +746,7 @@ fn percentile_scale(values: &[f64]) -> Vec<f64> {
 fn content_signal(text: &str, language: &str) -> f64 {
     let text = text.to_lowercase();
     let language = language.to_lowercase();
-    let cues: &[&str] = match language
-        .split(|ch| ch == '-' || ch == '_')
-        .next()
-        .unwrap_or("en")
-    {
+    let cues: &[&str] = match language.split(['-', '_']).next().unwrap_or("en") {
         "it" => &[
             "annunc",
             "licenzi",
@@ -936,11 +955,11 @@ fn extract_summary(
         }
     }
     if count < minimum {
-        for index in 0..ranked.len() {
+        for (index, sentence) in ranked.iter().enumerate() {
             if chosen.contains(&index) {
                 continue;
             }
-            let size = word_count(&ranked[index].text);
+            let size = word_count(&sentence.text);
             if size > 0 && count + size <= maximum {
                 chosen.push(index);
                 count += size;
@@ -1064,8 +1083,8 @@ fn boundary_evidence(
             cross_count += 1;
         }
     }
-    let left_tokens = token_distribution(&ranked[left].to_vec());
-    let right_tokens = token_distribution(&ranked[right].to_vec());
+    let left_tokens = token_distribution(&ranked[left]);
+    let right_tokens = token_distribution(&ranked[right]);
     BoundaryEvidence {
         semantic: 1.0 - cross / cross_count.max(1) as f64,
         lexical: 1.0 - distribution_similarity(&left_tokens, &right_tokens),
@@ -1094,9 +1113,7 @@ fn chapter_title(
     // lexicon does not enumerate degrades to the cross-linguistic fallback
     // profile instead of to an unrelated language's words.
     let is_concept_token = |word: &str| {
-        word.chars().count() > 1
-            && !word.chars().all(char::is_numeric)
-            && !stopwords.contains(word)
+        word.chars().count() > 1 && !word.chars().all(char::is_numeric) && !stopwords.contains(word)
     };
     let mut token_frequency = std::collections::HashMap::<String, usize>::new();
     for word in words.iter().filter(|word| is_concept_token(word)) {
@@ -1140,7 +1157,10 @@ fn chapter_title(
             // choice the old code made by term rarity and then by the sort
             // tie-break. A tail that shares a token with a longer run elsewhere
             // still has to win on its own score.
-            record(words[end - MAX_TITLE_TOKENS..end].join(" "), TRIMMED_RUN_TAIL_SPAN);
+            record(
+                words[end - MAX_TITLE_TOKENS..end].join(" "),
+                TRIMMED_RUN_TAIL_SPAN,
+            );
             continue;
         }
         for length in 2..=span {
@@ -1150,7 +1170,10 @@ fn chapter_title(
                 } else {
                     PARTIAL_SPAN
                 };
-                record(words[start + offset..start + offset + length].join(" "), quality);
+                record(
+                    words[start + offset..start + offset + length].join(" "),
+                    quality,
+                );
             }
         }
     }
@@ -1184,7 +1207,7 @@ fn chapter_title(
     let mut topic_candidates = std::collections::HashMap::<String, (f64, f64, usize)>::new();
     for &scene in scene_ids {
         if let Some(topic) = topics.get(scene) {
-            let normalized = topic.replace('-', " ").replace('_', " ").trim().to_string();
+            let normalized = topic.replace(['-', '_'], " ").trim().to_string();
             let topic_tokens: Vec<String> = normalized
                 .split(|character: char| !character.is_alphanumeric())
                 .map(str::to_lowercase)
@@ -1286,17 +1309,33 @@ fn is_statistical_sentence(text: &str) -> bool {
     if words <= 4 {
         return false;
     }
-    let stat_markers = [
-        '%', '$', '€', '£',
-    ];
+    let stat_markers = ['%', '$', '€', '£'];
     if text.chars().any(|c| stat_markers.contains(&c)) {
         return true;
     }
     let verbs = [
-        " rose ", " fell ", " grew ", " dropped ", " increased ", " decreased ",
-        " declined ", " surged ", " shrank ", " down ", " up ", " by ",
-        " aumentate ", " aumentato ", " diminuito ", " calo ", " crescita ",
-        " riduzione ", " rispetto ", " since ", " from ", " dal ",
+        " rose ",
+        " fell ",
+        " grew ",
+        " dropped ",
+        " increased ",
+        " decreased ",
+        " declined ",
+        " surged ",
+        " shrank ",
+        " down ",
+        " up ",
+        " by ",
+        " aumentate ",
+        " aumentato ",
+        " diminuito ",
+        " calo ",
+        " crescita ",
+        " riduzione ",
+        " rispetto ",
+        " since ",
+        " from ",
+        " dal ",
     ];
     let padded = format!(" {lower} ");
     verbs.iter().any(|v| padded.contains(v))
@@ -1325,7 +1364,7 @@ fn select_scene_title(
     stopwords: &HashSet<String>,
 ) -> (Option<String>, String, String) {
     if let Some(raw) = topic.map(str::trim).filter(|t| !t.is_empty()) {
-        let normalized = raw.replace('-', " ").replace('_', " ");
+        let normalized = raw.replace(['-', '_'], " ");
         let topic_tokens: Vec<String> = normalized
             .split(|c: char| !c.is_alphanumeric())
             .map(str::to_lowercase)
@@ -1348,7 +1387,9 @@ fn select_scene_title(
         }
     }
     let (title, source) = chapter_title(scene_text, &[], &[], stopwords);
-    if title.trim().is_empty() || is_statistical_sentence(&title) && title.split_whitespace().count() > 5 {
+    if title.trim().is_empty()
+        || is_statistical_sentence(&title) && title.split_whitespace().count() > 5
+    {
         return (None, "unavailable".into(), "none".into());
     }
     if is_statistical_sentence(scene_text) && title == scene_text.trim() {
@@ -1399,7 +1440,13 @@ fn select_phrase_spans(
                 }
                 let rarity = win
                     .iter()
-                    .map(|(_, _, t)| if t.chars().all(|c| c.is_alphabetic()) && t.len() > 5 { 1.5 } else { 1.0 })
+                    .map(|(_, _, t)| {
+                        if t.chars().all(|c| c.is_alphabetic()) && t.len() > 5 {
+                            1.5
+                        } else {
+                            1.0
+                        }
+                    })
                     .sum::<f64>()
                     / len as f64;
                 let brevity = if len <= 5 { 1.2 } else { 0.85 };
@@ -1429,7 +1476,11 @@ fn select_phrase_spans(
             break;
         }
     }
-    out.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.sentence_index.cmp(&b.sentence_index)));
+    out.sort_by(|a, b| {
+        b.score
+            .total_cmp(&a.score)
+            .then(a.sentence_index.cmp(&b.sentence_index))
+    });
     out.truncate(limit);
     out
 }
@@ -1612,7 +1663,7 @@ fn build_scene_highlights(
             select_scene_title(&scene.text, scene.topic.as_deref(), stopwords);
         // Bullet budget scales with scene length; short scenes get none invented.
         let words: usize = scene.text.split_whitespace().count();
-        let bullet_n = if words < 15 || scene_segments.len() < 1 {
+        let bullet_n = if words < 15 || scene_segments.is_empty() {
             0
         } else if words < 60 {
             1.min(scene_segments.len())
@@ -1620,7 +1671,11 @@ fn build_scene_highlights(
             3.min(scene_segments.len())
         };
         let mut order: Vec<usize> = (0..scene_segments.len()).collect();
-        order.sort_by(|&a, &b| local_importance[b].total_cmp(&local_importance[a]).then(a.cmp(&b)));
+        order.sort_by(|&a, &b| {
+            local_importance[b]
+                .total_cmp(&local_importance[a])
+                .then(a.cmp(&b))
+        });
         let scene_texts: Vec<&str> = scene_segments
             .iter()
             .map(|segment| segment.text.as_str())
@@ -1680,7 +1735,7 @@ fn build_scene_highlights(
                 text,
             });
         }
-        bullets.sort_by(|a, b| a.sentence_start.cmp(&b.sentence_start));
+        bullets.sort_by_key(|a| a.sentence_start);
         let highlights = select_phrase_spans(&scene_segments, &local_importance, stopwords, 2);
         out.push(SceneHighlight {
             scene_id: scene.scene_id.clone(),
@@ -1841,7 +1896,10 @@ fn build_chapters(
                 })
                 .then(a.cmp(&b))
         });
-        let ranked_texts: Vec<&str> = ranked.iter().map(|sentence| sentence.text.as_str()).collect();
+        let ranked_texts: Vec<&str> = ranked
+            .iter()
+            .map(|sentence| sentence.text.as_str())
+            .collect();
         let mut selected: Vec<usize> = Vec::new();
         for candidate in candidates {
             // Same extraction contract as every other bullet surface: a
@@ -1893,7 +1951,7 @@ fn build_chapters(
                     .map(|sentence| sentence.text.as_str())
                     .collect::<Vec<_>>()
                     .join(" ");
-                bullet_has_substance(&text).then(|| ChapterBullet {
+                bullet_has_substance(&text).then_some(ChapterBullet {
                     start_sentence: span_start,
                     end_sentence: span_end,
                     text,
@@ -1919,7 +1977,7 @@ fn build_chapters(
 
 /// the built-in bounded lexical vectors when lexical_only is explicitly true.
 /// Output summaries and bullets are extractive to prevent unsupported claims.
-pub fn run(request: Request) -> Result<ResultDocument, String> {
+pub fn run(request: Request) -> Result<ResultDocument, MuscleError> {
     run_with_scene_context(request, &[], &[])
 }
 
@@ -1932,7 +1990,7 @@ pub fn run_with_scene_inputs(
     request: Request,
     inputs: &[SceneInput],
     chapter_options: &ChapterOptions,
-) -> Result<ResultDocument, String> {
+) -> Result<ResultDocument, MuscleError> {
     let mut seen = std::collections::HashSet::new();
     for input in inputs {
         if input.scene_id.trim().is_empty() || !seen.insert(input.scene_id.clone()) {
@@ -1972,7 +2030,7 @@ pub fn run_with_scene_context(
     request: Request,
     scenes: &[String],
     scene_topics: &[String],
-) -> Result<ResultDocument, String> {
+) -> Result<ResultDocument, MuscleError> {
     run_with_chapter_options(request, scenes, scene_topics, &ChapterOptions::default())
 }
 
@@ -1981,7 +2039,7 @@ pub fn run_with_chapter_options(
     scenes: &[String],
     scene_topics: &[String],
     chapter_options: &ChapterOptions,
-) -> Result<ResultDocument, String> {
+) -> Result<ResultDocument, MuscleError> {
     if chapter_options.min_sentences == 0
         || chapter_options.max_sentences < chapter_options.min_sentences
         || chapter_options.max_sentences > 200
@@ -2023,13 +2081,14 @@ pub fn run_with_chapter_options(
     let mut scene_starts = Vec::new();
     let mut resolved_scenes = scenes;
     let mut resolved_topics = scene_topics;
-    if !resolved_scenes.is_empty() {
-        if !resolved_topics.is_empty() && resolved_topics.len() != resolved_scenes.len() {
-            // Scene metadata is optional context for chapter labels, never a
-            // reason to alter or suppress the legacy extractive products.
-            resolved_scenes = &[];
-            resolved_topics = &[];
-        }
+    if !resolved_scenes.is_empty()
+        && !resolved_topics.is_empty()
+        && resolved_topics.len() != resolved_scenes.len()
+    {
+        // Scene metadata is optional context for chapter labels, never a
+        // reason to alter or suppress the legacy extractive products.
+        resolved_scenes = &[];
+        resolved_topics = &[];
     }
     if !resolved_scenes.is_empty() {
         let mut sentence_offset = 0usize;
@@ -2058,11 +2117,11 @@ pub fn run_with_chapter_options(
             return Err("lexical_only cannot be combined with embeddings".into());
         }
     } else if request.embeddings.len() != segments.len() {
-        return Err(format!(
+        return Err(MuscleError::generic(format!(
             "embedding count {} does not match sentence count {}",
             request.embeddings.len(),
             segments.len()
-        ));
+        )));
     }
     if !request.timings.is_empty() && request.timings.len() != segments.len() {
         return Err("timing count does not match sentence count".into());
@@ -2095,15 +2154,21 @@ pub fn run_with_chapter_options(
         let mut vectors = Vec::with_capacity(request.embeddings.len());
         for (index, row) in request.embeddings.iter().enumerate() {
             if row.len() != dimension {
-                return Err(format!("embedding {index} dimension mismatch"));
+                return Err(MuscleError::generic(format!(
+                    "embedding {index} dimension mismatch"
+                )));
             }
             if row.iter().any(|value| !value.is_finite()) {
-                return Err(format!("embedding {index} is non-finite"));
+                return Err(MuscleError::generic(format!(
+                    "embedding {index} is non-finite"
+                )));
             }
             let mut vector: Vec<f64> = row.iter().map(|value| *value as f64).collect();
             let norm = vector.iter().map(|value| value * value).sum::<f64>().sqrt();
             if norm <= f64::EPSILON {
-                return Err(format!("embedding {index} has zero norm"));
+                return Err(MuscleError::generic(format!(
+                    "embedding {index} has zero norm"
+                )));
             }
             for value in &mut vector {
                 *value /= norm;
@@ -2177,7 +2242,10 @@ pub fn run_with_chapter_options(
     // chapter surfaces: a bullet is a complete, substantive sentence — never a
     // fragment and never a mid-sentence chunk of a sentence longer than
     // MAX_SEGMENT_WORDS.
-    let segment_texts: Vec<&str> = segments.iter().map(|segment| segment.text.as_str()).collect();
+    let segment_texts: Vec<&str> = segments
+        .iter()
+        .map(|segment| segment.text.as_str())
+        .collect();
     let bullet_candidates: Vec<usize> = rank_indices
         .iter()
         .copied()
@@ -2241,7 +2309,6 @@ pub fn run_with_chapter_options(
     })
 }
 
-
 #[cfg(test)]
-#[path = "phrase_impact_tests.rs"]
+#[path = "phrase_impact_tests/mod.rs"]
 mod tests;

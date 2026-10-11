@@ -123,6 +123,8 @@ fn request(text: String) -> Request {
             ..Options::default()
         },
         embedding_ms: 0.0,
+        lexical_only: false,
+        stopwords: Vec::new(),
     }
 }
 

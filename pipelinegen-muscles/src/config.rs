@@ -4,6 +4,7 @@
 //! FFmpeg mechanics; it must never manufacture a profile when the payload is
 //! incomplete.
 
+use crate::error::MuscleError;
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -59,7 +60,7 @@ pub struct EncoderPolicy {
 }
 
 impl MediaConfig {
-    pub fn profile(&self) -> Result<VideoProfile, String> {
+    pub fn profile(&self) -> Result<VideoProfile, MuscleError> {
         let width = required_positive(self.width, "width")?;
         let height = required_positive(self.height, "height")?;
         let fps_num = required_positive(self.fps_num, "fps_num")?;
@@ -82,7 +83,7 @@ impl MediaConfig {
         })
     }
 
-    pub fn encoder(&self) -> Result<EncoderPolicy, String> {
+    pub fn encoder(&self) -> Result<EncoderPolicy, MuscleError> {
         let codec = required_encoder_string(self.codec.as_deref(), "codec")?;
         let preset = required_encoder_string(self.preset.as_deref(), "preset")?;
         let crf = self.crf.filter(|value| *value > 0).ok_or_else(|| {
@@ -92,24 +93,34 @@ impl MediaConfig {
     }
 }
 
-fn required_positive(value: Option<u32>, field: &str) -> Result<u32, String> {
-    value
-        .filter(|value| *value > 0)
-        .ok_or_else(|| format!("PROFILE_REQUIRED: {field} is required for encoded media"))
+fn required_positive(value: Option<u32>, field: &str) -> Result<u32, MuscleError> {
+    value.filter(|value| *value > 0).ok_or_else(|| {
+        MuscleError::generic(format!(
+            "PROFILE_REQUIRED: {field} is required for encoded media"
+        ))
+    })
 }
 
-fn required_string(value: Option<&str>, field: &str) -> Result<String, String> {
+fn required_string(value: Option<&str>, field: &str) -> Result<String, MuscleError> {
     value
         .filter(|value| !value.trim().is_empty())
         .map(str::to_string)
-        .ok_or_else(|| format!("PROFILE_REQUIRED: {field} is required for encoded media"))
+        .ok_or_else(|| {
+            MuscleError::generic(format!(
+                "PROFILE_REQUIRED: {field} is required for encoded media"
+            ))
+        })
 }
 
-fn required_encoder_string(value: Option<&str>, field: &str) -> Result<String, String> {
+fn required_encoder_string(value: Option<&str>, field: &str) -> Result<String, MuscleError> {
     value
         .filter(|value| !value.trim().is_empty())
         .map(str::to_string)
-        .ok_or_else(|| format!("ENCODER_POLICY_REQUIRED: {field} is required for encoded media"))
+        .ok_or_else(|| {
+            MuscleError::generic(format!(
+                "ENCODER_POLICY_REQUIRED: {field} is required for encoded media"
+            ))
+        })
 }
 
 #[cfg(test)]

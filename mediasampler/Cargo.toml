@@ -12,5 +12,9 @@ name = "mediasampler"
 path = "src/main.rs"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+ndjson-stdio = { workspace = true }
+
+[lints]
+workspace = true

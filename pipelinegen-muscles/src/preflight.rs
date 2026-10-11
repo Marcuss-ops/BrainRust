@@ -12,6 +12,7 @@
 //! lets the persistent `scene_intelligence` worker answer `preflight`
 //! without a Go round-trip.
 
+use crate::error::MuscleError;
 use serde::{Deserialize, Serialize};
 
 /// One scene's preflight inputs (minimal projection of the remote scene).
@@ -27,11 +28,7 @@ pub struct PreflightScene {
 }
 
 impl PreflightScene {
-    pub fn new(
-        scene_id: &str,
-        duration_seconds: Option<f64>,
-        media_locator: &str,
-    ) -> Self {
+    pub fn new(scene_id: &str, duration_seconds: Option<f64>, media_locator: &str) -> Self {
         Self {
             scene_id: scene_id.to_string(),
             duration_seconds,
@@ -42,18 +39,18 @@ impl PreflightScene {
 
 /// Validate the preflight gate. `Ok(())` admits, `Err(msg)` fails closed
 /// with the first violated rule (same order as the Go gate).
-pub fn validate(certified_audio_ms: i64, scenes: &[PreflightScene]) -> Result<(), String> {
+pub fn validate(certified_audio_ms: i64, scenes: &[PreflightScene]) -> Result<(), MuscleError> {
     if certified_audio_ms <= 0 {
-        return Err(
-            "final_job preflight: certified audio duration must be positive".to_string(),
-        );
+        return Err(MuscleError::generic(
+            "final_job preflight: certified audio duration must be positive",
+        ));
     }
     for (i, scene) in scenes.iter().enumerate() {
         let seconds = scene.duration_seconds.unwrap_or(0.0);
         if seconds.is_nan() || seconds.is_infinite() || seconds <= 0.0 {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "final_job preflight: scene {i} has an invalid duration {seconds:?}"
-            ));
+            )));
         }
         if scene.media_locator.trim().is_empty() {
             let id = if scene.scene_id.trim().is_empty() {
@@ -61,9 +58,9 @@ pub fn validate(certified_audio_ms: i64, scenes: &[PreflightScene]) -> Result<()
             } else {
                 format!("{:?}", scene.scene_id)
             };
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "final_job preflight: scene {id} carries no resolvable media locator (predicted remote prefetch rejection)"
-            ));
+            )));
         }
     }
     Ok(())
@@ -116,7 +113,10 @@ mod tests {
             let mut scenes = ok_scenes();
             scenes[0].media_locator = bad.to_string();
             let err = validate(5000, &scenes).unwrap_err();
-            assert!(err.contains("no resolvable media locator"), "unexpected: {err}");
+            assert!(
+                err.contains("no resolvable media locator"),
+                "unexpected: {err}"
+            );
         }
     }
 

@@ -8,8 +8,8 @@
 //! stay pending by design and are NOT claimed here.
 
 use pipelinegen_muscles::scene_intelligence::{
-    SceneText, SharedContext, detect_comparison, extract_causal, extract_relations,
-    analyze, validate_manifest,
+    analyze, detect_comparison, extract_causal, extract_relations, validate_manifest, SceneText,
+    SharedContext,
 };
 
 fn ctx(text: &str) -> (Vec<SceneText>, SharedContext) {
@@ -37,7 +37,11 @@ fn first_relation(text: &str) -> String {
 fn prf(tp: f64, fp: f64, f_n: f64) -> (f64, f64, f64) {
     let p = if tp + fp > 0.0 { tp / (tp + fp) } else { 1.0 };
     let r = if tp + f_n > 0.0 { tp / (tp + f_n) } else { 1.0 };
-    let f1 = if p + r > 0.0 { 2.0 * p * r / (p + r) } else { 0.0 };
+    let f1 = if p + r > 0.0 {
+        2.0 * p * r / (p + r)
+    } else {
+        0.0
+    };
     (p, r, f1)
 }
 
@@ -45,12 +49,21 @@ fn prf(tp: f64, fp: f64, f_n: f64) -> (f64, f64, f64) {
 fn level_c_causal_unseen_beats_naive_baseline() {
     // Unseen causal/sequence/negation cases with hand labels.
     let cases = [
-        ("The harvest collapsed because the drought lasted months.", "causes"),
-        ("Il raccolto è crollato a causa della siccità estiva.", "causes"),
+        (
+            "The harvest collapsed because the drought lasted months.",
+            "causes",
+        ),
+        (
+            "Il raccolto è crollato a causa della siccità estiva.",
+            "causes",
+        ),
         ("Dopo la semina venne il raccolto autunnale.", "precedes"),
         ("After the launch came a wave of reviews.", "precedes"),
         ("La consegna non è stata causata dallo sciopero.", "none"),
-        ("La pioggia ha contribuito ai ritardi del traffico.", "contributes_to"),
+        (
+            "La pioggia ha contribuito ai ritardi del traffico.",
+            "contributes_to",
+        ),
     ];
     // SI exact-relation accuracy must be perfect on unseen data.
     for (text, want) in cases {

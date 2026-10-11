@@ -50,9 +50,8 @@ fn imagine_the_and_ready_are_rejected() {
 // has ≥3 candidates.
 #[test]
 fn exactly_three_entities_returned() {
-    let entities = top3(
-        "Greek salad combines fresh tomatoes, cucumbers, olives, feta cheese and olive oil.",
-    );
+    let entities =
+        top3("Greek salad combines fresh tomatoes, cucumbers, olives, feta cheese and olive oil.");
     assert_eq!(
         entities.len(),
         3,
@@ -124,9 +123,9 @@ fn trump_is_retained_as_a_person_in_a_dense_scene() {
         },
     )
     .unwrap();
-    let trump = entities.iter().find(|entity| {
-        entity.r#type == "PERSON" && entity.text.to_lowercase().contains("trump")
-    });
+    let trump = entities
+        .iter()
+        .find(|entity| entity.r#type == "PERSON" && entity.text.to_lowercase().contains("trump"));
     assert!(
         trump.is_some(),
         "Donald Trump must survive the top-N visual entity bound: {entities:?}"
@@ -243,9 +242,9 @@ fn person_and_brand_mentions_are_not_absorbed_into_predicate_concepts() {
     assert!(entities
         .iter()
         .any(|entity| entity.text == "Tesla" && entity.r#type == "BRAND"));
-    assert!(!entities.iter().any(|entity| {
-        entity.text == "discussed Tesla" && entity.r#type == "VISUAL_CONCEPT"
-    }));
+    assert!(!entities
+        .iter()
+        .any(|entity| { entity.text == "discussed Tesla" && entity.r#type == "VISUAL_CONCEPT" }));
     for entity in &entities {
         assert_eq!(&source[entity.start..entity.end], entity.text);
         assert_eq!(entity.evidence, entity.text);
@@ -336,9 +335,10 @@ fn multilingual_scene_function_words_and_named_places_are_typed_safely() {
         assert!(
             entities
                 .iter()
-                .any(|entity| (entity.text == "Emmanuel Macron"
-                    || entity.text == "J. D. Vance")
-                    && entity.r#type == "PERSON"),
+                .any(
+                    |entity| (entity.text == "Emmanuel Macron" || entity.text == "J. D. Vance")
+                        && entity.r#type == "PERSON"
+                ),
             "{language}: {entities:?}"
         );
         assert!(

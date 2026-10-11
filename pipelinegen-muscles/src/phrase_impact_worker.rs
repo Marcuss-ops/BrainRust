@@ -1,7 +1,7 @@
 //! Dedicated newline-delimited JSON interface for phrase-impact analysis.
 //! It performs no media I/O and stays separate from mediaexec.v1.
 use crate::phrase_impact::{self, Request};
-use std::io::{self, BufRead, Write};
+use std::io;
 
 pub fn process_line(line: &str) -> String {
     let response = match serde_json::from_str::<serde_json::Value>(line) {
@@ -35,16 +35,16 @@ pub fn process_line(line: &str) -> String {
                             &inputs,
                             &phrase_impact::ChapterOptions::default(),
                         ),
-                        (None, Some(options)) => {
-                            phrase_impact::run_with_chapter_options(request, &scenes, &topics, &options)
-                        }
+                        (None, Some(options)) => phrase_impact::run_with_chapter_options(
+                            request, &scenes, &topics, &options,
+                        ),
                         (None, None) => {
                             phrase_impact::run_with_scene_context(request, &scenes, &topics)
                         }
                     };
                     match result {
                         Ok(result) => serde_json::json!({"ok": true, "result": result}),
-                        Err(error) => serde_json::json!({"ok": false, "error": error}),
+                        Err(error) => serde_json::json!({"ok": false, "error": error.to_string()}),
                     }
                 }
                 Err(error) => {
@@ -62,17 +62,7 @@ pub fn process_line(line: &str) -> String {
 }
 
 pub fn run_stdio() -> io::Result<()> {
-    let stdin = io::stdin();
-    let mut stdout = io::BufWriter::new(io::stdout().lock());
-    for line in stdin.lock().lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        writeln!(stdout, "{}", process_line(&line))?;
-        stdout.flush()?;
-    }
-    Ok(())
+    ndjson_stdio::run_stdio(process_line)
 }
 
 #[cfg(test)]

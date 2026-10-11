@@ -1,6 +1,8 @@
 use crate::artifact::failed_response;
+
 use crate::config;
 use crate::config::EncoderPolicy;
+use crate::error::MuscleError;
 use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
 use serde::Deserialize;
@@ -93,7 +95,7 @@ pub(crate) fn validate_output(
     expected_duration: f64,
     profile: &config::VideoProfile,
     encoder: &EncoderPolicy,
-) -> Result<f64, String> {
+) -> Result<f64, MuscleError> {
     let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
     command.args([
         "-v",
@@ -106,29 +108,32 @@ pub(crate) fn validate_output(
     ]);
     let output = command
         .output()
-        .map_err(|error| format!("ffprobe failed to start: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("ffprobe failed to start: {error}")))?;
     if !output.status.success() {
-        return Err(format!("ffprobe exited with {}", output.status));
+        return Err(MuscleError::generic(format!(
+            "ffprobe exited with {}",
+            output.status
+        )));
     }
     let probe: ProbeOutput = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("ffprobe parse failed: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("ffprobe parse failed: {error}")))?;
     let duration = probe
         .format
         .duration
         .as_deref()
-        .ok_or_else(|| "ffprobe returned no duration".to_string())?
+        .ok_or_else(|| MuscleError::generic("ffprobe returned no duration"))?
         .parse::<f64>()
-        .map_err(|error| format!("invalid duration: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("invalid duration: {error}")))?;
     if duration <= 0.0 || (duration - expected_duration).abs() > 0.25 {
-        return Err(format!(
+        return Err(MuscleError::generic(format!(
             "duration violation: got {duration:.3}s, expected {expected_duration:.3}s"
-        ));
+        )));
     }
     let video = probe
         .streams
         .iter()
         .find(|stream| stream.codec_type.as_deref() == Some("video"))
-        .ok_or_else(|| "no video stream".to_string())?;
+        .ok_or_else(|| MuscleError::generic("no video stream"))?;
     if video.width != Some(profile.width)
         || video.height != Some(profile.height)
         || !video_codec_matches(video.codec_name.as_deref(), &encoder.codec)
@@ -136,7 +141,7 @@ pub(crate) fn validate_output(
         || parse_frame_rate(video.avg_frame_rate.as_deref().unwrap_or(""))
             .is_none_or(|fps| (fps - profile.fps_float()).abs() > 0.5)
     {
-        return Err("canonical video profile violation".to_string());
+        return Err(MuscleError::generic("canonical video profile violation"));
     }
     let audio = probe
         .streams
@@ -144,16 +149,18 @@ pub(crate) fn validate_output(
         .find(|stream| stream.codec_type.as_deref() == Some("audio"));
     if no_audio {
         if audio.is_some() {
-            return Err("audio stream present with no_audio=true".to_string());
+            return Err(MuscleError::generic(
+                "audio stream present with no_audio=true",
+            ));
         }
     } else {
-        let audio = audio.ok_or_else(|| "audio stream is missing".to_string())?;
+        let audio = audio.ok_or_else(|| MuscleError::generic("audio stream is missing"))?;
         let expected_sample_rate = profile.sample_rate.to_string();
         if audio.codec_name.as_deref() != Some(profile.audio_codec.as_str())
             || audio.sample_rate.as_deref() != Some(expected_sample_rate.as_str())
             || audio.channels != Some(profile.channels)
         {
-            return Err("canonical audio profile violation".to_string());
+            return Err(MuscleError::generic("canonical audio profile violation"));
         }
     }
     Ok(duration)
@@ -198,7 +205,7 @@ fn format_level(level: i32) -> String {
     }
 }
 
-fn hash_hex(bytes: &[u8]) -> Result<String, String> {
+fn hash_hex(bytes: &[u8]) -> Result<String, MuscleError> {
     let mut command = Command::new("sha256sum");
     let output = command
         .stdin(std::process::Stdio::piped())
@@ -215,7 +222,7 @@ fn hash_hex(bytes: &[u8]) -> Result<String, String> {
         })
         .map_err(|error| error.to_string())?;
     if !output.status.success() {
-        return Err("sha256sum failed".to_string());
+        return Err(MuscleError::generic("sha256sum failed"));
     }
     Ok(String::from_utf8_lossy(&output.stdout)
         .split_whitespace()
@@ -258,7 +265,7 @@ fn probe(request: Request) -> Response {
     }
 }
 
-pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, String> {
+pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, MuscleError> {
     let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
     command.args([
         "-v",
@@ -271,12 +278,15 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Str
     ]);
     let output = command
         .output()
-        .map_err(|error| format!("ffprobe failed to start: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("ffprobe failed to start: {error}")))?;
     if !output.status.success() {
-        return Err(format!("ffprobe exited with {}", output.status));
+        return Err(MuscleError::generic(format!(
+            "ffprobe exited with {}",
+            output.status
+        )));
     }
     let probe: ProbeOutput = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("ffprobe parse failed: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("ffprobe parse failed: {error}")))?;
     let duration_sec = probe
         .format
         .duration

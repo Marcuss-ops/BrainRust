@@ -16,5 +16,10 @@ name = "scene_intelligence"
 harness = false
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+ndjson-stdio = { workspace = true }
+
+[lints]
+workspace = true

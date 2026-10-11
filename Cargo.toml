@@ -1,3 +1,19 @@
 [workspace]
 resolver = "2"
-members = ["pipelinegen-muscles", "visualner", "mediasampler"]
+members = ["pipelinegen-muscles", "visualner", "mediasampler", "ndjson-stdio"]
+
+# Single source of truth for shared dependency versions. Member crates
+# reference these with `serde = { workspace = true }` so a version bump
+# lands everywhere at once instead of drifting per crate.
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+ndjson-stdio = { path = "ndjson-stdio" }
+
+# Shared lint baseline: every member opts in with `[lints] workspace = true`.
+# `unsafe_code = deny` locks the safe-Rust invariant (no `unsafe` blocks in
+# the workspace); rustc/clippy default-warn lints stay as warnings locally
+# and CI enforces zero warnings with `cargo clippy -- -D warnings`.
+[workspace.lints.rust]
+unsafe_code = "deny"

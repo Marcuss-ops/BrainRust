@@ -1,4 +1,6 @@
 use crate::config::{EncoderPolicy, VideoProfile};
+
+use crate::error::MuscleError;
 use crate::process::ProcessCommand;
 use crate::protocol::Request;
 
@@ -12,7 +14,7 @@ pub fn append_video_args(
     policy: &EncoderPolicy,
     profile: &VideoProfile,
     keyframe_interval: Option<u32>,
-) -> Result<(), String> {
+) -> Result<(), MuscleError> {
     // The software baseline always encodes yuv420p. The PATH B hybrid that
     // kept the frame device-local (pix_fmt cuda until NVENC) was removed —
     // GPU compositing belongs to the Chronon executor, not Rust.
@@ -30,16 +32,22 @@ fn build_video_args(
     profile: &VideoProfile,
     keyframe_interval: Option<u32>,
     pixel_format: &str,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, MuscleError> {
     let requested_codec = policy.codec.trim().to_ascii_lowercase();
     if requested_codec.is_empty() {
-        return Err("ENCODER_POLICY_REQUIRED: codec is required for encoded media".to_string());
+        return Err(MuscleError::encoder_policy_required(
+            "codec is required for encoded media",
+        ));
     }
     if policy.preset.trim().is_empty() {
-        return Err("ENCODER_POLICY_REQUIRED: preset is required for encoded media".to_string());
+        return Err(MuscleError::encoder_policy_required(
+            "preset is required for encoded media",
+        ));
     }
     if policy.crf <= 0 {
-        return Err("ENCODER_POLICY_REQUIRED: quality is required for encoded media".to_string());
+        return Err(MuscleError::encoder_policy_required(
+            "quality is required for encoded media",
+        ));
     }
 
     let codec = canonical_codec(&requested_codec)?;
@@ -49,7 +57,9 @@ fn build_video_args(
         .filter(|value| *value > 0)
         .unwrap_or(profile.keyframe_interval);
     if gop == 0 {
-        return Err("ENCODER_POLICY_REQUIRED: GOP/keyframe interval must be positive".to_string());
+        return Err(MuscleError::encoder_policy_required(
+            "GOP/keyframe interval must be positive",
+        ));
     }
 
     let mut args = vec![
@@ -103,7 +113,7 @@ fn build_video_args(
     Ok(args)
 }
 
-fn canonical_codec(codec: &str) -> Result<String, String> {
+fn canonical_codec(codec: &str) -> Result<String, MuscleError> {
     match codec {
         "nvenc" => Ok("h264_nvenc".to_string()),
         value if value.ends_with("_nvenc") => Ok(value.to_string()),
@@ -115,7 +125,7 @@ fn is_nvenc_codec(codec: &str) -> bool {
     codec.ends_with("_nvenc")
 }
 
-fn normalize_preset(codec: &str, preset: &str) -> Result<String, String> {
+fn normalize_preset(codec: &str, preset: &str) -> Result<String, MuscleError> {
     let preset = preset.trim().to_ascii_lowercase();
     if !is_nvenc_codec(codec) {
         return Ok(preset);
@@ -129,9 +139,9 @@ fn normalize_preset(codec: &str, preset: &str) -> Result<String, String> {
         "medium" => "p4".to_string(),
         "slow" | "slower" | "veryslow" => "p7".to_string(),
         _ => {
-            return Err(format!(
-                "INVALID_ENCODER_PRESET: unsupported NVENC preset {preset}"
-            ))
+            return Err(MuscleError::invalid_encoder_preset(format!(
+                "unsupported NVENC preset {preset}"
+            )))
         }
     };
     Ok(normalized)
@@ -143,7 +153,7 @@ fn normalize_preset(codec: &str, preset: &str) -> Result<String, String> {
 pub(crate) fn append_video_options(
     command: &mut ProcessCommand,
     request: &Request,
-) -> Result<(), String> {
+) -> Result<(), MuscleError> {
     let encoder = request.media.encoder()?;
     let profile = request.media.profile()?;
     append_video_args(command, &encoder, &profile, None)?;

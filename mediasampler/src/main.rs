@@ -1,52 +1,103 @@
 use mediasampler::{sample_scene, BoundAssets, Candidate, SampleOptions, SampleResult, Scene};
 use serde::{Deserialize, Serialize};
-use std::io::{self, BufRead, Write};
+
+/// One ledger entry binding an asset to the scene that won it. The worker
+/// itself stays stateless across stdin lines: the persistent-process pool on
+/// the Go side multiplexes unrelated scenes/videos onto the same worker, so
+/// in-process cross-line state would leak bindings between unrelated runs.
+/// Cross-scene reuse is therefore supplied per request by the caller (which
+/// owns the composition), mirroring the `BoundAssets` ledger the library
+/// threads through `sample_scene`.
+#[derive(Debug, Deserialize)]
+struct BoundEntry {
+    asset_id: String,
+    scene_id: String,
+}
 
 #[derive(Debug, Deserialize)]
 struct SampleRequest {
+    // Envelope tolerated for forward compatibility with the Go adapter,
+    // which sends version/operation alongside the selection payload.
+    #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    operation: Option<String>,
     scene: Scene,
+    #[serde(default)]
     candidates: Vec<Candidate>,
     #[serde(default)]
     allow_reuse: bool,
+    /// Passthrough for `SampleOptions.images_per_scene` (0 disables).
+    #[serde(default)]
+    images_per_scene: usize,
+    /// Per-request cross-scene ledger (see `BoundEntry`). Empty (the
+    /// default) preserves the historical single-scene behavior.
+    #[serde(default)]
+    bound_assets: Vec<BoundEntry>,
 }
 
 #[derive(Debug, Serialize)]
 struct SampleResponse {
     results: Vec<SampleResult>,
     winner_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+fn error_response(message: String) -> String {
+    serde_json::json!({"results": [], "winner_id": null, "error": message}).to_string()
 }
 
 fn main() {
-    let stdin = io::stdin();
-    let mut stdout = io::BufWriter::new(io::stdout().lock());
-    for line in stdin.lock().lines() {
-        let line = match line {
-            Ok(line) => line,
-            Err(error) => {
-                eprintln!("mediasampler read: {error}");
-                std::process::exit(1);
-            }
-        };
-        if line.trim().is_empty() {
-            continue;
-        }
-        let request: SampleRequest = match serde_json::from_str(&line) {
-            Ok(request) => request,
-            Err(error) => {
-                eprintln!("mediasampler decode: {error}");
-                std::process::exit(1);
-            }
-        };
-        let mut bound = BoundAssets::new();
-        let options = SampleOptions {
-            allow_reuse: request.allow_reuse,
-            images_per_scene: 0,
-        };
-        let (results, winner_id) =
-            sample_scene(&request.scene, &request.candidates, &options, &mut bound);
-        serde_json::to_writer(&mut stdout, &SampleResponse { results, winner_id })
-            .expect("mediasampler encode");
-        stdout.write_all(b"\n").expect("mediasampler write");
-        stdout.flush().expect("mediasampler flush");
+    if let Err(error) = ndjson_stdio::run_stdio(process_line) {
+        eprintln!("mediasampler read: {error}");
+        std::process::exit(1);
     }
+}
+
+/// Maps one request line to one response line. Never exits on a malformed
+/// line: the Go side drives this binary as a persistent worker, so killing
+/// the process would drop every queued request behind it.
+fn process_line(line: &str) -> String {
+    let request: SampleRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(error) => {
+            let message = format!("mediasampler decode: {error}");
+            eprintln!("{message}");
+            return error_response(message);
+        }
+    };
+    // Fail closed on unknown envelope values instead of silently
+    // ignoring them: a contract drift between Go and Rust must surface
+    // as an error, not as a mis-sampled scene.
+    if let Some(version) = request.version.as_deref() {
+        if version != "mediasampler.v1" {
+            let message = format!("mediasampler: unsupported version: {version}");
+            eprintln!("{message}");
+            return error_response(message);
+        }
+    }
+    if let Some(operation) = request.operation.as_deref() {
+        if operation != "select" {
+            let message = format!("mediasampler: unsupported operation: {operation}");
+            eprintln!("{message}");
+            return error_response(message);
+        }
+    }
+    let mut bound = BoundAssets::new();
+    for entry in &request.bound_assets {
+        bound.bind(&entry.asset_id, &entry.scene_id);
+    }
+    let options = SampleOptions {
+        allow_reuse: request.allow_reuse,
+        images_per_scene: request.images_per_scene,
+    };
+    let (results, winner_id) =
+        sample_scene(&request.scene, &request.candidates, &options, &mut bound);
+    serde_json::to_string(&SampleResponse {
+        results,
+        winner_id,
+        error: None,
+    })
+    .expect("mediasampler encode")
 }

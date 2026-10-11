@@ -43,6 +43,30 @@ spellout rules for every locale and some rule sets are incomplete; missing
 locale data fails closed. `--locale-count` reports the installed ICU count,
 not a guarantee of equivalent parsing quality in every language.
 
+### Decision: ICU is the single spellout backend
+
+VisualNER's number-word recognition (RBNF/CLDR spellout) is served **only** by
+the system ICU4C libraries through `rust_icu_sys` / `rust_icu_uloc` /
+`rust_icu_unum`. A pure-Rust rule engine was evaluated and rejected, so the
+dependency stays mandatory rather than sitting behind an optional feature:
+
+- The reference RBNF rule sets live in ICU data, not in a Rust crate: ICU4X
+  (`icu` 2.x / `icu_segmenter`) does not ship RBNF spellout parsing. A
+  pure-Rust path would have to re-implement every locale's rules and would
+  silently diverge from the certified behaviour for the supported languages.
+- `visualner/src/spellout.rs` depends on ICU-specific semantics
+  (`UNUM_PARSE_ALL_INPUT`, resolved-data-locale matching, spellout/ordinal
+  styles) that have no equivalent outside ICU4C.
+- An optional `spellout` feature would turn a certified capability into a
+  build-time switch that silently degrades entity extraction for numbers, so
+  the dependency is not feature-gated. `RUST_ICU_MAJOR_VERSION_NUMBER` must
+  match the host ICU major or the build fails closed; hosts without
+  `libicu-dev` cannot build `visualner` at all instead of producing a binary
+  with missing number-word rules.
+
+Revisit only with a concrete pure-Rust RBNF implementation plus a parity
+corpus over the supported languages.
+
 ## Phrase impact (extractive summary, heavy sentences, bullets)
 
 `pipelinegen-muscles::phrase_impact` is the extractive editorial summary
