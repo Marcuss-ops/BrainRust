@@ -1,14 +1,17 @@
-use crate::artifact::{failed_response, part_path, publish_output};
+use super::finish_run;
+use crate::artifact::{failed_response, part_path};
 use crate::encoder::append_video_options;
 use crate::process::FFmpegRunner;
-use crate::protocol::{Request, Response};
+use crate::protocol::{Operation, Request, Response};
 use std::fs;
 use std::path::Path;
 
-pub(super) fn execute(request: Request, operation: &str) -> Response {
+pub(super) fn execute(request: Request, operation: Operation) -> Response {
+    let operation_name = operation.as_str();
     let input = match request.source_path.as_deref() {
         Some(path)
-            if !path.is_empty() && (operation == "remux_hls" || Path::new(path).is_file()) =>
+            if !path.is_empty()
+                && (operation == Operation::RemuxHls || Path::new(path).is_file()) =>
         {
             path
         }
@@ -41,7 +44,7 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
     match operation {
-        "normalize" => {
+        Operation::Normalize => {
             let profile = match request.media.profile() {
                 Ok(value) => value,
                 Err(error) => return failed_response(Some(input.to_string()), error),
@@ -64,7 +67,7 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
                 command.arg("-an");
             }
         }
-        "extract_frame" => {
+        Operation::ExtractFrame => {
             command.args([
                 "-ss",
                 &request.timestamp_sec.unwrap_or(0.0).to_string(),
@@ -75,7 +78,7 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
                 "-an",
             ]);
         }
-        "cut_copy" => {
+        Operation::CutCopy => {
             command.args([
                 "-ss",
                 &request.start_sec.unwrap_or(0.0).to_string(),
@@ -90,7 +93,7 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
                 command.arg("-an");
             }
         }
-        "cut_and_normalize" => {
+        Operation::CutAndNormalize => {
             let profile = match request.media.profile() {
                 Ok(value) => value,
                 Err(error) => return failed_response(Some(input.to_string()), error),
@@ -123,7 +126,7 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
                 ]);
             }
         }
-        "watermark" => {
+        Operation::Watermark => {
             let overlay = match request.overlay_path.as_deref() {
                 Some(value) => value,
                 None => {
@@ -182,7 +185,7 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
                 &profile.channels.to_string(),
             ]);
         }
-        "generate_proxy" => {
+        Operation::GenerateProxy => {
             command.args(["-i", input, "-vf", "scale=-2:720"]);
             if let Err(error) = append_video_options(&mut command, &request) {
                 return failed_response(Some(input.to_string()), error);
@@ -200,7 +203,7 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
                 &profile.channels.to_string(),
             ]);
         }
-        "generate_storyboard" => {
+        Operation::GenerateStoryboard => {
             let interval = request.interval_frames.unwrap_or(10).max(1);
             let columns = request.columns.unwrap_or(5).max(1);
             let rows = request.rows.unwrap_or(5).max(1);
@@ -210,10 +213,10 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
             ));
             command.args(["-frames:v", "1", "-an"]);
         }
-        "remux_hls" => {
+        Operation::RemuxHls => {
             command.args(["-i", input, "-c", "copy"]);
         }
-        "remove_silence" => {
+        Operation::RemoveSilence => {
             // Edge TTS frequently inserts long pauses between phrases. Keep
             // natural pauses up to 800 ms, but remove every longer silent
             // run (including internal runs: stop_periods=-1).
@@ -228,7 +231,7 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
             // pre-canonicalization cache rows are never reused.
             command.args(["-i", input, "-af", "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.8:stop_periods=-1:stop_threshold=-45dB:stop_silence=0.8", "-c:a", "libmp3lame", "-q:a", "2", "-ar", "48000", "-ac", "2"]);
         }
-        "trim" => {
+        Operation::Trim => {
             let max_duration = request.max_duration_sec.unwrap_or(0.0);
             if !max_duration.is_finite() || max_duration <= 0.0 {
                 return failed_response(
@@ -270,40 +273,12 @@ pub(super) fn execute(request: Request, operation: &str) -> Response {
         _ => {
             return failed_response(
                 Some(input.to_string()),
-                format!("unsupported transform: {operation}"),
+                format!("unsupported transform: {operation_name}"),
             )
         }
     }
     let part = part_path(output);
     command.args(["-movflags", "+faststart", &part]);
-    match command.output() {
-        Ok(result) if result.status.success() => match publish_output(&part, output) {
-            Ok(()) => Response {
-                ok: true,
-                operation: operation.to_string(),
-                source_path: Some(input.to_string()),
-                items: Vec::new(),
-                metadata: None,
-                error: None,
-            },
-            Err(error) => failed_response(Some(input.to_string()), error),
-        },
-        Ok(result) => {
-            let _ = fs::remove_file(&part);
-            failed_response(
-                Some(input.to_string()),
-                format!(
-                    "{operation} failed: {}",
-                    String::from_utf8_lossy(&result.stderr).trim()
-                ),
-            )
-        }
-        Err(error) => {
-            let _ = fs::remove_file(&part);
-            failed_response(
-                Some(input.to_string()),
-                format!("{operation} failed to start: {error}"),
-            )
-        }
-    }
+    let result = command.output();
+    finish_run(operation_name, input, &part, output, result, None)
 }

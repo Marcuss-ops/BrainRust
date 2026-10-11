@@ -1,7 +1,9 @@
 use super::plan::{track_events, validate_plan};
+
+use super::plan::{Automation, Plan};
 use super::probe::{probe_audio, probe_source, SourceProbe};
-use super::{Automation, Plan};
 use crate::artifact::{failed_response, part_path, publish_output, sha256_file};
+use crate::error::MuscleError;
 use crate::process::FFmpegRunner;
 use crate::protocol::{AudioAsset, Request, Response};
 use std::collections::HashMap;
@@ -214,7 +216,7 @@ fn loudness_trim_filter(trim_db: f64) -> String {
 // measure_mean_volume_db runs one volumedetect pass over the source and
 // returns its mean_volume (the whole-file RMS loudness volumedetect
 // reports on stderr).
-fn measure_mean_volume_db(ffmpeg: &str, path: &str) -> Result<f64, String> {
+fn measure_mean_volume_db(ffmpeg: &str, path: &str) -> Result<f64, MuscleError> {
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args([
         "-hide_banner",
@@ -229,12 +231,16 @@ fn measure_mean_volume_db(ffmpeg: &str, path: &str) -> Result<f64, String> {
     ]);
     let output = command
         .output()
-        .map_err(|error| format!("volumedetect failed to start: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("volumedetect failed to start: {error}")))?;
     if !output.status.success() {
-        return Err(format!("volumedetect exited with {}", output.status));
+        return Err(MuscleError::generic(format!(
+            "volumedetect exited with {}",
+            output.status
+        )));
     }
-    parse_volumedetect_mean(&output.stderr)
-        .ok_or_else(|| format!("volumedetect produced no mean_volume for {path}"))
+    parse_volumedetect_mean(&output.stderr).ok_or_else(|| {
+        MuscleError::generic(format!("volumedetect produced no mean_volume for {path}"))
+    })
 }
 
 // parse_volumedetect_mean extracts "mean_volume: <value> dB" from ffmpeg's
@@ -307,18 +313,17 @@ fn event_filter(
 pub(super) fn execute(request: Request) -> Response {
     let output = match request.output_path.as_deref() {
         Some(value) if !value.is_empty() => value,
-        _ => return failed_response(None, "output_path is required".into()),
+        _ => return failed_response(None, "output_path is required".to_string()),
     };
-    let plan: Plan = match request
-        .audio_plan
-        .as_ref()
-        .and_then(|value| serde_json::from_value(value.clone()).ok())
-    {
+    // The plan arrives typed from the protocol boundary; a malformed plan
+    // already failed request parsing fail-closed, so absence is the only
+    // rejection left here.
+    let plan: Plan = match request.audio_plan.clone() {
         Some(value) => value,
-        None => return failed_response(None, "audio_plan is invalid".into()),
+        None => return failed_response(None, "audio_plan is invalid".to_string()),
     };
     if let Err(error) = validate_plan(&plan) {
-        return failed_response(None, error);
+        return failed_response(None, error.to_string());
     }
     // The plan carries the canonical microsecond duration, but the video
     // renderer emits FrameAt(duration_us) whole frames, which can round the
@@ -353,11 +358,7 @@ pub(super) fn execute(request: Request) -> Response {
             .into_iter()
             .filter(|(_, event)| event.r#type != "SILENCE")
         {
-            if let Some(path) = event
-                .asset_id
-                .as_ref()
-                .and_then(|id| by_id.get(id))
-            {
+            if let Some(path) = event.asset_id.as_ref().and_then(|id| by_id.get(id)) {
                 consider(path);
             }
         }
@@ -369,7 +370,7 @@ pub(super) fn execute(request: Request) -> Response {
             }
         }
         if !unique_paths.is_empty() {
-            let probed: Vec<(String, Result<SourceProbe, String>)> =
+            let probed: Vec<(String, Result<SourceProbe, MuscleError>)> =
                 std::thread::scope(|scope| {
                     unique_paths
                         .iter()
@@ -383,9 +384,14 @@ pub(super) fn execute(request: Request) -> Response {
                         })
                         .collect::<Vec<_>>()
                         .into_iter()
-                        .map(|handle| handle.join().unwrap_or_else(|_| {
-                            (String::new(), Err("audio probe thread panicked".to_string()))
-                        }))
+                        .map(|handle| {
+                            handle.join().unwrap_or_else(|_| {
+                                (
+                                    String::new(),
+                                    Err(MuscleError::generic("audio probe thread panicked")),
+                                )
+                            })
+                        })
                         .collect()
                 });
             for (path, result) in probed {
@@ -396,7 +402,7 @@ pub(super) fn execute(request: Request) -> Response {
         }
     }
     let mut ensure_source =
-        |asset_id: &str, path: &str, required_end_us: i64| -> Result<SourceProbe, String> {
+        |asset_id: &str, path: &str, required_end_us: i64| -> Result<SourceProbe, MuscleError> {
             let probe = if let Some(probe) = source_probes.get(path) {
                 probe.clone()
             } else {
@@ -405,9 +411,9 @@ pub(super) fn execute(request: Request) -> Response {
                 probe
             };
             if probe.duration_sec * 1_000_000.0 + 40_000.0 < required_end_us as f64 {
-                return Err(format!(
+                return Err(MuscleError::generic(format!(
                     "audio asset {asset_id} is shorter than required source range"
-                ));
+                )));
             }
             Ok(probe)
         };
@@ -445,17 +451,19 @@ pub(super) fn execute(request: Request) -> Response {
                     format!("audio source is not readable: {path}"),
                 )
             }
-            None => return failed_response(None, "audio event asset is unresolved".into()),
+            None => return failed_response(None, "audio event asset is unresolved".to_string()),
         };
         let index = inputs.len();
         inputs.push(path.clone());
         let source_end = match event.source_in_us.checked_add(event.source_duration_us) {
             Some(value) if event.source_duration_us > 0 => value,
-            _ => return failed_response(None, "audio event source range is incomplete".into()),
+            _ => {
+                return failed_response(None, "audio event source range is incomplete".to_string())
+            }
         };
         let probe = match ensure_source(event.asset_id.as_deref().unwrap_or(""), path, source_end) {
             Ok(probe) => probe,
-            Err(error) => return failed_response(Some(path.clone()), error),
+            Err(error) => return failed_response(Some(path.clone()), error.to_string()),
         };
         let delay_ms = (event.timeline_start_us + 500) / 1000;
         let mut targeting: Vec<(&Automation, bool)> = Vec::new();
@@ -523,7 +531,7 @@ pub(super) fn execute(request: Request) -> Response {
             inputs.push(path.clone());
             let probe = match ensure_source(&layer.asset_id, path, layer.duration_us) {
                 Ok(probe) => probe,
-                Err(error) => return failed_response(Some(path.clone()), error),
+                Err(error) => return failed_response(Some(path.clone()), error.to_string()),
             };
             let mut targeting: Vec<(&Automation, bool)> = Vec::new();
             for automation in &plan.automation {
@@ -531,7 +539,10 @@ pub(super) fn execute(request: Request) -> Response {
                     || automation.target_layer.eq_ignore_ascii_case(layer_name)
                 {
                     if automation.start_us < 0 || automation.end_us <= automation.start_us {
-                        return failed_response(None, "audio automation range is invalid".into());
+                        return failed_response(
+                            None,
+                            "audio automation range is invalid".to_string(),
+                        );
                     }
                     targeting.push((automation, !automation.trigger_track_id.trim().is_empty()));
                 }

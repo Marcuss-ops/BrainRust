@@ -1,11 +1,13 @@
+use super::{checked_multi_inputs, write_concat_list, ExpectedInputs};
 use crate::artifact::{failed_response, part_path, publish_output};
+use crate::error::MuscleError;
 use crate::probe::{ffprobe_path, probe_file};
 use crate::process::FFmpegRunner;
 use crate::protocol::{
     CopyCertification, MediaMetadata, Request, Response, VELOX_ASSEMBLY_READY_V1,
 };
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
@@ -48,39 +50,20 @@ pub(super) fn execute(request: Request) -> Response {
         return failed_response(None, error);
     }
 
-    let inputs = request.input_paths.as_deref().unwrap_or_default();
-    if inputs.is_empty() {
-        return failed_response(None, "input_paths are required".to_string());
-    }
-    if let Some(path) = inputs.iter().find(|path| !Path::new(path).is_file()) {
-        return failed_response(
-            Some(path.to_string()),
-            format!("source file is not readable: {path}"),
-        );
-    }
-    let output = match request.output_path.as_deref() {
-        Some(path) if !path.is_empty() => path,
-        _ => {
-            return failed_response(
-                Some(inputs[0].to_string()),
-                "output_path is required".to_string(),
-            )
-        }
+    let (inputs, output) = match checked_multi_inputs(
+        &request,
+        ExpectedInputs::AtLeastOne,
+        "input_paths are required",
+    ) {
+        Ok(values) => values,
+        Err(response) => return *response,
     };
-    if let Some(parent) = Path::new(output).parent() {
-        if let Err(error) = fs::create_dir_all(parent) {
-            return failed_response(
-                Some(inputs[0].to_string()),
-                format!("create output directory: {error}"),
-            );
-        }
-    }
 
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
     let ffprobe = ffprobe_path(ffmpeg);
 
     // ── AssemblyCompatibilityGate: probe all inputs concurrently ──
-    let probe_results = probe_all_inputs_concurrent(&ffprobe, inputs);
+    let probe_results = probe_all_inputs_concurrent(&ffprobe, &inputs);
     if let Err(error) = probe_results {
         return failed_response(Some(inputs[0].to_string()), error);
     }
@@ -90,7 +73,7 @@ pub(super) fn execute(request: Request) -> Response {
     }
 
     // ── All inputs compatible → concat -c copy ──
-    let part = part_path(output);
+    let part = part_path(&output);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
 
@@ -107,26 +90,12 @@ pub(super) fn execute(request: Request) -> Response {
             "copy",
         ]);
     } else {
-        let list_path = std::env::temp_dir().join(format!(
-            "pipelinegen_assemble_copy_{}.txt",
-            std::process::id()
-        ));
-        let content = inputs
-            .iter()
-            .map(|path| {
-                format!(
-                    "file '{}'",
-                    path.replace('\\', "\\\\").replace('\'', "'\\\\''")
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        if let Err(error) = fs::write(&list_path, content) {
-            return failed_response(
-                Some(inputs[0].to_string()),
-                format!("write concat list: {error}"),
-            );
-        }
+        let list_path = match write_concat_list(&inputs, "assemble_copy") {
+            Ok(path) => path,
+            Err(error) => {
+                return failed_response(Some(inputs[0].clone()), error);
+            }
+        };
         let list = list_path.to_string_lossy().into_owned();
         command.args([
             "-f",
@@ -172,7 +141,7 @@ pub(super) fn execute(request: Request) -> Response {
                     );
                 }
             }
-            match publish_output(&part, output) {
+            match publish_output(&part, &output) {
                 Ok(()) => Response {
                     ok: true,
                     operation: "assemble_copy".to_string(),
@@ -210,7 +179,7 @@ pub(super) fn execute(request: Request) -> Response {
 fn probe_all_inputs_concurrent(
     ffprobe: &str,
     inputs: &[String],
-) -> Result<Vec<MediaMetadata>, String> {
+) -> Result<Vec<MediaMetadata>, MuscleError> {
     let ffprobe = Arc::new(ffprobe.to_string());
     let inputs: Vec<Arc<String>> = inputs.iter().map(|p| Arc::new(p.clone())).collect();
     let mut handles = Vec::with_capacity(inputs.len());
@@ -230,15 +199,15 @@ fn probe_all_inputs_concurrent(
         // and every in-flight request with it).
         let outcome = match handle.join() {
             Ok(outcome) => outcome,
-            Err(_) => Err("probe worker thread panicked".to_string()),
+            Err(_) => Err(MuscleError::generic("probe worker thread panicked")),
         };
         match outcome {
             Ok(metadata) => results.push(metadata),
             Err(error) => {
-                return Err(format!(
+                return Err(MuscleError::generic(format!(
                     "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} probe failed: {}",
                     i, error
-                ));
+                )));
             }
         }
     }
@@ -262,34 +231,40 @@ fn probe_all_inputs_concurrent(
 fn assembly_compatibility_gate(
     cert: &CopyCertification,
     probes: &[MediaMetadata],
-) -> Result<(), String> {
+) -> Result<(), MuscleError> {
     if probes.is_empty() {
-        return Err("ASSEMBLY_INPUT_CONTRACT_MISMATCH: no probed inputs".to_string());
+        return Err(MuscleError::assembly_input_contract_mismatch(
+            "no probed inputs",
+        ));
     }
 
     // 1. Per-input: verify each input against the per-clip certification.
     for (i, probe) in probes.iter().enumerate() {
         if let Err(error) = cert.verify_metadata(probe) {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {}: {}",
                 i, error
-            ));
+            )));
         }
     }
 
     let first = &probes[0];
 
-    // 2. Cross-input contract_id identity.
-    if let Some(ref contract_id) = cert.contract_id {
-        if contract_id.is_empty() {
-            // Legacy certification: skip contract_id gate.
-            // REMOVAL GATE: removable once the certification store provably
-            // holds no contract-less certs (every row either carries
-            // VELOX_ASSEMBLY_READY_V1 or a stream signature); an audit query
-            // over stored certs is the evidence, compilation alone is not.
-        } else if contract_id != VELOX_ASSEMBLY_READY_V1 {
-            return Err(format!(
+    // 2. Cross-input contract_id identity. The Go compatibility gate
+    // (`internal/kernel/media/gate.go`) rejects any certification whose
+    // contract differs from VELOX_ASSEMBLY_READY_V1 before dispatching, so
+    // a missing or empty contract_id can never arrive through the Go path;
+    // it fails closed here all the same. No legacy skip remains.
+    match cert.contract_id.as_deref() {
+        Some(contract_id) if contract_id == VELOX_ASSEMBLY_READY_V1 => {}
+        Some(contract_id) => {
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: unknown contract_id {contract_id}"
+            )));
+        }
+        None => {
+            return Err(MuscleError::generic(
+                "ASSEMBLY_INPUT_CONTRACT_MISMATCH: missing contract_id".to_string(),
             ));
         }
     }
@@ -307,71 +282,71 @@ fn assembly_compatibility_gate(
     // 4. Exact media-fact identity between all inputs.
     for (i, probe) in probes.iter().enumerate().skip(1) {
         if probe.has_video != first.has_video {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} has_video {} != {}",
                 i, probe.has_video, first.has_video
-            ));
+            )));
         }
         if probe.width != first.width || probe.height != first.height {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} geometry {}x{} != {}x{}",
                 i, probe.width, probe.height, first.width, first.height
-            ));
+            )));
         }
         // Exact rational FPS comparison (no float epsilon).
         if probe.fps_num * first.fps_den != first.fps_num * probe.fps_den {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} fps {}/{} != {}/{}",
                 i, probe.fps_num, probe.fps_den, first.fps_num, first.fps_den
-            ));
+            )));
         }
         if probe.video_codec != first.video_codec {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} video_codec {:?} != {:?}",
                 i, probe.video_codec, first.video_codec
-            ));
+            )));
         }
         if probe.pixel_format != first.pixel_format {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} pixel_format {:?} != {:?}",
                 i, probe.pixel_format, first.pixel_format
-            ));
+            )));
         }
         if probe.audio_codec != first.audio_codec {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} audio_codec {:?} != {:?}",
                 i, probe.audio_codec, first.audio_codec
-            ));
+            )));
         }
         if probe.sample_rate != first.sample_rate {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} sample_rate {:?} != {:?}",
                 i, probe.sample_rate, first.sample_rate
-            ));
+            )));
         }
         if probe.channels != first.channels {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} channels {:?} != {:?}",
                 i, probe.channels, first.channels
-            ));
+            )));
         }
         if probe.audio_profile != first.audio_profile {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} audio_profile {:?} != {:?}",
                 i, probe.audio_profile, first.audio_profile
-            ));
+            )));
         }
         if probe.video_stream_count != first.video_stream_count
             || probe.audio_stream_count != first.audio_stream_count
         {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} stream count v{}/a{} != v{}/a{}",
                 i,
                 probe.video_stream_count,
                 probe.audio_stream_count,
                 first.video_stream_count,
                 first.audio_stream_count
-            ));
+            )));
         }
     }
 
@@ -553,6 +528,36 @@ mod tests {
         let cert = canonical_cert();
         let probes: Vec<_> = (0..20).map(|_| canonical_probe()).collect();
         assert!(assembly_compatibility_gate(&cert, &probes).is_ok());
+    }
+
+    #[test]
+    fn gate_missing_contract_id_fails_closed() {
+        let mut cert = canonical_cert();
+        cert.contract_id = None;
+        let probes = vec![canonical_probe()];
+        let err = assembly_compatibility_gate(&cert, &probes).unwrap_err();
+        assert!(err.contains("ASSEMBLY_INPUT_CONTRACT_MISMATCH"));
+        assert!(err.contains("missing contract_id"));
+    }
+
+    #[test]
+    fn gate_empty_contract_id_fails_closed() {
+        let mut cert = canonical_cert();
+        cert.contract_id = Some(String::new());
+        let probes = vec![canonical_probe()];
+        let err = assembly_compatibility_gate(&cert, &probes).unwrap_err();
+        assert!(err.contains("ASSEMBLY_INPUT_CONTRACT_MISMATCH"));
+        assert!(err.contains("unknown contract_id"));
+    }
+
+    #[test]
+    fn gate_unknown_contract_id_fails_closed() {
+        let mut cert = canonical_cert();
+        cert.contract_id = Some("SOME_FUTURE_CONTRACT".to_string());
+        let probes = vec![canonical_probe()];
+        let err = assembly_compatibility_gate(&cert, &probes).unwrap_err();
+        assert!(err.contains("ASSEMBLY_INPUT_CONTRACT_MISMATCH"));
+        assert!(err.contains("unknown contract_id"));
     }
 
     #[test]

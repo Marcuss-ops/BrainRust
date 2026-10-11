@@ -11,11 +11,11 @@
 //!   video_end_ms}], entities_per_scene:[[..]]}` → `{ok:true, manifest}`.
 //!   Scenes are sorted by id inside `analyze`, so request order never
 //!   affects the manifest.
-//! - `split_sentences` (P0.2): `{text, scene_id?}` → `{ok:true, sentences:
-//!   [{text,start_byte,end_byte,scene_id}]}` using the shared SI splitter
-//!   (byte offsets preserved, UTF-8 boundaries). The canonical
-//!   sentence splitter the Go adapter uses before embedding when the
-//!   phrase-impact worker is unavailable.
+//! - `split_sentences` (P0.2): `{text, language?, scene_id?}` → `{ok:true, sentences:
+//!   `[{text,start_byte,end_byte,scene_id}]` using the canonical
+//!   language-aware splitter (byte offsets preserved, UTF-8 boundaries).
+//!   `language` defaults to `en`; unlike phrase-impact embeddings, SI retains
+//!   whole sentences instead of subdividing long spans.
 //! - `preflight` (P1.5): `{certified_audio_ms, scenes:[{scene_id,
 //!   duration_seconds, media_locator}]}` → `{ok:true}` or `{ok:false,
 //!   error}`.
@@ -25,7 +25,7 @@
 use crate::overlay_fingerprint;
 use crate::preflight::PreflightScene;
 use crate::scene_intelligence::{self, SceneText};
-use std::io::{self, BufRead, Write};
+use std::io;
 
 /// Volatile keys the worker strips before fingerprinting when
 /// `strip_timing_state` is true (default): wall-clock / timing state must
@@ -76,7 +76,7 @@ fn json_error(message: String) -> String {
 }
 
 fn process_analyze(value: &serde_json::Value) -> String {
-    let mut scenes: Vec<SceneText> = value
+    let scenes: Vec<SceneText> = value
         .get("scenes")
         .cloned()
         .and_then(|raw| serde_json::from_value(raw).ok())
@@ -86,9 +86,7 @@ fn process_analyze(value: &serde_json::Value) -> String {
     }
     for scene in &scenes {
         if scene.scene_id.trim().is_empty() || scene.text.trim().is_empty() {
-            return json_error(
-                "scene intelligence request requires scene id and text".to_string(),
-            );
+            return json_error("scene intelligence request requires scene id and text".to_string());
         }
         if scene.video_end_ms <= scene.video_start_ms {
             return json_error(
@@ -112,14 +110,11 @@ fn process_analyze(value: &serde_json::Value) -> String {
     // SharedContext::build, so sort scenes (with their entities) by id
     // first — otherwise two requests with the same scenes in different
     // order produce different evidence_sentence_ids and different hashes.
-    let mut paired: Vec<(SceneText, Vec<String>)> = scenes
-        .into_iter()
-        .zip(entities_per_scene.into_iter())
-        .collect();
+    let mut paired: Vec<(SceneText, Vec<String>)> =
+        scenes.into_iter().zip(entities_per_scene).collect();
     paired.sort_by(|a, b| a.0.scene_id.cmp(&b.0.scene_id));
     let scenes: Vec<SceneText> = paired.iter().map(|(s, _)| s.clone()).collect();
-    let entities_per_scene: Vec<Vec<String>> =
-        paired.into_iter().map(|(_, e)| e).collect();
+    let entities_per_scene: Vec<Vec<String>> = paired.into_iter().map(|(_, e)| e).collect();
     let manifest = scene_intelligence::analyze(&scenes, &entities_per_scene);
     if let Err(error) = scene_intelligence::validate_manifest(&manifest) {
         return json_error(format!("scene intelligence manifest invalid: {error}"));
@@ -133,14 +128,18 @@ fn process_split(value: &serde_json::Value) -> String {
         .get("scene_id")
         .and_then(|s| s.as_str())
         .unwrap_or("scene-00");
-    let sentences = scene_intelligence::split_sentences(text);
+    let language = value
+        .get("language")
+        .and_then(|v| v.as_str())
+        .unwrap_or("en");
+    let sentences = scene_intelligence::split_sentences(text, language);
     let items: Vec<serde_json::Value> = sentences
         .into_iter()
-        .map(|(sentence, start, end)| {
+        .map(|segment| {
             serde_json::json!({
-                "text": sentence,
-                "start_byte": start,
-                "end_byte": end,
+                "text": segment.text,
+                "start_byte": segment.start_byte,
+                "end_byte": segment.end_byte,
                 "scene_id": scene_id,
             })
         })
@@ -160,7 +159,7 @@ fn process_preflight(value: &serde_json::Value) -> String {
         .unwrap_or_default();
     match crate::preflight::validate(certified_audio_ms, &scenes) {
         Ok(()) => serde_json::json!({"ok": true}).to_string(),
-        Err(error) => json_error(error),
+        Err(error) => json_error(error.to_string()),
     }
 }
 
@@ -181,17 +180,7 @@ fn process_fingerprint(value: &serde_json::Value) -> String {
 }
 
 pub fn run_stdio() -> io::Result<()> {
-    let stdin = io::stdin();
-    let mut stdout = io::BufWriter::new(io::stdout().lock());
-    for line in stdin.lock().lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        writeln!(stdout, "{}", process_line(&line))?;
-        stdout.flush()?;
-    }
-    Ok(())
+    ndjson_stdio::run_stdio(process_line)
 }
 
 #[cfg(test)]
@@ -244,10 +233,8 @@ mod tests {
 
     #[test]
     fn batch_analyze_rejects_empty_and_mismatched_inputs() {
-        let empty: Value = serde_json::from_str(&process_line(
-            r#"{"operation":"analyze","scenes":[]}"#,
-        ))
-        .unwrap();
+        let empty: Value =
+            serde_json::from_str(&process_line(r#"{"operation":"analyze","scenes":[]}"#)).unwrap();
         assert_eq!(empty["ok"], false);
         let mismatch: Value = serde_json::from_str(&process_line(
             r#"{"operation":"analyze","scenes":[{"scene_id":"s","text":"Ciao mondo.","language":"it","video_start_ms":0,"video_end_ms":1000}],"entities_per_scene":[]}"#,
@@ -263,11 +250,12 @@ mod tests {
 
     #[test]
     fn split_sentences_preserves_utf8_byte_offsets() {
-        let transcript = "Il Milan vinse. Poi celebrò!";
+        let transcript = "La dott. Rossi è arrivata. Poi ha parlato!";
         let request = serde_json::json!({
             "operation": "split_sentences",
             "text": transcript,
             "scene_id": "s-01",
+            "language": "it",
         })
         .to_string();
         let response: Value = serde_json::from_str(&process_line(&request)).unwrap();

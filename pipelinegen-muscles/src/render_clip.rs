@@ -35,6 +35,10 @@ use plan::{
     BACKGROUND_NONE, SUBTITLE_BURN,
 };
 
+/// Sealed clip plan, re-exported so the protocol boundary holds the typed
+/// plan instead of an untyped JSON value.
+pub(crate) use plan::ClipRenderPlan as SealedClipPlan;
+
 // The module body is composed from sibling files so that every physical file
 // stays ≤400 lines while the compiled module keeps the former single-file
 // semantics (same items, same visibility, same order):

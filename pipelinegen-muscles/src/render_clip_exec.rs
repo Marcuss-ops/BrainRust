@@ -3,14 +3,16 @@ pub(super) fn render_clip(request: Request) -> Response {
     // success response reports startup_ms / publish_ms / op_ms so the Go
     // boundary can attribute the seconds outside the ffmpeg wall.
     let op_started = std::time::Instant::now();
-    let raw_plan = match request.clip_plan.clone() {
+    let clip_plan = match request.clip_plan.clone() {
         Some(value) => value,
         None => return failed_response(None, "clip_plan is required".to_string()),
     };
-    let clip_plan = match plan::decode_and_validate(raw_plan) {
-        Ok(plan) => plan,
-        Err(error) => return failed_response(None, error),
-    };
+    // The plan arrives typed from the protocol boundary; only the semantic
+    // validation runs here (shape parsing already failed the request
+    // fail-closed when malformed).
+    if let Err(error) = plan::validate(&clip_plan) {
+        return failed_response(None, error);
+    }
     let output = match request.output_path.as_deref() {
         Some(path) if !path.is_empty() => path,
         _ => return failed_response(None, "output_path is required".to_string()),

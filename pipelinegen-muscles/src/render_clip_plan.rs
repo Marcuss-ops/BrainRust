@@ -1,26 +1,28 @@
 use crate::artifact::sha256_file;
+
+use crate::error::MuscleError;
 use serde::Deserialize;
 use std::path::Path;
 
-pub(super) const CLIP_PLAN_VERSION: &str = "clip-render-plan.v1";
+pub(crate) const CLIP_PLAN_VERSION: &str = "clip-render-plan.v1";
 
-pub(super) const BACKGROUND_NONE: &str = "none";
-pub(super) const BACKGROUND_BLUR_SOURCE: &str = "blur_source";
-pub(super) const BACKGROUND_ASSET: &str = "asset";
+pub(crate) const BACKGROUND_NONE: &str = "none";
+pub(crate) const BACKGROUND_BLUR_SOURCE: &str = "blur_source";
+pub(crate) const BACKGROUND_ASSET: &str = "asset";
 
-pub(super) const SUBTITLE_BURN: &str = "burn";
-pub(super) const SUBTITLE_SIDECAR: &str = "sidecar";
+pub(crate) const SUBTITLE_BURN: &str = "burn";
+pub(crate) const SUBTITLE_SIDECAR: &str = "sidecar";
 
-pub(super) const AUDIO_COPY_IF_COMPATIBLE: &str = "copy_if_compatible";
-pub(super) const AUDIO_TRANSCODE: &str = "transcode";
+pub(crate) const AUDIO_COPY_IF_COMPATIBLE: &str = "copy_if_compatible";
+pub(crate) const AUDIO_TRANSCODE: &str = "transcode";
 
 // ClipRenderPlan mirrors the Go ClipRenderPlanV1 JSON contract EXACTLY
 // (field order + optional-field omission) because the Go boundary seals the
 // plan with plan_sha256 over the canonical JSON. Rust never recomputes that
 // digest (the drift gate lives Go-side, mirroring render_stock), but it must
 // decode the same shape and validate every referenced artifact fail-closed.
-#[derive(Debug, Deserialize)]
-pub(super) struct ClipRenderPlan {
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ClipRenderPlan {
     pub version: String,
     pub run_id: String,
     pub source: ClipPlanSource,
@@ -36,15 +38,15 @@ pub(super) struct ClipRenderPlan {
     pub plan_sha256: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct ClipPlanSource {
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ClipPlanSource {
     pub asset_id: String,
     pub path: String,
     pub sha256: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct ClipPlanBackground {
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ClipPlanBackground {
     pub mode: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
@@ -54,8 +56,8 @@ pub(super) struct ClipPlanBackground {
     pub sha256: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct ClipPlanWatermark {
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ClipPlanWatermark {
     #[serde(default)]
     pub text: String,
     pub asset_id: String,
@@ -66,8 +68,8 @@ pub(super) struct ClipPlanWatermark {
     pub margin_px: i64,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct ClipPlanSubtitles {
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ClipPlanSubtitles {
     pub mode: String,
     // Wire-contract field: decoded to enforce the sealed JSON shape, not
     // consumed by the render mechanics (the compiled ASS carries its own
@@ -79,8 +81,8 @@ pub(super) struct ClipPlanSubtitles {
     pub sha256: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct ClipPlanOutput {
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ClipPlanOutput {
     pub contract_id: String,
     pub container: String,
     pub video_codec: String,
@@ -99,8 +101,8 @@ pub(super) struct ClipPlanOutput {
     pub foreground_scale_percent: i64,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct ClipPlanAudio {
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ClipPlanAudio {
     pub mode: String,
     pub codec: String,
     pub sample_rate: i64,
@@ -113,22 +115,29 @@ pub(super) struct ClipPlanAudio {
 /// watermark, subtitles). A drifted or unreadable artifact rejects the plan
 /// before any FFmpeg process starts — Rust never renders bytes it has not
 /// verified.
-pub(super) fn decode_and_validate(raw_plan: serde_json::Value) -> Result<ClipRenderPlan, String> {
-    let plan: ClipRenderPlan =
-        serde_json::from_value(raw_plan).map_err(|error| format!("invalid clip_plan: {error}"))?;
+/// Test/compat entry: parses an untyped plan value, then runs the same
+/// semantic validation production applies to the typed boundary plan.
+#[cfg(test)]
+pub(crate) fn decode_and_validate(
+    raw_plan: serde_json::Value,
+) -> Result<ClipRenderPlan, MuscleError> {
+    let plan: ClipRenderPlan = serde_json::from_value(raw_plan)
+        .map_err(|error| MuscleError::generic(format!("invalid clip_plan: {error}")))?;
     validate(&plan)?;
     Ok(plan)
 }
 
-fn validate(plan: &ClipRenderPlan) -> Result<(), String> {
+pub(crate) fn validate(plan: &ClipRenderPlan) -> Result<(), MuscleError> {
     if plan.version != CLIP_PLAN_VERSION || plan.run_id.trim().is_empty() {
-        return Err("invalid clip_plan version or run_id".to_string());
+        return Err(MuscleError::generic("invalid clip_plan version or run_id"));
     }
     if !is_lower_sha256(&plan.plan_sha256) {
-        return Err("clip_plan plan_sha256 must be a lowercase SHA256 value".to_string());
+        return Err(MuscleError::generic(
+            "clip_plan plan_sha256 must be a lowercase SHA256 value",
+        ));
     }
     if plan.output_path.trim().is_empty() {
-        return Err("clip_plan output_path is required".to_string());
+        return Err(MuscleError::generic("clip_plan output_path is required"));
     }
     validate_source(&plan.source)?;
 
@@ -136,28 +145,28 @@ fn validate(plan: &ClipRenderPlan) -> Result<(), String> {
         match background.mode.as_str() {
             BACKGROUND_NONE | BACKGROUND_BLUR_SOURCE => {}
             BACKGROUND_ASSET => {
-                let path = background
-                    .path
-                    .as_deref()
-                    .ok_or_else(|| "clip_plan background mode=asset requires path".to_string())?;
-                let sha256 = background
-                    .sha256
-                    .as_deref()
-                    .ok_or_else(|| "clip_plan background mode=asset requires sha256".to_string())?;
+                let path = background.path.as_deref().ok_or_else(|| {
+                    MuscleError::generic("clip_plan background mode=asset requires path")
+                })?;
+                let sha256 = background.sha256.as_deref().ok_or_else(|| {
+                    MuscleError::generic("clip_plan background mode=asset requires sha256")
+                })?;
                 validate_artifact("background", path, sha256)?;
                 if background
                     .asset_id
                     .as_deref()
                     .is_none_or(|value| value.trim().is_empty())
                 {
-                    return Err("clip_plan background mode=asset requires asset_id".to_string());
+                    return Err(MuscleError::generic(
+                        "clip_plan background mode=asset requires asset_id",
+                    ));
                 }
             }
             _ => {
-                return Err(format!(
+                return Err(MuscleError::generic(format!(
                     "clip_plan invalid background mode {:?}",
                     background.mode
-                ))
+                )))
             }
         }
     }
@@ -167,31 +176,37 @@ fn validate(plan: &ClipRenderPlan) -> Result<(), String> {
             validate_artifact("watermark", &watermark.path, &watermark.sha256)?;
         }
         if watermark.asset_id.trim().is_empty() && watermark.text.trim().is_empty() {
-            return Err("clip_plan watermark requires asset_id or text".to_string());
+            return Err(MuscleError::generic(
+                "clip_plan watermark requires asset_id or text",
+            ));
         }
         if !matches!(
             watermark.position.as_str(),
             "top_left" | "top_right" | "center" | "bottom_left" | "bottom_right"
         ) {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "clip_plan invalid watermark position {:?}",
                 watermark.position
-            ));
+            )));
         }
         if !(0.0..=1.0).contains(&watermark.opacity) {
-            return Err("clip_plan watermark opacity must be within [0,1]".to_string());
+            return Err(MuscleError::generic(
+                "clip_plan watermark opacity must be within [0,1]",
+            ));
         }
         if watermark.margin_px < 0 {
-            return Err("clip_plan watermark margin_px must be >= 0".to_string());
+            return Err(MuscleError::generic(
+                "clip_plan watermark margin_px must be >= 0",
+            ));
         }
     }
 
     if let Some(subtitles) = &plan.subtitles {
         if !matches!(subtitles.mode.as_str(), SUBTITLE_BURN | SUBTITLE_SIDECAR) {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "clip_plan invalid subtitle mode {:?}",
                 subtitles.mode
-            ));
+            )));
         }
         validate_artifact("subtitles", &subtitles.path, &subtitles.sha256)?;
     }
@@ -201,14 +216,14 @@ fn validate(plan: &ClipRenderPlan) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_source(source: &ClipPlanSource) -> Result<(), String> {
+fn validate_source(source: &ClipPlanSource) -> Result<(), MuscleError> {
     if source.asset_id.trim().is_empty() {
-        return Err("clip_plan source requires asset_id".to_string());
+        return Err(MuscleError::generic("clip_plan source requires asset_id"));
     }
     validate_artifact("source", &source.path, &source.sha256)
 }
 
-fn validate_output(output: &ClipPlanOutput) -> Result<(), String> {
+fn validate_output(output: &ClipPlanOutput) -> Result<(), MuscleError> {
     if output.contract_id.trim().is_empty()
         || output.container.trim().is_empty()
         || output.video_codec.trim().is_empty()
@@ -218,20 +233,27 @@ fn validate_output(output: &ClipPlanOutput) -> Result<(), String> {
         || output.fps_num <= 0
         || output.fps_den <= 0
     {
-        return Err("clip_plan output contract is incomplete".to_string());
+        return Err(MuscleError::generic(
+            "clip_plan output contract is incomplete",
+        ));
     }
     Ok(())
 }
 
-fn validate_audio(audio: &ClipPlanAudio) -> Result<(), String> {
+fn validate_audio(audio: &ClipPlanAudio) -> Result<(), MuscleError> {
     if !matches!(
         audio.mode.as_str(),
         AUDIO_COPY_IF_COMPATIBLE | AUDIO_TRANSCODE
     ) {
-        return Err(format!("clip_plan invalid audio mode {:?}", audio.mode));
+        return Err(MuscleError::generic(format!(
+            "clip_plan invalid audio mode {:?}",
+            audio.mode
+        )));
     }
     if audio.codec.trim().is_empty() || audio.sample_rate <= 0 || audio.channels <= 0 {
-        return Err("clip_plan audio contract is incomplete".to_string());
+        return Err(MuscleError::generic(
+            "clip_plan audio contract is incomplete",
+        ));
     }
     Ok(())
 }
@@ -246,18 +268,22 @@ fn is_lower_sha256(value: &str) -> bool {
 /// validate_artifact verifies the referenced file exists and its content
 /// SHA256 (computed via sha256sum) matches the plan's digest. Fail-closed:
 /// a missing file or a digest mismatch rejects the plan.
-fn validate_artifact(label: &str, path: &str, expected: &str) -> Result<(), String> {
+fn validate_artifact(label: &str, path: &str, expected: &str) -> Result<(), MuscleError> {
     if !is_lower_sha256(expected) {
-        return Err(format!(
+        return Err(MuscleError::generic(format!(
             "clip_plan {label} sha256 must be a lowercase SHA256 value"
-        ));
+        )));
     }
     if !Path::new(path).is_file() {
-        return Err(format!("clip_plan {label} path is not readable: {path}"));
+        return Err(MuscleError::generic(format!(
+            "clip_plan {label} path is not readable: {path}"
+        )));
     }
     let actual = sha256_file(path)?;
     if actual != expected {
-        return Err(format!("clip_plan {label} hash mismatch for {path}"));
+        return Err(MuscleError::generic(format!(
+            "clip_plan {label} hash mismatch for {path}"
+        )));
     }
     Ok(())
 }

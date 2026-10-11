@@ -1,67 +1,62 @@
 use serde::Deserialize;
+
+use crate::error::MuscleError;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
 
-#[derive(Debug, Deserialize)]
-pub(super) struct CanonicalRenderPlan {
-    pub(super) version: String,
-    pub(super) fps_numerator: i64,
-    pub(super) fps_denominator: i64,
-    pub(super) duration_frames: i64,
-    pub(super) timeline_hash: String,
-    pub(super) manifest_sha256: String,
-    pub(super) plan_sha256: String,
-    pub(super) manifest: Vec<CanonicalManifestEntry>,
-    pub(super) video_tracks: Vec<CanonicalVideoTrack>,
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct CanonicalRenderPlan {
+    pub(crate) version: String,
+    pub(crate) fps_numerator: i64,
+    pub(crate) fps_denominator: i64,
+    pub(crate) duration_frames: i64,
+    pub(crate) timeline_hash: String,
+    pub(crate) manifest_sha256: String,
+    pub(crate) plan_sha256: String,
+    pub(crate) manifest: Vec<CanonicalManifestEntry>,
+    pub(crate) video_tracks: Vec<CanonicalVideoTrack>,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct CanonicalManifestEntry {
-    pub(super) asset_id: String,
-    pub(super) path: String,
-    pub(super) sha256: String,
-    pub(super) frame_count: i64,
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct CanonicalManifestEntry {
+    pub(crate) asset_id: String,
+    pub(crate) path: String,
+    pub(crate) sha256: String,
+    pub(crate) frame_count: i64,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct CanonicalVideoTrack {
-    pub(super) index: i32,
-    pub(super) segments: Vec<CanonicalVideoSegment>,
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct CanonicalVideoTrack {
+    pub(crate) index: i32,
+    pub(crate) segments: Vec<CanonicalVideoSegment>,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct CanonicalVideoSegment {
-    pub(super) asset_id: String,
-    pub(super) source: CanonicalFrameRange,
-    pub(super) timeline: CanonicalFrameRange,
-    pub(super) z_index: i32,
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct CanonicalVideoSegment {
+    pub(crate) asset_id: String,
+    pub(crate) source: CanonicalFrameRange,
+    pub(crate) timeline: CanonicalFrameRange,
+    pub(crate) z_index: i32,
     #[serde(default)]
-    pub(super) freeze: bool,
+    pub(crate) freeze: bool,
 }
 
-#[derive(Debug, Deserialize)]
-pub(super) struct CanonicalFrameRange {
-    pub(super) start_frame: i64,
-    pub(super) frame_count: i64,
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct CanonicalFrameRange {
+    pub(crate) start_frame: i64,
+    pub(crate) frame_count: i64,
 }
 
-pub(super) fn decode_and_validate(
-    raw_plan: serde_json::Value,
-) -> Result<CanonicalRenderPlan, String> {
-    let plan: CanonicalRenderPlan = serde_json::from_value(raw_plan)
-        .map_err(|error| format!("invalid render_plan: {error}"))?;
-    validate_canonical_plan(&plan)?;
-    Ok(plan)
-}
-
-fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), String> {
+pub(crate) fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), MuscleError> {
     if plan.version != "render-plan.v2"
         || plan.fps_numerator <= 0
         || plan.fps_denominator <= 0
         || plan.duration_frames <= 0
     {
-        return Err("invalid render_plan version, frame rate, or duration_frames".to_string());
+        return Err(MuscleError::generic(
+            "invalid render_plan version, frame rate, or duration_frames",
+        ));
     }
     for hash in [
         &plan.timeline_hash,
@@ -73,7 +68,9 @@ fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), String> {
                 .chars()
                 .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
         {
-            return Err("render_plan hashes must be lowercase SHA256 values".to_string());
+            return Err(MuscleError::generic(
+                "render_plan hashes must be lowercase SHA256 values",
+            ));
         }
     }
     let mut manifest = HashMap::new();
@@ -87,26 +84,28 @@ fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), String> {
                 .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
             || entry.frame_count <= 0
         {
-            return Err("render_plan manifest entry is incomplete".to_string());
+            return Err(MuscleError::generic(
+                "render_plan manifest entry is incomplete",
+            ));
         }
         if manifest.contains_key(&entry.asset_id) {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "render_plan manifest asset is duplicated: {}",
                 entry.asset_id
-            ));
+            )));
         }
         if !Path::new(&entry.path).is_file() {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "render_plan manifest path is not readable: {}",
                 entry.path
-            ));
+            )));
         }
         let actual = sha256_file(&entry.path)?;
         if actual != entry.sha256 {
-            return Err(format!(
+            return Err(MuscleError::generic(format!(
                 "render_plan manifest hash mismatch for {}",
                 entry.asset_id
-            ));
+            )));
         }
         manifest.insert(entry.asset_id.clone(), entry.frame_count);
     }
@@ -117,10 +116,12 @@ fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), String> {
     let mut expected_timeline: Option<i64> = None;
     for track in &plan.video_tracks {
         if track.index < 0 {
-            return Err("render_plan track index is invalid".to_string());
+            return Err(MuscleError::generic("render_plan track index is invalid"));
         }
         if track.index != 0 && !track.segments.is_empty() {
-            return Err("render_plan additional populated tracks are unsupported".to_string());
+            return Err(MuscleError::generic(
+                "render_plan additional populated tracks are unsupported",
+            ));
         }
         for segment in &track.segments {
             let Some(timeline_end) = segment
@@ -128,26 +129,26 @@ fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), String> {
                 .start_frame
                 .checked_add(segment.timeline.frame_count)
             else {
-                return Err(format!(
+                return Err(MuscleError::generic(format!(
                     "render_plan integer frame segment overflows: {}",
                     segment.asset_id
-                ));
+                )));
             };
             let Some(asset_frame_count) = manifest.get(&segment.asset_id) else {
-                return Err(format!(
+                return Err(MuscleError::generic(format!(
                     "render_plan asset is missing: {}",
                     segment.asset_id
-                ));
+                )));
             };
             let Some(source_end) = segment
                 .source
                 .start_frame
                 .checked_add(segment.source.frame_count)
             else {
-                return Err(format!(
+                return Err(MuscleError::generic(format!(
                     "render_plan source frame range overflows: {}",
                     segment.asset_id
-                ));
+                )));
             };
             let expected_start = expected_timeline.unwrap_or(segment.timeline.start_frame);
             // A freeze tail stretches one source frame across many timeline
@@ -166,32 +167,38 @@ fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), String> {
                 || timeline_end > plan.duration_frames
                 || segment.z_index < 0
             {
-                return Err(format!(
+                return Err(MuscleError::generic(format!(
                     "render_plan integer frame segment is invalid: {}",
                     segment.asset_id
-                ));
+                )));
             }
             expected_timeline = Some(
                 expected_start
                     .checked_add(segment.timeline.frame_count)
-                    .ok_or_else(|| "render_plan timeline frame count overflows".to_string())?,
+                    .ok_or_else(|| {
+                        MuscleError::generic("render_plan timeline frame count overflows")
+                    })?,
             );
         }
     }
     if expected_timeline.unwrap_or(0) != plan.duration_frames {
-        return Err("render_plan timeline does not cover duration_frames".to_string());
+        return Err(MuscleError::generic(
+            "render_plan timeline does not cover duration_frames",
+        ));
     }
     Ok(())
 }
 
-fn sha256_file(path: &str) -> Result<String, String> {
+fn sha256_file(path: &str) -> Result<String, MuscleError> {
     let output = Command::new("sha256sum")
         .arg("--")
         .arg(path)
         .output()
-        .map_err(|error| format!("compute SHA256 for {path}: {error}"))?;
+        .map_err(|error| MuscleError::generic(format!("compute SHA256 for {path}: {error}")))?;
     if !output.status.success() {
-        return Err(format!("compute SHA256 for {path} failed"));
+        return Err(MuscleError::generic(format!(
+            "compute SHA256 for {path} failed"
+        )));
     }
     let digest = String::from_utf8_lossy(&output.stdout)
         .split_whitespace()
@@ -203,7 +210,9 @@ fn sha256_file(path: &str) -> Result<String, String> {
             .chars()
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
     {
-        return Err(format!("sha256sum returned an invalid digest for {path}"));
+        return Err(MuscleError::generic(format!(
+            "sha256sum returned an invalid digest for {path}"
+        )));
     }
     Ok(digest)
 }

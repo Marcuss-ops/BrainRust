@@ -1,33 +1,25 @@
 use crate::protocol::{Operation, Request, Response};
 use crate::render_audio;
-use crate::render_stock;
-use std::io::{self, BufRead, Write};
+use std::io;
 
 /// Processes one capability request. The protocol exposes media capabilities,
 /// never arbitrary command execution.
 pub fn process(request: Request) -> Response {
-    let operation = request.operation.as_str().to_string();
+    // Typed operation: every capability call below is dispatched through the
+    // `Operation` enum, never a re-parsed string. Only the JSON response
+    // envelope renders it back to its stable wire name.
+    let operation = request.operation;
     if let Err(error) = request.validate() {
         return Response {
             ok: false,
-            operation,
+            operation: operation.as_str().to_string(),
             source_path: request.source_path,
             items: Vec::new(),
             metadata: None,
-            error: Some(error),
+            error: Some(error.to_string()),
         };
     }
-    if let Some(error) = render_stock::reject_unresolved_selection(&request) {
-        return Response {
-            ok: false,
-            operation,
-            source_path: request.source_path,
-            items: Vec::new(),
-            metadata: None,
-            error: Some(error),
-        };
-    }
-    let mut response = match request.operation {
+    let mut response = match operation {
         Operation::Health => Response {
             ok: true,
             operation: "health".to_string(),
@@ -38,39 +30,37 @@ pub fn process(request: Request) -> Response {
         },
         Operation::CutBatch => crate::cut::execute(request),
         Operation::Probe => crate::probe::execute(request),
-        Operation::Normalize => crate::transform::execute(request, "normalize"),
-        Operation::CutCopy => crate::transform::execute(request, "cut_copy"),
-        Operation::CutAndNormalize => crate::transform::execute(request, "cut_and_normalize"),
-        Operation::Watermark => crate::transform::execute(request, "watermark"),
-        Operation::ExtractFrame => crate::transform::execute(request, "extract_frame"),
-        Operation::GenerateProxy => crate::transform::execute(request, "generate_proxy"),
-        Operation::GenerateStoryboard => crate::transform::execute(request, "generate_storyboard"),
-        Operation::RemuxHls => crate::transform::execute(request, "remux_hls"),
-        Operation::Trim => crate::transform::execute(request, "trim"),
+        Operation::Normalize => crate::transform::execute(request, Operation::Normalize),
+        Operation::CutCopy => crate::transform::execute(request, Operation::CutCopy),
+        Operation::CutAndNormalize => {
+            crate::transform::execute(request, Operation::CutAndNormalize)
+        }
+        Operation::Watermark => crate::transform::execute(request, Operation::Watermark),
+        Operation::ExtractFrame => crate::transform::execute(request, Operation::ExtractFrame),
+        Operation::GenerateProxy => crate::transform::execute(request, Operation::GenerateProxy),
+        Operation::GenerateStoryboard => {
+            crate::transform::execute(request, Operation::GenerateStoryboard)
+        }
+        Operation::RemuxHls => crate::transform::execute(request, Operation::RemuxHls),
+        Operation::Trim => crate::transform::execute(request, Operation::Trim),
         Operation::RenderStock => crate::render_stock::execute(request),
         Operation::RenderClip => crate::render_clip::render_clip(request),
         Operation::AdminRender => crate::admin_media::execute(request),
-        Operation::MergeInputs => crate::transform::execute(request, "merge_inputs"),
-        Operation::RemoveSilence => crate::transform::execute(request, "remove_silence"),
+        Operation::MergeInputs => crate::transform::execute(request, Operation::MergeInputs),
+        Operation::RemoveSilence => crate::transform::execute(request, Operation::RemoveSilence),
         Operation::RenderAudioPlan => render_audio::execute(request),
-        Operation::MuxAudioCopy => crate::transform::execute(request, "mux_audio_copy"),
-        Operation::AssembleCopy => crate::transform::execute(request, "assemble_copy"),
+        Operation::MuxAudioCopy => crate::transform::execute(request, Operation::MuxAudioCopy),
+        Operation::AssembleCopy => crate::transform::execute(request, Operation::AssembleCopy),
     };
     if !response.ok {
-        response.operation = operation;
+        response.operation = operation.as_str().to_string();
     }
     response
 }
 
 pub fn run_stdio() -> io::Result<()> {
-    let stdin = io::stdin();
-    let mut stdout = io::BufWriter::new(io::stdout().lock());
-    for line in stdin.lock().lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        let response = match serde_json::from_str::<Request>(&line) {
+    ndjson_stdio::run_stdio(|line| {
+        let response = match serde_json::from_str::<Request>(line) {
             Ok(request) => process(request),
             Err(error) => Response {
                 ok: false,
@@ -81,18 +71,15 @@ pub fn run_stdio() -> io::Result<()> {
                 error: Some(format!("invalid request: {error}")),
             },
         };
-        serde_json::to_writer(&mut stdout, &response).map_err(io::Error::other)?;
-        stdout.write_all(b"\n")?;
-        stdout.flush()?;
-    }
-    Ok(())
+        serde_json::to_string(&response).expect("dispatcher response serializes")
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::process;
     use crate::protocol::{Operation, RenderEffectPath, RenderTransition, Request};
-    use crate::render_stock::{reject_unresolved_selection, validate_resolved_render_plan};
+    use crate::render_stock::validate_resolved_render_plan;
     use crate::COMPONENT;
 
     #[test]
@@ -101,13 +88,16 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_selection_is_rejected_without_rust_side_selection() {
-        let mut request = Request {
+    fn render_stock_without_a_plan_fails_closed_without_rust_side_selection() {
+        // The legacy unresolved-selection fields are gone; a render_stock with
+        // no sealed render_plan is now the single fail-closed shape. Rust never
+        // chooses assets: it fails with the typed canonical-plan requirement.
+        let request = Request {
             version: "mediaexec.v1".to_string(),
             operation: Operation::RenderStock,
             ffmpeg_path: None,
             source_path: None,
-            output_path: None,
+            output_path: Some("/tmp/out.mp4".to_string()),
             timestamp_sec: None,
             start_sec: None,
             end_sec: None,
@@ -124,14 +114,10 @@ mod tests {
             green_screen_color: None,
             green_screen_similarity: None,
             green_screen_blend: None,
-            input_paths: None,
+            input_paths: Some(vec!["/tmp/in.mp4".to_string()]),
             no_transitions: None,
             clip_duration_sec: None,
             transitions: None,
-            transition_every: Some(4),
-            effects_dir: None,
-            effect_every: None,
-            effect_index_hint: None,
             no_effects: None,
             effect_paths: None,
             overlay_opacity: None,
@@ -145,10 +131,14 @@ mod tests {
             render_plan: None,
             clip_plan: None,
         };
-        assert!(reject_unresolved_selection(&request).is_some());
         assert_eq!(process(request.clone()).operation, "render_stock");
-        request.transition_every = None;
-        assert!(reject_unresolved_selection(&request).is_none());
+        let response = process(request);
+        assert!(!response.ok);
+        assert_eq!(response.operation, "render_stock");
+        assert_eq!(
+            response.error.as_deref(),
+            Some("render_stock requires a canonical render_plan")
+        );
     }
 
     #[test]

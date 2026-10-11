@@ -13,6 +13,7 @@
 //! Determinism: pure functions of (input text, entities, config versions).
 //! No randomness, no wall-clock, no global state. Outputs are sorted.
 
+use crate::error::MuscleError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -64,14 +65,17 @@ impl SharedContext {
         let mut sentences = Vec::new();
         let mut id = 0usize;
         for scene in scenes {
-            for (idx, (text, start, end)) in split_sentences(&scene.text).into_iter().enumerate() {
+            for (idx, segment) in split_sentences(&scene.text, &scene.language)
+                .into_iter()
+                .enumerate()
+            {
                 sentences.push(Sentence {
                     id,
                     scene_id: scene.scene_id.clone(),
                     index_in_scene: idx,
-                    text,
-                    start_byte: start,
-                    end_byte: end,
+                    text: segment.text,
+                    start_byte: segment.start_byte,
+                    end_byte: segment.end_byte,
                 });
                 id += 1;
             }
@@ -87,43 +91,16 @@ impl SharedContext {
     }
 }
 
-/// Split text into sentences on `.`/`!`/`?`/`;` boundaries (byte offsets
-/// preserved). Language-independent; abbreviations may over-split, which is
-/// acceptable for signal extraction (evidence spans stay verbatim).
-pub fn split_sentences(text: &str) -> Vec<(String, usize, usize)> {
-    let mut out = Vec::new();
-    let mut start = 0usize;
-    let bytes = text.as_bytes();
-    let mut i = 0usize;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c == b'.' || c == b'!' || c == b'?' || c == b';' {
-            let mut end = i + 1;
-            while end < bytes.len() && (bytes[end] == b'.' || bytes[end] == b'!' || bytes[end] == b'?') {
-                end += 1;
-            }
-            let slice = text[start..end].trim();
-            if !slice.is_empty() {
-                let rel = text[start..end].find(slice).unwrap_or(0);
-                out.push((slice.to_string(), start + rel, start + rel + slice.len()));
-            }
-            while end < bytes.len() && bytes[end].is_ascii_whitespace() {
-                end += 1;
-            }
-            start = end;
-            i = end;
-        } else {
-            i += 1;
-        }
-    }
-    if start < text.len() {
-        let slice = text[start..].trim();
-        if !slice.is_empty() {
-            let rel = text[start..].find(slice).unwrap_or(0);
-            out.push((slice.to_string(), start + rel, start + rel + slice.len()));
-        }
-    }
-    out
+/// Split into canonical language-aware sentence spans, retaining original
+/// UTF-8 byte offsets. SI deliberately disables phrase-impact's long-sentence
+/// chunking so semantic evidence continues to represent whole sentences.
+///
+/// This is the shared [`crate::phrase_impact`] boundary detector (not a
+/// second implementation): the only difference from
+/// [`crate::phrase_impact::split_sentences`] is the chunking parameter, and
+/// the returned [`crate::phrase_impact::Segment`] type is shared.
+pub fn split_sentences(text: &str, language: &str) -> Vec<crate::phrase_impact::Segment> {
+    crate::phrase_impact::split_sentence_spans(text, language, None)
 }
 
 /// Lowercase alphanumeric tokens (unicode-aware via char methods).
@@ -193,7 +170,11 @@ pub fn analyze_density(
             distinct.push(*s);
         }
     }
-    let body: String = distinct.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join(" ");
+    let body: String = distinct
+        .iter()
+        .map(|s| s.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     let toks = tokens(&body);
     let distinct_toks: BTreeSet<&String> = toks.iter().collect();
 
@@ -284,7 +265,9 @@ fn count_relation_marks(toks: &[String]) -> usize {
         "causa", "perché", "perche", "because", "caused", "dopo", "after", "rispetto", "mentre",
         "versus", "contro", "wenn", "während",
     ];
-    toks.iter().filter(|t| markers.contains(&t.as_str())).count()
+    toks.iter()
+        .filter(|t| markers.contains(&t.as_str()))
+        .count()
 }
 
 // ── 2. Comparison detector ────────────────────────────────────────
@@ -328,18 +311,34 @@ const COMPARISON_SIGNALS: &[&[&str]] = &[
 /// Comparative adjectives that mark an implicit comparison when two
 /// subjects are present (no per-topic rules, closed multilingual list).
 const COMPARATIVE_ADJ: &[&str] = &[
-    "superiore", "inferiore", "maggiore", "minore", "migliore", "peggiore",
-    "superior", "inferior", "greater", "lesser", "higher", "lower",
-    "better", "worse", "höher", "niedriger", "meilleur", "pire",
-    "superieur", "inférieur",
+    "superiore",
+    "inferiore",
+    "maggiore",
+    "minore",
+    "migliore",
+    "peggiore",
+    "superior",
+    "inferior",
+    "greater",
+    "lesser",
+    "higher",
+    "lower",
+    "better",
+    "worse",
+    "höher",
+    "niedriger",
+    "meilleur",
+    "pire",
+    "superieur",
+    "inférieur",
 ];
 
 /// Negation tokens (sentence-scope heuristic: a negated marker yields NO
 /// positive signal — fail-soft toward silence, never toward an inverted
 /// claim).
 const NEGATION_TOKENS: &[&str] = &[
-    "non", "no", "not", "nope", "mai", "nunca", "nicht", "kein",
-    "keine", "ne", "pas", "jamais", "não", "nao", "niet",
+    "non", "no", "not", "nope", "mai", "nunca", "nicht", "kein", "keine", "ne", "pas", "jamais",
+    "não", "nao", "niet",
 ];
 
 /// True when a negation token scopes over a marker at `marker_pos` (within
@@ -352,8 +351,24 @@ fn is_negated(toks: &[String], marker_pos: usize) -> bool {
 }
 
 const CONTRAST_VERBS: &[&str] = &[
-    "cresce", "rallenta", "grows", "slows", "growing", "slowing", "steigt", "sinkt", "augmente",
-    "ralentit", "aumenta", "disminuye", "crescono", "rallentano", "rose", "fell", "sale", "scende",
+    "cresce",
+    "rallenta",
+    "grows",
+    "slows",
+    "growing",
+    "slowing",
+    "steigt",
+    "sinkt",
+    "augmente",
+    "ralentit",
+    "aumenta",
+    "disminuye",
+    "crescono",
+    "rallentano",
+    "rose",
+    "fell",
+    "sale",
+    "scende",
 ];
 
 /// Detect explicit or implicit comparisons without any per-topic rules.
@@ -370,9 +385,7 @@ pub fn detect_comparison(
     let entity_lc: Vec<String> = entities.iter().map(|e| e.to_lowercase()).collect();
     for s in sentences {
         let toks = tokens(&s.text);
-        let explicit = COMPARISON_SIGNALS
-            .iter()
-            .any(|p| contains_phrase(&toks, p));
+        let explicit = COMPARISON_SIGNALS.iter().any(|p| contains_phrase(&toks, p));
         let verb_contrast = CONTRAST_VERBS.iter().any(|v| contains_token(&toks, v));
         let adj_pos = toks
             .iter()
@@ -441,7 +454,11 @@ fn capitalized_terms(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     for tok in text.split(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '’')) {
         if tok.chars().count() >= 2
-            && tok.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+            && tok
+                .chars()
+                .next()
+                .map(|c| c.is_uppercase())
+                .unwrap_or(false)
             && tok.chars().any(|c| c.is_lowercase())
         {
             let lc = tok.to_lowercase();
@@ -467,15 +484,19 @@ fn ground_subjects(sentence: &str, entities: &[String]) -> Vec<String> {
     let caps = capitalized_terms(sentence);
     let mut out = Vec::new();
     let mut seen_norm = std::collections::BTreeSet::new();
-    let push = |v: String, out: &mut Vec<String>, seen_norm: &mut std::collections::BTreeSet<String>| {
-        let n = normalize_surface(&v);
-        if n.is_empty() || !seen_norm.insert(n) {
-            return;
-        }
-        out.push(v);
-    };
+    let push =
+        |v: String, out: &mut Vec<String>, seen_norm: &mut std::collections::BTreeSet<String>| {
+            let n = normalize_surface(&v);
+            if n.is_empty() || !seen_norm.insert(n) {
+                return;
+            }
+            out.push(v);
+        };
     for e in entities {
-        if caps.iter().any(|c| c == e || c.contains(e.as_str()) || e.contains(c.as_str())) {
+        if caps
+            .iter()
+            .any(|c| c == e || c.contains(e.as_str()) || e.contains(c.as_str()))
+        {
             push(e.clone(), &mut out, &mut seen_norm);
         }
     }
@@ -492,10 +513,34 @@ fn ground_subjects(sentence: &str, entities: &[String]) -> Vec<String> {
 
 fn guess_dimension(toks: &[String]) -> String {
     let dims = [
-        ("investment", &["investment", "investimenti", "investimento", "investition", "investissement"][..]),
-        ("cost", &["cost", "costi", "costo", "kosten", "coût", "cout"][..]),
-        ("growth", &["growth", "crescita", "wachstum", "croissance", "crecimiento"][..]),
-        ("strategy", &["strategy", "strategia", "strategie", "stratégie"][..]),
+        (
+            "investment",
+            &[
+                "investment",
+                "investimenti",
+                "investimento",
+                "investition",
+                "investissement",
+            ][..],
+        ),
+        (
+            "cost",
+            &["cost", "costi", "costo", "kosten", "coût", "cout"][..],
+        ),
+        (
+            "growth",
+            &[
+                "growth",
+                "crescita",
+                "wachstum",
+                "croissance",
+                "crecimiento",
+            ][..],
+        ),
+        (
+            "strategy",
+            &["strategy", "strategia", "strategie", "stratégie"][..],
+        ),
     ];
     for (name, keys) in dims {
         if keys.iter().any(|k| contains_token(toks, k)) {
@@ -510,7 +555,9 @@ fn guess_dimension(toks: &[String]) -> String {
 /// Never synthesizes values.
 pub fn parse_values(text: &str) -> Vec<f64> {
     let mut out = Vec::new();
-    for tok in text.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == ',' || c == '-' || c == '%')) {
+    for tok in
+        text.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == ',' || c == '-' || c == '%'))
+    {
         let t = tok.trim().trim_end_matches('%').replace(',', ".");
         if t.is_empty() || !t.chars().any(|c| c.is_ascii_digit()) {
             continue;
@@ -591,14 +638,20 @@ const CAUSE_BEFORE_MARKERS: &[&[&str]] = &[
 
 /// Conditional auxiliaries marking hypothetical causation.
 const HYPOTHETICAL_MARKERS: &[&str] = &[
-    "avrebbe", "avrebbero", "would", "could", "might", "potrebbe",
-    "potrebbero", "würde", "würden", "pourrait",
+    "avrebbe",
+    "avrebbero",
+    "would",
+    "could",
+    "might",
+    "potrebbe",
+    "potrebbero",
+    "würde",
+    "würden",
+    "pourrait",
 ];
 
 /// Attribution prefixes (verbatim, before the first comma).
-const ATTRIBUTION_MARKERS: &[&str] = &[
-    "secondo", "according", "selon", "laut", "según", "segun",
-];
+const ATTRIBUTION_MARKERS: &[&str] = &["secondo", "according", "selon", "laut", "según", "segun"];
 
 const CONTRIBUTE_MARKERS: &[&[&str]] = &[
     &["contribuì", "a"],
@@ -614,7 +667,9 @@ const CONTRIBUTE_MARKERS: &[&[&str]] = &[
     &["contribuendo", "a"],
 ];
 
-const SEQUENCE_MARKERS: &[&str] = &["dopo", "after", "nach", "après", "apres", "después", "despues"];
+const SEQUENCE_MARKERS: &[&str] = &[
+    "dopo", "after", "nach", "après", "apres", "después", "despues",
+];
 
 /// Marker hit with its token position and cause direction.
 fn find_causal_marker(toks: &[String]) -> Option<(bool, usize, usize)> {
@@ -639,7 +694,22 @@ fn split_at_marker(text: &str, toks: &[String], pos: usize, len: usize) -> (Stri
     let before: Vec<&String> = toks[..pos.min(toks.len())].iter().collect();
     let after: Vec<&String> = toks[(pos + len).min(toks.len())..].iter().collect();
     let _ = text;
-    (slug(before.into_iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" ")), slug(after.into_iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" ")))
+    (
+        slug(
+            before
+                .into_iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(" "),
+        ),
+        slug(
+            after
+                .into_iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(" "),
+        ),
+    )
 }
 
 /// Extract a causal or sequential relation. Direction follows the marker
@@ -656,11 +726,17 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
             return None;
         }
         let (before, after) = split_at_marker(&sentence.text, &toks, pos, mlen);
-        let (cause, effect) = if cause_after { (after, before) } else { (before, after) };
+        let (cause, effect) = if cause_after {
+            (after, before)
+        } else {
+            (before, after)
+        };
         if cause.is_empty() || effect.is_empty() {
             return None;
         }
-        let hypothetical = HYPOTHETICAL_MARKERS.iter().any(|m| contains_token(&toks, m));
+        let hypothetical = HYPOTHETICAL_MARKERS
+            .iter()
+            .any(|m| contains_token(&toks, m));
         let attribution = extract_attribution(&sentence.text);
         return Some(CausalRelation {
             kind: "causal_relation".to_string(),
@@ -695,7 +771,9 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
         if before.is_empty() || after.is_empty() {
             return None;
         }
-        let hypothetical = HYPOTHETICAL_MARKERS.iter().any(|m| contains_token(&toks, m));
+        let hypothetical = HYPOTHETICAL_MARKERS
+            .iter()
+            .any(|m| contains_token(&toks, m));
         let attribution = extract_attribution(&sentence.text);
         return Some(CausalRelation {
             kind: "causal_relation".to_string(),
@@ -732,7 +810,10 @@ fn extract_attribution(text: &str) -> Option<String> {
         return None;
     }
     let lt = first.to_lowercase();
-    if ATTRIBUTION_MARKERS.iter().any(|m| lt.split_whitespace().any(|w| w == *m)) {
+    if ATTRIBUTION_MARKERS
+        .iter()
+        .any(|m| lt.split_whitespace().any(|w| w == *m))
+    {
         return Some(first);
     }
     None
@@ -740,10 +821,23 @@ fn extract_attribution(text: &str) -> Option<String> {
 
 fn split_around(text: &str) -> (String, String) {
     let lower = text.to_lowercase();
-    for sep in [", provocando", ", contribuendo", " ha ridotto", " hanno ridotto", " dopo ", " after "] {
+    for sep in [
+        ", provocando",
+        ", contribuendo",
+        " ha ridotto",
+        " hanno ridotto",
+        " dopo ",
+        " after ",
+    ] {
         if let Some(pos) = lower.find(sep) {
-            let a = text[..pos].trim().trim_matches(|c| c == '.' || c == ',' || c == ';').to_string();
-            let b = text[pos + sep.len()..].trim().trim_matches(|c| c == '.' || c == ',' || c == ';').to_string();
+            let a = text[..pos]
+                .trim()
+                .trim_matches(|c| c == '.' || c == ',' || c == ';')
+                .to_string();
+            let b = text[pos + sep.len()..]
+                .trim()
+                .trim_matches(|c| c == '.' || c == ',' || c == ';')
+                .to_string();
             if !a.is_empty() && !b.is_empty() {
                 return (slug(a), slug(b));
             }
@@ -887,10 +981,6 @@ fn scan_years(text: &str) -> Vec<i32> {
     out
 }
 
-fn has_relative_time(text: &str) -> bool {
-    relative_offset(text).is_some()
-}
-
 /// Offset in years for relative expressions ("tre anni dopo" → +3,
 /// "l'anno successivo" → +1). None when no relative expression.
 fn relative_offset(text: &str) -> Option<i32> {
@@ -903,7 +993,11 @@ fn relative_offset(text: &str) -> Option<i32> {
         &["ans", "plus", "tard"],
     ];
     const REL_SINGLE: &[&str] = &[
-        "successivo", "successiva", "following", "suivante", "siguiente",
+        "successivo",
+        "successiva",
+        "following",
+        "suivante",
+        "siguiente",
     ];
     for pat in REL_PLURAL {
         for i in 0..toks.len().saturating_sub(pat.len() - 1) {
@@ -996,8 +1090,7 @@ fn scan_intervals(text: &str) -> Vec<(i32, i32, String)> {
             let is_sep = between == "-"
                 || between == "–"
                 || between == "—"
-                || ["al", "to", "and", "e", "e il", "bis", "au", "a"]
-                    .contains(&between.as_str());
+                || ["al", "to", "and", "e", "e il", "bis", "au", "a"].contains(&between.as_str());
             if is_sep && y1 >= y0 {
                 out.push((y0, y1, text[s0..e1].trim().to_string()));
                 used[a] = true;
@@ -1019,7 +1112,12 @@ fn interval_years(text: &str) -> std::collections::BTreeSet<i32> {
 
 fn relative_expression(text: &str) -> String {
     let lower = text.to_lowercase();
-    for cand in ["tre anni dopo", "three years later", "anni dopo", "years later"] {
+    for cand in [
+        "tre anni dopo",
+        "three years later",
+        "anni dopo",
+        "years later",
+    ] {
         if lower.contains(cand) {
             return cand.to_string();
         }
@@ -1040,11 +1138,43 @@ pub struct EntityRelation {
 }
 
 const RELATION_MARKERS: &[(&str, &[&str])] = &[
-    ("owns", &["possiede", "owns", "owns,", "besitzt", "possède", "posee"]),
-    ("funds", &["finanzia", "funds", "finanziert", "finance", "financia"]),
-    ("partners_with", &["collabora", "partners", "partnered", "arbeitet", "zusammen", "collabore", "colabora"]),
-    ("competes_with", &["compete", "competes", "concorre", "konkurriert", "concurrence", "compite"]),
-    ("contrasts_with", &["mentre", "while", "während", "wahrend", "tandis", "mientras"]),
+    (
+        "owns",
+        &["possiede", "owns", "owns,", "besitzt", "possède", "posee"],
+    ),
+    (
+        "funds",
+        &["finanzia", "funds", "finanziert", "finance", "financia"],
+    ),
+    (
+        "partners_with",
+        &[
+            "collabora",
+            "partners",
+            "partnered",
+            "arbeitet",
+            "zusammen",
+            "collabore",
+            "colabora",
+        ],
+    ),
+    (
+        "competes_with",
+        &[
+            "compete",
+            "competes",
+            "concorre",
+            "konkurriert",
+            "concurrence",
+            "compite",
+        ],
+    ),
+    (
+        "contrasts_with",
+        &[
+            "mentre", "while", "während", "wahrend", "tandis", "mientras",
+        ],
+    ),
 ];
 
 /// Extract typed relations grounded in explicit markers. `entities` are the
@@ -1056,8 +1186,7 @@ pub fn extract_relations(sentence: &Sentence, entities: &[String]) -> Vec<Entity
     let present: Vec<String> = entity_lc
         .iter()
         .filter(|e| {
-            toks.iter().any(|t| t == *e)
-                || sentence.text.to_lowercase().contains(e.as_str())
+            toks.iter().any(|t| t == *e) || sentence.text.to_lowercase().contains(e.as_str())
         })
         .cloned()
         .collect();
@@ -1136,12 +1265,18 @@ pub struct SceneIntelligenceManifest {
 /// Full-pipeline analysis: shared context → detectors → canonical manifest.
 /// `entities_per_scene` parallels `scenes` (same order) and carries the
 /// existing NLP entity surfaces per scene.
-pub fn analyze(scenes: &[SceneText], entities_per_scene: &[Vec<String>]) -> SceneIntelligenceManifest {
+pub fn analyze(
+    scenes: &[SceneText],
+    entities_per_scene: &[Vec<String>],
+) -> SceneIntelligenceManifest {
     let ctx = SharedContext::build(scenes);
     let mut prior_concepts: BTreeSet<String> = BTreeSet::new();
     let mut out = Vec::new();
     for (i, scene) in scenes.iter().enumerate() {
-        let entities: &[String] = entities_per_scene.get(i).map(|v| v.as_slice()).unwrap_or(&[]);
+        let entities: &[String] = entities_per_scene
+            .get(i)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
         let sents = ctx.sentences_for_scene(&scene.scene_id);
         let density = analyze_density(&scene.scene_id, &sents, entities, &prior_concepts);
         for s in &sents {
@@ -1186,68 +1321,121 @@ pub fn analyze(scenes: &[SceneText], entities_per_scene: &[Vec<String>]) -> Scen
 }
 
 /// Fail-closed manifest validation (structure only, no semantic judgment).
-pub fn validate_manifest(m: &SceneIntelligenceManifest) -> Result<(), String> {
+pub fn validate_manifest(m: &SceneIntelligenceManifest) -> Result<(), MuscleError> {
     if m.schema_version != SCHEMA_VERSION {
-        return Err(format!("unknown schema {}", m.schema_version));
+        return Err(MuscleError::generic(format!(
+            "unknown schema {}",
+            m.schema_version
+        )));
     }
     if m.analyzer_version.is_empty() || m.relation_registry_version.is_empty() {
-        return Err("missing version pins".to_string());
+        return Err(MuscleError::generic("missing version pins"));
     }
     let mut seen = BTreeSet::new();
     for s in &m.scenes {
         if s.scene_id.trim().is_empty() {
-            return Err("scene with empty id".to_string());
+            return Err(MuscleError::generic("scene with empty id"));
         }
         if !seen.insert(s.scene_id.clone()) {
-            return Err(format!("duplicate scene {}", s.scene_id));
+            return Err(MuscleError::generic(format!(
+                "duplicate scene {}",
+                s.scene_id
+            )));
         }
         if s.density.scene_id != s.scene_id {
-            return Err(format!("density scene reference mismatch in {}", s.scene_id));
+            return Err(MuscleError::generic(format!(
+                "density scene reference mismatch in {}",
+                s.scene_id
+            )));
         }
         if !(0.0..=1.0).contains(&s.density.score) {
-            return Err(format!("density out of range in {}", s.scene_id));
+            return Err(MuscleError::generic(format!(
+                "density out of range in {}",
+                s.scene_id
+            )));
         }
         for c in &s.comparisons {
             if c.scene_id != s.scene_id {
-                return Err(format!("comparison scene reference mismatch in {}", s.scene_id));
+                return Err(MuscleError::generic(format!(
+                    "comparison scene reference mismatch in {}",
+                    s.scene_id
+                )));
             }
             if c.subjects.len() < 2 || c.subjects.iter().any(|subject| subject.trim().is_empty()) {
-                return Err(format!("comparison subjects invalid in {}", s.scene_id));
+                return Err(MuscleError::generic(format!(
+                    "comparison subjects invalid in {}",
+                    s.scene_id
+                )));
             }
             if c.evidence_sentence_ids.is_empty() {
-                return Err(format!("comparison evidence missing in {}", s.scene_id));
+                return Err(MuscleError::generic(format!(
+                    "comparison evidence missing in {}",
+                    s.scene_id
+                )));
             }
-            if c.kind == "comparison" && c.candidate_visual == "split_comparison" && !c.values.is_empty() {
-                return Err("qualitative comparison must not carry values".to_string());
+            if c.kind == "comparison"
+                && c.candidate_visual == "split_comparison"
+                && !c.values.is_empty()
+            {
+                return Err(MuscleError::generic(
+                    "qualitative comparison must not carry values",
+                ));
             }
             if c.values.iter().any(|value| !value.is_finite()) {
-                return Err(format!("comparison has non-finite value in {}", s.scene_id));
+                return Err(MuscleError::generic(format!(
+                    "comparison has non-finite value in {}",
+                    s.scene_id
+                )));
             }
         }
         for c in &s.causal {
-            if c.cause.trim().is_empty() || c.effect.trim().is_empty() || !(0.0..=1.0).contains(&c.extraction_confidence) {
-                return Err(format!("causal relation invalid in {}", s.scene_id));
+            if c.cause.trim().is_empty()
+                || c.effect.trim().is_empty()
+                || !(0.0..=1.0).contains(&c.extraction_confidence)
+            {
+                return Err(MuscleError::generic(format!(
+                    "causal relation invalid in {}",
+                    s.scene_id
+                )));
             }
             if c.evidence_sentence_ids.is_empty() {
-                return Err(format!("causal evidence missing in {}", s.scene_id));
+                return Err(MuscleError::generic(format!(
+                    "causal evidence missing in {}",
+                    s.scene_id
+                )));
             }
         }
         for event in &s.temporal_events {
             if event.event_id.trim().is_empty() || !(0.0..=1.0).contains(&event.certainty) {
-                return Err(format!("temporal event invalid in {}", s.scene_id));
+                return Err(MuscleError::generic(format!(
+                    "temporal event invalid in {}",
+                    s.scene_id
+                )));
             }
             if let (Some(start), Some(end)) = (event.normalized_year, event.normalized_end_year) {
                 if end < start {
-                    return Err(format!("temporal interval is reversed in {}", s.scene_id));
+                    return Err(MuscleError::generic(format!(
+                        "temporal interval is reversed in {}",
+                        s.scene_id
+                    )));
                 }
             }
         }
         for relation in &s.relations {
-            if relation.subject.trim().is_empty() || relation.object.trim().is_empty() || relation.subject == relation.object {
-                return Err(format!("entity relation endpoints invalid in {}", s.scene_id));
+            if relation.subject.trim().is_empty()
+                || relation.object.trim().is_empty()
+                || relation.subject == relation.object
+            {
+                return Err(MuscleError::generic(format!(
+                    "entity relation endpoints invalid in {}",
+                    s.scene_id
+                )));
             }
             if relation.evidence_sentence_ids.is_empty() {
-                return Err(format!("entity relation evidence missing in {}", s.scene_id));
+                return Err(MuscleError::generic(format!(
+                    "entity relation evidence missing in {}",
+                    s.scene_id
+                )));
             }
         }
     }
@@ -1255,8 +1443,8 @@ pub fn validate_manifest(m: &SceneIntelligenceManifest) -> Result<(), String> {
 }
 
 /// Canonical JSON (sorted scenes already guaranteed by `analyze`).
-pub fn manifest_json(m: &SceneIntelligenceManifest) -> Result<String, String> {
-    serde_json::to_string(m).map_err(|e| e.to_string())
+pub fn manifest_json(m: &SceneIntelligenceManifest) -> Result<String, MuscleError> {
+    serde_json::to_string(m).map_err(|e| MuscleError::generic(e.to_string()))
 }
 
 #[cfg(test)]
@@ -1281,7 +1469,10 @@ mod tests {
 
     #[test]
     fn density_repetition_does_not_inflate() {
-        let (_v, ctx) = scenes(&[("scene-01", "I costi energetici riducono i margini delle imprese industriali.")]);
+        let (_v, ctx) = scenes(&[(
+            "scene-01",
+            "I costi energetici riducono i margini delle imprese industriali.",
+        )]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("scene-01");
         let base = analyze_density("scene-01", &sents, &["imprese".into()], &BTreeSet::new());
         // Same content padded with verbatim repetition.
@@ -1291,18 +1482,27 @@ mod tests {
         )]);
         let sents2: Vec<&Sentence> = ctx2.sentences_for_scene("scene-01");
         let padded = analyze_density("scene-01", &sents2, &["imprese".into()], &BTreeSet::new());
-        assert_eq!(base.score, padded.score, "repeated words must not raise density");
+        assert_eq!(
+            base.score, padded.score,
+            "repeated words must not raise density"
+        );
         assert_eq!(base.new_concepts, padded.new_concepts);
     }
 
     #[test]
     fn comparison_qualitative_invents_no_numbers() {
-        let (_v, ctx) = scenes(&[("scene-07", "Ford cresce con gli ibridi, mentre Toyota rallenta sui margini.")]);
+        let (_v, ctx) = scenes(&[(
+            "scene-07",
+            "Ford cresce con gli ibridi, mentre Toyota rallenta sui margini.",
+        )]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("scene-07");
         let c = detect_comparison("scene-07", &sents, &["Ford".into(), "Toyota".into()])
             .expect("comparison detected");
         assert_eq!(c.candidate_visual, "split_comparison");
-        assert!(c.values.is_empty(), "qualitative comparison must not invent values");
+        assert!(
+            c.values.is_empty(),
+            "qualitative comparison must not invent values"
+        );
         assert_eq!(c.subjects.len(), 2);
     }
 
@@ -1310,7 +1510,10 @@ mod tests {
     fn dopo_is_sequence_not_cause() {
         let (_v, ctx) = scenes(&[
             ("s1", "Le vendite sono diminuite dopo l'aumento dei prezzi."),
-            ("s2", "Le vendite sono diminuite a causa dell'aumento dei prezzi."),
+            (
+                "s2",
+                "Le vendite sono diminuite a causa dell'aumento dei prezzi.",
+            ),
         ]);
         let seq: Vec<&Sentence> = ctx.sentences_for_scene("s1");
         let cau: Vec<&Sentence> = ctx.sentences_for_scene("s2");
@@ -1327,23 +1530,40 @@ mod tests {
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("scene-03");
         let events = extract_temporal(&sents);
         let years: Vec<i32> = events.iter().filter_map(|e| e.normalized_year).collect();
-        assert_eq!(years, vec![2020, 2022, 2024], "chronological order despite narration order");
+        assert_eq!(
+            years,
+            vec![2020, 2022, 2024],
+            "chronological order despite narration order"
+        );
         // Narration order preserved alongside.
         let narr: Vec<usize> = events.iter().map(|e| e.narration_index).collect();
-        assert_eq!(narr, vec![1, 1, 0], "chronological sorting preserves each event's narration index");
+        assert_eq!(
+            narr,
+            vec![1, 1, 0],
+            "chronological sorting preserves each event's narration index"
+        );
         // No video timestamps leak into events.
         let j = serde_json::to_string(&events).unwrap();
-        assert!(!j.contains("video"), "event time and video time stay separate");
+        assert!(
+            !j.contains("video"),
+            "event time and video time stay separate"
+        );
         // Relative expressions stay relative.
         let (_v2, ctx2) = scenes(&[("s", "Tre anni dopo gli investimenti crollarono.")]);
         let s2: Vec<&Sentence> = ctx2.sentences_for_scene("s");
         let rel = extract_temporal(&s2);
-        assert!(rel.iter().any(|e| e.normalized_year.is_none()), "ambiguous relative stays unresolved");
+        assert!(
+            rel.iter().any(|e| e.normalized_year.is_none()),
+            "ambiguous relative stays unresolved"
+        );
     }
 
     #[test]
     fn comentions_without_marker_link_nothing() {
-        let (_v, ctx) = scenes(&[("s", "Ford e Toyota restano due grandi case automobilistiche.")]);
+        let (_v, ctx) = scenes(&[(
+            "s",
+            "Ford e Toyota restano due grandi case automobilistiche.",
+        )]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
         let rels = extract_relations(sents[0], &["ford".into(), "toyota".into()]);
         assert!(rels.is_empty(), "co-mention alone is not a relation");
@@ -1357,15 +1577,30 @@ mod tests {
     #[test]
     fn manifest_deterministic_and_valid() {
         let sc = vec![
-            SceneText { scene_id: "scene-02".into(), text: "Ford cresce, Toyota rallenta.".into(), language: "it".into(), video_start_ms: 0, video_end_ms: 20000 },
-            SceneText { scene_id: "scene-01".into(), text: "Nel 2020 i costi energetici aumentarono.".into(), language: "it".into(), video_start_ms: 0, video_end_ms: 20000 },
+            SceneText {
+                scene_id: "scene-02".into(),
+                text: "Ford cresce, Toyota rallenta.".into(),
+                language: "it".into(),
+                video_start_ms: 0,
+                video_end_ms: 20000,
+            },
+            SceneText {
+                scene_id: "scene-01".into(),
+                text: "Nel 2020 i costi energetici aumentarono.".into(),
+                language: "it".into(),
+                video_start_ms: 0,
+                video_end_ms: 20000,
+            },
         ];
         let ents = vec![vec!["Ford".into(), "Toyota".into()], vec!["costi".into()]];
         let a = analyze(&sc, &ents);
         let b = analyze(&sc, &ents);
         assert_eq!(a, b, "same inputs must give identical manifests");
         validate_manifest(&a).expect("valid manifest");
-        assert_eq!(a.scenes[0].scene_id, "scene-01", "scenes sorted for canonical JSON");
+        assert_eq!(
+            a.scenes[0].scene_id, "scene-01",
+            "scenes sorted for canonical JSON"
+        );
     }
 
     #[test]
@@ -1373,29 +1608,50 @@ mod tests {
         let scene = SceneSignals {
             scene_id: "s".into(),
             density: Density {
-                scene_id: "other".into(), score: 0.2, level: "low".into(),
-                new_entities: 0, numeric_claims: 0, new_concepts: 0,
+                scene_id: "other".into(),
+                score: 0.2,
+                level: "low".into(),
+                new_entities: 0,
+                numeric_claims: 0,
+                new_concepts: 0,
                 suggested_visual_budget: "standard".into(),
             },
-            comparisons: vec![], causal: vec![], temporal_events: vec![], relations: vec![],
+            comparisons: vec![],
+            causal: vec![],
+            temporal_events: vec![],
+            relations: vec![],
         };
         let mut manifest = SceneIntelligenceManifest {
-            schema_version: SCHEMA_VERSION.into(), analyzer_version: ANALYZER_VERSION.into(),
-            relation_registry_version: RELATION_REGISTRY_VERSION.into(), scenes: vec![scene],
+            schema_version: SCHEMA_VERSION.into(),
+            analyzer_version: ANALYZER_VERSION.into(),
+            relation_registry_version: RELATION_REGISTRY_VERSION.into(),
+            scenes: vec![scene],
         };
-        assert!(validate_manifest(&manifest).unwrap_err().contains("scene reference mismatch"));
+        assert!(validate_manifest(&manifest)
+            .unwrap_err()
+            .contains("scene reference mismatch"));
         manifest.scenes[0].density.scene_id = "s".into();
         manifest.scenes[0].relations.push(EntityRelation {
-            subject: "a".into(), object: "b".into(), relation: "partners_with".into(),
+            subject: "a".into(),
+            object: "b".into(),
+            relation: "partners_with".into(),
             evidence_sentence_ids: vec![],
         });
-        assert!(validate_manifest(&manifest).unwrap_err().contains("evidence missing"));
+        assert!(validate_manifest(&manifest)
+            .unwrap_err()
+            .contains("evidence missing"));
     }
 
     #[test]
     fn manifest_rejects_qualitative_with_values() {
         let mut m = analyze(
-            &[SceneText { scene_id: "s".into(), text: "Ford cresce, Toyota rallenta.".into(), language: "it".into(), video_start_ms: 0, video_end_ms: 1000 }],
+            &[SceneText {
+                scene_id: "s".into(),
+                text: "Ford cresce, Toyota rallenta.".into(),
+                language: "it".into(),
+                video_start_ms: 0,
+                video_end_ms: 1000,
+            }],
             &[vec!["Ford".into(), "Toyota".into()]],
         );
         if let Some(c) = m.scenes[0].comparisons.first_mut() {
@@ -1416,18 +1672,38 @@ mod tests {
         let d = analyze_density(
             "scene-04",
             &sents,
-            &["Siemens".into(), "Volkswagen".into(), "Bosch".into(), "E.ON".into()],
+            &[
+                "Siemens".into(),
+                "Volkswagen".into(),
+                "Bosch".into(),
+                "E.ON".into(),
+            ],
             &BTreeSet::new(),
         );
-        assert_eq!(d.suggested_visual_budget, "low", "dense scenes get few simultaneous overlays");
+        assert_eq!(
+            d.suggested_visual_budget, "low",
+            "dense scenes get few simultaneous overlays"
+        );
         assert!(d.numeric_claims >= 2);
     }
 
     #[test]
     fn relation_extractor_retains_each_explicit_evidenced_edge() {
         let inputs = [
-            (0, "Ford collabora con Toyota.", "ford", "toyota", "partners_with"),
-            (1, "Ford compete con Volkswagen.", "ford", "volkswagen", "competes_with"),
+            (
+                0,
+                "Ford collabora con Toyota.",
+                "ford",
+                "toyota",
+                "partners_with",
+            ),
+            (
+                1,
+                "Ford compete con Volkswagen.",
+                "ford",
+                "volkswagen",
+                "competes_with",
+            ),
             (2, "Siemens finanzia Bosch.", "siemens", "bosch", "funds"),
             (3, "Bosch possiede E.ON.", "bosch", "e.on", "owns"),
         ];
@@ -1443,7 +1719,10 @@ mod tests {
             let entities = vec![subject.into(), object.into()];
             let relations = extract_relations(&sentence, &entities);
             assert_eq!(relations.len(), 1, "one marker-grounded edge: {text}");
-            assert_eq!(relations[0].relation, expected_kind, "typed relation: {text}");
+            assert_eq!(
+                relations[0].relation, expected_kind,
+                "typed relation: {text}"
+            );
             assert_eq!(relations[0].evidence_sentence_ids, vec![id]);
         }
     }
@@ -1486,8 +1765,14 @@ mod tests {
     fn cert_paraphrased_comparison_equivalent() {
         // C06: same contrast paraphrased yields the same structure.
         let (_v, ctx) = scenes(&[
-            ("a", "Ford cresce con gli ibridi, mentre Toyota rallenta sui margini."),
-            ("b", "Toyota rallenta sui margini mentre Ford cresce con gli ibridi."),
+            (
+                "a",
+                "Ford cresce con gli ibridi, mentre Toyota rallenta sui margini.",
+            ),
+            (
+                "b",
+                "Toyota rallenta sui margini mentre Ford cresce con gli ibridi.",
+            ),
         ]);
         let sa: Vec<&Sentence> = ctx.sentences_for_scene("a");
         let sb: Vec<&Sentence> = ctx.sentences_for_scene("b");
@@ -1507,20 +1792,29 @@ mod tests {
         // E03: denied causation produces no positive causal relation.
         let (_v, ctx) = scenes(&[("s", "La crisi non è stata causata dall'inflazione.")]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
-        assert!(extract_causal(sents[0]).is_none(), "negated cause is not a positive relation");
+        assert!(
+            extract_causal(sents[0]).is_none(),
+            "negated cause is not a positive relation"
+        );
     }
 
     #[test]
     fn cert_attributed_hypothetical_keeps_attribution() {
         // E04: attributed, conditional claims keep both markers with
         // lowered confidence — never a certain arrow.
-        let (_v, ctx) = scenes(&[("s", "Secondo gli analisti, l'aumento dei costi avrebbe provocato il calo dei margini.")]);
+        let (_v, ctx) = scenes(&[(
+            "s",
+            "Secondo gli analisti, l'aumento dei costi avrebbe provocato il calo dei margini.",
+        )]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
         let r = extract_causal(sents[0]).expect("relation extracted");
         assert_eq!(r.relation, "causes");
         assert!(r.hypothetical, "conditional mood preserved");
         assert!(r.attribution.is_some(), "attribution preserved");
-        assert!(r.extraction_confidence < 0.9, "hypothetical confidence discounted");
+        assert!(
+            r.extraction_confidence < 0.9,
+            "hypothetical confidence discounted"
+        );
     }
 
     #[test]
@@ -1532,23 +1826,35 @@ mod tests {
         assert_eq!(sents.len(), 3);
         let rels: Vec<CausalRelation> = sents.iter().filter_map(|s| extract_causal(s)).collect();
         assert_eq!(rels.len(), 3, "one relation per asserted link");
-        let transitive = rels.iter().any(|r| r.cause.contains("costi") && r.effect.contains("occupazione"));
+        let transitive = rels
+            .iter()
+            .any(|r| r.cause.contains("costi") && r.effect.contains("occupazione"));
         assert!(!transitive, "no invented A → C shortcut");
     }
 
     #[test]
     fn cert_reverse_order_keeps_direction() {
         // E06: "Y a causa di X" still means X causes Y.
-        let (_v, ctx) = scenes(&[("s", "I margini si sono ridotti a causa dell'aumento dei costi.")]);
+        let (_v, ctx) = scenes(&[(
+            "s",
+            "I margini si sono ridotti a causa dell'aumento dei costi.",
+        )]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
         let r = extract_causal(sents[0]).expect("relation extracted");
         assert!(r.cause.contains("costi"), "cause is costs, got {}", r.cause);
-        assert!(r.effect.contains("margini"), "effect is margins, got {}", r.effect);
+        assert!(
+            r.effect.contains("margini"),
+            "effect is margins, got {}",
+            r.effect
+        );
     }
 
     #[test]
     fn cert_contributes_to_distinct_from_causes() {
-        let (_v, ctx) = scenes(&[("s", "L'aumento dei costi energetici ha contribuito alla riduzione dei margini aziendali.")]);
+        let (_v, ctx) = scenes(&[(
+            "s",
+            "L'aumento dei costi energetici ha contribuito alla riduzione dei margini aziendali.",
+        )]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
         let r = extract_causal(sents[0]).expect("relation extracted");
         assert_eq!(r.relation, "contributes_to", "contributes_to is not causes");
@@ -1562,10 +1868,20 @@ mod tests {
         let (_v, ctx) = scenes(&[("s", "Tre anni dopo gli investimenti crollarono.")]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
         let open = extract_temporal(&sents);
-        assert!(open.iter().any(|e| e.normalized_year.is_none()), "T03: ambiguous relative stays unresolved");
+        assert!(
+            open.iter().any(|e| e.normalized_year.is_none()),
+            "T03: ambiguous relative stays unresolved"
+        );
         let closed = extract_temporal_with_anchor(&sents, Some(2020));
-        let rel = closed.iter().find(|e| e.temporal_expression.contains("anni dopo")).expect("relative event");
-        assert_eq!(rel.normalized_year, Some(2023), "T02: anchor 2020 + 3 years");
+        let rel = closed
+            .iter()
+            .find(|e| e.temporal_expression.contains("anni dopo"))
+            .expect("relative event");
+        assert_eq!(
+            rel.normalized_year,
+            Some(2023),
+            "T02: anchor 2020 + 3 years"
+        );
     }
 
     #[test]
@@ -1583,7 +1899,10 @@ mod tests {
     #[test]
     fn cert_same_year_two_events_kept() {
         // T05: equal years for different events are both conserved.
-        let (_v, ctx) = scenes(&[("s", "Nel 2020 fu annunciato il progetto. Nel 2020 iniziarono i lavori.")]);
+        let (_v, ctx) = scenes(&[(
+            "s",
+            "Nel 2020 fu annunciato il progetto. Nel 2020 iniziarono i lavori.",
+        )]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
         let events = extract_temporal(&sents);
         assert_eq!(events.len(), 2);
@@ -1618,7 +1937,10 @@ mod tests {
         let (_v, ctx) = scenes(&[("s", "Ford non possiede più Rivian dal 2023.")]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
         let rels = extract_relations(sents[0], &["ford".into(), "rivian".into()]);
-        assert!(rels.iter().all(|r| r.relation != "owns"), "negated ownership is not owns");
+        assert!(
+            rels.iter().all(|r| r.relation != "owns"),
+            "negated ownership is not owns"
+        );
     }
 
     #[test]
@@ -1630,7 +1952,11 @@ mod tests {
             "Volkswagen (VOLKSWAGEN) cresce.",
             &["Volkswagen".into(), "volkswagen".into()],
         );
-        assert_eq!(subjects.len(), 1, "same normalized identity is emitted once");
+        assert_eq!(
+            subjects.len(),
+            1,
+            "same normalized identity is emitted once"
+        );
         assert_eq!(normalize_surface(&subjects[0]), "volkswagen");
     }
 
@@ -1641,11 +1967,13 @@ mod tests {
         // the separate visual admission layer is responsible for display caps.
         let entity_name = |prefix: &str, index: usize| format!("{prefix}{index:02}");
         let sentences = (0..100)
-            .map(|i| format!(
-                "{} collabora con {}.",
-                entity_name("Azienda", i / 4),
-                entity_name("Partner", (i / 4 + i % 4) % 25),
-            ))
+            .map(|i| {
+                format!(
+                    "{} collabora con {}.",
+                    entity_name("Azienda", i / 4),
+                    entity_name("Partner", (i / 4 + i % 4) % 25),
+                )
+            })
             .collect::<Vec<_>>();
         let text = sentences.join(" ");
         let (_v, ctx) = scenes(&[("s", &text)]);
@@ -1654,18 +1982,39 @@ mod tests {
             .map(|i| entity_name("Azienda", i).to_lowercase())
             .chain((0..25).map(|i| entity_name("Partner", i).to_lowercase()))
             .collect();
-        let all: Vec<EntityRelation> = sents.iter().flat_map(|s| extract_relations(s, &ents)).collect();
+        let all: Vec<EntityRelation> = sents
+            .iter()
+            .flat_map(|s| extract_relations(s, &ents))
+            .collect();
         assert_eq!(ents.len(), 50, "fixture contains fifty entities");
-        assert_eq!(all.len(), 100, "complete graph data retains one hundred evidenced edges");
-        let sc = vec![SceneText { scene_id: "s".into(), text: text.clone(), language: "it".into(), video_start_ms: 0, video_end_ms: 20000 }];
+        assert_eq!(
+            all.len(),
+            100,
+            "complete graph data retains one hundred evidenced edges"
+        );
+        let sc = vec![SceneText {
+            scene_id: "s".into(),
+            text: text.clone(),
+            language: "it".into(),
+            video_start_ms: 0,
+            video_end_ms: 20000,
+        }];
         let m = analyze(&sc, &[ents]);
-        assert_eq!(m.scenes[0].relations.len(), 100, "semantic manifest retains the complete graph");
+        assert_eq!(
+            m.scenes[0].relations.len(),
+            100,
+            "semantic manifest retains the complete graph"
+        );
         let graph_ids: BTreeSet<usize> = m.scenes[0]
             .relations
             .iter()
             .flat_map(|relation| relation.evidence_sentence_ids.iter().copied())
             .collect();
-        assert_eq!(graph_ids.len(), 100, "each relation preserves its distinct source sentence");
+        assert_eq!(
+            graph_ids.len(),
+            100,
+            "each relation preserves its distinct source sentence"
+        );
         validate_manifest(&m).expect("complete graph manifest valid");
     }
 
@@ -1684,12 +2033,32 @@ mod tests {
         let rich = analyze_density(
             "rich",
             &rs,
-            &["Alfa".into(), "Beta".into(), "Gamma".into(), "Delta".into(), "Epsilon".into(), "Zeta".into(), "Eta".into(), "Theta".into()],
+            &[
+                "Alfa".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+                "Epsilon".into(),
+                "Zeta".into(),
+                "Eta".into(),
+                "Theta".into(),
+            ],
             &BTreeSet::new(),
         );
-        assert_eq!(rich.new_entities, 8, "D02 fixture contains eight grounded entities");
-        assert_eq!(rich.numeric_claims, 5, "D02 fixture contains five stated numbers");
-        assert!(sparse.score < rich.score, "D01 < D02: {} vs {}", sparse.score, rich.score);
+        assert_eq!(
+            rich.new_entities, 8,
+            "D02 fixture contains eight grounded entities"
+        );
+        assert_eq!(
+            rich.numeric_claims, 5,
+            "D02 fixture contains five stated numbers"
+        );
+        assert!(
+            sparse.score < rich.score,
+            "D01 < D02: {} vs {}",
+            sparse.score,
+            rich.score
+        );
     }
 
     #[test]
@@ -1731,7 +2100,10 @@ mod tests {
         let sb: Vec<&Sentence> = ctx.sentences_for_scene("b");
         let da = analyze_density("a", &sa, &[], &BTreeSet::new());
         let db = analyze_density("b", &sb, &[], &BTreeSet::new());
-        assert!(db.score > da.score, "100 distinct-concept words outrank 100 repeated words");
+        assert!(
+            db.score > da.score,
+            "100 distinct-concept words outrank 100 repeated words"
+        );
         assert!(db.new_concepts > da.new_concepts);
     }
 
@@ -1739,10 +2111,19 @@ mod tests {
     fn cert_event_date_separate_from_video_window() {
         // T06: a 2020 spoken at video-second 60 keeps event_date on the
         // event and video time on the scene — never mixed.
-        let sc = vec![SceneText { scene_id: "s".into(), text: "Nel 2020 i costi aumentarono.".into(), language: "it".into(), video_start_ms: 60_000, video_end_ms: 80_000 }];
+        let sc = vec![SceneText {
+            scene_id: "s".into(),
+            text: "Nel 2020 i costi aumentarono.".into(),
+            language: "it".into(),
+            video_start_ms: 60_000,
+            video_end_ms: 80_000,
+        }];
         let m = analyze(&sc, &[vec![]]);
         let j = manifest_json(&m).expect("serializes");
-        assert!(!j.contains("video_start_ms"), "no video timestamps inside the manifest");
+        assert!(
+            !j.contains("video_start_ms"),
+            "no video timestamps inside the manifest"
+        );
         assert!(!j.contains("video_end_ms"));
         assert!(j.contains("2020"), "event date preserved");
         let ev = &m.scenes[0].temporal_events;
@@ -1753,7 +2134,13 @@ mod tests {
     #[test]
     fn cert_manifest_stable_over_100_runs() {
         // X06: same input 100 times → identical manifests.
-        let sc = vec![SceneText { scene_id: "s".into(), text: "Ford cresce, Toyota rallenta. Nel 2020 i costi aumentarono.".into(), language: "it".into(), video_start_ms: 0, video_end_ms: 20000 }];
+        let sc = vec![SceneText {
+            scene_id: "s".into(),
+            text: "Ford cresce, Toyota rallenta. Nel 2020 i costi aumentarono.".into(),
+            language: "it".into(),
+            video_start_ms: 0,
+            video_end_ms: 20000,
+        }];
         let ents = vec![vec!["Ford".into(), "Toyota".into()]];
         let first = analyze(&sc, &ents);
         for _ in 0..100 {

@@ -1,8 +1,8 @@
-use crate::artifact::{failed_response, part_path, publish_output};
+use super::{checked_multi_inputs, finish_run, ExpectedInputs};
+use crate::artifact::{failed_response, part_path};
+use crate::error::MuscleError;
 use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
-use std::fs;
-use std::path::Path;
 
 /// The copy-only mux must never reconcile a video/audio duration divergence by
 /// truncation (`-shortest`). The audio master is padded to cover the
@@ -42,36 +42,14 @@ fn duration_mismatch(video_sec: f64, audio_sec: f64) -> Option<String> {
 }
 
 pub(super) fn execute(request: Request) -> Response {
-    let inputs = request.input_paths.as_deref().unwrap_or_default();
-    if inputs.len() != 2 {
-        return failed_response(
-            None,
-            "mux_audio_copy requires exactly video and final audio inputs".to_string(),
-        );
-    }
-    if let Some(path) = inputs.iter().find(|path| !Path::new(path).is_file()) {
-        return failed_response(
-            Some(path.to_string()),
-            format!("source file is not readable: {path}"),
-        );
-    }
-    let output = match request.output_path.as_deref() {
-        Some(path) if !path.is_empty() => path,
-        _ => {
-            return failed_response(
-                Some(inputs[0].to_string()),
-                "output_path is required".to_string(),
-            )
-        }
+    let (inputs, output) = match checked_multi_inputs(
+        &request,
+        ExpectedInputs::Exactly(2),
+        "mux_audio_copy requires exactly video and final audio inputs",
+    ) {
+        Ok(values) => values,
+        Err(response) => return *response,
     };
-    if let Some(parent) = Path::new(output).parent() {
-        if let Err(error) = fs::create_dir_all(parent) {
-            return failed_response(
-                Some(inputs[0].to_string()),
-                format!("create output directory: {error}"),
-            );
-        }
-    }
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
     let ffprobe = crate::probe::ffprobe_path(ffmpeg);
 
@@ -90,12 +68,12 @@ pub(super) fn execute(request: Request) -> Response {
         let video = scope.spawn(move || crate::probe::probe_file(&ffprobe_video, video_path));
         let audio = scope.spawn(move || crate::probe::probe_file(&ffprobe_audio, audio_path));
         (
-            video.join().unwrap_or_else(|_| {
-                Err("video probe thread panicked".to_string())
-            }),
-            audio.join().unwrap_or_else(|_| {
-                Err("final audio probe thread panicked".to_string())
-            }),
+            video
+                .join()
+                .unwrap_or_else(|_| Err(MuscleError::generic("video probe thread panicked"))),
+            audio
+                .join()
+                .unwrap_or_else(|_| Err(MuscleError::generic("final audio probe thread panicked"))),
         )
     });
     let video_sec = match video_probe {
@@ -152,7 +130,7 @@ pub(super) fn execute(request: Request) -> Response {
         return failed_response(Some(inputs[0].to_string()), error);
     }
 
-    let part = part_path(output);
+    let part = part_path(&output);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args([
         "-hide_banner",
@@ -175,39 +153,18 @@ pub(super) fn execute(request: Request) -> Response {
         "+faststart",
         &part,
     ]);
-    match command.output() {
-        Ok(result) if result.status.success() => match publish_output(&part, output) {
-            Ok(()) => Response {
-                ok: true,
-                operation: "mux_audio_copy".to_string(),
-                source_path: Some(inputs[0].to_string()),
-                items: Vec::new(),
-                metadata: Some(MediaMetadata {
-                    audio_copy_eligible: Some(true),
-                    ..Default::default()
-                }),
-                error: None,
-            },
-            Err(error) => failed_response(Some(inputs[0].to_string()), error),
-        },
-        Ok(result) => {
-            let _ = fs::remove_file(&part);
-            failed_response(
-                Some(inputs[0].to_string()),
-                format!(
-                    "mux_audio_copy failed: {}",
-                    String::from_utf8_lossy(&result.stderr).trim()
-                ),
-            )
-        }
-        Err(error) => {
-            let _ = fs::remove_file(&part);
-            failed_response(
-                Some(inputs[0].to_string()),
-                format!("mux_audio_copy failed to start: {error}"),
-            )
-        }
-    }
+    let result = command.output();
+    finish_run(
+        "mux_audio_copy",
+        &inputs[0],
+        &part,
+        &output,
+        result,
+        Some(MediaMetadata {
+            audio_copy_eligible: Some(true),
+            ..Default::default()
+        }),
+    )
 }
 
 #[cfg(test)]

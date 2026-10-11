@@ -1,6 +1,93 @@
-use super::{Event, Plan};
+use crate::error::MuscleError;
 
-pub(super) fn validate_plan(plan: &Plan) -> Result<(), String> {
+/// Sealed compiled audio plan shapes (compiled-audio-plan.v1/v2).
+/// The protocol boundary holds these typed structs instead of untyped JSON:
+/// a malformed plan fails request parsing fail-closed.
+#[derive(Clone, Debug, serde::Deserialize)]
+pub(crate) struct Plan {
+    #[serde(default)]
+    pub(super) audio_plan_version: String,
+    pub(super) duration_us: i64,
+    // Frame-aligned pad target for the mastered file (audio_duration >=
+    // video_duration). Absent/zero means "pad to duration_us".
+    #[serde(default)]
+    pub(super) master_duration_us: Option<i64>,
+    #[serde(default)]
+    pub(super) primary_events: Vec<Event>,
+    #[serde(default)]
+    pub(super) tracks: Vec<Track>,
+    #[serde(default)]
+    pub(super) background_music: Vec<Layer>,
+    #[serde(default)]
+    pub(super) sfx: Vec<Layer>,
+    #[serde(default)]
+    pub(super) automation: Vec<Automation>,
+    pub(super) canonical_audio_profile: Output,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub(crate) struct Track {
+    pub(super) track_id: String,
+    pub(super) role: String,
+    #[serde(default)]
+    pub(super) events: Vec<Event>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub(crate) struct Event {
+    #[serde(default)]
+    pub(super) event_id: String,
+    pub(super) r#type: String,
+    pub(super) asset_id: Option<String>,
+    pub(super) timeline_start_us: i64,
+    pub(super) duration_us: i64,
+    #[serde(default)]
+    pub(super) source_in_us: i64,
+    #[serde(default)]
+    pub(super) source_duration_us: i64,
+    #[serde(default)]
+    pub(super) use_original_audio: bool,
+    #[serde(default)]
+    pub(super) gain_db: f64,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub(crate) struct Output {
+    pub(super) codec: String,
+    pub(super) profile: String,
+    pub(super) sample_rate: i64,
+    pub(super) channels: i64,
+    pub(super) channel_layout: String,
+    pub(super) bitrate: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub(crate) struct Layer {
+    pub(super) asset_id: String,
+    pub(super) timeline_start_us: i64,
+    pub(super) duration_us: i64,
+    #[serde(default)]
+    pub(super) gain_db: f64,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub(crate) struct Automation {
+    #[serde(default)]
+    pub(super) target_track_id: String,
+    #[serde(default)]
+    pub(super) target_layer: String,
+    #[serde(default)]
+    pub(super) trigger_track_id: String,
+    pub(super) start_us: i64,
+    pub(super) end_us: i64,
+    pub(super) gain_db: f64,
+    #[serde(default)]
+    pub(super) attack_us: i64,
+    #[serde(default)]
+    pub(super) release_us: i64,
+}
+
+pub(super) fn validate_plan(plan: &Plan) -> Result<(), MuscleError> {
     if !plan.audio_plan_version.is_empty()
         && plan.audio_plan_version != "compiled-audio-plan.v1"
         && plan.audio_plan_version != "compiled-audio-plan.v2"

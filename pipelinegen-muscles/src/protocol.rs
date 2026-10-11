@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::MuscleError;
+
 use crate::config;
+use crate::render_audio::CompiledAudioPlan;
+use crate::render_clip::SealedClipPlan;
+use crate::render_stock::SealedCanonicalPlan;
 
 pub const PROTOCOL_VERSION: &str = "mediaexec.v1";
 
@@ -104,17 +109,12 @@ pub struct Request {
     pub no_transitions: Option<bool>,
     pub clip_duration_sec: Option<i32>,
     pub transitions: Option<Vec<RenderTransition>>,
-    // Legacy selection inputs are accepted only so the protocol can reject
-    // unresolved requests explicitly; Rust never uses them to choose assets.
-    // REMOVAL GATE: these fields become deletable once every dispatcher
-    // build has rolled past the render_plan cutover (no caller sends
-    // transition_every / effects_dir / effect_every / no_effects); until
-    // then they keep unresolved requests failing with an explicit typed
-    // error instead of a raw serde unknown-field error.
-    pub transition_every: Option<i32>,
-    pub effects_dir: Option<String>,
-    pub effect_every: Option<i32>,
-    pub effect_index_hint: Option<i32>,
+    // Legacy unresolved-selection inputs (transition_every / effects_dir /
+    // effect_every / effect_index_hint) were removed once the Go transport
+    // stopped emitting them: the sealed render_plan is the only selection
+    // source, so a request that still carried them is now indistinguishable
+    // from any other planless render_stock and fails closed on the required
+    // render_plan instead of a bespoke legacy-field error.
     pub no_effects: Option<bool>,
     pub effect_paths: Option<Vec<RenderEffectPath>>,
     pub overlay_opacity: Option<f64>,
@@ -122,17 +122,24 @@ pub struct Request {
     pub effects: Option<Vec<RenderEffect>>,
     pub overlays: Option<Vec<RenderOverlay>>,
     pub max_duration_sec: Option<f64>,
-    pub audio_plan: Option<serde_json::Value>,
+    /// Typed compiled audio plan (compiled-audio-plan.v1/v2). A malformed
+    /// plan fails request parsing fail-closed instead of travelling as
+    /// untyped JSON.
+    pub(crate) audio_plan: Option<CompiledAudioPlan>,
     pub audio_assets: Option<Vec<AudioAsset>>,
     pub copy_certification: Option<CopyCertification>,
     // The Go boundary sends a sealed render plan. Rust treats it as an
     // audited contract and never derives timing or asset selection from it.
-    pub render_plan: Option<serde_json::Value>,
+    /// Typed sealed canonical render plan. A malformed plan fails request
+    /// parsing fail-closed instead of travelling as untyped JSON.
+    pub(crate) render_plan: Option<SealedCanonicalPlan>,
     // The Go boundary sends the sealed ClipRenderPlanV1 for render_clip.
     // Same audited-contract rule: Rust validates and executes it verbatim,
     // making zero business selections (background/watermark/subtitles/audio
     // policy/geometry all arrive resolved).
-    pub clip_plan: Option<serde_json::Value>,
+    /// Typed sealed clip render plan. A malformed plan fails request
+    /// parsing fail-closed instead of travelling as untyped JSON.
+    pub(crate) clip_plan: Option<SealedClipPlan>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -142,20 +149,23 @@ pub struct AudioAsset {
 }
 
 impl Request {
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), MuscleError> {
         if self.version != PROTOCOL_VERSION {
-            return Err(format!("unsupported protocol version: {}", self.version));
+            return Err(MuscleError::generic(format!(
+                "unsupported protocol version: {}",
+                self.version
+            )));
         }
         let require_source = || {
             if self.source_path.as_deref().unwrap_or("").trim().is_empty() {
-                Err("source_path is required".to_string())
+                Err(MuscleError::generic("source_path is required"))
             } else {
                 Ok(())
             }
         };
         let require_output = || {
             if self.output_path.as_deref().unwrap_or("").trim().is_empty() {
-                Err("output_path is required".to_string())
+                Err(MuscleError::generic("output_path is required"))
             } else {
                 Ok(())
             }
@@ -166,13 +176,13 @@ impl Request {
             Operation::CutBatch => {
                 require_source()?;
                 if self.jobs.as_ref().is_none_or(Vec::is_empty) {
-                    return Err("jobs are required".to_string());
+                    return Err(MuscleError::generic("jobs are required"));
                 }
                 Ok(())
             }
             Operation::RenderStock => {
                 if self.input_paths.as_ref().is_none_or(Vec::is_empty) {
-                    return Err("input_paths are required".to_string());
+                    return Err(MuscleError::generic("input_paths are required"));
                 }
                 require_output()
             }
@@ -180,7 +190,7 @@ impl Request {
                 require_source()?;
                 require_output()?;
                 if self.clip_plan.is_none() {
-                    return Err("clip_plan is required".to_string());
+                    return Err(MuscleError::generic("clip_plan is required"));
                 }
                 Ok(())
             }
@@ -203,17 +213,17 @@ impl Request {
             }
             Operation::MergeInputs => {
                 if self.input_paths.as_ref().is_none_or(Vec::is_empty) {
-                    return Err("input_paths are required".to_string());
+                    return Err(MuscleError::generic("input_paths are required"));
                 }
                 require_output()
             }
             Operation::RenderAudioPlan => {
                 require_output()?;
                 if self.audio_plan.is_none() {
-                    return Err("audio_plan is required".to_string());
+                    return Err(MuscleError::generic("audio_plan is required"));
                 }
                 if self.audio_assets.as_ref().is_none_or(Vec::is_empty) {
-                    return Err("audio_assets are required".to_string());
+                    return Err(MuscleError::generic("audio_assets are required"));
                 }
                 Ok(())
             }
@@ -224,17 +234,19 @@ impl Request {
                     .as_ref()
                     .is_none_or(|paths| paths.len() != 2)
                 {
-                    return Err("exactly video and final audio inputs are required".to_string());
+                    return Err(MuscleError::generic(
+                        "exactly video and final audio inputs are required",
+                    ));
                 }
                 Ok(())
             }
             Operation::AssembleCopy => {
                 if self.input_paths.as_ref().is_none_or(Vec::is_empty) {
-                    return Err("input_paths are required".to_string());
+                    return Err(MuscleError::generic("input_paths are required"));
                 }
                 require_output()?;
                 if self.copy_certification.is_none() {
-                    return Err("copy_certification is required".to_string());
+                    return Err(MuscleError::generic("copy_certification is required"));
                 }
                 Ok(())
             }
@@ -462,7 +474,8 @@ pub struct CopyCertification {
     pub closed_gop: Option<bool>,
     pub first_frame_keyframe: Option<bool>,
     /// Assembly-ready contract identity ("VELOX_ASSEMBLY_READY_V1").
-    /// Empty on legacy certifications; gate enforces it for new paths.
+    /// The assembly gate rejects a missing, empty, or unknown contract, so
+    /// every cert that reaches execution carries the canonical identity.
     #[serde(default)]
     pub contract_id: Option<String>,
     /// Stream signature SHA-256 fingerprint (canonical JSON of all video+audio+layout facts).
@@ -479,33 +492,45 @@ impl CopyCertification {
     /// Validates the copy-only certification. It fails closed: a missing or
     /// false field rejects the packet-copy path so the encoded composite path
     /// remains responsible for anything uncertified.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), MuscleError> {
         if !self.copy_eligible {
-            return Err("COPY_NOT_ELIGIBLE: copy_eligible is false".to_string());
+            return Err(MuscleError::copy_not_eligible("copy_eligible is false"));
         }
         if self.profile_id.as_deref().unwrap_or("").trim().is_empty() {
-            return Err("CERTIFICATION_REQUIRED: profile_id is required".to_string());
+            return Err(MuscleError::certification_required(
+                "profile_id is required",
+            ));
         }
         if self.codec.as_deref().unwrap_or("").trim().is_empty() {
-            return Err("CERTIFICATION_REQUIRED: codec is required".to_string());
+            return Err(MuscleError::certification_required("codec is required"));
         }
         if self.width.unwrap_or(0) == 0 || self.height.unwrap_or(0) == 0 {
-            return Err("CERTIFICATION_REQUIRED: width/height are required".to_string());
+            return Err(MuscleError::certification_required(
+                "width/height are required",
+            ));
         }
         if self.fps_num.unwrap_or(0) == 0 || self.fps_den.unwrap_or(0) == 0 {
-            return Err("CERTIFICATION_REQUIRED: fps_num/fps_den are required".to_string());
+            return Err(MuscleError::certification_required(
+                "fps_num/fps_den are required",
+            ));
         }
         if self.contract_id.as_deref() == Some(VELOX_ASSEMBLY_READY_V2) {
             if self.width != Some(1920) || self.height != Some(1080) {
-                return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires 1920x1080".to_string());
+                return Err(MuscleError::output_contract_mismatch(
+                    "V2 requires 1920x1080",
+                ));
             }
             if self.fps_num != Some(24) || self.fps_den != Some(1) {
-                return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires fps=24/1".to_string());
+                return Err(MuscleError::output_contract_mismatch(
+                    "V2 requires fps=24/1",
+                ));
             }
             if self.codec.as_deref() != Some("h264")
                 || self.codec_profile.as_deref() != Some("high")
             {
-                return Err("OUTPUT_CONTRACT_MISMATCH: V2 requires h264 High".to_string());
+                return Err(MuscleError::output_contract_mismatch(
+                    "V2 requires h264 High",
+                ));
             }
             if self
                 .video_extradata_sha256
@@ -518,32 +543,38 @@ impl CopyCertification {
                     .unwrap_or("")
                     .is_empty()
             {
-                return Err(
-                    "CERTIFICATION_REQUIRED: V2 requires audio/video extradata hashes".to_string(),
-                );
+                return Err(MuscleError::certification_required(
+                    "V2 requires audio/video extradata hashes",
+                ));
             }
         }
         if !self.closed_gop.unwrap_or(false) {
-            return Err("CERTIFICATION_REQUIRED: closed_gop must be true".to_string());
+            return Err(MuscleError::certification_required(
+                "closed_gop must be true",
+            ));
         }
         if !self.first_frame_keyframe.unwrap_or(false) {
-            return Err("CERTIFICATION_REQUIRED: first_frame_keyframe must be true".to_string());
+            return Err(MuscleError::certification_required(
+                "first_frame_keyframe must be true",
+            ));
         }
         Ok(())
     }
 
     /// Verifies that probed media matches the certified copy-only profile.
-    pub fn verify_metadata(&self, metadata: &MediaMetadata) -> Result<(), String> {
+    pub fn verify_metadata(&self, metadata: &MediaMetadata) -> Result<(), MuscleError> {
         if !metadata.has_video {
-            return Err("COPY_CERTIFICATION_VIOLATION: input has no video stream".to_string());
+            return Err(MuscleError::copy_certification_violation(
+                "input has no video stream",
+            ));
         }
         let width = self.width.unwrap_or(0);
         let height = self.height.unwrap_or(0);
         if metadata.width != width || metadata.height != height {
-            return Err(format!(
-                "COPY_CERTIFICATION_VIOLATION: geometry {}x{} != certified {}x{}",
+            return Err(MuscleError::copy_certification_violation(format!(
+                "geometry {}x{} != certified {}x{}",
                 metadata.width, metadata.height, width, height
-            ));
+            )));
         }
         let expected_num = self.fps_num.unwrap_or(0);
         let expected_den = self.fps_den.unwrap_or(0);
@@ -553,10 +584,10 @@ impl CopyCertification {
             || metadata.fps_den == 0
             || metadata.fps_num * expected_den != expected_num * metadata.fps_den
         {
-            return Err(format!(
-                "COPY_CERTIFICATION_VIOLATION: fps {}/{} != certified {}/{}",
+            return Err(MuscleError::copy_certification_violation(format!(
+                "fps {}/{} != certified {}/{}",
                 metadata.fps_num, metadata.fps_den, expected_num, expected_den
-            ));
+            )));
         }
         if self.contract_id.as_deref() == Some(VELOX_ASSEMBLY_READY_V2) {
             let checks = [
@@ -574,7 +605,7 @@ impl CopyCertification {
             ];
             for (actual, expected, label) in checks {
                 if actual != expected {
-                    return Err(format!("OUTPUT_CONTRACT_MISMATCH: {label}"));
+                    return Err(MuscleError::output_contract_mismatch(label));
                 }
             }
             if metadata.video_time_base_num != Some(1)
@@ -586,7 +617,9 @@ impl CopyCertification {
                 || metadata.b_frames != Some(0)
                 || metadata.closed_gop != Some(true)
             {
-                return Err("OUTPUT_CONTRACT_MISMATCH: V2 video timing/GOP properties".to_string());
+                return Err(MuscleError::output_contract_mismatch(
+                    "V2 video timing/GOP properties",
+                ));
             }
             if metadata.audio_codec.as_deref() != Some("aac")
                 || metadata.audio_profile.as_deref() != Some("LC")
@@ -597,24 +630,24 @@ impl CopyCertification {
                 || metadata.channel_layout.as_deref() != Some("stereo")
                 || metadata.audio_bitrate != Some(192000)
             {
-                return Err("OUTPUT_CONTRACT_MISMATCH: V2 audio properties".to_string());
+                return Err(MuscleError::output_contract_mismatch("V2 audio properties"));
             }
             if metadata.video_extradata_sha256.as_deref() != self.video_extradata_sha256.as_deref()
                 || metadata.audio_extradata_sha256.as_deref()
                     != self.audio_extradata_sha256.as_deref()
             {
-                return Err("OUTPUT_CONTRACT_MISMATCH: extradata hash".to_string());
+                return Err(MuscleError::output_contract_mismatch("extradata hash"));
             }
         }
         if !copy_codec_matches(
             metadata.video_codec.as_deref(),
             self.codec.as_deref().unwrap_or(""),
         ) {
-            return Err(format!(
-                "COPY_CERTIFICATION_VIOLATION: codec {:?} != certified {}",
+            return Err(MuscleError::copy_certification_violation(format!(
+                "codec {:?} != certified {}",
                 metadata.video_codec,
                 self.codec.as_deref().unwrap_or("")
-            ));
+            )));
         }
         Ok(())
     }
@@ -634,6 +667,7 @@ fn copy_codec_matches(actual: Option<&str>, expected: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::CopyCertification;
+    use crate::error::ErrorCode;
     use crate::protocol::MediaMetadata;
 
     fn certified() -> CopyCertification {
@@ -710,7 +744,10 @@ mod tests {
     fn copy_not_eligible_fails_closed() {
         let mut cert = certified();
         cert.copy_eligible = false;
-        assert!(cert.validate().unwrap_err().contains("COPY_NOT_ELIGIBLE"));
+        assert_eq!(
+            cert.validate().unwrap_err().code(),
+            ErrorCode::CopyNotEligible
+        );
     }
 
     #[test]
@@ -754,6 +791,7 @@ mod tests {
         assert!(cert
             .verify_metadata(&wrong_geometry)
             .unwrap_err()
+            .to_string()
             .contains("geometry"));
 
         let mut wrong_fps = metadata();
@@ -761,6 +799,7 @@ mod tests {
         assert!(cert
             .verify_metadata(&wrong_fps)
             .unwrap_err()
+            .to_string()
             .contains("fps"));
 
         let mut wrong_codec = metadata();
@@ -768,6 +807,7 @@ mod tests {
         assert!(cert
             .verify_metadata(&wrong_codec)
             .unwrap_err()
+            .to_string()
             .contains("codec"));
 
         let mut no_video = metadata();
@@ -775,6 +815,7 @@ mod tests {
         assert!(cert
             .verify_metadata(&no_video)
             .unwrap_err()
+            .to_string()
             .contains("no video"));
     }
 }
