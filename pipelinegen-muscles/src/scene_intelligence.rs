@@ -14,7 +14,7 @@
 //! No randomness, no wall-clock, no global state. Outputs are sorted.
 
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 /// Canonical manifest schema version.
 pub const SCHEMA_VERSION: &str = "scene_intelligence.v1";
@@ -23,8 +23,9 @@ pub const ANALYZER_VERSION: &str = "scene_intelligence.v1";
 /// Relation registry version (single typed contract shared by comparison,
 /// causal and entity-graph signals).
 pub const RELATION_REGISTRY_VERSION: &str = "relation_registry.v1";
-/// Max relation nodes admitted per scene composition (screen budget, not a
-/// knowledge cutoff: the full graph may be larger).
+/// Visual selection budget for entity graph compositions. The semantic
+/// manifest keeps every extracted relation; renderer/planner admission applies
+/// this separate display budget.
 pub const MAX_RELATION_NODES_PER_SCENE: usize = 6;
 
 // ── Shared context ────────────────────────────────────────────────
@@ -466,7 +467,7 @@ fn ground_subjects(sentence: &str, entities: &[String]) -> Vec<String> {
     let caps = capitalized_terms(sentence);
     let mut out = Vec::new();
     let mut seen_norm = std::collections::BTreeSet::new();
-    let mut push = |v: String, out: &mut Vec<String>, seen_norm: &mut std::collections::BTreeSet<String>| {
+    let push = |v: String, out: &mut Vec<String>, seen_norm: &mut std::collections::BTreeSet<String>| {
         let n = normalize_surface(&v);
         if n.is_empty() || !seen_norm.insert(n) {
             return;
@@ -1103,7 +1104,6 @@ pub fn extract_relations(sentence: &Sentence, entities: &[String]) -> Vec<Entity
             }
         }
     }
-    out.truncate(MAX_RELATION_NODES_PER_SCENE);
     out
 }
 
@@ -1167,7 +1167,6 @@ pub fn analyze(scenes: &[SceneText], entities_per_scene: &[Vec<String>]) -> Scen
         for s in &sents {
             relations.extend(extract_relations(s, entities));
         }
-        relations.truncate(MAX_RELATION_NODES_PER_SCENE);
         out.push(SceneSignals {
             scene_id: scene.scene_id.clone(),
             density,
@@ -1202,16 +1201,54 @@ pub fn validate_manifest(m: &SceneIntelligenceManifest) -> Result<(), String> {
         if !seen.insert(s.scene_id.clone()) {
             return Err(format!("duplicate scene {}", s.scene_id));
         }
+        if s.density.scene_id != s.scene_id {
+            return Err(format!("density scene reference mismatch in {}", s.scene_id));
+        }
         if !(0.0..=1.0).contains(&s.density.score) {
             return Err(format!("density out of range in {}", s.scene_id));
         }
         for c in &s.comparisons {
+            if c.scene_id != s.scene_id {
+                return Err(format!("comparison scene reference mismatch in {}", s.scene_id));
+            }
+            if c.subjects.len() < 2 || c.subjects.iter().any(|subject| subject.trim().is_empty()) {
+                return Err(format!("comparison subjects invalid in {}", s.scene_id));
+            }
+            if c.evidence_sentence_ids.is_empty() {
+                return Err(format!("comparison evidence missing in {}", s.scene_id));
+            }
             if c.kind == "comparison" && c.candidate_visual == "split_comparison" && !c.values.is_empty() {
                 return Err("qualitative comparison must not carry values".to_string());
             }
+            if c.values.iter().any(|value| !value.is_finite()) {
+                return Err(format!("comparison has non-finite value in {}", s.scene_id));
+            }
         }
-        if s.relations.len() > MAX_RELATION_NODES_PER_SCENE {
-            return Err(format!("too many relation nodes in {}", s.scene_id));
+        for c in &s.causal {
+            if c.cause.trim().is_empty() || c.effect.trim().is_empty() || !(0.0..=1.0).contains(&c.extraction_confidence) {
+                return Err(format!("causal relation invalid in {}", s.scene_id));
+            }
+            if c.evidence_sentence_ids.is_empty() {
+                return Err(format!("causal evidence missing in {}", s.scene_id));
+            }
+        }
+        for event in &s.temporal_events {
+            if event.event_id.trim().is_empty() || !(0.0..=1.0).contains(&event.certainty) {
+                return Err(format!("temporal event invalid in {}", s.scene_id));
+            }
+            if let (Some(start), Some(end)) = (event.normalized_year, event.normalized_end_year) {
+                if end < start {
+                    return Err(format!("temporal interval is reversed in {}", s.scene_id));
+                }
+            }
+        }
+        for relation in &s.relations {
+            if relation.subject.trim().is_empty() || relation.object.trim().is_empty() || relation.subject == relation.object {
+                return Err(format!("entity relation endpoints invalid in {}", s.scene_id));
+            }
+            if relation.evidence_sentence_ids.is_empty() {
+                return Err(format!("entity relation evidence missing in {}", s.scene_id));
+            }
         }
     }
     Ok(())
@@ -1293,9 +1330,7 @@ mod tests {
         assert_eq!(years, vec![2020, 2022, 2024], "chronological order despite narration order");
         // Narration order preserved alongside.
         let narr: Vec<usize> = events.iter().map(|e| e.narration_index).collect();
-        let mut sorted = narr.clone();
-        sorted.sort_unstable();
-        assert_eq!(narr.into_iter().collect::<BTreeSet<_>>(), sorted.into_iter().collect::<BTreeSet<_>>());
+        assert_eq!(narr, vec![1, 1, 0], "chronological sorting preserves each event's narration index");
         // No video timestamps leak into events.
         let j = serde_json::to_string(&events).unwrap();
         assert!(!j.contains("video"), "event time and video time stay separate");
@@ -1334,6 +1369,30 @@ mod tests {
     }
 
     #[test]
+    fn manifest_rejects_broken_scene_references_and_evidence() {
+        let scene = SceneSignals {
+            scene_id: "s".into(),
+            density: Density {
+                scene_id: "other".into(), score: 0.2, level: "low".into(),
+                new_entities: 0, numeric_claims: 0, new_concepts: 0,
+                suggested_visual_budget: "standard".into(),
+            },
+            comparisons: vec![], causal: vec![], temporal_events: vec![], relations: vec![],
+        };
+        let mut manifest = SceneIntelligenceManifest {
+            schema_version: SCHEMA_VERSION.into(), analyzer_version: ANALYZER_VERSION.into(),
+            relation_registry_version: RELATION_REGISTRY_VERSION.into(), scenes: vec![scene],
+        };
+        assert!(validate_manifest(&manifest).unwrap_err().contains("scene reference mismatch"));
+        manifest.scenes[0].density.scene_id = "s".into();
+        manifest.scenes[0].relations.push(EntityRelation {
+            subject: "a".into(), object: "b".into(), relation: "partners_with".into(),
+            evidence_sentence_ids: vec![],
+        });
+        assert!(validate_manifest(&manifest).unwrap_err().contains("evidence missing"));
+    }
+
+    #[test]
     fn manifest_rejects_qualitative_with_values() {
         let mut m = analyze(
             &[SceneText { scene_id: "s".into(), text: "Ford cresce, Toyota rallenta.".into(), language: "it".into(), video_start_ms: 0, video_end_ms: 1000 }],
@@ -1365,15 +1424,28 @@ mod tests {
     }
 
     #[test]
-    fn relation_nodes_capped_per_scene() {
-        let mut s = Sentence { id: 0, scene_id: "s".into(), index_in_scene: 0, text: "Ford collabora con Toyota e compete con Volkswagen mentre Siemens finanzia Bosch che possiede E.ON.".into(), start_byte: 0, end_byte: 10 };
-        let ents = vec!["ford".into(), "toyota".into(), "volkswagen".into(), "siemens".into(), "bosch".into(), "e.on".into(), "extra".into()];
-        // extract_relations returns at most one marker relation per sentence;
-        // the cap applies at manifest assembly across sentences.
-        let r = extract_relations(&s, &ents);
-        assert!(r.len() <= MAX_RELATION_NODES_PER_SCENE);
-        s.id = 1;
-        let _ = r;
+    fn relation_extractor_retains_each_explicit_evidenced_edge() {
+        let inputs = [
+            (0, "Ford collabora con Toyota.", "ford", "toyota", "partners_with"),
+            (1, "Ford compete con Volkswagen.", "ford", "volkswagen", "competes_with"),
+            (2, "Siemens finanzia Bosch.", "siemens", "bosch", "funds"),
+            (3, "Bosch possiede E.ON.", "bosch", "e.on", "owns"),
+        ];
+        for (id, text, subject, object, expected_kind) in inputs {
+            let sentence = Sentence {
+                id,
+                scene_id: "s".into(),
+                index_in_scene: id,
+                text: text.into(),
+                start_byte: 0,
+                end_byte: text.len(),
+            };
+            let entities = vec![subject.into(), object.into()];
+            let relations = extract_relations(&sentence, &entities);
+            assert_eq!(relations.len(), 1, "one marker-grounded edge: {text}");
+            assert_eq!(relations[0].relation, expected_kind, "typed relation: {text}");
+            assert_eq!(relations[0].evidence_sentence_ids, vec![id]);
+        }
     }
 
     #[test]
@@ -1522,6 +1594,25 @@ mod tests {
     // ── Runtime certification: entity graph ──
 
     #[test]
+    fn cert_ownership_and_collaboration_are_distinct() {
+        // G01/G02: an explicit ownership marker and a collaboration marker
+        // produce typed, non-interchangeable directed edges.
+        let (_v, ctx) = scenes(&[
+            ("owns", "Alfa possiede Beta."),
+            ("partners", "Alfa collabora con Beta."),
+        ]);
+        let owns_sentence = ctx.sentences_for_scene("owns");
+        let partners_sentence = ctx.sentences_for_scene("partners");
+        let entities = &["alfa".to_string(), "beta".to_string()];
+        let owns = extract_relations(owns_sentence[0], entities);
+        let partners = extract_relations(partners_sentence[0], entities);
+        assert_eq!(owns.len(), 1);
+        assert_eq!(owns[0].relation, "owns");
+        assert_eq!(partners.len(), 1);
+        assert_eq!(partners[0].relation, "partners_with");
+    }
+
+    #[test]
     fn cert_negated_ownership_links_nothing_positive() {
         // G04: "non possiede più" keeps negation and time: no `owns`.
         let (_v, ctx) = scenes(&[("s", "Ford non possiede più Rivian dal 2023.")]);
@@ -1532,29 +1623,50 @@ mod tests {
 
     #[test]
     fn cert_alias_surfaces_share_identity() {
-        // G05: certain aliases ground to one canonical surface.
-        let subjects = ground_subjects("Volkswagen (VW) cresce.", &["volkswagen".into(), "vw".into()]);
-        let norm: std::collections::BTreeSet<String> = subjects.iter().map(|s| normalize_surface(s)).collect();
-        assert_eq!(norm.len(), subjects.len(), "no duplicate normalized identities");
+        // G05: casing/punctuation variants of the same supplied canonical
+        // surface collapse; arbitrary abbreviations (e.g. VW) require an
+        // upstream alias registry and are intentionally not guessed here.
+        let subjects = ground_subjects(
+            "Volkswagen (VOLKSWAGEN) cresce.",
+            &["Volkswagen".into(), "volkswagen".into()],
+        );
+        assert_eq!(subjects.len(), 1, "same normalized identity is emitted once");
+        assert_eq!(normalize_surface(&subjects[0]), "volkswagen");
     }
 
     #[test]
-    fn cert_extractor_uncapped_visual_capped() {
-        // G06: the data graph stays complete across sentences; only the
-        // per-scene visual composition is capped.
-        let text = (0..10)
-            .map(|i| format!("Azienda{} collabora con Partner{}.", i, i))
-            .collect::<Vec<_>>()
-            .join(" ");
+    fn cert_extractor_keeps_full_graph_for_separate_visual_budget() {
+        // G06 data half: fifty distinct entities participate in one hundred
+        // explicit relations. The semantic manifest must retain all edges;
+        // the separate visual admission layer is responsible for display caps.
+        let entity_name = |prefix: &str, index: usize| format!("{prefix}{index:02}");
+        let sentences = (0..100)
+            .map(|i| format!(
+                "{} collabora con {}.",
+                entity_name("Azienda", i / 4),
+                entity_name("Partner", (i / 4 + i % 4) % 25),
+            ))
+            .collect::<Vec<_>>();
+        let text = sentences.join(" ");
         let (_v, ctx) = scenes(&[("s", &text)]);
         let sents: Vec<&Sentence> = ctx.sentences_for_scene("s");
-        let ents: Vec<String> = (0..10).flat_map(|i| vec![format!("azienda{}", i), format!("partner{}", i)]).collect();
+        let ents: Vec<String> = (0..25)
+            .map(|i| entity_name("Azienda", i).to_lowercase())
+            .chain((0..25).map(|i| entity_name("Partner", i).to_lowercase()))
+            .collect();
         let all: Vec<EntityRelation> = sents.iter().flat_map(|s| extract_relations(s, &ents)).collect();
-        assert_eq!(all.len(), 10, "data graph complete");
+        assert_eq!(ents.len(), 50, "fixture contains fifty entities");
+        assert_eq!(all.len(), 100, "complete graph data retains one hundred evidenced edges");
         let sc = vec![SceneText { scene_id: "s".into(), text: text.clone(), language: "it".into(), video_start_ms: 0, video_end_ms: 20000 }];
         let m = analyze(&sc, &[ents]);
-        assert!(m.scenes[0].relations.len() <= MAX_RELATION_NODES_PER_SCENE, "visual subgraph capped");
-        validate_manifest(&m).expect("capped manifest valid");
+        assert_eq!(m.scenes[0].relations.len(), 100, "semantic manifest retains the complete graph");
+        let graph_ids: BTreeSet<usize> = m.scenes[0]
+            .relations
+            .iter()
+            .flat_map(|relation| relation.evidence_sentence_ids.iter().copied())
+            .collect();
+        assert_eq!(graph_ids.len(), 100, "each relation preserves its distinct source sentence");
+        validate_manifest(&m).expect("complete graph manifest valid");
     }
 
     // ── Runtime certification: density ordering ──
@@ -1564,13 +1676,20 @@ mod tests {
         // D01 < D02: ordering over cases, never an exact magic number.
         let (_v, ctx) = scenes(&[
             ("sparse", "Il giorno era bello e calmo."),
-            ("rich", "Nel 2020 Siemens, Volkswagen e Bosch annunciarono investimenti da 120 milioni mentre i costi energetici del 34% riducevano i margini e la collaborazione con E.ON ridefiniva la strategia."),
+            ("rich", "Alfa conta 17 tecnici e 23 impianti. Beta registra 31 ordini mentre Gamma cresce dopo Delta perché Epsilon investe 42 milioni rispetto a Zeta, Eta e Theta con 56 prodotti."),
         ]);
         let ss: Vec<&Sentence> = ctx.sentences_for_scene("sparse");
         let rs: Vec<&Sentence> = ctx.sentences_for_scene("rich");
         let sparse = analyze_density("sparse", &ss, &[], &BTreeSet::new());
-        let rich = analyze_density("rich", &rs, &["Siemens".into(), "Volkswagen".into(), "Bosch".into(), "E.ON".into()], &BTreeSet::new());
-        assert!(sparse.score < rich.score, "rich scene denser: {} vs {}", sparse.score, rich.score);
+        let rich = analyze_density(
+            "rich",
+            &rs,
+            &["Alfa".into(), "Beta".into(), "Gamma".into(), "Delta".into(), "Epsilon".into(), "Zeta".into(), "Eta".into(), "Theta".into()],
+            &BTreeSet::new(),
+        );
+        assert_eq!(rich.new_entities, 8, "D02 fixture contains eight grounded entities");
+        assert_eq!(rich.numeric_claims, 5, "D02 fixture contains five stated numbers");
+        assert!(sparse.score < rich.score, "D01 < D02: {} vs {}", sparse.score, rich.score);
     }
 
     #[test]
@@ -1589,10 +1708,25 @@ mod tests {
     #[test]
     fn cert_density_new_info_increases_at_same_length() {
         // D04: same word count, more distinct concepts → higher density.
-        let (_v, ctx) = scenes(&[
-            ("a", "costi costi costi costi costi costi costi costi costi costi"),
-            ("b", "costi margini investimenti imprese energia strategia mercato utili tassi rischio"),
-        ]);
+        let repeated = vec!["costi"; 100].join(" ");
+        let alphabetic_suffix = |mut n: usize| {
+            let mut chars = Vec::new();
+            loop {
+                chars.push((b'a' + (n % 26) as u8) as char);
+                n /= 26;
+                if n == 0 {
+                    break;
+                }
+            }
+            chars.into_iter().rev().collect::<String>()
+        };
+        let distinct = (0..100)
+            .map(|i| format!("concetto{}", alphabetic_suffix(i)))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(repeated.split_whitespace().count(), 100);
+        assert_eq!(distinct.split_whitespace().count(), 100);
+        let (_v, ctx) = scenes(&[("a", &repeated), ("b", &distinct)]);
         let sa: Vec<&Sentence> = ctx.sentences_for_scene("a");
         let sb: Vec<&Sentence> = ctx.sentences_for_scene("b");
         let da = analyze_density("a", &sa, &[], &BTreeSet::new());
