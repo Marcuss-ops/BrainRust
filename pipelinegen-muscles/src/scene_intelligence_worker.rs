@@ -115,11 +115,69 @@ fn process_analyze(value: &serde_json::Value) -> String {
     paired.sort_by(|a, b| a.0.scene_id.cmp(&b.0.scene_id));
     let scenes: Vec<SceneText> = paired.iter().map(|(s, _)| s.clone()).collect();
     let entities_per_scene: Vec<Vec<String>> = paired.into_iter().map(|(_, e)| e).collect();
-    let manifest = scene_intelligence::analyze(&scenes, &entities_per_scene);
+    let mut manifest = scene_intelligence::analyze(&scenes, &entities_per_scene);
     if let Err(error) = scene_intelligence::validate_manifest(&manifest) {
         return json_error(format!("scene intelligence manifest invalid: {error}"));
     }
+    if let Err(error) = make_evidence_indices_scene_local(&mut manifest, &scenes) {
+        return json_error(format!(
+            "scene intelligence evidence indices invalid: {error}"
+        ));
+    }
     serde_json::json!({"ok": true, "manifest": manifest}).to_string()
+}
+
+// Detector internals use globally unique sentence IDs to share one context.
+// The public manifest is per-scene, however, so export local sentence indices
+// that consumers can validate against the owning scene text.
+fn make_evidence_indices_scene_local(
+    manifest: &mut scene_intelligence::SceneIntelligenceManifest,
+    scenes: &[SceneText],
+) -> Result<(), String> {
+    let mut base = 0usize;
+    for scene in scenes {
+        let count = scene_intelligence::split_sentences(&scene.text, &scene.language).len();
+        let end = base + count;
+        let Some(signals) = manifest
+            .scenes
+            .iter_mut()
+            .find(|signals| signals.scene_id == scene.scene_id)
+        else {
+            return Err(format!("missing scene {}", scene.scene_id));
+        };
+        let localize = |ids: &mut Vec<usize>| -> Result<(), String> {
+            for id in ids.iter_mut() {
+                if *id < base || *id >= end {
+                    return Err(format!(
+                        "scene {} cites sentence {} outside [{base}, {end})",
+                        scene.scene_id, *id
+                    ));
+                }
+                *id -= base;
+            }
+            Ok(())
+        };
+        for comparison in &mut signals.comparisons {
+            localize(&mut comparison.evidence_sentence_ids)?;
+        }
+        for relation in &mut signals.causal {
+            localize(&mut relation.evidence_sentence_ids)?;
+        }
+        for event in &mut signals.temporal_events {
+            if event.narration_index < base || event.narration_index >= end {
+                return Err(format!(
+                    "scene {} narration index {} outside [{base}, {end})",
+                    scene.scene_id, event.narration_index
+                ));
+            }
+            event.narration_index -= base;
+        }
+        for relation in &mut signals.relations {
+            localize(&mut relation.evidence_sentence_ids)?;
+        }
+        base = end;
+    }
+    Ok(())
 }
 
 fn process_split(value: &serde_json::Value) -> String {
@@ -212,6 +270,47 @@ mod tests {
         assert_eq!(
             response["manifest"]["schema_version"],
             "scene_intelligence.v1"
+        );
+    }
+
+    #[test]
+    fn evidence_indices_are_scene_local_in_worker_manifest() {
+        let request = serde_json::json!({
+            "operation": "analyze",
+            "scenes": [
+                {"scene_id": "scene-02", "text": "Ford collabora con Toyota. Ford cresce mentre Toyota rallenta.", "language": "it", "video_start_ms": 1000, "video_end_ms": 3000},
+                {"scene_id": "scene-01", "text": "Nel 2020 i costi aumentarono.", "language": "it", "video_start_ms": 0, "video_end_ms": 1000}
+            ],
+            "entities_per_scene": [["Ford", "Toyota"], []]
+        }).to_string();
+        let response: Value = serde_json::from_str(&process_line(&request)).unwrap();
+        assert_eq!(response["ok"], true, "{}", response);
+        let later_scene = response["manifest"]["scenes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|scene| scene["scene_id"] == "scene-02")
+            .unwrap();
+        let relations = later_scene["relations"].as_array().unwrap();
+        assert!(
+            !relations.is_empty(),
+            "fixture must produce an entity relation"
+        );
+        assert_eq!(
+            relations[0]["evidence_sentence_ids"][0], 0,
+            "global sentence id 1 must be localized to scene sentence 0"
+        );
+        let temporal_events = response["manifest"]["scenes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|scene| scene["scene_id"] == "scene-01")
+            .unwrap()["temporal_events"]
+            .as_array()
+            .unwrap();
+        assert_eq!(
+            temporal_events[0]["narration_index"], 0,
+            "the first scene's year remains local sentence 0"
         );
     }
 
