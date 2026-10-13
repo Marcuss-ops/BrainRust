@@ -65,8 +65,14 @@ impl RustProcessRunner {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
         let mut child = command.spawn()?;
-        let stdout = child.stdout.take().expect("stdout was piped");
-        let stderr = child.stderr.take().expect("stderr was piped");
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| io::Error::other("child stdout was not piped"))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| io::Error::other("child stderr was not piped"))?;
         let limit = self.output_limit;
         let stdout_thread = thread::spawn(move || read_tail(stdout, limit, |_| {}));
         let stderr_thread = thread::spawn(move || read_tail(stderr, limit, on_line));

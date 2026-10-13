@@ -78,6 +78,13 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
                     && !(candidate.start == *start && candidate.end == *end)
             })
         })
+        // A bare number followed by a scale word ("2" in "2 Millionen") is
+        // part of a scaled quantity; the value span carries it, so the bare
+        // number must not become an entity that charts as 2.0.
+        .filter(|candidate| {
+            let bare = candidate.text.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | ','));
+            !(bare && values::scale_word_follows(source_text, candidate.end))
+        })
         .filter_map(|c| validate_evidence(c, source_text))
         .map(score_entity)
         .collect();

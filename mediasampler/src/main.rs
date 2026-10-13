@@ -1,4 +1,5 @@
 use mediasampler::{sample_scene, BoundAssets, Candidate, SampleOptions, SampleResult, Scene};
+use ndjson_stdio::{check_envelope, ErrorCode, WorkerError};
 use serde::{Deserialize, Serialize};
 
 /// One ledger entry binding an asset to the scene that won it. The worker
@@ -44,8 +45,15 @@ struct SampleResponse {
     error: Option<String>,
 }
 
-fn error_response(message: String) -> String {
-    serde_json::json!({"results": [], "winner_id": null, "error": message}).to_string()
+fn error_response(error: &WorkerError) -> String {
+    error.log();
+    serde_json::json!({
+        "results": [],
+        "winner_id": null,
+        "error": error.message,
+        "error_code": error.code,
+    })
+    .to_string()
 }
 
 fn main() {
@@ -62,27 +70,23 @@ fn process_line(line: &str) -> String {
     let request: SampleRequest = match serde_json::from_str(line) {
         Ok(request) => request,
         Err(error) => {
-            let message = format!("mediasampler decode: {error}");
-            eprintln!("{message}");
-            return error_response(message);
+            return error_response(&WorkerError::new(
+                ErrorCode::Decode,
+                format!("mediasampler decode: {error}"),
+            ));
         }
     };
-    // Fail closed on unknown envelope values instead of silently
-    // ignoring them: a contract drift between Go and Rust must surface
-    // as an error, not as a mis-sampled scene.
-    if let Some(version) = request.version.as_deref() {
-        if version != "mediasampler.v1" {
-            let message = format!("mediasampler: unsupported version: {version}");
-            eprintln!("{message}");
-            return error_response(message);
-        }
-    }
-    if let Some(operation) = request.operation.as_deref() {
-        if operation != "select" {
-            let message = format!("mediasampler: unsupported operation: {operation}");
-            eprintln!("{message}");
-            return error_response(message);
-        }
+    // Fail closed on unknown envelope values instead of silently ignoring
+    // them: a contract drift between Go and Rust must surface as an error,
+    // not as a mis-sampled scene.
+    if let Err(error) = check_envelope(
+        "mediasampler",
+        request.version.as_deref(),
+        "mediasampler.v1",
+        request.operation.as_deref(),
+        "select",
+    ) {
+        return error_response(&error);
     }
     let mut bound = BoundAssets::new();
     for entry in &request.bound_assets {
@@ -94,10 +98,15 @@ fn process_line(line: &str) -> String {
     };
     let (results, winner_id) =
         sample_scene(&request.scene, &request.candidates, &options, &mut bound);
-    serde_json::to_string(&SampleResponse {
+    match serde_json::to_string(&SampleResponse {
         results,
         winner_id,
         error: None,
-    })
-    .expect("mediasampler encode")
+    }) {
+        Ok(line) => line,
+        Err(error) => error_response(&WorkerError::new(
+            ErrorCode::Encode,
+            format!("mediasampler encode: {error}"),
+        )),
+    }
 }

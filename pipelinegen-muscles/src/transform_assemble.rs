@@ -63,11 +63,10 @@ pub(super) fn execute(request: Request) -> Response {
     let ffprobe = ffprobe_path(ffmpeg);
 
     // ── AssemblyCompatibilityGate: probe all inputs concurrently ──
-    let probe_results = probe_all_inputs_concurrent(&ffprobe, &inputs);
-    if let Err(error) = probe_results {
-        return failed_response(Some(inputs[0].to_string()), error);
-    }
-    let probes = probe_results.unwrap();
+    let probes = match probe_all_inputs_concurrent(&ffprobe, &inputs) {
+        Ok(probes) => probes,
+        Err(error) => return failed_response(Some(inputs[0].to_string()), error),
+    };
     if let Err(error) = assembly_compatibility_gate(cert, &probes) {
         return failed_response(Some(inputs[0].to_string()), error);
     }

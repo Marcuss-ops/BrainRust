@@ -71,7 +71,15 @@ pub fn run_stdio() -> io::Result<()> {
                 error: Some(format!("invalid request: {error}")),
             },
         };
-        serde_json::to_string(&response).expect("dispatcher response serializes")
+        match serde_json::to_string(&response) {
+            Ok(line) => line,
+            Err(error) => serde_json::json!({
+                "ok": false,
+                "operation": "invalid",
+                "error": format!("dispatcher encode: {error}"),
+            })
+            .to_string(),
+        }
     })
 }
 

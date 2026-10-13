@@ -157,6 +157,29 @@ fn classify_type(text: &str) -> String {
     "VISUAL_CONCEPT".to_string()
 }
 
+// Scale words in the supported languages. Like the English "million" and
+// "thousand", they make the number a scaled quantity, so the span must keep
+// them: a bare "2" or "500" would otherwise become its own entity and chart
+// with the unscaled value.
+pub(super) const LOCAL_SCALE_WORDS: &[&str] = &[
+    "miliardi", "milioni", "milliarden", "millionen", "milliards", "millions",
+    "millones", "miliardy", "miliardów", "milionów", "miliony", "миллиардов",
+    "миллиарда", "миллионов", "миллиона", "milyar", "milyon", "miliar", "triliun",
+    "juta",
+    // thousands
+    "mila", "mil", "mille", "tausend", "tysięcy", "tysiące", "tysiecy",
+    "тысяч", "тысячи", "тысяча", "bin", "ribu",
+];
+/// True when a scale word (`million`, `milioni`, `Millionen`, ...) follows
+/// `end` after optional whitespace, so the number before it is a scaled quantity.
+pub(super) fn scale_word_follows(source_text: &str, end: usize) -> bool {
+    let tail = source_text[end..].trim_start().to_lowercase();
+    LOCAL_SCALE_WORDS
+        .iter()
+        .chain(["million", "billion", "trillion"].iter())
+        .any(|word| tail.starts_with(word) && has_word_boundary(&tail, word.len()))
+}
+
 /// Find source-grounded numeric spans ignored by the noun-phrase tokenizer.
 pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
     let bytes = source_text.as_bytes();
@@ -201,18 +224,14 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
         while prefix > 0 && bytes[prefix - 1].is_ascii_whitespace() {
             prefix -= 1;
         }
-        if prefix > 0
-            && matches!(
-                bytes[prefix - 1],
-                b'$' | b'\xC2' | b'\xA3' | b'\xE2' | b'\x82' | b'\xAC'
-            )
+        // Match the whole preceding character: a single UTF-8 byte is not a
+        // currency sign ("ł" ends in 0x82, the euro sign's continuation byte).
+        if let Some(currency) = source_text[..prefix]
+            .chars()
+            .next_back()
+            .filter(|ch| matches!(ch, '$' | '£' | '€'))
         {
-            start = prefix - 1;
-            if bytes[start] & 0x80 != 0 {
-                while start > 0 && bytes[start] & 0xC0 == 0x80 {
-                    start -= 1;
-                }
-            }
+            start = prefix - currency.len_utf8();
             kind = "MONEY";
         }
         let mut suffix = end;
@@ -220,6 +239,9 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
             suffix += 1;
         }
         let tail = source_text[suffix..].to_lowercase();
+        let local_scale = LOCAL_SCALE_WORDS
+            .iter()
+            .find(|word| tail.starts_with(**word) && has_word_boundary(&tail, word.len()));
         let unit = [
             "percent",
             "%",
@@ -249,6 +271,10 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
         ]
         .iter()
         .find(|unit| tail.starts_with(**unit));
+        let unit = unit.filter(|_| local_scale.is_none());
+        if let Some(scale) = local_scale {
+            end = suffix + scale.len();
+        }
         if let Some(unit) = unit.filter(|unit| has_word_boundary(&tail, unit.len())) {
             end = suffix + unit.len();
             if unit.contains("dollar")

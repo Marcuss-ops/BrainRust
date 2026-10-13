@@ -199,8 +199,14 @@ pub(super) fn render_clip(request: Request) -> Response {
     let encode_started = std::time::Instant::now();
     let bench = Arc::new(Mutex::new(BenchAccumulator::default()));
     let bench_for_thread = Arc::clone(&bench);
+    // A poisoned lock only means a previous line handler panicked while
+    // updating benchmark counters; the counters remain usable, so recover the
+    // guard instead of panicking the render.
     let on_bench_line = move |line: &str| {
-        bench_for_thread.lock().unwrap().handle_line(line);
+        bench_for_thread
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .handle_line(line);
     };
     let encode_result = command.output_with_line_handler(on_bench_line);
     let ffmpeg_ms = encode_started.elapsed().as_millis() as i64;
@@ -210,7 +216,7 @@ pub(super) fn render_clip(request: Request) -> Response {
     // raster + watermark + compositing + conversions) plus demux/mux and the
     // +faststart pass. saw_bench=false means the ffmpeg build emitted no
     // bench lines → phases stay NOT_INSTRUMENTED (never a fake zero).
-    let bench_state = bench.lock().unwrap();
+    let bench_state = bench.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let saw_bench = bench_state.saw_bench;
     let decode_ms = bench_state.decode_us / 1000;
     let encode_ms = bench_state.encode_us / 1000;
