@@ -118,8 +118,42 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
         index_by_key.insert(key, unique.len());
         unique.push(entity);
     }
-    unique.truncate(options.top_n());
-    Ok(unique)
+    Ok(reserve_numeric_slots(unique, options.top_n()))
+}
+
+/// Applies the top-N cap while keeping a minimum share of numeric value
+/// entities (NUMBER/PERCENT/MONEY). Without this, a low cap ranks every value
+/// below the identities and the chart loses its numbers entirely. The share is
+/// a third of the cap (at least one slot); numeric entities beyond the cap
+/// replace the lowest-ranked non-numeric entities only when fewer numerics
+/// made the cut. Surviving entities keep their original rank order.
+fn reserve_numeric_slots(ranked: Vec<VisualEntity>, top_n: usize) -> Vec<VisualEntity> {
+    if ranked.len() <= top_n {
+        return ranked;
+    }
+    let is_numeric = |e: &VisualEntity| matches!(e.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY");
+    let reserve = (top_n / 3).max(1).min(top_n);
+    let kept_numeric = ranked[..top_n].iter().filter(|e| is_numeric(e)).count();
+    let spare: Vec<usize> = (top_n..ranked.len()).filter(|&i| is_numeric(&ranked[i])).collect();
+    let needed = reserve.saturating_sub(kept_numeric).min(spare.len());
+    let mut keep = vec![true; top_n];
+    let mut evicted = 0;
+    for pos in (0..top_n).rev() {
+        if evicted == needed {
+            break;
+        }
+        if !is_numeric(&ranked[pos]) {
+            keep[pos] = false;
+            evicted += 1;
+        }
+    }
+    let mut selected: Vec<usize> = (0..top_n).filter(|&pos| keep[pos]).chain(spare.into_iter().take(needed)).collect();
+    selected.sort_unstable();
+    let mut slots: Vec<Option<VisualEntity>> = ranked.into_iter().map(Some).collect();
+    selected
+        .into_iter()
+        .filter_map(|index| slots[index].take())
+        .collect()
 }
 
 /// Token is a maximal run of letters (ASCII + accented Latin) and

@@ -164,6 +164,27 @@ fn polish_russian_turkish_indonesian_sentences_match_gold_pos() {
     }
 }
 
+#[test]
+fn numeric_value_survives_a_low_entity_cap() {
+    // Four identities outrank the value; with a cap of 3 the value must still
+    // be kept, otherwise the chart loses its number.
+    let text = "Alice Johnson met Bob Smith in London, Paris, Berlin and Madrid, where sales reached 1,200 units.";
+    let entities = extract(
+        text,
+        &ExtractOptions {
+            language: "en".to_string(),
+            entity_count: 3,
+        },
+    )
+    .unwrap();
+    assert_eq!(entities.len(), 3);
+    assert!(
+        entities.iter().any(|e| matches!(e.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY")),
+        "no numeric value in {:?}",
+        texts(&entities)
+    );
+}
+
 fn top3(text: &str) -> Vec<VisualEntity> {
     extract(
         text,

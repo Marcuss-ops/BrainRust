@@ -96,7 +96,13 @@ pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, 
         })
         .collect();
     let bullets = bullets(source_text, &sentences, &entity_sentence);
-    let chart_points = chart_points(source_text, &entities, &sentences, &entity_sentence);
+    let chart_points = chart_points(
+        source_text,
+        &entities,
+        &sentences,
+        &entity_sentence,
+        &options.language,
+    );
 
     Ok(Analysis {
         entities,
@@ -168,14 +174,32 @@ fn chart_points(
     entities: &[VisualEntity],
     sentences: &[Sentence],
     entity_sentence: &[Option<usize>],
+    language: &str,
 ) -> Vec<ChartPoint> {
+    let numeric = |entity: &VisualEntity| {
+        matches!(entity.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY")
+    };
     entities
         .iter()
         .enumerate()
-        .filter(|(_, entity)| matches!(entity.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY"))
+        .filter(|(_, entity)| numeric(entity))
+        // A bare NUMBER inside a larger numeric span ("25" in "25%", "1,200"
+        // in "$1,200") is the same quantity, so keep only the outer entity.
+        // Only drop it when the outer span actually yields a value; otherwise
+        // ("3.141" inside "3.141 units") the inner number is the value.
+        .filter(|(_, entity)| {
+            !(entity.r#type == "NUMBER"
+                && entities.iter().any(|other| {
+                    numeric(other)
+                        && other.start <= entity.start
+                        && entity.end <= other.end
+                        && (other.start, other.end) != (entity.start, entity.end)
+                        && parse_unambiguous_value(&other.text, language).is_some()
+                }))
+        })
         .filter_map(|(index, entity)| {
             let sentence_index = entity_sentence[index]?;
-            let value = parse_unambiguous_value(&entity.text)?;
+            let value = parse_unambiguous_value(&entity.text, language)?;
             let sentence = sentences[sentence_index];
             Some(ChartPoint {
                 entity: index,
@@ -188,12 +212,16 @@ fn chart_points(
         .collect()
 }
 
-/// Parses a numeric surface such as `25%`, `$1,200`, `3.5` or `25 percent`.
-/// Returns `None` for anything with a scale word (`million`) or a shape that
-/// is not a single plain number, so a chart never plots a guessed value.
-fn parse_unambiguous_value(text: &str) -> Option<f64> {
+/// Parses a numeric surface such as `25%`, `$1,200`, `1.200 euro`, `12,5%`,
+/// `3.5` or `25 percent`, using the separator convention of `language`:
+/// English groups thousands with `,` and uses `.` as decimal point; the
+/// other supported languages (it, de, fr, es, pt, pl, ru, tr, id) use `.` for
+/// thousands and `,` as decimal point. Returns `None` for scale words
+/// (`million`) and for any grouping that does not match the convention, so a
+/// chart never plots a guessed value.
+fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
     let mut rest = text.trim().to_lowercase();
-    for suffix in ["percent", "dollars", "euros", "pounds", "yen"] {
+    for suffix in ["percent", "dollars", "euros", "euro", "pounds", "yen"] {
         if let Some(stripped) = rest.strip_suffix(suffix) {
             rest = stripped.trim_end().to_string();
             break;
@@ -204,7 +232,48 @@ fn parse_unambiguous_value(text: &str) -> Option<f64> {
     if rest.is_empty() || !rest.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ',') {
         return None;
     }
-    rest.replace(',', "").parse::<f64>().ok()
+    let (thousands, decimal) = if language.eq_ignore_ascii_case("en") {
+        (',', '.')
+    } else {
+        ('.', ',')
+    };
+    let (int_part, frac_part) = match rest.matches(decimal).count() {
+        0 => (rest, None),
+        1 => {
+            let (int_part, frac) = rest.split_once(decimal)?;
+            (int_part, Some(frac))
+        }
+        _ => return None,
+    };
+    if matches!(frac_part, Some(frac) if frac.is_empty() || frac.contains(thousands)) {
+        return None;
+    }
+    // A lone decimal-comma followed by exactly three digits ("1,200" in an
+    // Italian sentence) reads as 1.2 by convention, but is the usual way an
+    // English thousands group is written, so it is refused rather than guessed.
+    if decimal == ',' && !rest.contains(thousands) && frac_part.is_some_and(|frac| frac.len() == 3) {
+        return None;
+    }
+    let int_digits = if int_part.contains(thousands) {
+        let groups: Vec<&str> = int_part.split(thousands).collect();
+        let (first, rest_groups) = groups.split_first()?;
+        let valid = (1..=3).contains(&first.len())
+            && rest_groups.iter().all(|group| group.len() == 3);
+        if !valid {
+            return None;
+        }
+        groups.concat()
+    } else {
+        int_part.to_string()
+    };
+    if int_digits.is_empty() {
+        return None;
+    }
+    let number = match frac_part {
+        Some(frac) => format!("{int_digits}.{frac}"),
+        None => int_digits,
+    };
+    number.parse::<f64>().ok()
 }
 
 fn same_surface(a: &VisualEntity, b: &VisualEntity) -> bool {
@@ -303,12 +372,57 @@ mod tests {
 
     #[test]
     fn parses_only_plain_numeric_surfaces() {
-        assert_eq!(parse_unambiguous_value("25%"), Some(25.0));
-        assert_eq!(parse_unambiguous_value("$1,200"), Some(1200.0));
-        assert_eq!(parse_unambiguous_value("3.5"), Some(3.5));
-        assert_eq!(parse_unambiguous_value("25 percent"), Some(25.0));
-        assert_eq!(parse_unambiguous_value("1.5 million"), None);
-        assert_eq!(parse_unambiguous_value("March 2025"), None);
+        assert_eq!(parse_unambiguous_value("25%", "en"), Some(25.0));
+        assert_eq!(parse_unambiguous_value("$1,200", "en"), Some(1200.0));
+        assert_eq!(parse_unambiguous_value("3.5", "en"), Some(3.5));
+        assert_eq!(parse_unambiguous_value("25 percent", "en"), Some(25.0));
+        assert_eq!(parse_unambiguous_value("1.5 million", "en"), None);
+        assert_eq!(parse_unambiguous_value("March 2025", "en"), None);
+    }
+
+    #[test]
+    fn decimal_comma_languages_use_dot_thousands() {
+        assert_eq!(parse_unambiguous_value("1.200 euro", "it"), Some(1200.0));
+        assert_eq!(parse_unambiguous_value("1.200.000", "de"), Some(1_200_000.0));
+        assert_eq!(parse_unambiguous_value("12,5%", "it"), Some(12.5));
+        // A lone comma followed by three digits is ambiguous in Italian: refuse.
+        assert_eq!(parse_unambiguous_value("1,200", "it"), None);
+        assert_eq!(parse_unambiguous_value("$1,200", "it"), None);
+        assert_eq!(parse_unambiguous_value("1,25", "it"), Some(1.25));
+        // Not a valid grouping in either convention: refuse rather than guess.
+        assert_eq!(parse_unambiguous_value("3.5", "it"), None);
+        assert_eq!(parse_unambiguous_value("1.2.3", "it"), None);
+        assert_eq!(parse_unambiguous_value("1,2,3", "it"), None);
+    }
+
+    #[test]
+    fn overlapping_numeric_spans_yield_one_chart_point() {
+        let source = "Costs rose 25% to $1,200 in 2025.";
+        let entities = vec![
+            VisualEntity { text: "25".into(), r#type: "NUMBER".into(), start: 12, end: 14, score: 1.0, evidence: String::new() },
+            VisualEntity { text: "25%".into(), r#type: "PERCENT".into(), start: 12, end: 15, score: 1.0, evidence: String::new() },
+            VisualEntity { text: "$1,200".into(), r#type: "MONEY".into(), start: 19, end: 25, score: 1.0, evidence: String::new() },
+            VisualEntity { text: "1,200".into(), r#type: "NUMBER".into(), start: 20, end: 25, score: 1.0, evidence: String::new() },
+        ];
+        let sentences = split_sentences(source);
+        let owners = vec![Some(0); entities.len()];
+        let points = chart_points(source, &entities, &sentences, &owners, "en");
+        let values: Vec<f64> = points.iter().map(|p| p.value).collect();
+        assert_eq!(values, vec![25.0, 1200.0]);
+    }
+
+    #[test]
+    fn inner_number_survives_when_outer_span_has_no_value() {
+        let source = "Units: 3.25 units sold.";
+        let entities = vec![
+            VisualEntity { text: "3.25 units".into(), r#type: "NUMBER".into(), start: 7, end: 17, score: 1.0, evidence: String::new() },
+            VisualEntity { text: "3.25".into(), r#type: "NUMBER".into(), start: 7, end: 11, score: 1.0, evidence: String::new() },
+        ];
+        let sentences = split_sentences(source);
+        let owners = vec![Some(0); entities.len()];
+        let points = chart_points(source, &entities, &sentences, &owners, "en");
+        let values: Vec<f64> = points.iter().map(|p| p.value).collect();
+        assert_eq!(values, vec![3.25]);
     }
 
     #[test]
