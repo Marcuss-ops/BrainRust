@@ -164,8 +164,59 @@ pub struct SceneHighlight {
     pub title_source: String,
     pub bullets: Vec<SceneBulletSpan>,
     pub highlights: Vec<ScenePhraseSpan>,
+    /// Verbatim numeric tokens extracted from this scene for grounded charts.
+    #[serde(default)]
+    pub chart_values: Vec<String>,
     /// True when scene slice verified against transcript (global offsets valid).
     pub globally_indexed: bool,
+}
+
+/// Extracts strict numeric literals from source text; no number words or
+/// inferred values are introduced. Runtime must still match these tokens to
+/// grounded, audio-timed annotations before rendering a chart.
+fn extract_chart_values(text: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    for token in text.split_whitespace() {
+        let candidate = token.trim_matches(|c: char| {
+            matches!(
+                c,
+                '(' | ')' | '[' | ']' | '{' | '}' | ':' | ';' | '"' | '\'' | '.' | ',' | '!' | '?'
+            )
+        });
+        let numeric = candidate.trim_matches(|c: char| matches!(c, '%' | '€' | '$' | '£' | '¥'));
+        let digits = numeric.chars().filter(|c| c.is_ascii_digit()).count();
+        if digits == 0
+            || !numeric
+                .chars()
+                .all(|c| c.is_ascii_digit() || matches!(c, '.' | ',' | '-'))
+        {
+            continue;
+        }
+        if numeric.matches('.').count() + numeric.matches(',').count() > 1
+            && !(numeric.contains('.') && numeric.contains(','))
+        {
+            continue;
+        }
+        let normalized = numeric.replace(',', ".");
+        if normalized.parse::<f64>().is_err() || values.iter().any(|existing| existing == candidate)
+        {
+            continue;
+        }
+        values.push(candidate.to_string());
+        if values.len() >= 6 {
+            break;
+        }
+    }
+    values
+}
+
+fn scene_chart_values(scene: &SceneInput) -> Vec<String> {
+    let values = extract_chart_values(&scene.text);
+    if values.len() >= 2 {
+        values
+    } else {
+        Vec::new()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1600,6 +1651,7 @@ fn build_scene_highlights(
                         title_source: "none".into(),
                         bullets: Vec::new(),
                         highlights: Vec::new(),
+                        chart_values: scene_chart_values(scene),
                         globally_indexed,
                     });
                     continue;
@@ -1640,6 +1692,7 @@ fn build_scene_highlights(
                     title_source: "none".into(),
                     bullets: Vec::new(),
                     highlights: Vec::new(),
+                    chart_values: scene_chart_values(scene),
                     globally_indexed,
                 });
                 continue;
@@ -1655,6 +1708,7 @@ fn build_scene_highlights(
                 title_source: "none".into(),
                 bullets: Vec::new(),
                 highlights: Vec::new(),
+                chart_values: scene_chart_values(scene),
                 globally_indexed,
             });
             continue;
@@ -1744,6 +1798,7 @@ fn build_scene_highlights(
             title_source,
             bullets,
             highlights,
+            chart_values: scene_chart_values(scene),
             globally_indexed,
         });
     }

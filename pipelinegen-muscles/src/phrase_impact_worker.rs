@@ -88,6 +88,19 @@ mod tests {
     }
 
     #[test]
+    fn extracts_only_literal_numeric_chart_values_per_scene() {
+        let response: Value = serde_json::from_str(&process_line(
+            r#"{"transcript":"Output reached 42% before falling to €18.5; analysts reported thirteen jobs.","language":"en","embeddings":[],"lexical_only":true,"scene_inputs":[{"scene_id":"s1","text":"Output reached 42% before falling to €18.5; analysts reported thirteen jobs."}],"chapter_options":{"profile_version":"segmentation.v1","min_sentences":1,"max_sentences":36,"min_words":1,"context_sentences":1,"semantic_weight":1.0,"lexical_weight":1.0,"scene_weight":0.2,"evidence_weight":1.0,"complexity_penalty":1.0,"bullet_count":3}}"#,
+        )).unwrap();
+        assert_eq!(response["ok"], true);
+        let scene = &response["result"]["scene_highlights"][0];
+        let values = scene["chart_values"].as_array().unwrap();
+        assert_eq!(values.len(), 2);
+        assert_eq!(values[0], "42%");
+        assert_eq!(values[1], "€18.5");
+    }
+
+    #[test]
     fn splits_sentences_using_the_canonical_rust_boundary() {
         let transcript = "Il Milan vinse. Poi celebrò!";
         let response: Value = serde_json::from_str(&process_line(
