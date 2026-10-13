@@ -1,5 +1,6 @@
+use ndjson_stdio::{check_envelope, ErrorCode, WorkerError};
 use serde::{Deserialize, Serialize};
-use visualner::{extract, supported_spellout_language_count, ExtractOptions, VisualEntity};
+use visualner::{analyze, extract, supported_spellout_language_count, ExtractOptions, VisualEntity};
 
 #[derive(Debug, Deserialize)]
 struct ExtractRequest {
@@ -51,6 +52,16 @@ mod tests {
         .unwrap();
         assert_eq!(effective_entity_count(&req), 5);
     }
+
+    #[test]
+    fn error_response_carries_code_and_empty_entities() {
+        let error = WorkerError::new(ErrorCode::Decode, "visualner decode: boom");
+        let line = error_response(&error);
+        let value: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(value["entities"], serde_json::json!([]));
+        assert_eq!(value["error"], "visualner decode: boom");
+        assert_eq!(value["error_code"], "decode");
+    }
 }
 
 fn effective_entity_count(request: &ExtractRequest) -> usize {
@@ -68,8 +79,14 @@ struct ExtractResponse {
     error: Option<String>,
 }
 
-fn error_response(message: String) -> String {
-    serde_json::json!({"entities": [], "error": message}).to_string()
+fn error_response(error: &WorkerError) -> String {
+    error.log();
+    serde_json::json!({
+        "entities": [],
+        "error": error.message,
+        "error_code": error.code,
+    })
+    .to_string()
 }
 
 fn main() {
@@ -90,32 +107,49 @@ fn process_line(line: &str) -> String {
     let request: ExtractRequest = match serde_json::from_str(line) {
         Ok(request) => request,
         Err(error) => {
-            let message = format!("visualner decode: {error}");
-            eprintln!("{message}");
-            return error_response(message);
+            return error_response(&WorkerError::new(
+                ErrorCode::Decode,
+                format!("visualner decode: {error}"),
+            ));
         }
     };
-    // Fail closed on unknown envelope values instead of silently
-    // ignoring them: a contract drift between Go and Rust must surface
-    // as an error, not as mis-extracted entities. The `_` bindings keep
-    // the envelope fields acknowledged without changing semantics.
+    // Fail closed on unknown envelope values instead of silently ignoring
+    // them: a contract drift between Go and Rust must surface as an error,
+    // not as mis-extracted entities.
     let _ = request.segment_id.as_deref();
     let _ = request.text_hash.as_deref();
-    if let Some(version) = request.version.as_deref() {
-        if version != "visualner.v1" {
-            let message = format!("visualner: unsupported version: {version}");
-            eprintln!("{message}");
-            return error_response(message);
-        }
-    }
-    if let Some(operation) = request.operation.as_deref() {
-        if operation != "extract" {
-            let message = format!("visualner: unsupported operation: {operation}");
-            eprintln!("{message}");
-            return error_response(message);
-        }
+    let analyze_op = request.operation.as_deref() == Some("analyze");
+    let expected_operation = if analyze_op { "analyze" } else { "extract" };
+    if let Err(error) = check_envelope(
+        "visualner",
+        request.version.as_deref(),
+        "visualner.v1",
+        request.operation.as_deref(),
+        expected_operation,
+    ) {
+        return error_response(&error);
     }
     let entity_count = effective_entity_count(&request);
+    if analyze_op {
+        return match analyze(
+            &request.source_text,
+            &ExtractOptions {
+                language: request.language,
+                entity_count,
+            },
+        ) {
+            Ok(analysis) => serde_json::to_string(&analysis).unwrap_or_else(|error| {
+                error_response(&WorkerError::new(
+                    ErrorCode::Encode,
+                    format!("visualner encode: {error}"),
+                ))
+            }),
+            Err(error) => error_response(&WorkerError::new(
+                ErrorCode::Execution,
+                format!("visualner analyze: {error}"),
+            )),
+        };
+    }
     let entities = match extract(
         &request.source_text,
         &ExtractOptions {
@@ -125,14 +159,21 @@ fn process_line(line: &str) -> String {
     ) {
         Ok(entities) => entities,
         Err(error) => {
-            let message = format!("visualner extract: {error}");
-            eprintln!("{message}");
-            return error_response(message);
+            return error_response(&WorkerError::new(
+                ErrorCode::Execution,
+                format!("visualner extract: {error}"),
+            ));
         }
     };
     let response = ExtractResponse {
         entities,
         error: None,
     };
-    serde_json::to_string(&response).expect("visualner encode")
+    match serde_json::to_string(&response) {
+        Ok(line) => line,
+        Err(error) => error_response(&WorkerError::new(
+            ErrorCode::Encode,
+            format!("visualner encode: {error}"),
+        )),
+    }
 }

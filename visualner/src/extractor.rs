@@ -22,6 +22,13 @@
 //! `NO EVIDENCE → NO ENTITY`: every returned entity must be a verbatim
 //! substring of the source text, with byte offsets proving the evidence.
 
+mod location;
+mod pos;
+mod stopwords;
+use location::*;
+use pos::{is_stop_token, tag_tokens};
+use stopwords::*;
+
 use std::collections::HashMap;
 
 use crate::types::{ExtractOptions, VisualEntity};
@@ -43,7 +50,7 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
     if language.is_empty() {
         return Err("VisualNER language is required".to_string());
     }
-    let tokens = tokenize(source_text);
+    let tokens = tokenize(source_text, language)?;
     let mut candidates = noun_phrase_candidates(&tokens, source_text);
     candidates.extend(value_candidates(source_text));
     mark_contextual_locations(&mut candidates, &tokens, source_text);
@@ -123,41 +130,80 @@ struct Token {
     text: String,
     start: usize,
     end: usize,
+    /// Universal POS tag from UDPipe, when a model for the language is installed.
+    upos: Option<String>,
 }
 
-/// tokenize splits `source_text` into maximal letter-runs, recording byte
-/// offsets. Case is preserved in `text`; comparisons use a lowercased copy.
-fn tokenize(source_text: &str) -> Vec<Token> {
-    let bytes = source_text.as_bytes();
-    let mut tokens = Vec::new();
-    let n = bytes.len();
-    let mut i = 0;
-    while i < n {
-        if is_word_byte(bytes[i]) {
-            let start = i;
-            while i < n && is_word_byte(bytes[i]) {
-                i += 1;
-            }
-            let text = std::str::from_utf8(&bytes[start..i])
-                .unwrap_or("")
-                .to_string();
-            tokens.push(Token {
-                text,
-                start,
-                end: i,
-            });
-        } else {
-            i += 1;
+/// tokenize segments `source_text` into words with ICU's word-break rules for
+/// `language`. ICU handles scripts without spaces (Chinese, Japanese, Thai)
+/// and language-specific apostrophes, so no per-language lists are needed.
+/// Hyphenated and apostrophe-joined compounds (Jean-Luc) become one token.
+/// ICU offsets are UTF-16 units; they are converted to UTF-8 byte offsets.
+fn tokenize(source_text: &str, language: &str) -> Result<Vec<Token>, String> {
+    let breaks = rust_icu_ubrk::UBreakIterator::try_new(
+        rust_icu_sys::UBreakIteratorType::UBRK_WORD,
+        language,
+        source_text,
+    )
+    .map_err(|error| format!("ICU word segmentation failed for {language:?}: {error}"))?;
+
+    let mut utf16_to_byte: Vec<usize> = Vec::with_capacity(source_text.len() + 1);
+    for (offset, ch) in source_text.char_indices() {
+        for _ in 0..ch.len_utf16() {
+            utf16_to_byte.push(offset);
         }
     }
-    tokens
-}
+    utf16_to_byte.push(source_text.len());
 
-/// is_word_byte reports whether a byte is part of a word: ASCII letter,
-/// apostrophe, hyphen, or a high bit (UTF-8 continuation/lead byte for
-/// accented Latin like "à"). This keeps the tokenizer dependency-free.
-fn is_word_byte(b: u8) -> bool {
-    b.is_ascii_alphabetic() || b == b'\'' || b == b'-' || b >= 0x80
+    // (byte_start, byte_end, is_word) for every ICU segment, in order.
+    let mut segments: Vec<(usize, usize, bool)> = Vec::new();
+    let mut start16 = breaks.first();
+    loop {
+        let end16 = breaks.following(start16);
+        if end16 < 0 {
+            break;
+        }
+        // UBRK_WORD_NONE_LIMIT is 100: rule status >= 100 marks word-like text.
+        let is_word = breaks.get_rule_status() >= 100;
+        segments.push((
+            utf16_to_byte[start16 as usize],
+            utf16_to_byte[end16 as usize],
+            is_word,
+        ));
+        start16 = end16;
+    }
+
+    let mut tokens: Vec<Token> = Vec::new();
+    let mut index = 0;
+    while index < segments.len() {
+        let (start, end, is_word) = segments[index];
+        index += 1;
+        if !is_word {
+            continue;
+        }
+        let mut token_end = end;
+        // Join word, joiner, word where the joiner is a hyphen or apostrophe.
+        while index + 1 < segments.len() {
+            let (_, joiner_end, joiner_word) = segments[index];
+            let (next_start, next_end, next_word) = segments[index + 1];
+            let joiner = &source_text[token_end..joiner_end];
+            let is_joiner = joiner == "-" || joiner == "'" || joiner == "\u{2019}";
+            if is_joiner && !joiner_word && next_word && next_start == joiner_end {
+                token_end = next_end;
+                index += 2;
+            } else {
+                break;
+            }
+        }
+        tokens.push(Token {
+            text: source_text[start..token_end].to_string(),
+            start,
+            end: token_end,
+            upos: None,
+        });
+    }
+    tag_tokens(source_text, language, &mut tokens);
+    Ok(tokens)
 }
 
 /// noun_phrase_candidates groups adjacent non-stopword tokens into maximal
@@ -180,7 +226,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
     while i < tokens.len() {
         // A single uppercase initial between periods is a tokenization
         // artifact of dotted initialisms (e.g. U.S.), not an entity span.
-        if is_stop_word(&tokens[i].text)
+        if is_stop_token(&tokens[i])
             || (tokens[i].text.len() == 1 && tokens[i].text.as_bytes()[0].is_ascii_uppercase())
         {
             i += 1;
@@ -209,7 +255,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
             }
             // Keep the curated multi-word visual subjects intact even when
             // their first token is title-cased at sentence start.
-            if j == phrase_start + 1 && j < tokens.len() && !is_stop_word(&tokens[j].text) {
+            if j == phrase_start + 1 && j < tokens.len() && !is_stop_token(&tokens[j]) {
                 let gap = &bytes[tokens[j - 1].end..tokens[j].start];
                 let compound =
                     format!("{} {}", tokens[phrase_start].text, tokens[j].text).to_lowercase();
@@ -220,7 +266,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
                 }
             }
         } else {
-            while j < tokens.len() && !is_stop_word(&tokens[j].text) {
+            while j < tokens.len() && !is_stop_token(&tokens[j]) {
                 if j > phrase_start {
                     let gap = &bytes[tokens[j - 1].end..tokens[j].start];
                     if gap.iter().any(|b| is_phrase_breaking_byte(*b))
@@ -298,7 +344,7 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
             if final_index > i
                 && !is_uppercase_initial(&tokens[final_index].text)
                 && starts_uppercase(&tokens[final_index].text)
-                && !is_stop_word(&tokens[final_index].text)
+                && !is_stop_token(&tokens[final_index])
             {
                 runs.push((i, final_index + 1));
                 i = final_index + 1;
@@ -307,7 +353,7 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
             i += 1;
             continue;
         }
-        if is_stop_word(&tokens[i].text) || !starts_uppercase(&tokens[i].text) {
+        if is_stop_token(&tokens[i]) || !starts_uppercase(&tokens[i].text) {
             i += 1;
             continue;
         }
@@ -315,7 +361,7 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
         let mut end = i + 1;
         while end < tokens.len()
             && starts_uppercase(&tokens[end].text)
-            && !is_stop_word(&tokens[end].text)
+            && !is_stop_token(&tokens[end])
             && !(tokens[end].text.len() == 1 && tokens[end].text.as_bytes()[0].is_ascii_uppercase())
             && !bytes[tokens[end - 1].end..tokens[end].start]
                 .iter()
@@ -347,200 +393,6 @@ fn candidate_from_tokens(
         end: byte_end,
         entity_type: None,
     }
-}
-
-/// Mark a source-grounded proper-name candidate as a place when its local
-/// syntax supplies geographic context. The extractor has no gazetteer, so it
-/// does not guess from capitalization alone; cues such as "em Fortaleza" and
-/// "no bairro Aldeota" provide the evidence for this classification.
-fn mark_contextual_locations(candidates: &mut Vec<Candidate>, tokens: &[Token], source_text: &str) {
-    let bytes = source_text.as_bytes();
-    let mut contextual = Vec::new();
-    for index in 0..tokens.len() {
-        if !starts_uppercase(&tokens[index].text)
-            || is_month_name(&tokens[index].text)
-            || !has_location_context(tokens, bytes, index)
-        {
-            continue;
-        }
-        let mut end = index + 1;
-        while end < tokens.len() && starts_uppercase(&tokens[end].text) {
-            if bytes[tokens[end - 1].end..tokens[end].start]
-                .iter()
-                .any(|byte| !byte.is_ascii_whitespace())
-            {
-                break;
-            }
-            end += 1;
-        }
-        let mut place = candidate_from_tokens(tokens, source_text, index, end);
-        if is_generic_location_noun(&place.text) {
-            continue;
-        }
-        place.entity_type = Some("LOCATION".to_string());
-        contextual.push(place);
-    }
-
-    for candidate in candidates.iter_mut() {
-        if candidate.entity_type.is_some() || !starts_uppercase(&candidate.text) {
-            continue;
-        }
-        let Some(token_index) = tokens
-            .iter()
-            .position(|token| token.start == candidate.start)
-        else {
-            continue;
-        };
-        if has_location_context(tokens, bytes, token_index)
-            && !is_month_name(&candidate.text)
-            && !is_generic_location_noun(&candidate.text)
-        {
-            candidate.entity_type = Some("LOCATION".to_string());
-        }
-    }
-    for place in contextual {
-        if !candidates
-            .iter()
-            .any(|candidate| candidate.start == place.start && candidate.end == place.end)
-        {
-            candidates.push(place);
-        }
-    }
-}
-
-fn has_location_context(tokens: &[Token], bytes: &[u8], token_index: usize) -> bool {
-    let Some(previous) = token_index.checked_sub(1).map(|index| &tokens[index]) else {
-        return false;
-    };
-    if bytes[previous.end..tokens[token_index].start]
-        .iter()
-        .any(|byte| !byte.is_ascii_whitespace())
-    {
-        return false;
-    }
-    let previous = previous.text.to_lowercase();
-    matches!(
-        previous.as_str(),
-        "em" | "no"
-            | "na"
-            | "nos"
-            | "nas"
-            | "in"
-            | "at"
-            | "near"
-            | "bairro"
-            | "city"
-            | "county"
-            | "state"
-            | "province"
-            | "municipality"
-            | "município"
-            | "região"
-            | "region"
-    ) || (matches!(previous.as_str(), "de" | "of")
-        && token_index >= 2
-        && matches!(
-            tokens[token_index - 2].text.to_lowercase().as_str(),
-            "cidade"
-                | "city"
-                | "município"
-                | "municipality"
-                | "região"
-                | "region"
-                | "estado"
-                | "state"
-                | "província"
-                | "province"
-                | "county"
-        ))
-}
-
-fn is_month_name(text: &str) -> bool {
-    matches!(
-        text.to_lowercase().as_str(),
-        "january"
-            | "february"
-            | "march"
-            | "april"
-            | "may"
-            | "june"
-            | "july"
-            | "august"
-            | "september"
-            | "october"
-            | "november"
-            | "december"
-            | "janeiro"
-            | "fevereiro"
-            | "março"
-            | "abril"
-            | "maio"
-            | "junho"
-            | "julho"
-            | "agosto"
-            | "setembro"
-            | "outubro"
-            | "novembro"
-            | "dezembro"
-    )
-}
-
-fn is_generic_location_noun(text: &str) -> bool {
-    matches!(
-        text.to_lowercase().as_str(),
-        "city"
-            | "county"
-            | "state"
-            | "province"
-            | "municipality"
-            | "município"
-            | "bairro"
-            | "cidade"
-            | "região"
-            | "region"
-            | "estado"
-            | "província"
-    )
-}
-
-fn starts_uppercase(text: &str) -> bool {
-    text.chars().next().map(char::is_uppercase).unwrap_or(false)
-}
-
-fn is_uppercase_initial(text: &str) -> bool {
-    text.len() == 1 && text.as_bytes()[0].is_ascii_uppercase()
-}
-
-fn has_dotted_initial_prefix(tokens: &[Token], bytes: &[u8], name_index: usize) -> bool {
-    if name_index == 0 {
-        return false;
-    }
-    let mut cursor = name_index;
-    let mut initials = 0;
-    while cursor > 0 {
-        let previous = cursor - 1;
-        if !is_uppercase_initial(&tokens[previous].text)
-            || !gap_has_period(&bytes[tokens[previous].end..tokens[cursor].start])
-        {
-            break;
-        }
-        initials += 1;
-        cursor = previous;
-    }
-    initials > 0
-}
-
-fn gap_has_period(gap: &[u8]) -> bool {
-    gap.first() == Some(&b'.') && gap[1..].iter().all(u8::is_ascii_whitespace)
-}
-
-/// is_phrase_breaking_byte reports whether a byte in the gap between two
-/// tokens should break a noun phrase. Whitespace (space, tab, newline)
-/// does NOT break; any other non-word byte (comma, period, semicolon,
-/// colon, dash outside a word, parens) DOES break. This is what keeps
-/// "feta cheese" together while splitting "tomatoes, feta".
-fn is_phrase_breaking_byte(b: u8) -> bool {
-    !b.is_ascii_whitespace()
 }
 
 /// validate_evidence enforces NO EVIDENCE → NO ENTITY. A candidate is
@@ -578,232 +430,6 @@ fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
 // V1 uses curated, dependency-free tables. The tables are intentionally
 // small and explicit so the extractor stays deterministic and auditable.
 // Adding a word here is a one-line change; no model retraining.
-
-/// Stopwords: single tokens that never start or extend a noun phrase.
-/// Includes the LIVE-test hallucination seeds "imagine", "ready", "get",
-/// "the", "a", "and", etc. so "Imagine the" / "Get ready" never produce
-/// candidates in the first place.
-const STOP_WORDS: &[&str] = &[
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "of",
-    "to",
-    "in",
-    "on",
-    "for",
-    "with",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "has",
-    "have",
-    "had",
-    "this",
-    "that",
-    "these",
-    "those",
-    "it",
-    "its",
-    "as",
-    "by",
-    "at",
-    "from",
-    // hallucination seeds observed in the LIVE test
-    "imagine",
-    "ready",
-    "get",
-    "dive",
-    "into",
-    "discover",
-    "let",
-    "us",
-    // pronouns / generic verbs
-    "you",
-    "we",
-    "they",
-    "he",
-    "she",
-    "i",
-    "me",
-    "him",
-    "her",
-    "do",
-    "does",
-    "did",
-    "not",
-    "no",
-    "yes",
-    "about",
-    "your",
-    "our",
-    "their",
-    "his",
-    // generic spatial/temporal words
-    "now",
-    "then",
-    "here",
-    "there",
-    "when",
-    "where",
-    "what",
-    "which",
-    "who",
-    // connector / descriptive verbs that glue non-visual phrases
-    // together in the Mediterranean golden-fixture sentences. These are
-    // not visual objects, so a phrase that includes them is not a single
-    // visual noun phrase; breaking here keeps "feta cheese" separate
-    // from "tomatoes" when the sentence reads "combines fresh tomatoes".
-    "combines",
-    "contains",
-    "features",
-    "traditionally",
-    "made",
-    "fresh",
-    "prepared",
-    "spoke",
-    "released",
-    // sentence-opening gerund; it must not absorb the following proper name
-    // into a false entity such as "Understanding Donald Trump's".
-    "understanding",
-    // High-frequency function words and titles in the supported generation
-    // languages. Keep this deterministic vocabulary conservative: removing a
-    // token from candidate construction is safer than emitting it as an entity.
-    "el",
-    "la",
-    "los",
-    "las",
-    "un",
-    "una",
-    "unos",
-    "unas",
-    "y",
-    "de",
-    "del",
-    "en",
-    "por",
-    "con",
-    "para",
-    "es",
-    "son",
-    "fue",
-    "han",
-    "ha",
-    "al",
-    "lo",
-    "le",
-    "les",
-    "des",
-    "du",
-    "un",
-    "une",
-    "et",
-    "est",
-    "sont",
-    "au",
-    "aux",
-    "dans",
-    "sur",
-    "a",
-    "o",
-    "os",
-    "as",
-    "um",
-    "uma",
-    "e",
-    "do",
-    "da",
-    "dos",
-    "das",
-    "no",
-    "na",
-    "nos",
-    "nas",
-    "com",
-    "que",
-    "il",
-    "i",
-    "gli",
-    "lo",
-    "una",
-    "uno",
-    "è",
-    "sono",
-    "ha",
-    "hanno",
-    "nel",
-    "nella",
-    "di",
-    "che",
-    "mit",
-    "der",
-    "die",
-    "das",
-    "den",
-    "dem",
-    "ein",
-    "eine",
-    "einer",
-    "eines",
-    "und",
-    "ist",
-    "sind",
-    "war",
-    "wurde",
-    "nach",
-    "bei",
-    "von",
-    "zu",
-    "zum",
-    "zur",
-    "presidente",
-    "président",
-    "bundeskanzler",
-    "kanzler",
-    "discussed",
-    "visited",
-    "visitó",
-    "visitou",
-    "visitato",
-    "visité",
-    "besuchte",
-    "company",
-];
-
-/// Stop phrases: multi-word surfaces that are generic even when none of
-/// their tokens are individually stopwords.
-const STOP_PHRASES: &[&str] = &["get ready", "let us", "imagine the"];
-
-fn is_stop_word(word: &str) -> bool {
-    let lower = word.to_lowercase();
-    STOP_WORDS.iter().any(|s| *s == lower)
-        || word
-            .chars()
-            .any(|ch| matches!(ch, 'à' | 'è' | 'é' | 'ì' | 'ò' | 'ù' | 'ü' | 'ö' | 'ä'))
-            && NON_ASCII_STOP_WORDS.iter().any(|stop| *stop == lower)
-}
-
-const NON_ASCII_STOP_WORDS: &[&str] = &[
-    "è",
-    "président",
-    "présidente",
-    "präsident",
-    "município",
-    "região",
-    "província",
-];
-
-fn is_stop_phrase(normalized: &str) -> bool {
-    STOP_PHRASES.contains(&normalized)
-}
-
-// ── Tests ────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 #[path = "extractor_tests.rs"]

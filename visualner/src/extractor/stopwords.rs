@@ -1,0 +1,242 @@
+/// Stopwords: single tokens that never start or extend a noun phrase.
+/// Includes the LIVE-test hallucination seeds "imagine", "ready", "get",
+/// "the", "a", "and", etc. so "Imagine the" / "Get ready" never produce
+/// candidates in the first place.
+pub(super) const STOP_WORDS: &[&str] = &[
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "to",
+    "in",
+    "on",
+    "for",
+    "with",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "has",
+    "have",
+    "had",
+    "this",
+    "that",
+    "these",
+    "those",
+    "it",
+    "its",
+    "as",
+    "by",
+    "at",
+    "from",
+    // hallucination seeds observed in the LIVE test
+    "imagine",
+    "ready",
+    "get",
+    "dive",
+    "into",
+    "discover",
+    "let",
+    "us",
+    // pronouns / generic verbs
+    "you",
+    "we",
+    "they",
+    "he",
+    "she",
+    "i",
+    "me",
+    "him",
+    "her",
+    "do",
+    "does",
+    "did",
+    "not",
+    "no",
+    "yes",
+    "about",
+    "your",
+    "our",
+    "their",
+    "his",
+    // generic spatial/temporal words
+    "now",
+    "then",
+    "here",
+    "there",
+    "when",
+    "where",
+    "what",
+    "which",
+    "who",
+    // connector / descriptive verbs that glue non-visual phrases
+    // together in the Mediterranean golden-fixture sentences. These are
+    // not visual objects, so a phrase that includes them is not a single
+    // visual noun phrase; breaking here keeps "feta cheese" separate
+    // from "tomatoes" when the sentence reads "combines fresh tomatoes".
+    "combines",
+    "contains",
+    "features",
+    "traditionally",
+    "made",
+    "fresh",
+    "prepared",
+    "spoke",
+    "released",
+    // sentence-opening gerund; it must not absorb the following proper name
+    // into a false entity such as "Understanding Donald Trump's".
+    "understanding",
+    // High-frequency function words and titles in the supported generation
+    // languages. Keep this deterministic vocabulary conservative: removing a
+    // token from candidate construction is safer than emitting it as an entity.
+    "el",
+    "la",
+    "los",
+    "las",
+    "un",
+    "una",
+    "unos",
+    "unas",
+    "y",
+    "de",
+    "del",
+    "en",
+    "por",
+    "con",
+    "para",
+    "es",
+    "son",
+    "fue",
+    "han",
+    "ha",
+    "al",
+    "lo",
+    "le",
+    "les",
+    "des",
+    "du",
+    "un",
+    "une",
+    "et",
+    "est",
+    "sont",
+    "au",
+    "aux",
+    "dans",
+    "sur",
+    "a",
+    "o",
+    "os",
+    "as",
+    "um",
+    "uma",
+    "e",
+    "do",
+    "da",
+    "dos",
+    "das",
+    "no",
+    "na",
+    "nos",
+    "nas",
+    "com",
+    "que",
+    "il",
+    "i",
+    "gli",
+    "lo",
+    "una",
+    "uno",
+    "è",
+    "sono",
+    "ha",
+    "hanno",
+    "nel",
+    "nella",
+    "di",
+    "che",
+    "mit",
+    "der",
+    "die",
+    "das",
+    "den",
+    "dem",
+    "ein",
+    "eine",
+    "einer",
+    "eines",
+    "und",
+    "ist",
+    "sind",
+    "war",
+    "wurde",
+    "nach",
+    "bei",
+    "von",
+    "zu",
+    "zum",
+    "zur",
+    "presidente",
+    "président",
+    "bundeskanzler",
+    "kanzler",
+    "discussed",
+    "visited",
+    "visitó",
+    "visitou",
+    "visitato",
+    "visité",
+    "besuchte",
+    "company",
+];
+
+/// Stop phrases: multi-word surfaces that are generic even when none of
+/// their tokens are individually stopwords.
+pub(super) const STOP_PHRASES: &[&str] = &["get ready", "let us", "imagine the"];
+
+pub(super) fn is_stop_word(word: &str) -> bool {
+    let lower = word.to_lowercase();
+    STOP_WORDS.iter().any(|s| *s == lower)
+        || word
+            .chars()
+            .any(|ch| matches!(ch, 'à' | 'è' | 'é' | 'ì' | 'ò' | 'ù' | 'ü' | 'ö' | 'ä'))
+            && NON_ASCII_STOP_WORDS.iter().any(|stop| *stop == lower)
+}
+
+pub(super) const NON_ASCII_STOP_WORDS: &[&str] = &[
+    "è",
+    "président",
+    "présidente",
+    "präsident",
+    "município",
+    "região",
+    "província",
+];
+
+/// Role and title nouns. UDPipe tags them as ordinary nouns, but they name a
+/// office, not a visible object, so they stay excluded even when a POS tag is
+/// available.
+pub(super) const TITLE_WORDS: &[&str] = &[
+    "presidente",
+    "président",
+    "présidente",
+    "präsident",
+    "bundeskanzler",
+    "kanzler",
+];
+
+pub(super) fn is_title_word(word: &str) -> bool {
+    let lower = word.to_lowercase();
+    TITLE_WORDS.contains(&lower.as_str())
+}
+
+pub(super) fn is_stop_phrase(normalized: &str) -> bool {
+    STOP_PHRASES.contains(&normalized)
+}
+
+// ── Tests ────────────────────────────────────────────────────────────

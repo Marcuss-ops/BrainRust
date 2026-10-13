@@ -21,6 +21,8 @@ rust_icu_unum = { version = "5.8.0", default-features = false, features = ["icu_
 serde = { workspace = true }
 serde_json = { workspace = true }
 ndjson-stdio = { workspace = true }
+udpipe-rs = "0.1"
+rust_icu_ubrk = { version = "5.8.0", default-features = false, features = ["icu_version_in_env", "renaming"] }
 
 [lints]
 workspace = true
