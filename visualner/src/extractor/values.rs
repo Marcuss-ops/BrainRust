@@ -120,6 +120,30 @@ fn classify_type(text: &str) -> String {
     ) {
         return "LOCATION".to_string();
     }
+    // Italian regional capitals (plus the country and its macro-areas) are
+    // curated for the same reason as the entries above: the narration names a
+    // place as the subject of the sentence, where no geographic cue precedes
+    // it ("Milano è il capoluogo della Lombardia"), so capitalization alone
+    // would otherwise degrade it to an unclassified visual concept.
+    if matches!(
+        lower.as_str(),
+        "milano"
+            | "torino"
+            | "napoli"
+            | "firenze"
+            | "venezia"
+            | "bologna"
+            | "genova"
+            | "palermo"
+            | "bari"
+            | "cagliari"
+            | "trieste"
+            | "perugia"
+            | "l'aquila"
+            | "potenza"
+    ) {
+        return "LOCATION".to_string();
+    }
     // Deterministic V1 work/title exceptions prevent song and programme names
     // from satisfying the generic multi-token person rule.
     if matches!(

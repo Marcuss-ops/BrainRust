@@ -88,6 +88,52 @@ pub(super) fn has_location_context(tokens: &[Token], bytes: &[u8], token_index: 
             | "município"
             | "região"
             | "region"
+            // Italian articulated prepositions carry the same geographic cue as
+            // the Portuguese/English entries above ("nel Lazio", "della
+            // Lombardia", "del Veneto", "sull'Adriatico"). The elided forms
+            // keep their apostrophe, because the tokenizer splits
+            // "dell'Abruzzo" into the clitic "dell'" and the place "Abruzzo".
+            | "a"
+            | "nel"
+            | "nello"
+            | "nella"
+            | "nei"
+            | "negli"
+            | "nelle"
+            | "nell"
+            | "nell'"
+            | "del"
+            | "dello"
+            | "della"
+            | "dei"
+            | "degli"
+            | "delle"
+            | "dell"
+            | "dell'"
+            | "al"
+            | "allo"
+            | "alla"
+            | "ai"
+            | "agli"
+            | "alle"
+            | "all"
+            | "all'"
+            | "dal"
+            | "dallo"
+            | "dalla"
+            | "dai"
+            | "dagli"
+            | "dalle"
+            | "dall"
+            | "dall'"
+            | "sul"
+            | "sullo"
+            | "sulla"
+            | "sui"
+            | "sugli"
+            | "sulle"
+            | "sull"
+            | "sull'"
     ) || (matches!(previous.as_str(), "de" | "of")
         && token_index >= 2
         && matches!(
@@ -151,6 +197,17 @@ pub(super) fn is_generic_location_noun(text: &str) -> bool {
             | "region"
             | "estado"
             | "província"
+            // Italian generic place words: after a geographic cue they name a
+            // kind of place, not a place ("nella città di Milano").
+            | "città"
+            | "paese"
+            | "comune"
+            | "regione"
+            | "provincia"
+            | "nazione"
+            | "stato"
+            | "località"
+            | "frazione"
     )
 }
 

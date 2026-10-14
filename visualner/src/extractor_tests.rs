@@ -1009,3 +1009,78 @@ fn deterministic_across_runs() {
     }
 }
 
+
+// The Italian city corpus of the "entity with text" run: every sentence names
+// a regional capital and its region. The extractor must ground at least one
+// LOCATION per scene, or the category-only request (locations) drops the
+// scene and no entity card can be planned for it.
+const ITALIAN_CITY_CORPUS: &[(&str, &str, &str)] = &[
+    ("Roma", "Lazio", "Roma è la capitale dell'Italia e si trova nel Lazio."),
+    ("Milano", "Lombardia", "Milano è il capoluogo della Lombardia e sorge nella pianura padana."),
+    ("Torino", "Piemonte", "Torino si trova in Piemonte e ospita la Mole Antonelliana."),
+    ("Napoli", "Campania", "Napoli è il capoluogo della Campania e si affaccia sul golfo."),
+    ("Firenze", "Toscana", "Firenze è il capoluogo della Toscana e attraversata dall'Arno."),
+    ("Venezia", "Veneto", "Venezia è il capoluogo del Veneto e sorge sulla laguna."),
+    ("Bologna", "Emilia-Romagna", "Bologna è il capoluogo dell'Emilia-Romagna e ospita la più antica università."),
+    ("Genova", "Liguria", "Genova è il capoluogo della Liguria e affacciata sul mar Ligure."),
+    ("Palermo", "Sicilia", "Palermo è il capoluogo della Sicilia e si trova sul mar Tirreno."),
+    ("Bari", "Puglia", "Bari è il capoluogo della Puglia e guarda il mare Adriatico."),
+    ("Cagliari", "Sardegna", "Cagliari è il capoluogo della Sardegna e sorge nel golfo degli Angeli."),
+    ("Trieste", "Friuli-Venezia Giulia", "Trieste è il capoluogo del Friuli-Venezia Giulia e si affaccia sull'Adriatico."),
+    ("Perugia", "Umbria", "Perugia è il capoluogo dell'Umbria e si trova sul Tevere."),
+    ("L'Aquila", "Abruzzo", "L'Aquila è il capoluogo dell'Abruzzo e sorge sull'Aterno."),
+    ("Potenza", "Basilicata", "Potenza è il capoluogo della Basilicata e si trova nell'Appennino lucano."),
+];
+
+#[test]
+fn italian_city_corpus_marks_every_scene_as_a_location() {
+    let mut failures = Vec::new();
+    for (city, region, text) in ITALIAN_CITY_CORPUS {
+        let entities = extract(
+            text,
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 24,
+            },
+        )
+        .expect("it extraction");
+        for place in [*city, *region] {
+            let found = entities
+                .iter()
+                .find(|entity| entity.text == *place)
+                .unwrap_or_else(|| panic!("{text:?}: missing {place:?} in {entities:?}"));
+            if found.r#type != "LOCATION" {
+                failures.push(format!("{text:?}: {place:?} typed {} ({found:?})", found.r#type));
+            }
+            if text.get(found.start..found.end) != Some(place) {
+                failures.push(format!("{text:?}: {place:?} not grounded in the source"));
+            }
+        }
+        for entity in &entities {
+            if matches!(entity.r#type.as_str(), "VISUAL_CONCEPT") && ["sorge", "trova", "affaccia", "ospita", "guarda"].contains(&entity.text.as_str()) {
+                failures.push(format!("{text:?}: verb {:?} leaked as an entity", entity.text));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn italian_contractions_keep_the_proper_name_and_never_move_its_tag() {
+    // "Lombardia" must keep its PROPN tag: the ADP of "della" belongs to
+    // "della", not to the place that follows it.
+    let text = "Milano è il capoluogo della Lombardia e sorge nella pianura padana.";
+    let entities = extract(
+        text,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 24,
+        },
+    )
+    .expect("it extraction");
+    let lombardia = entities
+        .iter()
+        .find(|entity| entity.text == "Lombardia")
+        .unwrap_or_else(|| panic!("missing Lombardia: {entities:?}"));
+    assert_eq!(lombardia.r#type, "LOCATION", "{lombardia:?}");
+}

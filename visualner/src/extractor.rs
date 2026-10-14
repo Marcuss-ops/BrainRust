@@ -243,8 +243,58 @@ fn tokenize(source_text: &str, language: &str) -> Result<Vec<Token>, String> {
             upos: None,
         });
     }
+    let mut tokens = split_elided_clitics(source_text, tokens);
     tag_tokens(source_text, language, &mut tokens);
     Ok(tokens)
+}
+
+/// split_elided_clitics separates an elided preposition/article from the
+/// proper name it is attached to: ICU keeps "dell'Abruzzo", "dell'Umbria"
+/// and "sull'Aterno" as single word tokens, so the name can never be a
+/// candidate and the geographic cue never sees its preposition. Splitting
+/// yields the cue token ("dell'") and the place ("Abruzzo"), both still
+/// verbatim spans of the source. A one-letter prefix stays attached
+/// ("L'Aquila", "d'Artagnan", "O'Brien"), because there the prefix is part
+/// of the name; a lower-case remainder keeps the compound ("dell'arte",
+/// "l'arte").
+fn split_elided_clitics(source_text: &str, tokens: Vec<Token>) -> Vec<Token> {
+    let mut out = Vec::with_capacity(tokens.len() + 4);
+    for token in tokens {
+        match elided_clitic_split(source_text, &token) {
+            Some((clitic_end, name_start)) => {
+                let mut clitic = token.clone();
+                clitic.text = source_text[token.start..clitic_end].to_string();
+                clitic.end = clitic_end;
+                let mut name = token;
+                name.text = source_text[name_start..name.end].to_string();
+                name.start = name_start;
+                out.push(clitic);
+                out.push(name);
+            }
+            None => out.push(token),
+        }
+    }
+    out
+}
+
+/// elided_clitic_split returns the byte end of the elided prefix (the
+/// apostrophe included) and the byte start of the proper name, when the
+/// token is `<two-or-more ASCII letters>'<Uppercase...>`.
+fn elided_clitic_split(source_text: &str, token: &Token) -> Option<(usize, usize)> {
+    let text = source_text.get(token.start..token.end)?;
+    if text != token.text || !text.is_ascii() {
+        return None;
+    }
+    let apostrophe = text.find(['\'', '\u{2019}'])?;
+    let prefix = &text[..apostrophe];
+    if prefix.len() < 2 || !prefix.bytes().all(|byte| byte.is_ascii_alphabetic()) {
+        return None;
+    }
+    let remainder_start = token.start + apostrophe + text[apostrophe..].chars().next()?.len_utf8();
+    if !starts_uppercase(source_text.get(remainder_start..token.end)?) {
+        return None;
+    }
+    Some((token.start + apostrophe + 1, remainder_start))
 }
 
 /// noun_phrase_candidates groups adjacent non-stopword tokens into maximal

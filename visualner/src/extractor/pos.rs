@@ -55,32 +55,74 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
         return;
     };
     // UDPipe forms are verbatim substrings of the source, in order, so a
-    // forward scan recovers each word's byte offset.
+    // forward scan recovers each word's byte offset. The scan only accepts a
+    // word occurrence: a purely alphanumeric form must begin a word, so a
+    // function word can never be matched inside an unrelated longer word
+    // ("di" of the contraction "della" inside "Lombardia" used to re-tag
+    // Lombardia as ADP and delete the place from the extraction).
     let mut cursor = 0;
     let mut word_starts: Vec<(usize, String)> = Vec::new();
     for word in words {
         if word.form.is_empty() {
             continue;
         }
-        let Some(relative) = source_text[cursor..].find(&word.form) else {
+        let Some(start) = locate_word(source_text, &word.form, cursor) else {
             continue;
         };
-        let start = cursor + relative;
         cursor = start + word.form.len();
         word_starts.push((start, word.upostag));
     }
     // One ICU token can cover several UDPipe words ("dell'arte" becomes
     // "di" + "l'" + "arte"), so the first word that starts inside the
     // token's byte span decides its tag. Word starts are ascending, so a
-    // binary search finds it without scanning every token.
+    // binary search finds it without scanning every token. A PROPN inside the
+    // token overrides that first word: the contraction in "dell'Abruzzo" and
+    // "L'Aquila" must not downgrade a proper name to its elided article,
+    // while the common noun in "dell'arte" keeps the contract that makes the
+    // whole contraction a function token.
     for token in tokens.iter_mut() {
         let index = word_starts.partition_point(|(start, _)| *start < token.start);
-        if let Some((start, upos)) = word_starts.get(index) {
-            if *start < token.end {
-                token.upos = Some(upos.clone());
+        let mut chosen: Option<&str> = None;
+        for (start, upos) in word_starts.iter().skip(index) {
+            if *start >= token.end {
+                break;
+            }
+            if chosen.is_none() {
+                chosen = Some(upos.as_str());
+            }
+            if upos == "PROPN" {
+                chosen = Some(upos.as_str());
+                break;
             }
         }
+        if let Some(upos) = chosen {
+            token.upos = Some(upos.to_string());
+        }
     }
+}
+
+/// locate_word returns the first byte offset at or after `from` where `form`
+/// occurs as a source word. A form made only of alphanumeric characters must
+/// start a word (the preceding character is not alphanumeric), which is what
+/// keeps a function-word component of a contraction from matching inside an
+/// unrelated word. A form that carries punctuation (the elided clitic "l'")
+/// is accepted wherever it matches, because ICU does not break the word it is
+/// attached to.
+fn locate_word(source_text: &str, form: &str, from: usize) -> Option<usize> {
+    let word_bounded = form.chars().all(char::is_alphanumeric);
+    let mut cursor = from;
+    while let Some(relative) = source_text.get(cursor..)?.find(form) {
+        let start = cursor + relative;
+        let begins_word = source_text[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|previous| !previous.is_alphanumeric());
+        if !word_bounded || begins_word {
+            return Some(start);
+        }
+        cursor = start + form.len();
+    }
+    None
 }
 
 fn load_model(language: &str) -> Option<Rc<udpipe_rs::Model>> {
@@ -147,11 +189,21 @@ mod tests {
         // Verbs and adjectives defer to the stopword list.
         assert!(is_stop_token(&token("imagine", Some("VERB"))));
         assert!(!is_stop_token(&token("olive", Some("ADJ"))));
-    }
+    }	#[test]
+	fn fallback_uses_stopword_list_without_tags() {
+		assert!(is_stop_token(&token("the", None)));
+		assert!(!is_stop_token(&token("feta", None)));
+	}
 
-    #[test]
-    fn fallback_uses_stopword_list_without_tags() {
-        assert!(is_stop_token(&token("the", None)));
-        assert!(!is_stop_token(&token("feta", None)));
-    }
+	#[test]
+	fn locate_word_skips_matches_inside_a_longer_word() {
+		// "di" (the first component of the Italian contraction "della") occurs
+		// inside "Lombardia"; only the standalone occurrence is a word.
+		let source = "capoluogo della Lombardia";
+		assert_eq!(locate_word(source, "di", 0), None);
+		assert_eq!(locate_word(source, "Lombardia", 0), source.find("Lombardia"));
+		// A clitic carrying punctuation is matched where it is attached.
+		let contraction = "dell'arte";
+		assert_eq!(locate_word(contraction, "l'", 0), Some(contraction.find("l'").unwrap()));
+	}
 }
