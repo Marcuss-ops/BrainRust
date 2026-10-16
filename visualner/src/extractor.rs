@@ -25,6 +25,7 @@
 mod location;
 mod pos;
 mod stopwords;
+mod verb;
 use location::*;
 use pos::{is_stop_token, tag_tokens};
 use stopwords::*;
@@ -51,7 +52,7 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
         return Err("VisualNER language is required".to_string());
     }
     let tokens = tokenize(source_text, language)?;
-    let mut candidates = noun_phrase_candidates(&tokens, source_text);
+    let mut candidates = noun_phrase_candidates(&tokens, source_text, language);
     candidates.extend(value_candidates(source_text));
     mark_contextual_locations(&mut candidates, &tokens, source_text);
     let spelled_candidates = crate::spellout::candidates(source_text, language)?;
@@ -304,7 +305,11 @@ fn elided_clitic_split(source_text: &str, token: &Token) -> Option<(usize, usize
 /// hard phrase boundary). Multi-word phrases ("feta cheese",
 /// "olive oil") score higher than singletons, which is what makes the
 /// Mediterranean golden fixture's anchors win over generic singletons.
-fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate> {
+fn noun_phrase_candidates(
+    tokens: &[Token],
+    source_text: &str,
+    language: &str,
+) -> Vec<Candidate> {
     let bytes = source_text.as_bytes();
     let mut out = Vec::new();
     // Named people/organizations are bounded to the contiguous title-case run.
@@ -398,9 +403,14 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str) -> Vec<Candidate>
         // "tomatoes", "olives") fill the top-N. Single-word subjects
         // ("hummus", "shakshuka", "paella") are NOT dropped — they are
         // legitimate one-word ingredient/dish candidates.
+        // A contextual verbal predicate ("e sorge nella pianura") is not a
+        // visualizable concept: GEN-01 keeps verbs out of the entity set
+        // without a lexical blacklist, so nominal readings of the same
+        // surface ("La guarda del castello") stay extractable.
         if !is_stop_phrase(&normalized)
             && !is_generic_phrase(&normalized)
             && !is_subject_phrase(&normalized)
+            && !verb::is_verbal_predicate(tokens, phrase_start, phrase_end, language)
         {
             out.push(Candidate {
                 text,
