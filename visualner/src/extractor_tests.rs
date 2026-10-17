@@ -1057,7 +1057,12 @@ fn italian_city_corpus_marks_every_scene_as_a_location() {
             }
         }
         for entity in &entities {
-            if matches!(entity.r#type.as_str(), "VISUAL_CONCEPT") && ["sorge", "trova", "affaccia", "ospita", "guarda"].contains(&entity.text.as_str()) {
+            // The verb guard covers the fallback path too: with no UDPipe
+            // model there is no POS tag, so the curated verb vocabulary
+            // must keep narration verbs out of the candidates entirely.
+            if matches!(entity.r#type.as_str(), "VISUAL_CONCEPT")
+                && ["sorge", "trova", "affaccia", "ospita", "guarda", "avvenne", "arrivò", "cambiò", "nacque", "conservato"].contains(&entity.text.as_str())
+            {
                 failures.push(format!("{text:?}: verb {:?} leaked as an entity", entity.text));
             }
         }

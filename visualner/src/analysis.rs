@@ -7,7 +7,8 @@
 //!
 //! Entities are referenced by their index in `Analysis::entities`.
 
-use crate::extractor::extract;
+use crate::extractor::{extract, numeric_value_spans};
+use crate::temporal::temporal_facts;
 use crate::types::{ExtractOptions, VisualEntity};
 use serde::Serialize;
 
@@ -23,6 +24,35 @@ pub struct Analysis {
     pub bullets: Vec<Bullet>,
     /// Numeric entities whose value is unambiguous (e.g. `25%`, `$1200`).
     pub chart_points: Vec<ChartPoint>,
+    /// Every source-grounded date occurrence, independent of the visual
+    /// top-N budget, with calendar normalization and precision. A scene with
+    /// five dates must not lose facts before PipelineGen can build a
+    /// timeline: this projection feeds the composed date-timeline groups.
+    pub temporal_facts: Vec<crate::temporal::TemporalFact>,
+    /// Every numeric-value fact (NUMBER/PERCENT/MONEY with its parse when
+    /// unambiguous), independent of the visual top-N budget. Charts and
+    /// compared statistics consume this list so a scene with more numbers
+    /// than the entity budget loses none of them.
+    pub numeric_facts: Vec<NumericFact>,
+}
+
+/// One grounded numeric-value fact. `value` is parsed only when the surface
+/// is unambiguous for the scene language (`25%`, `$1,200`, `12,5% euro`); a
+/// scaled quantity such as `2 million` carries no raw value instead of a
+/// guessed one. The killer rule is inherited: surface == evidence == source
+/// slice at `[start_byte, end_byte)`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct NumericFact {
+    /// Exact source form (e.g. "25%").
+    pub surface: String,
+    /// One of `NUMBER`, `PERCENT`, `MONEY`.
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// Parsed numeric value when unambiguous; `None` otherwise.
+    pub value: Option<f64>,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub evidence: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -103,6 +133,8 @@ pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, 
         &entity_sentence,
         &options.language,
     );
+    let temporal_facts = temporal_facts(source_text, &options.language);
+    let numeric_facts = numeric_facts(source_text, &options.language);
 
     Ok(Analysis {
         entities,
@@ -110,7 +142,26 @@ pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, 
         lower_thirds,
         bullets,
         chart_points,
+        temporal_facts,
+        numeric_facts,
     })
+}
+
+fn numeric_facts(source_text: &str, language: &str) -> Vec<NumericFact> {
+    numeric_value_spans(source_text)
+        .into_iter()
+        .filter_map(|span| {
+            let surface = source_text.get(span.start..span.end)?;
+            Some(NumericFact {
+                surface: surface.to_string(),
+                kind: span.entity_type,
+                value: parse_unambiguous_value(surface, language),
+                start_byte: span.start,
+                end_byte: span.end,
+                evidence: surface.to_string(),
+            })
+        })
+        .collect()
 }
 
 fn relations(
@@ -345,6 +396,80 @@ mod tests {
         for bullet in &analysis.bullets {
             assert_eq!(&SOURCE[bullet.start..bullet.end], bullet.text);
         }
+    }
+
+    #[test]
+    fn numeric_facts_survive_a_low_entity_budget() {
+        // The plan's second killer scenario: more numbers than the visual
+        // top-N budget. NumericFacts must carry every numeric occurrence.
+        let text = "Il team contava 15 persone, il budget copriva il 42%, i costi passarono da 3 ad 8, e il 2024 chiuse con 1,2 milioni di euro.";
+        let analysis = analyze(
+            text,
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        for fact in &analysis.numeric_facts {
+            assert_eq!(
+                text.get(fact.start_byte..fact.end_byte),
+                Some(fact.surface.as_str()),
+                "surface must be verbatim at its offsets"
+            );
+            assert_eq!(fact.evidence, fact.surface);
+            assert!(matches!(fact.kind.as_str(), "NUMBER" | "PERCENT" | "MONEY"));
+        }
+        let surfaces: Vec<&str> = analysis
+            .numeric_facts
+            .iter()
+            .map(|fact| fact.surface.as_str())
+            .collect();
+        assert!(surfaces.contains(&"42%"), "facts: {surfaces:?}");
+        assert!(surfaces.contains(&"15"), "facts: {surfaces:?}");
+        // A 4-digit year classifies as DATE, not NUMBER: the temporal
+        // projection owns it, so the numeric projection must not duplicate
+        // it (one fact, one projection).
+        assert!(!surfaces.contains(&"2024"), "facts: {surfaces:?}");
+    }
+
+    #[test]
+    fn numeric_facts_parse_units_by_language_convention() {
+        let en = analyze(
+            "Revenue hit $1,200 and 25% growth.",
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        let money = en
+            .numeric_facts
+            .iter()
+            .find(|fact| fact.kind == "MONEY")
+            .expect("$1,200 must produce a MONEY fact");
+        assert_eq!(money.value, Some(1200.0));
+        let percent = en
+            .numeric_facts
+            .iter()
+            .find(|fact| fact.kind == "PERCENT" && fact.value == Some(25.0));
+        assert!(percent.is_some(), "facts: {:?}", en.numeric_facts);
+
+        // Italian decimal comma: 12,5% parses to 12.5.
+        let it = analyze(
+            "Le vendite crebbero del 12,5%.",
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        let percent = it
+            .numeric_facts
+            .iter()
+            .find(|fact| fact.kind == "PERCENT")
+            .expect("12,5% must produce a PERCENT fact");
+        assert_eq!(percent.value, Some(12.5));
     }
 
     #[test]

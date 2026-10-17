@@ -1,4 +1,4 @@
-use mediasampler::{sample_scene, BoundAssets, Candidate, SampleOptions, SampleResult, Scene};
+use mediasampler::{sample_scene, sample_scene_group, BoundAssets, Candidate, SampleOptions, SampleResult, Scene};
 use ndjson_stdio::{check_envelope, ErrorCode, WorkerError};
 use serde::{Deserialize, Serialize};
 
@@ -35,12 +35,19 @@ struct SampleRequest {
     /// default) preserves the historical single-scene behavior.
     #[serde(default)]
     bound_assets: Vec<BoundEntry>,
+    /// `select_group` size (MultiImage 2.0, 2–5 winners). Ignored for
+    /// `select`.
+    #[serde(default)]
+    group_size: usize,
 }
 
 #[derive(Debug, Serialize)]
 struct SampleResponse {
     results: Vec<SampleResult>,
     winner_id: Option<String>,
+    /// `select_group` members in rank order (absent for `select`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    group_ids: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
@@ -78,13 +85,16 @@ fn process_line(line: &str) -> String {
     };
     // Fail closed on unknown envelope values instead of silently ignoring
     // them: a contract drift between Go and Rust must surface as an error,
-    // not as a mis-sampled scene.
+    // not as a mis-sampled scene. `select_group` is the second active
+    // operation; anything else stays the plain `select`.
+    let operation = request.operation.as_deref().unwrap_or("select");
+    let group_operation = operation == "select_group";
     if let Err(error) = check_envelope(
         "mediasampler",
         request.version.as_deref(),
         "mediasampler.v1",
         request.operation.as_deref(),
-        "select",
+        if group_operation { "select_group" } else { "select" },
     ) {
         return error_response(&error);
     }
@@ -96,17 +106,190 @@ fn process_line(line: &str) -> String {
         allow_reuse: request.allow_reuse,
         images_per_scene: request.images_per_scene,
     };
+    if group_operation {
+        return match sample_scene_group(
+            &request.scene,
+            &request.candidates,
+            &options,
+            &mut bound,
+            request.group_size,
+        ) {
+            Ok((results, group)) => match serde_json::to_string(&SampleResponse {
+                results,
+                winner_id: group.first().cloned(),
+                group_ids: Some(group),
+                error: None,
+            }) {
+                Ok(line) => line,
+                Err(error) => error_response(&WorkerError::new(
+                    ErrorCode::Encode,
+                    format!("mediasampler encode: {error}"),
+                )),
+            },
+            Err(message) => error_response(&WorkerError::new(
+                ErrorCode::Execution,
+                format!("mediasampler select_group: {message}"),
+            )),
+        };
+    }
     let (results, winner_id) =
         sample_scene(&request.scene, &request.candidates, &options, &mut bound);
     match serde_json::to_string(&SampleResponse {
         results,
         winner_id,
+        group_ids: None,
         error: None,
     }) {
         Ok(line) => line,
-        Err(error) => error_response(&WorkerError::new(
+        Err(error) =>        error_response(&WorkerError::new(
             ErrorCode::Encode,
             format!("mediasampler encode: {error}"),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scene() -> serde_json::Value {
+        serde_json::json!({
+            "id": "scene-group-01",
+            "subject": "greek salad",
+            "terms": ["feta", "tomatoes", "olives"],
+        })
+    }
+
+    fn candidates() -> serde_json::Value {
+        serde_json::json!([
+            {"id": "artlist-salad-hero", "label": "greek salad close up", "generic_similarity": 0.9},
+            {"id": "artlist-feta-block", "label": "feta cheese block", "generic_similarity": 0.85},
+            {"id": "artlist-tomato-bed", "label": "tomatoes on the counter", "generic_similarity": 0.8},
+            {"id": "artlist-olives-jar", "label": "olive jar", "generic_similarity": 0.75},
+            {"id": "artlist-kitchen-table", "label": "mediterranean kitchen table", "generic_similarity": 0.6},
+            {"id": "artlist-boxing", "label": "woman boxing", "generic_similarity": 0.95},
+        ])
+    }
+
+    fn select_group_request(operation: &str, group_size: serde_json::Value) -> String {
+        serde_json::json!({
+            "version": "mediasampler.v1",
+            "operation": operation,
+            "scene": scene(),
+            "candidates": candidates(),
+            "group_size": group_size,
+        })
+        .to_string()
+    }
+
+    fn parse(response: &str) -> serde_json::Value {
+        serde_json::from_str(response).expect("response must be a JSON object")
+    }
+
+    #[test]
+    fn select_group_returns_ordered_group_ids_of_requested_size() {
+        for (size, expected) in [
+            (2usize, vec!["artlist-salad-hero", "artlist-feta-block"]),
+            (3usize, vec!["artlist-salad-hero", "artlist-feta-block", "artlist-tomato-bed"]),
+            (4usize, vec![
+                "artlist-salad-hero",
+                "artlist-feta-block",
+                "artlist-tomato-bed",
+                "artlist-olives-jar",
+            ]),
+            (5usize, vec![
+                "artlist-salad-hero",
+                "artlist-feta-block",
+                "artlist-tomato-bed",
+                "artlist-olives-jar",
+                "artlist-kitchen-table",
+            ]),
+        ] {
+            let response = process_line(&select_group_request("select_group", size.into()));
+            let value = parse(&response);
+            assert!(value["error"].is_null(), "size={size}: {response}");
+            let group: Vec<String> = value
+                ["group_ids"]
+                .as_array()
+                .expect("group_ids must be present for select_group")
+                .iter()
+                .map(|id| id.as_str().expect("id").to_string())
+                .collect();
+            assert_eq!(group.len(), size, "size={size}: {group:?}",);
+            // The boxing mismatch must never enter any group.
+            assert!(
+                !group.iter().any(|id| id.contains("boxing")),
+                "size={size}: mismatched asset selected: {group:?}"
+            );
+            let distinct: std::collections::HashSet<&String> = group.iter().collect();
+            assert_eq!(distinct.len(), size, "assets must be distinct: {group:?}");
+            for (i, id) in group.iter().enumerate() {
+                assert_eq!(id, &expected[i], "size={size}: rank order {group:?}");
+            }
+            assert_eq!(value["winner_id"], group[0]);
+        }
+    }
+
+    #[test]
+    fn select_group_passes_bound_assets_from_the_caller() {
+        let request = serde_json::json!({
+            "version": "mediasampler.v1",
+            "operation": "select_group",
+            "scene": scene(),
+            "candidates": candidates(),
+            "group_size": 3,
+            "bound_assets": [
+                {"asset_id": "artlist-salad-hero", "scene_id": "mediterranean-00-opening"},
+            ],
+        });
+        let value = parse(&process_line(&request.to_string()));
+        assert!(value["error"].is_null(), "response: {value}");
+        let group: Vec<String> = value
+            ["group_ids"]
+            .as_array()
+            .expect("group_ids")
+            .iter()
+            .map(|id| id.as_str().expect("id").to_string())
+            .collect();
+        assert!(
+            !group.iter().any(|id| id == "artlist-salad-hero"),
+            "pre-bound asset must not reappear: {group:?}"
+        );
+        // The rejected rebinding shows up in the results as already_bound.
+        let rejected = value["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["candidate_id"] == "artlist-salad-hero")
+            .expect("pre-bound candidate reported");
+        assert_eq!(rejected["rejection"], "already_bound");
+    }
+
+    #[test]
+    fn select_group_rejects_sizes_outside_two_to_five_as_worker_errors() {
+        for size in [0usize, 1, 6, 99] {
+            let value = parse(&process_line(&select_group_request(
+                "select_group",
+                size.into(),
+            )));
+            assert_eq!(value["error_code"], "execution", "size={size}: {value}");
+            assert!(
+                value["error"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("2..=5")),
+                "size={size}: error must name the valid range: {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn select_keeps_its_single_winner_contract() {
+        let value = parse(&process_line(&select_group_request("select", 3.into())));
+        assert!(value["error"].is_null(), "response: {value}");
+        assert!(
+            value["group_ids"].is_null(),
+            "select must not emit group_ids: {value}"
+        );
+        assert_eq!(value["winner_id"], "artlist-salad-hero");
     }
 }

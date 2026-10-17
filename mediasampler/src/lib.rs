@@ -30,5 +30,5 @@
 pub mod sampler;
 pub mod types;
 
-pub use sampler::{sample_scene, BoundAssets};
+pub use sampler::{sample_scene, sample_scene_group, BoundAssets};
 pub use types::{Candidate, RejectionReason, SampleOptions, SampleResult, Scene};

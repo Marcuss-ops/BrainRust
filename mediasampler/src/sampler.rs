@@ -106,6 +106,76 @@ pub fn sample_scene(
     (results, winner)
 }
 
+/// sample_scene_group is the `select_group` operation for MultiImage 2.0:
+/// 2–5 assets for one scene, ranked by the same pipeline, all truly
+/// distinct (an asset cannot appear twice in one group) and every selected
+/// asset is recorded in the ledger like a single winner would be.
+/// Determinism: score-desc, ties by candidate id, exactly like
+/// `sample_scene`. The group may contain fewer than `count` assets when
+/// fewer candidates are acceptable; the caller (Go planner) then picks a
+/// smaller layout (x4 keeps working when the fifth image is missing) and
+/// MUST NOT fill the slot with a duplicate or unverified asset.
+///
+/// `count` out of 2..=5 fails closed: a zero or one-asset group is a plain
+/// winner (`select`), and anything beyond five is a contract error.
+pub fn sample_scene_group(
+    scene: &Scene,
+    candidates: &[Candidate],
+    options: &SampleOptions,
+    bound: &mut BoundAssets,
+    count: usize,
+) -> Result<(Vec<SampleResult>, Vec<String>), String> {
+    if !(2..=5).contains(&count) {
+        return Err(format!(
+            "select_group requires 2..=5 assets, got {count}"
+        ));
+    }
+    let mut results = Vec::with_capacity(candidates.len());
+    for candidate in candidates {
+        results.push(evaluate(scene, candidate, options, bound));
+    }
+    // Rank accepted candidates by score desc, then candidate id asc; dedupe
+    // per id (never the same asset twice in one group).
+    let mut accepted: Vec<&SampleResult> = results.iter().filter(|r| r.is_accepted()).collect();
+    accepted.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.candidate_id.cmp(&b.candidate_id))
+    });
+    let mut group = Vec::with_capacity(count);
+    let mut seen = std::collections::HashSet::new();
+    for r in accepted {
+        if group.len() == count {
+            break;
+        }
+        if !seen.insert(r.candidate_id.clone()) {
+            continue;
+        }
+        group.push(r.candidate_id.clone());
+    }
+    // Every member of the group is bound, exactly like a single winner is.
+    for id in &group {
+        bound.bind(id, &scene.id);
+    }
+    // Keep the stable full-result ordering (accepted first, score desc).
+    results.sort_by(|a, b| match (a.is_accepted(), b.is_accepted()) {
+        (true, true) => b
+            .score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.candidate_id.cmp(&b.candidate_id)),
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (false, false) => {
+            let ra = format!("{:?}", a.rejection);
+            let rb = format!("{:?}", b.rejection);
+            ra.cmp(&rb).then(a.candidate_id.cmp(&b.candidate_id))
+        }
+    });
+    Ok((results, group))
+}
+
 /// evaluate applies the full pipeline to one candidate and returns the
 /// accept/reject decision. Hard constraints (ownership, reuse, subject
 /// match) reject; soft scoring produces the final score.
@@ -398,6 +468,91 @@ mod tests {
         );
     }
 
+    #[test]
+    fn group_selects_distinct_ranked_assets_and_binds_all() {
+        let scene = greek_salad_scene();
+        let candidates = vec![
+            boxing_candidate(),
+            greek_salad_candidate(),
+            restaurant_candidate(),
+        ];
+        let mut bound = BoundAssets::new();
+        let (results, group) = sample_scene_group(
+            &scene,
+            &candidates,
+            &SampleOptions::default(),
+            &mut bound,
+            3,
+        )
+        .expect("x3 group");
+        // Boxing never enters the group: 2 acceptable assets only.
+        assert_eq!(group.len(), 2, "group: {group:?}");
+        assert!(!group.contains(&"artlist-boxing-001".to_string()));
+        // Credentials bound in the ledger exactly like single winners.
+        for id in &group {
+            assert!(!bound.is_reuse(id, "mediterranean-01-greek-salad"));
+        }
+        // Full results stay in the stable accepted-first ordering.
+        assert!(results[0].is_accepted());
+    }
+
+    #[test]
+    fn group_is_deterministic_and_never_duplicates() {
+        let scene = greek_salad_scene();
+        let candidates = vec![
+            greek_salad_candidate(),
+            restaurant_candidate(),
+            boxing_candidate(),
+        ];
+        let first = {
+            let mut bound = BoundAssets::new();
+            sample_scene_group(&scene, &candidates, &SampleOptions::default(), &mut bound, 5)
+                .unwrap()
+                .1
+        };
+        for _ in 0..99 {
+            let mut bound = BoundAssets::new();
+            let group =
+                sample_scene_group(&scene, &candidates, &SampleOptions::default(), &mut bound, 5)
+                    .unwrap()
+                    .1;
+            assert_eq!(group, first);
+        }
+        let ids = first.clone();
+        assert_eq!(ids.len(), ids.iter().collect::<std::collections::HashSet<_>>().len(), "no duplicates");
+    }
+
+    #[test]
+    fn group_fails_closed_outside_two_to_five() {
+        let scene = greek_salad_scene();
+        let candidates = vec![greek_salad_candidate()];
+        let mut bound = BoundAssets::new();
+        for bad in [0, 1, 6, 20] {
+            assert!(sample_scene_group(&scene, &candidates, &SampleOptions::default(), &mut bound, bad).is_err());
+        }
+    }
+
+    #[test]
+    fn group_respects_the_request_side_reuse_ledger() {
+        let scene = greek_salad_scene();
+        let mut bound = BoundAssets::new();
+        bound.bind("artlist-greek-salad-001", "other-scene");
+        let candidates = vec![greek_salad_candidate(), restaurant_candidate()];
+        let (results, group) = sample_scene_group(
+            &scene,
+            &candidates,
+            &SampleOptions::default(),
+            &mut bound,
+            5,
+        )
+        .expect("x2+ group");
+        assert!(
+            !group.contains(&"artlist-greek-salad-001".to_string()),
+            "already-bound asset must not reappear: {group:?}"
+        );
+        assert!(results.iter().any(|r| r.rejection == Some(RejectionReason::AlreadyBound)));
+    }
+
     // TestSamplerDeterministic — 100 runs must produce the same winner.
     #[test]
     fn deterministic_across_runs() {
@@ -554,5 +709,177 @@ mod tests {
         let r = results.first().unwrap();
         assert_eq!(r.rejection, Some(RejectionReason::OwnerMismatch));
         assert!(winner.is_none());
+    }
+
+    // ── select_group (MultiImage 2.0, x2–x5) ────────────────────────────
+
+    fn ready_to_use_scene() -> Scene {
+        Scene {
+            id: "scene-group-01".to_string(),
+            subject: "greek salad".to_string(),
+            terms: vec!["feta".to_string(), "tomatoes".to_string(), "olives".to_string()],
+        }
+    }
+
+    fn varied_candidates() -> Vec<Candidate> {
+        // Six acceptable candidates plus one rejected mismatch, ranked by
+        // their labels so the deterministic ordering stays observable.
+        [
+            ("salad-hero", "greek salad close up", 0.90),
+            ("feta-block", "feta cheese block", 0.85),
+            ("tomato-bed", "tomatoes on the counter", 0.80),
+            ("olives-jar", "olive jar", 0.75),
+            ("salad-plate", "greek salad plated", 0.70),
+            ("kitchen-table", "mediterranean kitchen table", 0.60),
+            ("boxing-mismatch", "woman boxing", 0.95),
+        ]
+        .into_iter()
+        .map(
+            |(id, label, similarity)| Candidate {
+                id: format!("artlist-{id}"),
+                label: label.to_string(),
+                generic_similarity: similarity,
+                owner_segment_id: String::new(),
+            },
+        )
+        .collect()
+    }
+
+    fn run_group(
+        count: usize,
+        bound_assets: &mut BoundAssets,
+    ) -> (Vec<SampleResult>, Vec<String>) {
+        sample_scene_group(
+            &ready_to_use_scene(),
+            &varied_candidates(),
+            &SampleOptions::default(),
+            bound_assets,
+            count,
+        )
+        .expect("legal 2..=5 group size")
+    }
+
+    #[test]
+    fn select_group_sizes_two_to_five_are_distinct_and_ranked() {
+        for count in 2..=5 {
+            let mut bound = BoundAssets::new();
+            let (results, group) = run_group(count, &mut bound);
+            assert_eq!(group.len(), count, "count={count}: {group:?}");
+            let distinct: std::collections::HashSet<&String> = group.iter().collect();
+            assert_eq!(distinct.len(), count, "group must contain distinct assets: {group:?}");
+            // The boxing candidate must never enter any group.
+            assert!(
+                !group.iter().any(|id| id.contains("boxing")),
+                "mismatched candidate selected for count={count}: {group:?}"
+            );
+            // Group members follow the accepted rank order (score desc, id asc).
+            let accepted: Vec<&SampleResult> = results.iter().filter(|r| r.is_accepted()).collect();
+            let expected: Vec<String> = accepted.iter().take(count).map(|r| r.candidate_id.clone()).collect();
+            assert_eq!(group, expected, "group must match rank order, count={count}");
+            // Every member must be accepted with a positive score.
+            for id in &group {
+                let r = results.iter().find(|r| &r.candidate_id == id).unwrap();
+                assert!(r.is_accepted() && r.score > 0.0, "member {id}: {r:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn select_group_is_deterministic_across_runs() {
+        let reference = {
+            let mut bound = BoundAssets::new();
+            run_group(3, &mut bound)
+        };
+        for _ in 0..99 {
+            let mut bound = BoundAssets::new();
+            let run = run_group(3, &mut bound);
+            assert_eq!(run, reference, "non-deterministic select_group output");
+        }
+    }
+
+    #[test]
+    fn select_group_records_every_member_in_the_ledger() {
+        let mut bound = BoundAssets::new();
+        let (_, group) = run_group(4, &mut bound);
+        for id in &group {
+            let scene = ready_to_use_scene();
+            assert!(!bound.is_reuse(id, &scene.id), "member {id} must be bound to its own scene");
+            assert!(
+                bound.is_reuse(id, "scene-group-02"),
+                "member {id} must reject reuse on a later scene"
+            );
+        }
+    }
+
+    #[test]
+    fn select_group_respects_pre_bound_assets() {
+        // The Go side passes assets already assigned to earlier scenes; the
+        // sampler must refuse them for this scene instead of reusing them.
+        let mut bound = BoundAssets::new();
+        bound.bind("artlist-salad-hero", "mediterranean-00-opening");
+        let (results, group) = run_group(3, &mut bound);
+        assert!(
+            !group.iter().any(|id| id == "artlist-salad-hero"),
+            "pre-bound asset must not reappear: {group:?}"
+        );
+        let rejected = results
+            .iter()
+            .find(|r| r.candidate_id == "artlist-salad-hero")
+            .expect("pre-bound candidate still reported");
+        assert_eq!(rejected.rejection, Some(RejectionReason::AlreadyBound));
+    }
+
+    #[test]
+    fn select_group_with_too_few_candidates_returns_only_distinct_accepteds() {
+        // Only two acceptable candidates: an x4 request must yield exactly
+        // two assets, never duplicates or padding.
+        let scene = ready_to_use_scene();
+        let candidates: Vec<Candidate> = [
+            ("salad-hero", "greek salad close up", 0.9),
+            ("feta-block", "feta cheese block", 0.85),
+            ("boxing-mismatch", "woman boxing", 0.95),
+        ]
+        .into_iter()
+        .map(
+            |(id, label, similarity)| Candidate {
+                id: format!("artlist-{id}"),
+                label: label.to_string(),
+                generic_similarity: similarity,
+                owner_segment_id: String::new(),
+            },
+        )
+        .collect();
+        let mut bound = BoundAssets::new();
+        let (_, group) = sample_scene_group(
+            &scene,
+            &candidates,
+            &SampleOptions::default(),
+            &mut bound,
+            4,
+        )
+        .expect("legal count");
+        assert_eq!(group.len(), 2, "group: {group:?}");
+        let distinct: std::collections::HashSet<&String> = group.iter().collect();
+        assert_eq!(distinct.len(), 2);
+    }
+
+    #[test]
+    fn select_group_rejects_counts_outside_two_to_five() {
+        let scene = ready_to_use_scene();
+        let mut bound = BoundAssets::new();
+        for count in [0usize, 1, 6, 99] {
+            let error = sample_scene_group(
+                &scene,
+                &varied_candidates(),
+                &SampleOptions::default(),
+                &mut bound,
+                count,
+            )
+            .expect_err("count outside 2..=5 must fail closed");
+            assert!(
+                error.contains("2..=5"),
+                "count={count}: error must name the valid range: {error}"
+            );
+        }
     }
 }

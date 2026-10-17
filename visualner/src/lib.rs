@@ -30,15 +30,24 @@
 //! hallucinations ("Imagine the", "ready", "Mediterranean" as entities).
 //! It feeds the SceneIR `Entities` field and the MediaSampler candidate
 //! ranking.
+//
+// In addition to the top-N visual entities, `analyze` projects the
+//! `temporal_facts` view: every source-grounded date occurrence, with
+//! calendar normalization and precision, regardless of the visual top-N
+//! budget (see `temporal.rs`).
 
 #![deny(unsafe_code)]
 
 pub mod analysis;
 pub mod extractor;
 pub mod spellout;
+pub mod temporal;
 pub mod types;
 
 pub use analysis::{analyze, Analysis};
 pub use extractor::extract;
 pub use spellout::supported_spellout_language_count;
+pub use temporal::TemporalFact;
+pub use temporal::temporal_facts;
+pub use temporal::{PRECISION_DAY, PRECISION_MONTH, PRECISION_UNRESOLVED, PRECISION_YEAR};
 pub use types::{ExtractOptions, VisualEntity};

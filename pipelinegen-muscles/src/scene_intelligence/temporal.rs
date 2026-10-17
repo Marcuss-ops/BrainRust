@@ -1,5 +1,7 @@
 //! Internal split of scene_intelligence (pure move, no behavior change).
 
+use std::collections::HashMap;
+
 use super::*;
 
 
@@ -21,6 +23,21 @@ pub struct TemporalEvent {
     pub normalized_end_year: Option<i32>,
     pub certainty: f64,
     pub narration_index: usize,
+    /// Position of this event in the order it was NARRATED (0-based, across
+    /// the analyzed sentences). The list is sorted chronologically for
+    /// certified behaviour, but the animator must follow this order: "Nel
+    /// 2005, ripensando al 1998…" must activate 2005 first, not 1998.
+    #[serde(default)]
+    pub narration_order: usize,
+    /// Byte span of the individual temporal surface ("1998", "2020–2023",
+    /// "tre anni dopo") inside the SCENE text, computed as the sentence's
+    /// start offset plus the in-sentence match. This replaces the
+    /// sentence-index-only anchoring, so the planner can bind each event to
+    /// certified voiceover word timing without re-parsing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_byte: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_byte: Option<usize>,
 }
 
 /// Extract year mentions and order them chronologically (narration order is
@@ -35,45 +52,83 @@ pub fn extract_temporal_with_anchor(
     sentences: &[&Sentence],
     anchor_year: Option<i32>,
 ) -> Vec<TemporalEvent> {
+    if sentences.is_empty() {
+        return Vec::new();
+    }
     let mut out = Vec::new();
-    for s in sentences {
-        for (start, end, expr) in scan_intervals(&s.text) {
+    let mut occurrence: HashMap<usize, usize> = HashMap::new();
+    let mut narration_order = 0usize;
+    for s in sentences.iter() {
+        // Byte offset of the sentence inside its SCENE text: the surface
+        // spans below are scene-relative, so the planner can join them to
+        // voiceover word timing on the same coordinate system.
+        let sentence_text_base = s.start_byte;
+        let next_occurrence = |occurrence: &mut HashMap<usize, usize>| {
+            let n = occurrence.entry(s.id).or_insert(0);
+            let id = *n;
+            *n += 1;
+            id
+        };
+        for (start, end, expr, rel_start, rel_end) in scan_interval_spans(&s.text) {
+            let occurrence_id = next_occurrence(&mut occurrence);
+            let (sb, eb) = absolute_surface_span
+                (
+                    sentence_text_base,
+                    rel_start,
+                    rel_end,
+                );
             out.push(TemporalEvent {
-                event_id: format!("event-{:04}", s.id),
+                event_id: format!("event-{:04}:{:02}", s.id, occurrence_id),
                 text_span: s.text.clone(),
                 temporal_expression: expr,
                 normalized_year: Some(start),
                 normalized_end_year: Some(end),
                 certainty: 0.9,
                 narration_index: s.id,
+                narration_order,
+                start_byte: Some(sb),
+                end_byte: Some(eb),
             });
+            narration_order += 1;
         }
         let covered = interval_years(&s.text);
-        for year in scan_years(&s.text) {
+        for (year, rel_start, rel_end) in scan_year_spans(&s.text) {
             if covered.contains(&year) {
                 continue;
             }
+            let occurrence_id = next_occurrence(&mut occurrence);
+            let (sb, eb) = absolute_surface_span(sentence_text_base, rel_start, rel_end);
             out.push(TemporalEvent {
-                event_id: format!("event-{:04}", s.id),
+                event_id: format!("event-{:04}:{:02}", s.id, occurrence_id),
                 text_span: s.text.clone(),
                 temporal_expression: year.to_string(),
                 normalized_year: Some(year),
                 normalized_end_year: None,
                 certainty: 0.95,
                 narration_index: s.id,
+                narration_order,
+                start_byte: Some(sb),
+                end_byte: Some(eb),
             });
+            narration_order += 1;
         }
-        if let Some(off) = relative_offset(&s.text) {
+        if let Some((off, rel_start, rel_end)) = relative_offset_span(&s.text) {
             let resolved = anchor_year.map(|a| a + off);
+            let occurrence_id = next_occurrence(&mut occurrence);
+            let (sb, eb) = absolute_surface_span(sentence_text_base, rel_start, rel_end);
             out.push(TemporalEvent {
-                event_id: format!("event-{:04}-rel", s.id),
+                event_id: format!("event-{:04}:{:02}-rel", s.id, occurrence_id),
                 text_span: s.text.clone(),
                 temporal_expression: relative_expression(&s.text),
                 normalized_year: resolved,
                 normalized_end_year: None,
                 certainty: if resolved.is_some() { 0.75 } else { 0.5 },
                 narration_index: s.id,
+                narration_order,
+                start_byte: Some(sb),
+                end_byte: Some(eb),
             });
+            narration_order += 1;
             continue;
         }
     }
@@ -81,7 +136,49 @@ pub fn extract_temporal_with_anchor(
         a.normalized_year
             .cmp(&b.normalized_year)
             .then(a.narration_index.cmp(&b.narration_index))
+            .then(a.narration_order.cmp(&b.narration_order))
     });
+    out
+}
+
+/// Surface span: scene-relative absolute byte offsets.
+fn absolute_surface_span(
+    sentence_base: usize,
+    rel_start: usize,
+    rel_end: usize,
+) -> (usize, usize) {
+    (sentence_base + rel_start, sentence_base + rel_end)
+}
+
+fn scan_year_spans(text: &str) -> Vec<(i32, usize, usize)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_digit() {
+            let j = {
+                let mut k = i;
+                while k < bytes.len() && bytes[k].is_ascii_digit() {
+                    k += 1;
+                }
+                k
+            };
+            if j - i == 4 {
+                let left_ok = i == 0 || !bytes[i - 1].is_ascii_digit();
+                let right_ok = j >= bytes.len() || !bytes[j].is_ascii_digit();
+                if left_ok && right_ok {
+                    if let Ok(year) = text[i..j].parse::<i32>() {
+                        if (1000..=2100).contains(&year) {
+                            out.push((year, i, j));
+                        }
+                    }
+                }
+            }
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
     out
 }
 
@@ -110,9 +207,22 @@ pub(super) fn scan_years(text: &str) -> Vec<i32> {
     out
 }
 
-/// Offset in years for relative expressions ("tre anni dopo" → +3,
-/// "l'anno successivo" → +1). None when no relative expression.
-pub(super) fn relative_offset(text: &str) -> Option<i32> {
+
+pub(super) fn number_word(t: &str) -> Option<i32> {
+    match t {
+        "un" | "uno" | "una" | "one" | "ein" | "eine" => Some(1),
+        "due" | "two" | "zwei" | "deux" | "dos" => Some(2),
+        "tre" | "three" | "drei" | "trois" | "tres" => Some(3),
+        "quattro" | "four" | "vier" | "quatre" | "cuatro" => Some(4),
+        "cinque" | "five" | "fünf" | "funf" | "cinq" | "cinco" => Some(5),
+        _ => t.parse::<i32>().ok().filter(|n| (1..=50).contains(n)),
+    }
+}
+
+/// Offset in years for relative expressions WITH the in-sentence byte span
+/// of the matched marker ("tre anni dopo" → (+3, span)). None when no
+/// relative expression.
+pub(super) fn relative_offset_span(text: &str) -> Option<(i32, usize, usize)> {
     let toks = tokens(text);
     const REL_PLURAL: &[&[&str]] = &[
         &["anni", "dopo"],
@@ -128,44 +238,46 @@ pub(super) fn relative_offset(text: &str) -> Option<i32> {
         "suivante",
         "siguiente",
     ];
+    // Token→char boundary approximation: tokens are lowercase words built
+    // over the same text, so reconstruct the span by searching the surface.
+    let span_of = |toks: &[String], from: usize, to: usize| -> (usize, usize) {
+        let lower = text.to_lowercase();
+        let joined = toks[from..to.min(toks.len())].join(" ");
+        lower
+            .find(&joined)
+            .map(|pos| (pos, pos + joined.len()))
+            .unwrap_or((0, text.len()))
+    };
     for pat in REL_PLURAL {
         for i in 0..toks.len().saturating_sub(pat.len() - 1) {
             if toks[i..i + pat.len()] == **pat {
-                // Number word or digit just before the pattern.
+                let mut offset = None;
+                // Number word just before the pattern, else +1 year.
                 if i > 0 {
-                    if let Some(n) = number_word(&toks[i - 1]) {
-                        return Some(n);
-                    }
+                    offset = number_word(&toks[i - 1]);
                 }
-                return Some(1);
+                let span = span_of(&toks, i, i + pat.len());
+                return Some((offset.unwrap_or(1), span.0, span.1));
             }
         }
     }
-    if toks.windows(2).any(|w| {
+    if let Some(win) = toks.windows(2).position(|w| {
         (w[0] == "anno" || w[0] == "year" || w[0] == "jahr" || w[0] == "an")
             && REL_SINGLE.contains(&w[1].as_str())
     }) {
-        return Some(1);
+        let span = span_of(&toks, win, win + 2);
+        return Some((1, span.0, span.1));
     }
-    // "N anni dopo" with N as prefix of the pattern already handled;
-    // explicit "tre anni dopo" / "three years later".
     if contains_phrase(&toks, &["tre", "anni", "dopo"])
         || contains_phrase(&toks, &["three", "years", "later"])
     {
-        return Some(3);
+        if let Some(pos) = toks.windows(3).position(|w| w == ["tre", "anni", "dopo"] || w == ["three", "years", "later"]) {
+            let span = span_of(&toks, pos, pos + 3);
+            return Some((3, span.0, span.1));
+        }
+        return Some((3, 0, text.len()));
     }
     None
-}
-
-pub(super) fn number_word(t: &str) -> Option<i32> {
-    match t {
-        "un" | "uno" | "una" | "one" | "ein" | "eine" => Some(1),
-        "due" | "two" | "zwei" | "deux" | "dos" => Some(2),
-        "tre" | "three" | "drei" | "trois" | "tres" => Some(3),
-        "quattro" | "four" | "vier" | "quatre" | "cuatro" => Some(4),
-        "cinque" | "five" | "fünf" | "funf" | "cinq" | "cinco" => Some(5),
-        _ => t.parse::<i32>().ok().filter(|n| (1..=50).contains(n)),
-    }
 }
 
 /// Token-window equality against a marker phrase.
@@ -177,8 +289,17 @@ pub(super) fn window_eq(toks: &[String], pos: usize, marker: &[&str]) -> bool {
             .all(|(a, b)| a == b)
 }
 
-/// Intervals ("2020–2023", "dal 2020 al 2023"): (start, end, expression).
-pub(super) fn scan_intervals(text: &str) -> Vec<(i32, i32, String)> {
+/// Intervals with byte spans: (start, end, expression, in-sentence start,
+/// in-sentence end). The span covers exactly the digits+separator surface.
+pub(super) fn scan_interval_spans(text: &str) -> Vec<(i32, i32, String, usize, usize)> {
+    scan_intervals(text)
+        .into_iter()
+        .collect()
+}
+
+/// Intervals ("2020–2023", "dal 2020 al 2023"): (start, end, expression,
+/// in-sentence start byte, in-sentence end byte).
+pub(super) fn scan_intervals(text: &str) -> Vec<(i32, i32, String, usize, usize)> {
     // Work on char indices; years here are ASCII so byte/char coincide.
     let mut out = Vec::new();
     let bytes = text.as_bytes();
@@ -221,13 +342,20 @@ pub(super) fn scan_intervals(text: &str) -> Vec<(i32, i32, String)> {
                 || between == "—"
                 || ["al", "to", "and", "e", "e il", "bis", "au", "a"].contains(&between.as_str());
             if is_sep && y1 >= y0 {
-                out.push((y0, y1, text[s0..e1].trim().to_string()));
+                let trimmed_start = s0 + text[s0..e1].len() - text[s0..e1].trim_start().len();
+                let trimmed_end = e1 - (text[s0..e1].len() - text[s0..e1].trim_end().len());
+                out.push((
+                    y0,
+                    y1,
+                    text[s0..e1].trim().to_string(),
+                    trimmed_start,
+                    trimmed_end,
+                ));
                 used[a] = true;
                 used[a + 1] = true;
             }
         }
     }
-    let _ = used;
     out
 }
 
@@ -235,7 +363,7 @@ pub(super) fn scan_intervals(text: &str) -> Vec<(i32, i32, String)> {
 pub(super) fn interval_years(text: &str) -> std::collections::BTreeSet<i32> {
     scan_intervals(text)
         .into_iter()
-        .flat_map(|(a, b, _)| [a, b])
+        .flat_map(|(a, b, _, _, _)| [a, b])
         .collect()
 }
 
