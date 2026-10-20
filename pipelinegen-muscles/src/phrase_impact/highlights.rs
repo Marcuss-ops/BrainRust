@@ -196,5 +196,3 @@ pub(super) fn build_scene_highlights(
     }
     (out, certified)
 }
-
-

@@ -365,7 +365,6 @@ use scoring::*;
 use selection::*;
 pub use sentences::*;
 
-
 /// the built-in bounded lexical vectors when lexical_only is explicitly true.
 /// Output summaries and bullets are extractive to prevent unsupported claims.
 pub fn run(request: Request) -> Result<ResultDocument, MuscleError> {

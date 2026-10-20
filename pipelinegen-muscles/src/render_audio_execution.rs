@@ -1,12 +1,12 @@
 #[path = "render_audio_execution/envelopes.rs"]
 mod envelopes;
-#[path = "render_audio_execution/loudness.rs"]
-mod loudness;
 #[path = "render_audio_execution/event_filter.rs"]
 mod event_filter;
+#[path = "render_audio_execution/loudness.rs"]
+mod loudness;
 use envelopes::*;
-use loudness::*;
 use event_filter::*;
+use loudness::*;
 
 use super::plan::{track_events, validate_plan};
 

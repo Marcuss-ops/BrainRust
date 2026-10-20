@@ -22,7 +22,9 @@ impl BoundaryEvidence {
     }
 }
 
-pub(super) fn token_distribution(sentences: &[RankedSentence]) -> std::collections::HashMap<String, f64> {
+pub(super) fn token_distribution(
+    sentences: &[RankedSentence],
+) -> std::collections::HashMap<String, f64> {
     let mut counts = std::collections::HashMap::<String, f64>::new();
     for sentence in sentences {
         for token in sentence.text.split(|ch: char| !ch.is_alphanumeric()) {
@@ -267,7 +269,6 @@ pub(super) fn chapter_title(
     }
 }
 
-
 pub(super) fn build_chapters(
     ranked: &[RankedSentence],
     vectors: &[Vec<f64>],
@@ -492,4 +493,3 @@ pub(super) fn build_chapters(
     }
     chapters
 }
-

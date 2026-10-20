@@ -107,8 +107,13 @@ pub(super) fn render_clip(request: Request) -> Response {
     // compositing path. Hardware decode/encode acceleration still follows
     // the Go-resolved encoder policy (an NVENC policy may decode through
     // NVDEC), but compositing is always this CPU graph.
+    // Decode acceleration follows the Go-resolved encoder policy AND the
+    // decode backends the local ffmpeg build actually reports: an NVENC
+    // policy on a build without CUDA degrades to CPU decode (observable on
+    // stderr), never a blind `-hwaccel cuda` that would break every render.
     let requested_codec = encoder.codec.trim().to_ascii_lowercase();
-    let nvenc_encoder = requested_codec == "nvenc" || requested_codec.ends_with("_nvenc");
+    let (decode_accelerator, _) =
+        crate::gpu::resolve_decode_accelerator(&requested_codec, ffmpeg);
     let image_watermark = clip_plan
         .watermark
         .as_ref()
@@ -145,11 +150,11 @@ pub(super) fn render_clip(request: Request) -> Response {
     }
     // Inputs: [0] source, optional background asset, and optional image
     // watermark. The strict CUDA path has no CPU canvas input.
-    if nvenc_encoder {
-        // Decode through NVDEC on GPU for accelerated hardware decoding;
+    for argument in crate::gpu::decode_preamble_args(decode_accelerator) {
+        // Accelerated hardware decode only; frames stay in system memory and
         // the filter graph still composites on CPU (compositing is
         // Chronon's domain on the Chronon executor, not Rust's).
-        command.args(["-hwaccel", "cuda"]);
+        command.arg(argument);
     }
     command.args(["-i", source]);
     if clip_plan.background.as_ref().map(|bg| bg.mode.as_str()) == Some(BACKGROUND_ASSET) {

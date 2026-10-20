@@ -22,7 +22,20 @@ pub struct MediaConfig {
     pub sample_rate: Option<u32>,
     pub channels: Option<u32>,
     pub duration_sec: Option<f64>,
+    /// Parallel cut wave fanout (Go-owned capacity policy). Absent keeps the
+    /// historical bound; 0 or above the ceiling fails closed (see
+    /// [`MediaConfig::parallel_cuts`]).
+    pub max_parallel_cuts: Option<u32>,
 }
+
+/// Historical cut fanout bound. Default when the Go policy omits
+/// `max_parallel_cuts`, so the wire contract stays backward-compatible.
+pub(crate) const DEFAULT_MAX_PARALLEL_CUTS: usize = 3;
+
+/// Hard ceiling on the cut wave fanout: above this, one batch would spawn
+/// more concurrent FFmpeg processes than any shared worker survives, so the
+/// mistake fails closed instead of hammering the box.
+pub(crate) const MAX_PARALLEL_CUTS_CEILING: usize = 64;
 
 #[derive(Clone, Debug)]
 pub struct VideoProfile {
@@ -91,6 +104,27 @@ impl MediaConfig {
         })?;
         Ok(EncoderPolicy { codec, preset, crf })
     }
+
+    /// Parallel cut wave fanout. `None` keeps the historical
+    /// [`DEFAULT_MAX_PARALLEL_CUTS`] bound; zero or a value above the
+    /// [`MAX_PARALLEL_CUTS_CEILING`] fails closed (zero would panic
+    /// `chunks`, and an absurd fanout is a thundering herd on shared
+    /// workers).
+    pub(crate) fn parallel_cuts(&self) -> Result<usize, MuscleError> {
+        match self.max_parallel_cuts {
+            None => Ok(DEFAULT_MAX_PARALLEL_CUTS),
+            Some(value) if (value as usize) > MAX_PARALLEL_CUTS_CEILING => {
+                Err(MuscleError::generic(format!(
+                    "PROFILE_REQUIRED: max_parallel_cuts exceeds the {} wave ceiling",
+                    MAX_PARALLEL_CUTS_CEILING
+                )))
+            }
+            Some(0) => Err(MuscleError::generic(
+                "PROFILE_REQUIRED: max_parallel_cuts must be positive when supplied",
+            )),
+            Some(value) => Ok(value as usize),
+        }
+    }
 }
 
 fn required_positive(value: Option<u32>, field: &str) -> Result<u32, MuscleError> {
@@ -142,6 +176,7 @@ mod tests {
             sample_rate: Some(48000),
             channels: Some(2),
             duration_sec: None,
+            max_parallel_cuts: None,
         }
     }
 
@@ -169,5 +204,36 @@ mod tests {
         media.fps_den = None;
         let error = media.profile().unwrap_err();
         assert!(error.contains("PROFILE_REQUIRED: fps_num"));
+    }
+
+    #[test]
+    fn missing_parallel_cuts_policy_keeps_the_historical_bound() {
+        assert_eq!(complete().parallel_cuts().unwrap(), 3);
+    }
+
+    #[test]
+    fn parallel_cuts_policy_is_honored_when_supplied() {
+        let mut media = complete();
+        media.max_parallel_cuts = Some(8);
+        assert_eq!(media.parallel_cuts().unwrap(), 8);
+    }
+
+    #[test]
+    fn parallel_cuts_policy_fails_closed_on_zero_and_over_ceiling() {
+        let mut media = complete();
+        media.max_parallel_cuts = Some(0);
+        let error = media.parallel_cuts().unwrap_err();
+        assert!(error.contains("must be positive"), "zero: {error}");
+
+        media.max_parallel_cuts = Some((super::MAX_PARALLEL_CUTS_CEILING as u32) + 1);
+        let error = media.parallel_cuts().unwrap_err();
+        assert!(error.contains("wave ceiling"), "over-ceiling: {error}");
+
+        // The ceiling itself stays legal.
+        media.max_parallel_cuts = Some(super::MAX_PARALLEL_CUTS_CEILING as u32);
+        assert_eq!(
+            media.parallel_cuts().unwrap(),
+            super::MAX_PARALLEL_CUTS_CEILING
+        );
     }
 }

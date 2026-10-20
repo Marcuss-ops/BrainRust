@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use super::*;
 
-
 // ── 4. Timeline events ────────────────────────────────────────────
 
 /// One historical event mention. `normalized_year` is set ONLY for explicit
@@ -71,12 +70,7 @@ pub fn extract_temporal_with_anchor(
         };
         for (start, end, expr, rel_start, rel_end) in scan_interval_spans(&s.text) {
             let occurrence_id = next_occurrence(&mut occurrence);
-            let (sb, eb) = absolute_surface_span
-                (
-                    sentence_text_base,
-                    rel_start,
-                    rel_end,
-                );
+            let (sb, eb) = absolute_surface_span(sentence_text_base, rel_start, rel_end);
             out.push(TemporalEvent {
                 event_id: format!("event-{:04}:{:02}", s.id, occurrence_id),
                 text_span: s.text.clone(),
@@ -142,11 +136,7 @@ pub fn extract_temporal_with_anchor(
 }
 
 /// Surface span: scene-relative absolute byte offsets.
-fn absolute_surface_span(
-    sentence_base: usize,
-    rel_start: usize,
-    rel_end: usize,
-) -> (usize, usize) {
+fn absolute_surface_span(sentence_base: usize, rel_start: usize, rel_end: usize) -> (usize, usize) {
     (sentence_base + rel_start, sentence_base + rel_end)
 }
 
@@ -206,7 +196,6 @@ pub(super) fn scan_years(text: &str) -> Vec<i32> {
     out.dedup();
     out
 }
-
 
 pub(super) fn number_word(t: &str) -> Option<i32> {
     match t {
@@ -271,7 +260,10 @@ pub(super) fn relative_offset_span(text: &str) -> Option<(i32, usize, usize)> {
     if contains_phrase(&toks, &["tre", "anni", "dopo"])
         || contains_phrase(&toks, &["three", "years", "later"])
     {
-        if let Some(pos) = toks.windows(3).position(|w| w == ["tre", "anni", "dopo"] || w == ["three", "years", "later"]) {
+        if let Some(pos) = toks
+            .windows(3)
+            .position(|w| w == ["tre", "anni", "dopo"] || w == ["three", "years", "later"])
+        {
             let span = span_of(&toks, pos, pos + 3);
             return Some((3, span.0, span.1));
         }
@@ -292,9 +284,7 @@ pub(super) fn window_eq(toks: &[String], pos: usize, marker: &[&str]) -> bool {
 /// Intervals with byte spans: (start, end, expression, in-sentence start,
 /// in-sentence end). The span covers exactly the digits+separator surface.
 pub(super) fn scan_interval_spans(text: &str) -> Vec<(i32, i32, String, usize, usize)> {
-    scan_intervals(text)
-        .into_iter()
-        .collect()
+    scan_intervals(text).into_iter().collect()
 }
 
 /// Intervals ("2020–2023", "dal 2020 al 2023"): (start, end, expression,
@@ -381,4 +371,3 @@ pub(super) fn relative_expression(text: &str) -> String {
     }
     "relative".to_string()
 }
-

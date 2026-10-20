@@ -1,4 +1,6 @@
-use mediasampler::{sample_scene, sample_scene_group, BoundAssets, Candidate, SampleOptions, SampleResult, Scene};
+use mediasampler::{
+    sample_scene, sample_scene_group, BoundAssets, Candidate, SampleOptions, SampleResult, Scene,
+};
 use ndjson_stdio::{check_envelope, ErrorCode, WorkerError};
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +15,11 @@ use serde::{Deserialize, Serialize};
 struct BoundEntry {
     asset_id: String,
     scene_id: String,
+    /// The label the asset won under (optional); it powers the V2 diversity
+    /// overlap for pre-bound assets supplied by the Go caller. An unlabeled
+    /// entry binds with no diversity evidence rather than failing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,6 +46,21 @@ struct SampleRequest {
     /// `select`.
     #[serde(default)]
     group_size: usize,
+    /// V2 diversity stage weight. Absent keeps the default; values outside
+    /// `[0.0, 0.1]` fail closed (the stage is bounded by its blend weight).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    diversity_weight: Option<f32>,
+    /// Data-driven keyword tables. Absent (the default) keeps the curated
+    /// V1 tables so a Go-side domain that does not send them stays on the
+    /// certified behaviour; supplied lists REPLACE the tables wholesale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    mismatched_subjects: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    compatible_keywords: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    action_verbs: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    context_keywords: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -50,6 +72,38 @@ struct SampleResponse {
     group_ids: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     error: Option<String>,
+}
+
+/// Applies the optional data-driven table overrides from the request.
+/// Each override REPLACES the default table wholesale (never merges), so a
+/// domain list stays auditable end-to-end. `diversity_weight` outside
+/// `[0.0, 0.1]` fails closed.
+fn apply_table_overrides(
+    mut options: SampleOptions,
+    request: &SampleRequest,
+) -> Result<SampleOptions, WorkerError> {
+    if let Some(weight) = request.diversity_weight {
+        if !(0.0..=0.1).contains(&weight) {
+            return Err(WorkerError::new(
+                ErrorCode::Execution,
+                format!("mediasampler diversity_weight {weight} outside [0.0, 0.1]"),
+            ));
+        }
+        options.diversity_weight = weight;
+    }
+    if let Some(list) = request.mismatched_subjects.clone() {
+        options.mismatched_subjects = list;
+    }
+    if let Some(list) = request.compatible_keywords.clone() {
+        options.compatible_keywords = list;
+    }
+    if let Some(list) = request.action_verbs.clone() {
+        options.action_verbs = list;
+    }
+    if let Some(list) = request.context_keywords.clone() {
+        options.context_keywords = list;
+    }
+    Ok(options)
 }
 
 fn error_response(error: &WorkerError) -> String {
@@ -94,17 +148,46 @@ fn process_line(line: &str) -> String {
         request.version.as_deref(),
         "mediasampler.v1",
         request.operation.as_deref(),
-        if group_operation { "select_group" } else { "select" },
+        if group_operation {
+            "select_group"
+        } else {
+            "select"
+        },
     ) {
         return error_response(&error);
     }
+    // Fail closed on out-of-range soft signals before any scoring happens:
+    // an embedding outside [0, 1] is a contract drift from the caller, not
+    // something to silently clamp into a wrong winner.
+    for candidate in &request.candidates {
+        if let Some(value) = candidate.embedding_similarity {
+            if !(0.0..=1.0).contains(&value) {
+                return error_response(&WorkerError::new(
+                    ErrorCode::Execution,
+                    format!(
+                        "mediasampler candidate {} embedding_similarity {value} outside [0, 1]",
+                        candidate.id
+                    ),
+                ));
+            }
+        }
+    }
     let mut bound = BoundAssets::new();
     for entry in &request.bound_assets {
-        bound.bind(&entry.asset_id, &entry.scene_id);
+        bound.bind_label(
+            &entry.asset_id,
+            &entry.scene_id,
+            entry.label.as_deref().unwrap_or(""),
+        );
     }
     let options = SampleOptions {
         allow_reuse: request.allow_reuse,
         images_per_scene: request.images_per_scene,
+        ..SampleOptions::default()
+    };
+    let options = match apply_table_overrides(options, &request) {
+        Ok(options) => options,
+        Err(error) => return error_response(&error),
     };
     if group_operation {
         return match sample_scene_group(
@@ -141,7 +224,7 @@ fn process_line(line: &str) -> String {
         error: None,
     }) {
         Ok(line) => line,
-        Err(error) =>        error_response(&WorkerError::new(
+        Err(error) => error_response(&WorkerError::new(
             ErrorCode::Encode,
             format!("mediasampler encode: {error}"),
         )),
@@ -190,26 +273,38 @@ mod tests {
     fn select_group_returns_ordered_group_ids_of_requested_size() {
         for (size, expected) in [
             (2usize, vec!["artlist-salad-hero", "artlist-feta-block"]),
-            (3usize, vec!["artlist-salad-hero", "artlist-feta-block", "artlist-tomato-bed"]),
-            (4usize, vec![
-                "artlist-salad-hero",
-                "artlist-feta-block",
-                "artlist-tomato-bed",
-                "artlist-olives-jar",
-            ]),
-            (5usize, vec![
-                "artlist-salad-hero",
-                "artlist-feta-block",
-                "artlist-tomato-bed",
-                "artlist-olives-jar",
-                "artlist-kitchen-table",
-            ]),
+            (
+                3usize,
+                vec![
+                    "artlist-salad-hero",
+                    "artlist-feta-block",
+                    "artlist-tomato-bed",
+                ],
+            ),
+            (
+                4usize,
+                vec![
+                    "artlist-salad-hero",
+                    "artlist-feta-block",
+                    "artlist-tomato-bed",
+                    "artlist-olives-jar",
+                ],
+            ),
+            (
+                5usize,
+                vec![
+                    "artlist-salad-hero",
+                    "artlist-feta-block",
+                    "artlist-tomato-bed",
+                    "artlist-olives-jar",
+                    "artlist-kitchen-table",
+                ],
+            ),
         ] {
             let response = process_line(&select_group_request("select_group", size.into()));
             let value = parse(&response);
             assert!(value["error"].is_null(), "size={size}: {response}");
-            let group: Vec<String> = value
-                ["group_ids"]
+            let group: Vec<String> = value["group_ids"]
                 .as_array()
                 .expect("group_ids must be present for select_group")
                 .iter()
@@ -244,8 +339,7 @@ mod tests {
         });
         let value = parse(&process_line(&request.to_string()));
         assert!(value["error"].is_null(), "response: {value}");
-        let group: Vec<String> = value
-            ["group_ids"]
+        let group: Vec<String> = value["group_ids"]
             .as_array()
             .expect("group_ids")
             .iter()
@@ -291,5 +385,84 @@ mod tests {
             "select must not emit group_ids: {value}"
         );
         assert_eq!(value["winner_id"], "artlist-salad-hero");
+    }
+
+    #[test]
+    fn data_driven_tables_reject_the_custom_domain_mismatch() {
+        // With the default culinary tables, "goalkeeper diving save" is not
+        // in the curated mismatched list (boxing/gym/…), so it WOULD score.
+        // The request replaces the table; the worker honours it.
+        let request = serde_json::json!({
+            "version": "mediasampler.v1",
+            "scene": {"id": "s-01", "subject": "glacier climb", "terms": ["summit"]},
+            "candidates": [
+                {"id": "a-goalie", "label": "goalkeeper diving save", "generic_similarity": 0.95},
+                {"id": "b-summit", "label": "summit ridge at dawn", "generic_similarity": 0.85},
+            ],
+            "mismatched_subjects": ["goalkeeper"],
+        });
+        let value = parse(&process_line(&request.to_string()));
+        assert!(value["error"].is_null(), "response: {value}");
+        assert_eq!(value["winner_id"], "b-summit");
+        let rejected = value["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["candidate_id"] == "a-goalie")
+            .expect("mismatched candidate reported");
+        assert_eq!(rejected["rejection"], "subject_mismatch");
+    }
+
+    #[test]
+    fn out_of_range_signal_values_fail_closed() {
+        let payload = |field: &str, value: serde_json::Value| {
+            serde_json::json!({
+                "version": "mediasampler.v1",
+                "scene": {"id": "s-01", "subject": "greek salad", "terms": []},
+                "candidates": [
+                    {"id": "a", "label": "salad", "generic_similarity": 0.5, field: value},
+                ],
+            })
+        };
+        let embedding = payload("embedding_similarity", 1.5.into()).to_string();
+        let value = parse(&process_line(&embedding));
+        assert_eq!(value["error_code"], "execution", "embedding: {value}");
+        assert!(value["error"].as_str().unwrap().contains("[0, 1]"));
+
+        let request = serde_json::json!({
+            "version": "mediasampler.v1",
+            "scene": {"id": "s-01", "subject": "greek salad", "terms": []},
+            "candidates": [],
+            "diversity_weight": 0.5,
+        });
+        let value = parse(&process_line(&request.to_string()));
+        assert_eq!(value["error_code"], "execution", "weight: {value}");
+        assert!(value["error"].as_str().unwrap().contains("[0.0, 0.1]"));
+    }
+
+    #[test]
+    fn pre_bound_entries_carry_their_label_for_the_diversity_stage() {
+        let request = serde_json::json!({
+            "version": "mediasampler.v1",
+            "operation": "select_group",
+            "scene": scene(),
+            "candidates": [
+                {"id": "artlist-close-up", "label": "salad close up", "generic_similarity": 0.7},
+                {"id": "artlist-plate", "label": "salad served on plate", "generic_similarity": 0.7},
+            ],
+            "group_size": 2,
+            "bound_assets": [
+                {"asset_id": "artlist-old-salad", "scene_id": "scene-00", "label": "greek salad close up"},
+            ],
+        });
+        let value = parse(&process_line(&request.to_string()));
+        assert!(value["error"].is_null(), "response: {value}");
+        // The label-overlapping candidate (salad close up vs. bound "{salad}
+        // close up") must be demoted; the distinct one leads the group.
+        assert_eq!(
+            value["group_ids"][0], "artlist-plate",
+            "diversity evidence must reorder identical-base candidates: {value}"
+        );
+        assert_eq!(value["winner_id"], "artlist-plate");
     }
 }

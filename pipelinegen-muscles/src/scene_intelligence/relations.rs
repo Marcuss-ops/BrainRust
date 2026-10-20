@@ -2,7 +2,6 @@
 
 use super::*;
 
-
 // ── 5. Entity relationship graph ──────────────────────────────────
 
 /// A typed entity relation. Only marker-evidenced relations are emitted: two
@@ -113,4 +112,3 @@ pub fn extract_relations(sentence: &Sentence, entities: &[String]) -> Vec<Entity
     }
     out
 }
-

@@ -138,4 +138,3 @@ pub(super) fn count_relation_marks(toks: &[String]) -> usize {
 }
 
 // ── 2. Comparison detector ────────────────────────────────────────
-

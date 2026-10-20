@@ -305,4 +305,3 @@ pub fn parse_values(text: &str) -> Vec<f64> {
     }
     out
 }
-

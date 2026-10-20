@@ -30,10 +30,12 @@ use crate::types::{Candidate, RejectionReason, SampleOptions, SampleResult, Scen
 /// BoundAssets tracks asset ids already bound to scenes so the sampler can
 /// reject cross-scene reuse when `allow_reuse = false`. It is the
 /// per-run binding ledger the sampler consults before accepting a winner.
+/// Each entry also carries the label the asset won under, which powers the
+/// V2 diversity stage (semantic overlap with already-bound winners).
 #[derive(Debug, Clone, Default)]
 pub struct BoundAssets {
-    /// Map of asset id -> segment id that bound it first.
-    bound: std::collections::HashMap<String, String>,
+    /// Map of asset id -> (segment id that bound it first, label).
+    bound: std::collections::HashMap<String, (String, String)>,
 }
 
 impl BoundAssets {
@@ -45,15 +47,66 @@ impl BoundAssets {
     /// `scene_id`.
     pub fn is_reuse(&self, asset_id: &str, scene_id: &str) -> bool {
         match self.bound.get(asset_id) {
-            Some(owner) => owner != scene_id,
+            Some((owner, _)) => owner != scene_id,
             None => false,
         }
     }
 
-    /// Records that `scene_id` has bound `asset_id`.
+    /// Records that `scene_id` has bound `asset_id` (no label; the diversity
+    /// stage then receives no overlap evidence from this entry).
     pub fn bind(&mut self, asset_id: &str, scene_id: &str) {
+        self.bind_label(asset_id, scene_id, "");
+    }
+
+    /// `bind` plus the winning label — the caller-facing constructor the
+    /// winner path uses so diversity has real overlap evidence.
+    pub fn bind_label(&mut self, asset_id: &str, scene_id: &str, label: &str) {
+        self.bound.insert(
+            asset_id.to_string(),
+            (scene_id.to_string(), label.to_string()),
+        );
+    }
+
+    /// Highest token-overlap (Jaccard in `[0.0, 1.0]`) between `tokens` and
+    /// any already-bound label. Empty ledger → 0.0 (no diversity context).
+    pub(crate) fn best_label_overlap(&self, tokens: &std::collections::BTreeSet<String>) -> f32 {
         self.bound
-            .insert(asset_id.to_string(), scene_id.to_string());
+            .values()
+            .filter(|(_, label)| !label.trim().is_empty())
+            .map(|(_, label)| label_tokens(label).jaccard(tokens))
+            .fold(0.0_f32, f32::max)
+    }
+
+    /// True when at least one bound entry carries a winning label, i.e. when
+    /// the diversity stage HAS overlap evidence to reason about.
+    pub(crate) fn has_any_label(&self) -> bool {
+        self.bound
+            .values()
+            .any(|(_, label)| !label.trim().is_empty())
+    }
+}
+
+/// Lowercase alphanumeric word tokens of a label, in order, deduplicated.
+pub(crate) fn label_tokens(label: &str) -> std::collections::BTreeSet<String> {
+    label
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| word.chars().count() > 1)
+        .map(|word| word.to_lowercase())
+        .collect()
+}
+
+pub(crate) trait Jaccard {
+    fn jaccard(&self, other: &Self) -> f32;
+}
+
+impl Jaccard for std::collections::BTreeSet<String> {
+    fn jaccard(&self, other: &Self) -> f32 {
+        if self.is_empty() || other.is_empty() {
+            return 0.0;
+        }
+        let intersection = self.intersection(other).count();
+        let union = self.union(other).count();
+        intersection as f32 / union as f32
     }
 }
 
@@ -83,8 +136,9 @@ pub fn sample_scene(
             .then(a.candidate_id.cmp(&b.candidate_id))
     });
     let winner = accepted.first().map(|r| {
-        // Record the binding so later scenes reject reuse.
-        bound.bind(&r.candidate_id, &scene.id);
+        // Record the binding (with the winning label, for the V2 diversity
+        // stage) so later scenes reject reuse and penalize overlaps.
+        bound.bind_label(&r.candidate_id, &scene.id, &r.label);
         r.candidate_id.clone()
     });
     // Sort the full result list for stable output: accepted first (score
@@ -126,9 +180,7 @@ pub fn sample_scene_group(
     count: usize,
 ) -> Result<(Vec<SampleResult>, Vec<String>), String> {
     if !(2..=5).contains(&count) {
-        return Err(format!(
-            "select_group requires 2..=5 assets, got {count}"
-        ));
+        return Err(format!("select_group requires 2..=5 assets, got {count}"));
     }
     let mut results = Vec::with_capacity(candidates.len());
     for candidate in candidates {
@@ -155,8 +207,13 @@ pub fn sample_scene_group(
         group.push(r.candidate_id.clone());
     }
     // Every member of the group is bound, exactly like a single winner is.
+    // The label travels with the binding to power the diversity stage.
     for id in &group {
-        bound.bind(id, &scene.id);
+        if let Some(result) = results.iter().find(|r| &r.candidate_id == id) {
+            bound.bind_label(id, &scene.id, &result.label);
+        } else {
+            bound.bind(id, &scene.id);
+        }
     }
     // Keep the stable full-result ordering (accepted first, score desc).
     results.sort_by(|a, b| match (a.is_accepted(), b.is_accepted()) {
@@ -203,8 +260,8 @@ fn evaluate(
             "candidate already bound to another scene (reuse forbidden)",
         );
     }
-    // 3. subject relevance (hard constraint)
-    if is_subject_mismatch(scene, candidate) {
+    // 3. subject relevance (hard constraint, data-driven tables)
+    if is_subject_mismatch(scene, candidate, options) {
         return SampleResult::rejected(
             &candidate.id,
             &candidate.label,
@@ -213,9 +270,9 @@ fn evaluate(
         );
     }
     // 4-7. soft scoring: action + context + semantic + diversity
-    let action = action_relevance(scene, candidate);
-    let context = context_relevance(scene, candidate);
-    let diversity = diversity_bonus(scene, candidate);
+    let action = action_relevance(candidate, options);
+    let context = context_relevance(candidate, options);
+    let diversity = diversity_bonus(candidate, bound, options);
     let semantic = semantic_score(scene, candidate);
     // Final score blends the generic similarity (provider signal) with the
     // semantic grounding (source signal). The semantic score dominates so a
@@ -224,7 +281,7 @@ fn evaluate(
         + (candidate.generic_similarity * 0.3)
         + (action * 0.05)
         + (context * 0.025)
-        + (diversity * 0.025);
+        + (diversity * options.diversity_weight);
     let clamped = final_score.clamp(0.0, 1.0);
     SampleResult::accepted(
         &candidate.id,
@@ -237,11 +294,11 @@ fn evaluate(
 /// is_subject_mismatch reports whether the candidate's label is
 /// semantically incompatible with the scene subject. A candidate is a
 /// mismatch when its label references NONE of: the scene subject, any
-/// visual term, OR any known-compatible cuisine keyword — AND references a
-/// known mismatched subject (boxing, gym, fitness, ...). This is what
-/// rejects `woman boxing` for `greek salad` while accepting `greek salad
-/// being prepared`.
-fn is_subject_mismatch(scene: &Scene, candidate: &Candidate) -> bool {
+/// visual term, OR any known-compatible keyword — AND references a
+/// known mismatched subject (boxing, gym, fitness, ...). The keyword tables
+/// are data-driven (see [`SampleOptions`]); the curated V1 tables are the
+/// defaults, so a different content domain can replace them wholesale.
+fn is_subject_mismatch(scene: &Scene, candidate: &Candidate, options: &SampleOptions) -> bool {
     let label = candidate.label.to_lowercase();
     let subject = scene.subject.to_lowercase();
     if subject.is_empty() {
@@ -258,34 +315,35 @@ fn is_subject_mismatch(scene: &Scene, candidate: &Candidate) -> bool {
             return false;
         }
     }
-    // If the label references a known cuisine-compatible keyword, it is not
-    // a mismatch (e.g. "mediterranean restaurant" for a greek salad scene
+    // If the label references a known-compatible keyword, it is not a
+    // mismatch (e.g. "mediterranean restaurant" for a greek salad scene
     // is a weak-but-acceptable backup, not a mismatch).
-    for kw in COMPATIBLE_KEYWORDS.iter() {
-        if label.contains(kw) {
+    for kw in options.compatible_keywords.iter() {
+        if !kw.is_empty() && label.contains(&kw.to_lowercase()) {
             return false;
         }
     }
     // The label references none of the scene anchors. It is a mismatch
-    // only when it references a known-incompatible subject (boxing, gym,
-    // fitness, sport). A label that references nothing at all is treated as
-    // a weak backup (not a mismatch) so under-labeled candidates are not
-    // false-positively rejected.
-    for bad in MISMATCHED_SUBJECTS.iter() {
-        if label.contains(bad) {
+    // only when it references a known-incompatible subject. A label that
+    // references nothing at all is treated as a weak backup (not a
+    // mismatch) so under-labeled candidates are not false-positively
+    // rejected.
+    for bad in options.mismatched_subjects.iter() {
+        if !bad.is_empty() && label.contains(&bad.to_lowercase()) {
             return true;
         }
     }
     false
 }
 
-/// action_relevance scores whether the candidate label references a
-/// preparation/action verb compatible with the scene (e.g. "being
-/// prepared", "cooking", "making"). Returns a small bonus in `[0.0, 0.1]`.
-fn action_relevance(_scene: &Scene, candidate: &Candidate) -> f32 {
+/// action_relevance scores whether the candidate label references an
+/// action verb compatible with the scene (e.g. "being prepared",
+/// "cooking", "making"). Returns a small bonus in `[0.0, 0.1]`.
+/// The verb table is data-driven (V1 curated table as default).
+fn action_relevance(candidate: &Candidate, options: &SampleOptions) -> f32 {
     let label = candidate.label.to_lowercase();
-    for action in ACTION_VERBS.iter() {
-        if label.contains(action) {
+    for action in options.action_verbs.iter() {
+        if !action.is_empty() && label.contains(&action.to_lowercase()) {
             return 0.1;
         }
     }
@@ -295,27 +353,49 @@ fn action_relevance(_scene: &Scene, candidate: &Candidate) -> f32 {
 /// context_relevance scores whether the candidate label references a
 /// context keyword compatible with the scene (e.g. "mediterranean",
 /// "restaurant", "kitchen"). Returns a small bonus in `[0.0, 0.1]`.
-fn context_relevance(_scene: &Scene, candidate: &Candidate) -> f32 {
+/// The table is data-driven (V1 curated table as default).
+fn context_relevance(candidate: &Candidate, options: &SampleOptions) -> f32 {
     let label = candidate.label.to_lowercase();
-    for ctx in CONTEXT_KEYWORDS.iter() {
-        if label.contains(ctx) {
+    for ctx in options.context_keywords.iter() {
+        if !ctx.is_empty() && label.contains(&ctx.to_lowercase()) {
             return 0.1;
         }
     }
     0.0
 }
 
-/// diversity_bonus is a placeholder for the diversity score (V1: 0.0; V2
-/// will penalize candidates too similar to already-bound assets). Kept as
-/// a named stage so the pipeline mirrors the plan exactly.
-fn diversity_bonus(_scene: &Scene, _candidate: &Candidate) -> f32 {
-    0.0
+/// diversity_bonus is the V2 diversity stage: the penalty a candidate
+/// incurs for being too similar to an asset already bound by an earlier
+/// scene. With an empty ledger (first scene of a run), or when the caller
+/// passes `diversity_weight = 0.0`, it returns 0.0 so the score is
+/// byte-identical to V1. The overlap is Jaccard over lowercase word tokens
+/// of the candidate label vs. the label each bound asset won under.
+fn diversity_bonus(candidate: &Candidate, bound: &BoundAssets, options: &SampleOptions) -> f32 {
+    if options.diversity_weight <= 0.0 {
+        return 0.0;
+    }
+    let tokens = label_tokens(&candidate.label);
+    if tokens.is_empty() {
+        return 0.0;
+    }
+    if !bound.has_any_label() {
+        // No binding ever carried a label: there is no overlap evidence, so
+        // the stage stays V1-neutral instead of guessing similarity from ids.
+        return 0.0;
+    }
+    let best = bound.best_label_overlap(&tokens);
+    // Diversity value is INVERSE similarity: identical to a bound winner →
+    // 0.0 (full penalty), no token in common → 1.0 (fully diverse).
+    (1.0 - best).clamp(0.0, 1.0)
 }
 
 /// semantic_score computes the deterministic semantic grounding score in
 /// `[0.0, 1.0]`. A candidate that references the scene subject scores
-/// 0.9+; one that references a visual term scores 0.7+; otherwise it
-/// falls back to the generic similarity scaled down.
+/// 0.9+; one that references a visual term scores 0.7+; otherwise it falls
+/// back to the caller-supplied embedding similarity (when present) and to
+/// the generic similarity. Source-derived anchors always dominate soft
+/// signals, so a keyword-matched label can never be outranked by a raw
+/// vector score.
 fn semantic_score(scene: &Scene, candidate: &Candidate) -> f32 {
     let label = candidate.label.to_lowercase();
     let subject = scene.subject.to_lowercase();
@@ -328,62 +408,16 @@ fn semantic_score(scene: &Scene, candidate: &Candidate) -> f32 {
             return 0.75;
         }
     }
-    // No direct anchor match: scale the generic similarity down so a
-    // high generic similarity alone cannot win.
-    candidate.generic_similarity * 0.5
+    // No direct anchor match. The embedding similarity (a real vector
+    // signal, when the caller supplies one) is the stronger grounding:
+    // generic similarity alone is scaled down so a high provider score
+    // cannot win on its own.
+    let generic = candidate.generic_similarity * 0.5;
+    match candidate.embedding_similarity {
+        Some(value) => generic.max(value.clamp(0.0, 1.0) * 0.8),
+        None => generic,
+    }
 }
-
-// ── Curated keyword tables (V1, dependency-free) ────────────────────
-
-/// Mismatched subjects: lowercase substrings that signal a candidate is
-/// about a completely different topic (sport, fitness). References to
-/// these reject a candidate when none of the scene anchors are present.
-const MISMATCHED_SUBJECTS: &[&str] = &[
-    "boxing",
-    "boxer",
-    "gym",
-    "fitness",
-    "workout",
-    "soccer",
-    "football",
-    "basketball",
-    "tennis",
-    "sport",
-    "runner",
-    "running",
-];
-
-/// Compatible keywords: lowercase substrings that are weakly compatible
-/// with any Mediterranean-food scene (cuisine context). Their presence
-/// prevents a subject-mismatch rejection even when the subject itself is
-/// not referenced.
-const COMPATIBLE_KEYWORDS: &[&str] = &[
-    "mediterranean",
-    "greek",
-    "italian",
-    "restaurant",
-    "kitchen",
-    "food",
-    "dish",
-    "meal",
-    "cooking",
-    "recipe",
-];
-
-/// Action verbs: lowercase substrings signalling a preparation action.
-const ACTION_VERBS: &[&str] = &[
-    "prepar", "cooking", "making", "serving", "chopping", "cutting", "mixing",
-];
-
-/// Context keywords: lowercase substrings signalling a cuisine context.
-const CONTEXT_KEYWORDS: &[&str] = &[
-    "mediterranean",
-    "greek",
-    "italian",
-    "restaurant",
-    "kitchen",
-    "table",
-];
 
 // ── Tests ────────────────────────────────────────────────────────────
 
@@ -409,6 +443,7 @@ mod tests {
             label: "woman boxing".to_string(),
             generic_similarity: 0.72,
             owner_segment_id: String::new(),
+            embedding_similarity: None,
         }
     }
 
@@ -418,6 +453,7 @@ mod tests {
             label: "greek salad being prepared".to_string(),
             generic_similarity: 0.68,
             owner_segment_id: String::new(),
+            embedding_similarity: None,
         }
     }
 
@@ -427,6 +463,7 @@ mod tests {
             label: "mediterranean restaurant".to_string(),
             generic_similarity: 0.64,
             owner_segment_id: String::new(),
+            embedding_similarity: None,
         }
     }
 
@@ -506,20 +543,35 @@ mod tests {
         ];
         let first = {
             let mut bound = BoundAssets::new();
-            sample_scene_group(&scene, &candidates, &SampleOptions::default(), &mut bound, 5)
-                .unwrap()
-                .1
+            sample_scene_group(
+                &scene,
+                &candidates,
+                &SampleOptions::default(),
+                &mut bound,
+                5,
+            )
+            .unwrap()
+            .1
         };
         for _ in 0..99 {
             let mut bound = BoundAssets::new();
-            let group =
-                sample_scene_group(&scene, &candidates, &SampleOptions::default(), &mut bound, 5)
-                    .unwrap()
-                    .1;
+            let group = sample_scene_group(
+                &scene,
+                &candidates,
+                &SampleOptions::default(),
+                &mut bound,
+                5,
+            )
+            .unwrap()
+            .1;
             assert_eq!(group, first);
         }
         let ids = first.clone();
-        assert_eq!(ids.len(), ids.iter().collect::<std::collections::HashSet<_>>().len(), "no duplicates");
+        assert_eq!(
+            ids.len(),
+            ids.iter().collect::<std::collections::HashSet<_>>().len(),
+            "no duplicates"
+        );
     }
 
     #[test]
@@ -528,7 +580,14 @@ mod tests {
         let candidates = vec![greek_salad_candidate()];
         let mut bound = BoundAssets::new();
         for bad in [0, 1, 6, 20] {
-            assert!(sample_scene_group(&scene, &candidates, &SampleOptions::default(), &mut bound, bad).is_err());
+            assert!(sample_scene_group(
+                &scene,
+                &candidates,
+                &SampleOptions::default(),
+                &mut bound,
+                bad
+            )
+            .is_err());
         }
     }
 
@@ -550,7 +609,9 @@ mod tests {
             !group.contains(&"artlist-greek-salad-001".to_string()),
             "already-bound asset must not reappear: {group:?}"
         );
-        assert!(results.iter().any(|r| r.rejection == Some(RejectionReason::AlreadyBound)));
+        assert!(results
+            .iter()
+            .any(|r| r.rejection == Some(RejectionReason::AlreadyBound)));
     }
 
     // TestSamplerDeterministic — 100 runs must produce the same winner.
@@ -596,12 +657,14 @@ mod tests {
             label: "greek salad being prepared".to_string(),
             generic_similarity: 0.9,
             owner_segment_id: String::new(),
+            embedding_similarity: None,
         };
         let paella = Candidate {
             id: "artlist-paella-001".to_string(),
             label: "seafood paella".to_string(),
             generic_similarity: 0.85,
             owner_segment_id: String::new(),
+            embedding_similarity: None,
         };
         let mut bound = BoundAssets::new();
         let (_, winner0) = sample_scene(
@@ -642,6 +705,7 @@ mod tests {
                 label: term.to_string(),
                 generic_similarity: 0.5,
                 owner_segment_id: String::new(),
+                embedding_similarity: None,
             })
             .collect();
         let mut bound = BoundAssets::new();
@@ -651,6 +715,7 @@ mod tests {
             &SampleOptions {
                 allow_reuse: false,
                 images_per_scene: 3,
+                ..SampleOptions::default()
             },
             &mut bound,
         );
@@ -676,6 +741,7 @@ mod tests {
                 },
                 generic_similarity: 0.5,
                 owner_segment_id: String::new(),
+                embedding_similarity: None,
             })
             .collect();
         let mut bound = BoundAssets::new();
@@ -685,6 +751,7 @@ mod tests {
             &SampleOptions {
                 allow_reuse: false,
                 images_per_scene: 3,
+                ..SampleOptions::default()
             },
             &mut bound,
         );
@@ -711,13 +778,238 @@ mod tests {
         assert!(winner.is_none());
     }
 
+    // ── V2: data-driven tables, embedding similarity, diversity stage ──
+
+    #[test]
+    fn data_driven_tables_replace_the_curated_domain() {
+        // A non-culinary domain (portraiture workflow): the request carries
+        // its OWN tables and the sampler honours them wholesale.
+        let scene = Scene {
+            id: "portrait-01".to_string(),
+            subject: "mountain climbers".to_string(),
+            terms: vec!["glacier".to_string(), "summit ridge".to_string()],
+        };
+        let candidates = vec![
+            Candidate {
+                id: "stock-climber".to_string(),
+                label: "goalkeeper diving save".to_string(),
+                generic_similarity: 0.95,
+                owner_segment_id: String::new(),
+                embedding_similarity: None,
+            },
+            Candidate {
+                id: "stock-glacier".to_string(),
+                label: "glacier crossing at dawn".to_string(),
+                generic_similarity: 0.85,
+                owner_segment_id: String::new(),
+                embedding_similarity: None,
+            },
+        ];
+        let options = SampleOptions {
+            mismatched_subjects: vec!["goalkeeper".to_string()],
+            compatible_keywords: vec!["climbing".to_string(), "mountain".to_string()],
+            action_verbs: vec!["crossing".to_string()],
+            context_keywords: vec!["alpine".to_string()],
+            diversity_weight: 0.0, // V1-neutral scoring for a clear ranking
+            ..SampleOptions::default()
+        };
+        let mut bound = BoundAssets::new();
+        let (results, winner) = sample_scene(&scene, &candidates, &options, &mut bound);
+        assert_eq!(winner.as_deref(), Some("stock-glacier"));
+        let rejected = results
+            .iter()
+            .find(|r| r.candidate_id == "stock-climber")
+            .unwrap();
+        // With the CUSTOM table, goalkeeper is a hard reject even though
+        // with the culinary defaults (sport-family already covers soccer-ish
+        // terms but NOT goalkeeper) it would have slipped through.
+        assert_eq!(rejected.rejection, Some(RejectionReason::SubjectMismatch));
+    }
+
+    #[test]
+    fn embedding_similarity_strengthens_the_weak_anchor_fallback() {
+        let scene = Scene {
+            id: "scene-emb-01".to_string(),
+            subject: "greek salad".to_string(),
+            terms: vec!["feta".to_string()],
+        };
+        // Same label family, no anchor match; one carries a real vector
+        // similarity, the other only a weaker generic provider score.
+        let with_embedding = Candidate {
+            id: "a-embedding".to_string(),
+            label: "fresh vegetable bowl on marble".to_string(),
+            generic_similarity: 0.40,
+            owner_segment_id: String::new(),
+            embedding_similarity: Some(0.88),
+        };
+        let without = Candidate {
+            id: "b-generic".to_string(),
+            label: "fresh vegetable plate on wood".to_string(),
+            generic_similarity: 0.40,
+            owner_segment_id: String::new(),
+            embedding_similarity: None,
+        };
+        let mutate_bound = BoundAssets::new();
+        let mut bound = mutate_bound.clone();
+        let (results, winner) = sample_scene(
+            &scene,
+            &[with_embedding, without],
+            &SampleOptions::default(),
+            &mut bound,
+        );
+        assert_eq!(winner.as_deref(), Some("a-embedding"));
+        let weak = results
+            .iter()
+            .find(|r| r.candidate_id == "b-generic")
+            .unwrap();
+        // Determinism guard repeated below in determinism tests applies too.
+        assert!(weak.score > 0.0);
+    }
+
+    #[test]
+    fn embedding_never_rescues_a_subject_mismatch() {
+        let scene = Scene {
+            id: "scene-emb-02".to_string(),
+            subject: "greek salad".to_string(),
+            terms: vec!["feta".to_string()],
+        };
+        let boxing = Candidate {
+            id: "a-boxing".to_string(),
+            label: "woman boxing".to_string(),
+            generic_similarity: 0.72,
+            owner_segment_id: String::new(),
+            embedding_similarity: Some(1.0),
+        };
+        let weak = Candidate {
+            id: "b-generic".to_string(),
+            label: "close up plate".to_string(),
+            generic_similarity: 0.30,
+            owner_segment_id: String::new(),
+            embedding_similarity: None,
+        };
+        let mut bound = BoundAssets::new();
+        let (results, winner) = sample_scene(
+            &scene,
+            &[boxing, weak],
+            &SampleOptions::default(),
+            &mut bound,
+        );
+        let rejected = results
+            .iter()
+            .find(|r| r.candidate_id == "a-boxing")
+            .unwrap();
+        assert_eq!(rejected.rejection, Some(RejectionReason::SubjectMismatch));
+        assert_eq!(winner.as_deref(), Some("b-generic"));
+    }
+
+    #[test]
+    fn diversity_stage_penalizes_too_similar_bound_winners() {
+        let bound_scene = Scene {
+            id: "scene-div-00".to_string(),
+            subject: "greek salad".to_string(),
+            terms: vec!["feta".to_string()],
+        };
+        let next = Scene {
+            id: "scene-div-01".to_string(),
+            subject: "tomato tart".to_string(),
+            terms: vec![],
+        };
+        let previous = Candidate {
+            id: "c-previous".to_string(),
+            label: "greek salad close up".to_string(),
+            generic_similarity: 0.95,
+            owner_segment_id: String::new(),
+            embedding_similarity: None,
+        };
+        let mut bound = BoundAssets::new();
+        sample_scene(
+            &bound_scene,
+            &[previous],
+            &SampleOptions::default(),
+            &mut bound,
+        );
+        assert!(
+            bound
+                .bound
+                .values()
+                .any(|(owner, label)| owner == "scene-div-00" && label == "greek salad close up"),
+            "the ledger must record the winning label"
+        );
+        // Two candidates with IDENTICAL base signals; only label overlap
+        // with the bound winner separates them.
+        let overlapping = Candidate {
+            id: "a-overlap".to_string(),
+            label: "close up tomato tart".to_string(),
+            generic_similarity: 0.90,
+            owner_segment_id: String::new(),
+            embedding_similarity: None,
+        };
+        let distinct = Candidate {
+            id: "b-distinct".to_string(),
+            label: "tomato tart served".to_string(),
+            generic_similarity: 0.90,
+            owner_segment_id: String::new(),
+            embedding_similarity: None,
+        };
+        let (results_next, winner_next) = sample_scene(
+            &next,
+            &[overlapping, distinct],
+            &SampleOptions::default(),
+            &mut bound,
+        );
+        assert_eq!(winner_next.as_deref(), Some("b-distinct"));
+        let penalized = results_next
+            .iter()
+            .find(|r| r.candidate_id == "a-overlap")
+            .unwrap();
+        let boosted = results_next
+            .iter()
+            .find(|r| r.candidate_id == "b-distinct")
+            .unwrap();
+        assert!(
+            boosted.score > penalized.score,
+            "diversity must separate identical-base-score candidates: {penalized:?} vs {boosted:?}"
+        );
+    }
+
+    #[test]
+    fn diversity_weight_zero_keeps_v1_scores_byte_identical() {
+        let scene = greek_salad_scene();
+        let candidates = vec![
+            boxing_candidate(),
+            greek_salad_candidate(),
+            restaurant_candidate(),
+        ];
+        let options = SampleOptions {
+            diversity_weight: 0.0,
+            ..SampleOptions::default()
+        };
+        let mut bound = BoundAssets::new();
+        let (results, _) = sample_scene(&scene, &candidates, &options, &mut bound);
+        let winner = results
+            .iter()
+            .find(|r| r.candidate_id == "artlist-greek-salad-001")
+            .unwrap();
+        // V1 arithmetic: semantic .95*.6 + generic .68*.3 + action .1*.05 +
+        // context .1*.025
+        assert!(
+            (winner.score - (0.95 * 0.6 + 0.68 * 0.3 + 0.1 * 0.05 + 0.1 * 0.025)).abs() < 1e-6,
+            "V1-neutral score drifted: {}",
+            winner.score
+        );
+    }
+
     // ── select_group (MultiImage 2.0, x2–x5) ────────────────────────────
 
     fn ready_to_use_scene() -> Scene {
         Scene {
             id: "scene-group-01".to_string(),
             subject: "greek salad".to_string(),
-            terms: vec!["feta".to_string(), "tomatoes".to_string(), "olives".to_string()],
+            terms: vec![
+                "feta".to_string(),
+                "tomatoes".to_string(),
+                "olives".to_string(),
+            ],
         }
     }
 
@@ -734,21 +1026,17 @@ mod tests {
             ("boxing-mismatch", "woman boxing", 0.95),
         ]
         .into_iter()
-        .map(
-            |(id, label, similarity)| Candidate {
-                id: format!("artlist-{id}"),
-                label: label.to_string(),
-                generic_similarity: similarity,
-                owner_segment_id: String::new(),
-            },
-        )
+        .map(|(id, label, similarity)| Candidate {
+            id: format!("artlist-{id}"),
+            label: label.to_string(),
+            generic_similarity: similarity,
+            owner_segment_id: String::new(),
+            embedding_similarity: None,
+        })
         .collect()
     }
 
-    fn run_group(
-        count: usize,
-        bound_assets: &mut BoundAssets,
-    ) -> (Vec<SampleResult>, Vec<String>) {
+    fn run_group(count: usize, bound_assets: &mut BoundAssets) -> (Vec<SampleResult>, Vec<String>) {
         sample_scene_group(
             &ready_to_use_scene(),
             &varied_candidates(),
@@ -766,7 +1054,11 @@ mod tests {
             let (results, group) = run_group(count, &mut bound);
             assert_eq!(group.len(), count, "count={count}: {group:?}");
             let distinct: std::collections::HashSet<&String> = group.iter().collect();
-            assert_eq!(distinct.len(), count, "group must contain distinct assets: {group:?}");
+            assert_eq!(
+                distinct.len(),
+                count,
+                "group must contain distinct assets: {group:?}"
+            );
             // The boxing candidate must never enter any group.
             assert!(
                 !group.iter().any(|id| id.contains("boxing")),
@@ -774,8 +1066,15 @@ mod tests {
             );
             // Group members follow the accepted rank order (score desc, id asc).
             let accepted: Vec<&SampleResult> = results.iter().filter(|r| r.is_accepted()).collect();
-            let expected: Vec<String> = accepted.iter().take(count).map(|r| r.candidate_id.clone()).collect();
-            assert_eq!(group, expected, "group must match rank order, count={count}");
+            let expected: Vec<String> = accepted
+                .iter()
+                .take(count)
+                .map(|r| r.candidate_id.clone())
+                .collect();
+            assert_eq!(
+                group, expected,
+                "group must match rank order, count={count}"
+            );
             // Every member must be accepted with a positive score.
             for id in &group {
                 let r = results.iter().find(|r| &r.candidate_id == id).unwrap();
@@ -803,7 +1102,10 @@ mod tests {
         let (_, group) = run_group(4, &mut bound);
         for id in &group {
             let scene = ready_to_use_scene();
-            assert!(!bound.is_reuse(id, &scene.id), "member {id} must be bound to its own scene");
+            assert!(
+                !bound.is_reuse(id, &scene.id),
+                "member {id} must be bound to its own scene"
+            );
             assert!(
                 bound.is_reuse(id, "scene-group-02"),
                 "member {id} must reject reuse on a later scene"
@@ -840,14 +1142,13 @@ mod tests {
             ("boxing-mismatch", "woman boxing", 0.95),
         ]
         .into_iter()
-        .map(
-            |(id, label, similarity)| Candidate {
-                id: format!("artlist-{id}"),
-                label: label.to_string(),
-                generic_similarity: similarity,
-                owner_segment_id: String::new(),
-            },
-        )
+        .map(|(id, label, similarity)| Candidate {
+            id: format!("artlist-{id}"),
+            label: label.to_string(),
+            generic_similarity: similarity,
+            owner_segment_id: String::new(),
+            embedding_similarity: None,
+        })
         .collect();
         let mut bound = BoundAssets::new();
         let (_, group) = sample_scene_group(

@@ -10,10 +10,11 @@ use std::io;
 use std::path::Path;
 use std::thread;
 
-// Each cut is an independent FFmpeg process. Keep the fan-out bounded so a
-// 12-clip source does not saturate CPU/RAM or create a thundering herd on a
-// shared worker, while still avoiding the old fully-serial batch path.
-const MAX_PARALLEL_CUTS: usize = 3;
+// Each cut is an independent FFmpeg process. The fan-out bound is a
+// Go-owned policy field (`max_parallel_cuts` on the media config); the
+// historical constant remains the default when the policy omits it. The
+// ceiling lives in config.rs — an unbounded wave is a thundering herd on a
+// shared worker, while a too-small serial wave leaves CPU idle.
 
 pub(crate) fn execute(request: Request) -> Response {
     cut_batch(request)
@@ -43,13 +44,23 @@ fn cut_batch(request: Request) -> Response {
         Ok(value) => value,
         Err(error) => return failed_response(source_path, error),
     };
+    let max_parallel = match request.media.parallel_cuts() {
+        Ok(value) => value,
+        Err(error) => return failed_response(source_path, error.to_string()),
+    };
     let ffprobe = ffprobe_path(&ffmpeg);
-    let gpu_cut = gpu_cut_eligibility(&encoder, &profile, source, &ffprobe);
+    // Decode acceleration is policy-driven AND capability-aware: the encoder
+    // family picks the hwaccel device, the local ffmpeg -hwaccels listing may
+    // veto it (observable CPU fallback), and the geometry probe below keeps
+    // the GPU path to already-conformant sources.
+    let (decode_accelerator, _) =
+        crate::gpu::resolve_decode_accelerator(encoder.codec.trim(), &ffmpeg);
+    let gpu_cut = gpu_cut_eligibility(decode_accelerator, &profile, source, &ffprobe);
 
     // Run small bounded waves instead of serially spawning one FFmpeg process
     // after another. The wave join preserves request order, which is part of
     // the stock publication contract and keeps clip ordinals deterministic.
-    for wave in jobs.chunks(MAX_PARALLEL_CUTS) {
+    for wave in jobs.chunks(max_parallel) {
         let wave_items = thread::scope(|scope| {
             let handles = wave
                 .iter()
@@ -64,6 +75,7 @@ fn cut_batch(request: Request) -> Response {
                             request.no_audio.unwrap_or(false),
                             &ffprobe,
                             gpu_cut,
+                            decode_accelerator,
                         )
                     })
                 })
@@ -110,6 +122,7 @@ fn cut_one(
     no_audio: bool,
     ffprobe: &str,
     gpu_cut: bool,
+    decode_accelerator: Option<crate::gpu::DecodeAccelerator>,
 ) -> CutItem {
     let failed = |message: String| CutItem {
         job_id: job.job_id.clone(),
@@ -166,7 +179,7 @@ fn cut_one(
     let part_path = part_path(&job.output_path);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-    command.args(decode_args(gpu_cut));
+    command.args(decode_preamble(decode_accelerator));
     command
         .args(["-ss", &job.start_sec.to_string()])
         .args(["-i", source])
@@ -262,21 +275,22 @@ fn cut_one(
 /// path. Bare `-hwaccel cuda` keeps decode accelerated and hands system-memory
 /// frames to the filter/encode chain, which is what the shared contract expects
 /// (the same form `render_clip_exec` uses).
-fn decode_args(gpu_cut: bool) -> Vec<&'static str> {
-    if gpu_cut {
-        vec!["-hwaccel", "cuda"]
-    } else {
-        Vec::new()
-    }
+/// Builds the hardware-decode preamble for a cut. The resolution logic and
+/// the system-memory contract live in `gpu.rs`; this thin alias keeps the
+/// cut call sites short.
+fn decode_preamble(accelerator: Option<crate::gpu::DecodeAccelerator>) -> Vec<&'static str> {
+    crate::gpu::decode_preamble_args(accelerator)
 }
 
 fn gpu_cut_eligibility(
-    encoder: &config::EncoderPolicy,
+    decode_accelerator: Option<crate::gpu::DecodeAccelerator>,
     profile: &config::VideoProfile,
     source: &str,
     ffprobe: &str,
 ) -> bool {
-    if !encoder.codec.to_ascii_lowercase().ends_with("_nvenc") {
+    // No accelerator resolved (software codec, missing hardware backend, or
+    // unprobeable capability listing): CPU filter chain.
+    if decode_accelerator.is_none() {
         return false;
     }
     let metadata = match probe_file(ffprobe, source) {
@@ -300,10 +314,12 @@ fn gpu_cut_eligibility(
 
 #[cfg(test)]
 mod tests {
-    use super::decode_args;
+    use super::{decode_preamble, gpu_cut_eligibility};
     use crate::config::{EncoderPolicy, VideoProfile};
     use crate::encoder::append_video_args;
+    use crate::gpu::DecodeAccelerator;
     use crate::process::FFmpegRunner;
+    use std::path::Path;
 
     fn policy() -> EncoderPolicy {
         EncoderPolicy {
@@ -332,8 +348,8 @@ mod tests {
             .any(|window| window[0] == flag && window[1] == value)
     }
 
-    fn decoded(gpu_cut: bool) -> Vec<String> {
-        decode_args(gpu_cut)
+    fn decoded(accelerator: Option<DecodeAccelerator>) -> Vec<String> {
+        decode_preamble(accelerator)
             .iter()
             .map(|arg| arg.to_string())
             .collect()
@@ -341,14 +357,27 @@ mod tests {
 
     #[test]
     fn gpu_decode_keeps_frames_in_system_memory() {
-        let args = decoded(true);
+        let args = decoded(Some(DecodeAccelerator::Cuda));
         assert!(pair(&args, "-hwaccel", "cuda"));
         assert!(!args.iter().any(|arg| arg == "-hwaccel_output_format"));
     }
 
     #[test]
     fn software_decode_adds_no_hardware_flags() {
-        assert!(decoded(false).is_empty());
+        assert!(decoded(None).is_empty());
+    }
+
+    #[test]
+    fn eligibility_requires_a_resolved_accelerator_even_for_nvenc_codecs() {
+        // An NVENC policy whose backend was vetoed by the capability listing
+        // (accelerator = None) must stay on the CPU filter chain.
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        assert!(!gpu_cut_eligibility(
+            None,
+            &profile(),
+            source.to_str().unwrap(),
+            "ffprobe"
+        ));
     }
 
     /// The decode preamble and the shared encoder contract are two halves of one
@@ -364,7 +393,7 @@ mod tests {
 
         assert!(pair(&encoder_args, "-pix_fmt", "yuv420p"));
         assert!(pair(&encoder_args, "-c:v", "h264_nvenc"));
-        assert!(!decoded(true)
+        assert!(!decoded(Some(DecodeAccelerator::Cuda))
             .iter()
             .any(|arg| arg == "-hwaccel_output_format"));
     }

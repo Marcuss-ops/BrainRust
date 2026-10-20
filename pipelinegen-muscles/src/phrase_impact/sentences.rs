@@ -190,7 +190,11 @@ pub(super) fn punctuation_run_end(chars: &[(usize, char)], i: usize) -> usize {
     }
     end
 }
-pub(super) fn is_dotted_initialism(chars: &[(usize, char)], period: usize, following: usize) -> bool {
+pub(super) fn is_dotted_initialism(
+    chars: &[(usize, char)],
+    period: usize,
+    following: usize,
+) -> bool {
     if chars[period].1 != '.' {
         return false;
     }
@@ -345,4 +349,3 @@ pub(super) fn suppress_abbreviation(
         || ["etc.", "ecc."].contains(&token.as_str());
     abbreviation && next.is_some_and(|c| c.is_alphanumeric())
 }
-

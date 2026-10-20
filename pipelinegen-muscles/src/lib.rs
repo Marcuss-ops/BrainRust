@@ -26,6 +26,7 @@ mod encoder;
 pub mod error;
 #[cfg(test)]
 mod golden;
+mod gpu;
 pub mod overlay_fingerprint;
 pub mod phrase_impact;
 pub mod phrase_impact_worker;
@@ -41,4 +42,8 @@ pub mod scene_intelligence_worker;
 mod transform;
 
 pub use dispatcher::{process, run_stdio};
+// The wire request type is reusable outside the crate (Go drives it, but
+// benches and certification tooling must build the SAME type, not a second
+// untyped shape that could drift).
 pub use error::{ErrorCode, MuscleError};
+pub use protocol::Request;

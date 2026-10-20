@@ -101,7 +101,6 @@ pub(super) fn percentile_scale(values: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-
 /// Creates a deterministic sparse lexical vector for offline ranking.
 /// Hashing bounds memory use regardless of transcript vocabulary size.
 /// The stop-word set is the caller's per-language input: the crate owns none.
@@ -131,5 +130,3 @@ pub(super) fn lexical_vector(text: &str, stopwords: &HashSet<String>) -> Vec<f64
     }
     vector
 }
-
-

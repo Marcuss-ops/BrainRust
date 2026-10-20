@@ -36,6 +36,14 @@ pub struct Candidate {
     /// fails ownership validation.
     #[serde(default)]
     pub owner_segment_id: String,
+    /// Optional caller-supplied vector similarity for the candidate in
+    /// `[0.0, 1.0]` (e.g. a real E5/cosine score). It is a soft signal only:
+    /// a keyword anchor derived from the scene subject/terms still dominates,
+    /// and a hard-constraint reject (boxing for Greek Salad) is never
+    /// resurrected by a high embedding. Out-of-range values fail closed at
+    /// the worker boundary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding_similarity: Option<f32>,
 }
 
 /// RejectionReason explains why a candidate did not win.
@@ -110,8 +118,63 @@ impl SampleResult {
     }
 }
 
-/// Sampler options. `allow_reuse` controls the cross-scene reuse check.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// Default diversity weight against already-bound assets (V2). It occupies
+/// the weight the V1 plan reserved for the diversity stage without changing
+/// any other blend ratio.
+pub const DEFAULT_DIVERSITY_WEIGHT: f32 = 0.025;
+
+/// Curated mismatched subjects: lowercase substrings that signal a candidate
+/// is about a completely different topic. V1 defaults; requests may replace
+/// the table domain-by-domain (Go supplies the data-driven list).
+pub const DEFAULT_MISMATCHED_SUBJECTS: &[&str] = &[
+    "boxing",
+    "boxer",
+    "gym",
+    "fitness",
+    "workout",
+    "soccer",
+    "football",
+    "basketball",
+    "tennis",
+    "sport",
+    "runner",
+    "running",
+];
+
+/// Curated compatible keywords: lowercase substrings weakly compatible with
+/// any Mediterranean-food scene. V1 defaults; data-driven when supplied.
+pub const DEFAULT_COMPATIBLE_KEYWORDS: &[&str] = &[
+    "mediterranean",
+    "greek",
+    "italian",
+    "restaurant",
+    "kitchen",
+    "food",
+    "dish",
+    "meal",
+    "cooking",
+    "recipe",
+];
+
+/// Curated action verbs signalling a preparation action.
+pub const DEFAULT_ACTION_VERBS: &[&str] = &[
+    "prepar", "cooking", "making", "serving", "chopping", "cutting", "mixing",
+];
+
+/// Curated context keywords signalling a cuisine context.
+pub const DEFAULT_CONTEXT_KEYWORDS: &[&str] = &[
+    "mediterranean",
+    "greek",
+    "italian",
+    "restaurant",
+    "kitchen",
+    "table",
+];
+
+/// Sampler options. `allow_reuse` controls the cross-scene reuse check; the
+/// keyword tables are data-driven (V1 defaults below) so the sampler is not
+/// hardwired to a single content domain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SampleOptions {
     /// When false, a candidate already bound to another scene is rejected
     /// with `AlreadyBound`. When true, reuse is allowed.
@@ -120,4 +183,51 @@ pub struct SampleOptions {
     /// Number of images to select per scene (image fanout). 0 disables.
     #[serde(default)]
     pub images_per_scene: usize,
+    /// Weight of the V2 diversity stage (penalty for candidates too similar
+    /// to assets already bound by earlier scenes). 0.0 keeps absolute V1
+    /// scores byte-identical.
+    #[serde(default = "default_diversity_weight")]
+    pub diversity_weight: f32,
+    /// Domain keyword tables (lowercase substrings). Empty V1 defaults are
+    /// replaced wholesale, never merged, so a domain list is auditable.
+    #[serde(default)]
+    pub mismatched_subjects: Vec<String>,
+    #[serde(default)]
+    pub compatible_keywords: Vec<String>,
+    #[serde(default)]
+    pub action_verbs: Vec<String>,
+    #[serde(default)]
+    pub context_keywords: Vec<String>,
+}
+
+fn default_diversity_weight() -> f32 {
+    DEFAULT_DIVERSITY_WEIGHT
+}
+
+impl Default for SampleOptions {
+    fn default() -> Self {
+        Self {
+            allow_reuse: false,
+            images_per_scene: 0,
+            diversity_weight: DEFAULT_DIVERSITY_WEIGHT,
+            // Billion-dollar guard: an absent table keeps the V1 curated
+            // behaviour instead of silently disabling mismatch rejection.
+            mismatched_subjects: DEFAULT_MISMATCHED_SUBJECTS
+                .iter()
+                .map(|value| value.to_string())
+                .collect(),
+            compatible_keywords: DEFAULT_COMPATIBLE_KEYWORDS
+                .iter()
+                .map(|value| value.to_string())
+                .collect(),
+            action_verbs: DEFAULT_ACTION_VERBS
+                .iter()
+                .map(|value| value.to_string())
+                .collect(),
+            context_keywords: DEFAULT_CONTEXT_KEYWORDS
+                .iter()
+                .map(|value| value.to_string())
+                .collect(),
+        }
+    }
 }

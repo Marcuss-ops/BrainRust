@@ -2,7 +2,6 @@
 
 use super::*;
 
-
 // ── 3. Cause–effect extractor ─────────────────────────────────────
 
 /// A directed textual relation. `relation` is one of the RelationRegistry
@@ -78,7 +77,8 @@ pub(super) const HYPOTHETICAL_MARKERS: &[&str] = &[
 ];
 
 /// Attribution prefixes (verbatim, before the first comma).
-pub(super) const ATTRIBUTION_MARKERS: &[&str] = &["secondo", "according", "selon", "laut", "según", "segun"];
+pub(super) const ATTRIBUTION_MARKERS: &[&str] =
+    &["secondo", "according", "selon", "laut", "según", "segun"];
 
 pub(super) const CONTRIBUTE_MARKERS: &[&[&str]] = &[
     &["contribuì", "a"],
@@ -117,7 +117,12 @@ pub(super) fn find_causal_marker(toks: &[String]) -> Option<(bool, usize, usize)
 }
 
 /// Split sentence text around a token-level marker position.
-pub(super) fn split_at_marker(text: &str, toks: &[String], pos: usize, len: usize) -> (String, String) {
+pub(super) fn split_at_marker(
+    text: &str,
+    toks: &[String],
+    pos: usize,
+    len: usize,
+) -> (String, String) {
     let before: Vec<&String> = toks[..pos.min(toks.len())].iter().collect();
     let after: Vec<&String> = toks[(pos + len).min(toks.len())..].iter().collect();
     let _ = text;
@@ -300,4 +305,3 @@ pub(super) fn slug(s: String) -> String {
     }
     out.trim_matches('_').to_string()
 }
-

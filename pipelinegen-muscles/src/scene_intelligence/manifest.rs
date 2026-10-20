@@ -2,7 +2,6 @@
 
 use super::*;
 
-
 // ── Manifest ──────────────────────────────────────────────────────
 
 /// Per-scene signals.
@@ -213,4 +212,3 @@ pub fn validate_manifest(m: &SceneIntelligenceManifest) -> Result<(), MuscleErro
 pub fn manifest_json(m: &SceneIntelligenceManifest) -> Result<String, MuscleError> {
     serde_json::to_string(m).map_err(|e| MuscleError::generic(e.to_string()))
 }
-

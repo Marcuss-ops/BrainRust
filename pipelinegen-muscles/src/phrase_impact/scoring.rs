@@ -235,5 +235,3 @@ pub(super) fn extract_summary(
         .collect::<Vec<_>>()
         .join(" ")
 }
-
-

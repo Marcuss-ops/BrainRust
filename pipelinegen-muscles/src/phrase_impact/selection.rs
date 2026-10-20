@@ -292,5 +292,3 @@ pub(super) fn sentence_complete_span(
     }
     Some((start, end))
 }
-
-

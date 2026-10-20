@@ -15,6 +15,10 @@ harness = false
 name = "scene_intelligence"
 harness = false
 
+[[bench]]
+name = "video_render"
+harness = false
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
