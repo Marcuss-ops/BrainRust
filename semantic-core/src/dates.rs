@@ -392,7 +392,11 @@ fn find_month(view: &FoldedSource, cursor: usize) -> Option<(usize, u8, usize)> 
                 };
                 break;
             }
-            offset = found + 1;
+            // `found` is relative to the current suffix (`hay[offset..]`).
+            // Keep the cursor monotonic when a month name occurs more than
+            // once; assigning `found + 1` can move it backwards and revisit
+            // the same unbounded occurrence forever.
+            offset += found + 1;
         }
     }
     best
@@ -932,6 +936,18 @@ mod tests {
         assert_eq!(fact.precision, "day");
         assert!(fact.surface.contains("15 marzo 2008"));
         assert!(!fact.ambiguous);
+    }
+
+    #[test]
+    fn repeated_month_name_after_an_earlier_month_terminates_and_keeps_dates() {
+        // A repeated month word after a different month used to move the
+        // month-search cursor backwards and spin forever in long scripts.
+        let text = "Il 23 febbraio iniziò l'udienza, il 9 aprile partì il processo. Il 30 aprile furono disposti altri esami.";
+        let all = facts(text, "it");
+        assert_grounded(text, &all);
+        assert!(all.iter().any(|fact| fact.surface == "23 febbraio"));
+        assert!(all.iter().any(|fact| fact.surface == "9 aprile"));
+        assert!(all.iter().any(|fact| fact.surface == "30 aprile"));
     }
 
     #[test]
