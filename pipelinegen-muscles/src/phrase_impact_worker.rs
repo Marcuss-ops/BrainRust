@@ -135,7 +135,8 @@ mod tests {
 
     #[test]
     fn exposes_utf8_byte_offsets_for_the_full_synthetic_transcript() {
-        let transcript = include_str!("../fixtures/elon_musk_synthetic_transcript_it.txt");
+        let transcript =
+            include_str!("../../semantic-core/fixtures/elon_musk_synthetic_transcript_it.txt");
         let request = serde_json::json!({
             "operation": "split_sentences",
             "transcript": transcript,

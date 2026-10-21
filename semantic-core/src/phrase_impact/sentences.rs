@@ -14,12 +14,8 @@ pub fn split_sentences(text: &str, language: &str) -> Vec<Segment> {
 /// Canonical sentence boundary detector shared with Scene Intelligence. The
 /// optional word limit preserves phrase-impact's bounded embedding chunks
 /// while letting SI retain its original whole-sentence granularity.
-pub(crate) fn split_sentence_spans(
-    text: &str,
-    language: &str,
-    max_words: Option<usize>,
-) -> Vec<Segment> {
-    semantic_core::sentences::split_sentences(text, language, max_words)
+pub fn split_sentence_spans(text: &str, language: &str, max_words: Option<usize>) -> Vec<Segment> {
+    crate::sentences::split_sentences(text, language, max_words)
         .into_iter()
         .map(|span| Segment {
             start_byte: span.start_byte,

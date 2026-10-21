@@ -13,7 +13,7 @@ fn behavioral_chapter_options() -> ChapterOptions {
     }
 }
 
-fn analyze_chapter_text(text: &str, language: &str) -> Result<ResultDocument, MuscleError> {
+fn analyze_chapter_text(text: &str, language: &str) -> Result<ResultDocument, String> {
     let mut request = lexical_chapter_request(
         &split_sentences(text, language)
             .into_iter()
