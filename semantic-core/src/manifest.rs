@@ -192,7 +192,7 @@ pub struct SceneManifest {
 }
 
 /// The whole-script manifest: one request, one response, one source of truth.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SemanticManifest {
     pub schema_version: &'static str,
     pub language: String,
@@ -201,6 +201,48 @@ pub struct SemanticManifest {
     pub fingerprint: String,
     pub analyzers: AnalyzerVersions,
     pub scenes: Vec<SceneManifest>,
+    /// Optional whole-script editorial products computed in this same batch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editorial: Option<EditorialManifest>,
+}
+
+/// Bounded editorial projection carried by the semantic manifest. Internal
+/// ranking graphs are intentionally omitted; only products consumed by Go
+/// planning and their stage timings cross the worker boundary.
+#[derive(Debug, Clone, Serialize)]
+pub struct EditorialManifest {
+    pub summary: String,
+    pub bullet_points: Vec<crate::phrase_impact::BulletPoint>,
+    pub heavy_sentences: Vec<crate::phrase_impact::RankedSentence>,
+    pub chapter_manifest: crate::phrase_impact::ChapterManifest,
+    pub scene_highlights: Vec<crate::phrase_impact::SceneHighlight>,
+    pub timings: crate::phrase_impact::StageTimings,
+}
+
+impl From<crate::phrase_impact::ResultDocument> for EditorialManifest {
+    fn from(result: crate::phrase_impact::ResultDocument) -> Self {
+        Self {
+            summary: result.summary,
+            bullet_points: result.bullet_points,
+            heavy_sentences: result.heavy_sentences,
+            chapter_manifest: result.chapter_manifest,
+            scene_highlights: result.scene_highlights,
+            timings: result.timings,
+        }
+    }
+}
+
+/// Editorial enrichment inputs embedded in `analyze_script`, so semantic and
+/// Phrase Impact products can share one worker analysis request. The caller
+/// supplies vectors (or explicitly opts into lexical mode); Rust performs no
+/// model inference.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EditorialRequest {
+    pub request: crate::phrase_impact::Request,
+    #[serde(default)]
+    pub scenes: Vec<crate::phrase_impact::SceneInput>,
+    #[serde(default)]
+    pub chapter_options: crate::phrase_impact::ChapterOptions,
 }
 
 /// Request shape: one batch carrying every scene of a script.
@@ -215,6 +257,10 @@ pub struct ScriptRequest {
     /// BCP-47 language tag of every scene (required).
     pub language: String,
     pub scenes: Vec<SceneInput>,
+    /// When present, summary, chapter, heavy-sentence and highlight products
+    /// are computed and returned as part of this semantic manifest.
+    #[serde(default)]
+    pub editorial: Option<EditorialRequest>,
     /// Optional safety cap on entities per scene. Zero means no editorial
     /// budget: the engine keeps every grounded entity and the planner picks
     /// the top-N. The cap exists only to bound pathological inputs.

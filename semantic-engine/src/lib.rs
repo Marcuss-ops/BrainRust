@@ -225,7 +225,27 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
     add_cross_scene_process_groups(&request.scenes, &mut scenes, language);
 
     let analyzers = analyzer_versions();
-    let fingerprint = fingerprint(language, &request.scenes, &analyzers);
+    let fingerprint = request_fingerprint(request, &analyzers);
+    let editorial = request
+        .editorial
+        .as_ref()
+        .map(|input| {
+            let mut editorial_request = input.request.clone();
+            if editorial_request.semantic_bullet_spans.is_none() {
+                if let Some(spans) =
+                    semantic_bullet_spans(&editorial_request.transcript, &input.scenes, &scenes)
+                {
+                    editorial_request.semantic_bullet_spans = Some(spans);
+                }
+            }
+            semantic_core::phrase_impact::run_with_scene_inputs(
+                editorial_request,
+                &input.scenes,
+                &input.chapter_options,
+            )
+        })
+        .transpose()?
+        .map(Into::into);
 
     Ok(SemanticManifest {
         schema_version: SCHEMA_VERSION,
@@ -233,7 +253,78 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         fingerprint,
         analyzers,
         scenes,
+        editorial,
     })
+}
+
+/// Maps scene-local semantic bullet candidates to exact transcript spans.
+/// Like the Go implementation before this cutover, the semantic candidate pool
+/// is activated only when every scene has a verified global slice; otherwise
+/// Phrase Impact retains its historical candidate behavior.
+fn semantic_bullet_spans(
+    transcript: &str,
+    editorial_scenes: &[semantic_core::phrase_impact::SceneInput],
+    manifests: &[SceneManifest],
+) -> Option<Vec<semantic_core::phrase_impact::SemanticBulletSpan>> {
+    use semantic_core::phrase_impact::SemanticBulletSpan;
+
+    let by_id: BTreeMap<_, _> = manifests
+        .iter()
+        .map(|manifest| (manifest.scene_id.as_str(), manifest))
+        .collect();
+    for scene in editorial_scenes {
+        let start = scene.start_byte?;
+        let end = scene.end_byte?;
+        if end <= start || transcript.get(start..end)? != scene.text {
+            return None;
+        }
+    }
+    let mut spans = Vec::new();
+    for scene in editorial_scenes {
+        let start = scene.start_byte?;
+        let manifest = by_id.get(scene.scene_id.as_str())?;
+        for candidate in &manifest.bullets {
+            let Some(local) = scene.text.get(candidate.start_byte..candidate.end_byte) else {
+                continue;
+            };
+            if local != candidate.text {
+                continue;
+            }
+            let global_start = start + candidate.start_byte;
+            let global_end = start + candidate.end_byte;
+            if transcript.get(global_start..global_end) != Some(candidate.text.as_str()) {
+                continue;
+            }
+            spans.push(SemanticBulletSpan {
+                start_byte: global_start,
+                end_byte: global_end,
+                text: candidate.text.clone(),
+            });
+        }
+    }
+    Some(spans)
+}
+
+/// FNV-1a fingerprint over every input that can change a manifest, including
+/// optional editorial options and caller-supplied embeddings.
+pub fn request_fingerprint(
+    request: &ScriptRequest,
+    analyzers: &semantic_core::AnalyzerVersions,
+) -> String {
+    let body = serde_json::to_vec(&(
+        request.language.trim(),
+        &request.scenes,
+        &request.editorial,
+        request.entity_safety_cap,
+        analyzers,
+    ))
+    .unwrap_or_default();
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in body {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{hash:016x}")
 }
 
 /// FNV-1a 64 over the canonical request and analyzer versions. Equal inputs

@@ -26,6 +26,12 @@ struct Envelope {
     operation: String,
 }
 
+#[derive(Deserialize)]
+struct SplitRequest {
+    transcript: String,
+    language: String,
+}
+
 /// A persistent handler holding the shared manifest cache.
 pub struct Worker {
     cache: Arc<Mutex<ManifestCache>>,
@@ -53,6 +59,7 @@ impl Worker {
         match envelope.operation.as_str() {
             "health" => json!({ "ok": true, "schema_version": SCHEMA_VERSION }).to_string(),
             "analyze_script" => self.analyze(line),
+            "split_sentences" => split_sentences(line),
             other => error_response(&format!("unknown operation: {other}")),
         }
     }
@@ -62,11 +69,7 @@ impl Worker {
             Ok(request) => request,
             Err(err) => return error_response(&format!("invalid analyze_script request: {err}")),
         };
-        let key = ManifestCache::key(
-            request.language.trim(),
-            &request.scenes,
-            &analyzer_versions(),
-        );
+        let key = ManifestCache::request_key(&request, &analyzer_versions());
         if let Some(manifest) = self.cache.lock().ok().and_then(|mut cache| cache.get(&key)) {
             return json!({ "ok": true, "manifest": manifest, "cached": true }).to_string();
         }
@@ -85,6 +88,29 @@ impl Worker {
     pub fn run_stdio(&self) -> io::Result<()> {
         ndjson_stdio::run_stdio(|line| self.handle_line(line))
     }
+}
+
+fn split_sentences(line: &str) -> String {
+    let request: SplitRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid split_sentences request: {err}")),
+    };
+    let language = request.language.trim();
+    if language.is_empty() {
+        return error_response("split_sentences language is required");
+    }
+    let sentences: Vec<_> =
+        semantic_core::phrase_impact::split_sentences(&request.transcript, language)
+            .into_iter()
+            .map(|sentence| {
+                json!({
+                    "text": sentence.text,
+                    "start_byte": sentence.start_byte,
+                    "end_byte": sentence.end_byte
+                })
+            })
+            .collect();
+    json!({ "ok": true, "sentences": sentences }).to_string()
 }
 
 fn error_response(message: &str) -> String {
@@ -131,6 +157,25 @@ mod tests {
             first["manifest"]["fingerprint"], second["manifest"]["fingerprint"],
             "cache must serve the same manifest"
         );
+    }
+
+    #[test]
+    fn shared_worker_splits_editorial_embedding_passages_with_utf8_offsets() {
+        let response: serde_json::Value = serde_json::from_str(&Worker::default().handle_line(
+            r#"{"operation":"split_sentences","language":"it","transcript":"L’analisi è pronta. Prosegue il lavoro."}"#,
+        ))
+        .unwrap();
+        assert_eq!(response["ok"], true);
+        let sentences = response["sentences"].as_array().unwrap();
+        assert_eq!(sentences.len(), 2);
+        for sentence in sentences {
+            let start = sentence["start_byte"].as_u64().unwrap() as usize;
+            let end = sentence["end_byte"].as_u64().unwrap() as usize;
+            assert_eq!(
+                &"L’analisi è pronta. Prosegue il lavoro."[start..end],
+                sentence["text"].as_str().unwrap()
+            );
+        }
     }
 
     #[test]

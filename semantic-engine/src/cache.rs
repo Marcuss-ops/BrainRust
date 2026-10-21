@@ -10,7 +10,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use semantic_core::{AnalyzerVersions, SceneInput, SemanticManifest};
+use semantic_core::{AnalyzerVersions, SceneInput, ScriptRequest, SemanticManifest};
 
 use crate::fingerprint;
 
@@ -44,6 +44,12 @@ impl ManifestCache {
     /// canonical language, scenes and analyzer versions.
     pub fn key(language: &str, scenes: &[SceneInput], analyzers: &AnalyzerVersions) -> String {
         fingerprint(language, scenes, analyzers)
+    }
+
+    /// Request-complete key used by the worker, including editorial options,
+    /// scene context and caller-supplied embedding vectors.
+    pub fn request_key(request: &ScriptRequest, analyzers: &AnalyzerVersions) -> String {
+        crate::request_fingerprint(request, analyzers)
     }
 
     /// Returns the cached manifest for `key`, if present.
@@ -101,6 +107,7 @@ mod tests {
         crate::analyze_script(&semantic_core::ScriptRequest {
             language: language.to_string(),
             scenes: scenes.to_vec(),
+            editorial: None,
             entity_safety_cap: 0,
         })
         .expect("analysis succeeds")
@@ -183,6 +190,38 @@ mod tests {
         cache.insert(key.clone(), manifest_with("it", &scenes));
         assert!(cache.get(&key).is_none());
         assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn editorial_inputs_participate_in_the_cache_key() {
+        let scenes = vec![scene(
+            "s1",
+            "Il progetto contiene una prima fase e una verifica finale.",
+        )];
+        let mut lexical = ScriptRequest {
+            language: "it".to_string(),
+            scenes: scenes.clone(),
+            editorial: None,
+            entity_safety_cap: 0,
+        };
+        let baseline = ManifestCache::request_key(&lexical, &analyzers());
+        lexical.editorial = Some(
+            serde_json::from_value(serde_json::json!({
+                "request": {
+                    "transcript": "Il progetto contiene una prima fase e una verifica finale.",
+                    "language": "it",
+                    "embeddings": [],
+                    "lexical_only": true
+                },
+                "scenes": []
+            }))
+            .expect("valid editorial request"),
+        );
+        let editorial = ManifestCache::request_key(&lexical, &analyzers());
+        assert_ne!(
+            baseline, editorial,
+            "editorial output must never reuse a semantic-only cache entry"
+        );
     }
 
     #[test]

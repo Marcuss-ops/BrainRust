@@ -13,6 +13,7 @@ fn request(scenes: Vec<SceneInput>) -> ScriptRequest {
     ScriptRequest {
         language: "it".to_string(),
         scenes,
+        editorial: None,
         entity_safety_cap: 0,
     }
 }
@@ -62,6 +63,48 @@ fn r02_two_persons_in_one_sentence_are_a_co_mention_not_a_relation() {
         scene["relations"]["co_mentions"].as_array().unwrap().len(),
         1
     );
+}
+
+#[test]
+fn one_script_batch_can_return_phrase_impact_editorial_products() {
+    let text = "Il gruppo prepara il progetto e controlla ogni passaggio. Gli operatori registrano i risultati e verificano tutte le procedure. La squadra completa il lavoro e pubblica il rapporto finale.";
+    let mut req = request(vec![scene("editorial", text)]);
+    req.editorial = Some(
+        serde_json::from_value(serde_json::json!({
+            "request": {
+                "transcript": text,
+                "language": "it",
+                "embeddings": [],
+                "lexical_only": true,
+                "stopwords": []
+            },
+            "scenes": [{"scene_id":"editorial", "text":text, "start_byte":0, "end_byte":text.len()}],
+        }))
+        .expect("editorial request follows the shared Phrase Impact contract"),
+    );
+
+    let manifest = analyze_script(&req).expect("combined analysis must succeed");
+    let editorial = manifest
+        .editorial
+        .expect("editorial result belongs to same manifest");
+    assert!(!editorial.summary.is_empty());
+    assert_eq!(
+        editorial.chapter_manifest.schema_version,
+        "chapter_manifest.v1"
+    );
+    assert!(editorial
+        .scene_highlights
+        .iter()
+        .any(|highlight| highlight.scene_id == "editorial"));
+    let semantic_bullet_texts: std::collections::BTreeSet<_> = manifest.scenes[0]
+        .bullets
+        .iter()
+        .map(|bullet| bullet.text.as_str())
+        .collect();
+    assert!(editorial
+        .bullet_points
+        .iter()
+        .all(|bullet| semantic_bullet_texts.contains(bullet.text.as_str())));
 }
 
 #[test]
@@ -130,6 +173,7 @@ fn typed_visual_objects_all_receive_grounded_reusable_search_queries() {
         let manifest = analyze_script(&ScriptRequest {
             language: language.to_string(),
             scenes: vec![scene(scene_id, text)],
+            editorial: None,
             entity_safety_cap: 0,
         })
         .expect("object script analysis");
