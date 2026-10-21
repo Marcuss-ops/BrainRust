@@ -154,6 +154,7 @@ pub(super) const STOP_WORDS: &[&str] = &[
     "uno",
     "è",
     "sono",
+    "si",
     "ha",
     "hanno",
     "nel",

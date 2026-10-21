@@ -126,6 +126,7 @@ fn whisper_like_unpunctuated_transcript_keeps_numbers_and_all_surface_text() {
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0].text, transcript);
     let result = run(Request {
+        semantic_bullet_spans: None,
         transcript: transcript.into(),
         language: "en".into(),
         embeddings: vec![vec3(1., 0., 0.)],

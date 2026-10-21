@@ -1,6 +1,8 @@
 use ndjson_stdio::{check_envelope, ErrorCode, WorkerError};
 use serde::{Deserialize, Serialize};
-use visualner::{analyze, extract, supported_spellout_language_count, ExtractOptions, VisualEntity};
+use visualner::{
+    analyze, extract, supported_spellout_language_count, ExtractOptions, VisualEntity,
+};
 
 #[derive(Debug, Deserialize)]
 struct ExtractRequest {

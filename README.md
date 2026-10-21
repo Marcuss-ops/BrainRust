@@ -13,10 +13,35 @@ Qdrant state, or load credentials. Those responsibilities remain behind the
 existing Go application and infrastructure ports until a separate migration
 contract is approved.
 
-The first capability is `pipelinegen-muscles`, a newline-delimited JSON
-executor for `health` and `cut_batch`. Add one focused capability at a time;
-do not turn the process into a god module or expose arbitrary command
-execution.
+The workspace now has two deliberately separate execution boundaries:
+
+- `semantic-engine` is the dedicated CPU-only text-analysis worker. One
+  `analyze_script` request carries all scenes and returns the versioned
+  `semantic_manifest.v2`; it does not search for assets or perform media I/O.
+- `pipelinegen-muscles` remains the media executor and hosts the existing
+  Phrase Impact and Scene Intelligence workers during their migration. It
+  owns FFmpeg-related operations and must not become the semantic engine's
+  dependency.
+
+`semantic-core` owns shared semantic contracts and deterministic primitives
+(grounding, sentence spans, numeric/date facts, identity and relation types).
+`visualner` remains the extraction library, while `mediasampler` and
+`ndjson-stdio` remain separate reusable crates. Go sends the complete scene
+batch to `bin/semantic-engine`; it verifies the returned source spans and
+keeps asset selection, timing and planning in PipelineGen. Chronon owns
+rendering.
+
+The manifest preserves candidates and evidence. It does not assert that a
+textual claim is externally true, and empty or unsupported categories stay
+empty. Editorial top-N and asset availability remain planner decisions.
+
+The current V2 engine emits chronology groups only when multiple normalized
+dates occur in sentences with explicit event predicates. It also recognizes
+consecutive numbered source lines as enumerations or rankings; a declared Top
+10 carries its actual member count and completeness flag. It does not fill
+missing ranks. Process, causal, cross-scene groups, entity-linked property
+ownership/location facts, and visual search-query generation are not yet part of this engine;
+Phrase Impact and Scene Intelligence remain separate during that migration.
 
 ## Local check
 

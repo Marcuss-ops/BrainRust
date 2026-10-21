@@ -39,6 +39,12 @@ pub(super) fn classify_value_type(text: &str) -> String {
 
 fn classify_type(text: &str) -> String {
     let lower = text.to_lowercase();
+    if matches!(
+        lower.as_str(),
+        "ball" | "football" | "trophy" | "jersey" | "shirt" | "pallone" | "trofeo" | "maglia"
+    ) {
+        return "OBJECT".to_string();
+    }
     if matches!(lower.as_str(), "company" | "corporation") {
         return "VISUAL_CONCEPT".to_string();
     }
@@ -186,13 +192,39 @@ fn classify_type(text: &str) -> String {
 // them: a bare "2" or "500" would otherwise become its own entity and chart
 // with the unscaled value.
 pub(super) const LOCAL_SCALE_WORDS: &[&str] = &[
-    "miliardi", "milioni", "milliarden", "millionen", "milliards", "millions",
-    "millones", "miliardy", "miliardów", "milionów", "miliony", "миллиардов",
-    "миллиарда", "миллионов", "миллиона", "milyar", "milyon", "miliar", "triliun",
+    "miliardi",
+    "milioni",
+    "milliarden",
+    "millionen",
+    "milliards",
+    "millions",
+    "millones",
+    "miliardy",
+    "miliardów",
+    "milionów",
+    "miliony",
+    "миллиардов",
+    "миллиарда",
+    "миллионов",
+    "миллиона",
+    "milyar",
+    "milyon",
+    "miliar",
+    "triliun",
     "juta",
     // thousands
-    "mila", "mil", "mille", "tausend", "tysięcy", "tysiące", "tysiecy",
-    "тысяч", "тысячи", "тысяча", "bin", "ribu",
+    "mila",
+    "mil",
+    "mille",
+    "tausend",
+    "tysięcy",
+    "tysiące",
+    "tysiecy",
+    "тысяч",
+    "тысячи",
+    "тысяча",
+    "bin",
+    "ribu",
 ];
 /// True when a scale word (`million`, `milioni`, `Millionen`, ...) follows
 /// `end` after optional whitespace, so the number before it is a scaled quantity.

@@ -101,6 +101,21 @@ mod tests {
     }
 
     #[test]
+    fn chart_value_literals_use_the_shared_locale_aware_numeric_parser() {
+        assert_eq!(
+            crate::phrase_impact::extract_chart_values(
+                "Il costo era 12,5% e poi 1.200 euro.",
+                "it"
+            ),
+            vec!["12,5%", "1.200"]
+        );
+        assert_eq!(
+            crate::phrase_impact::extract_chart_values("The value was 1,200 and then 12.5%.", "en"),
+            vec!["1,200", "12.5%"]
+        );
+    }
+
+    #[test]
     fn splits_sentences_using_the_canonical_rust_boundary() {
         let transcript = "Il Milan vinse. Poi celebrò!";
         let response: Value = serde_json::from_str(&process_line(

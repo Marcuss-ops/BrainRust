@@ -3,7 +3,7 @@ use crate::types::VisualEntity;
 pub(super) fn named_entity_rank(entity: &VisualEntity) -> u8 {
     match entity.r#type.as_str() {
         "PERSON" | "BRAND" => 0,
-        "ORGANIZATION" | "LOCATION" | "EVENT" | "WORK" | "PRODUCT" => 1,
+        "ORGANIZATION" | "LOCATION" | "EVENT" | "WORK" | "PRODUCT" | "OBJECT" => 1,
         "DATE" | "MONEY" | "NUMBER" | "PERCENT" => 2,
         _ => 3,
     }
@@ -25,7 +25,7 @@ pub(super) fn score_entity(mut entity: VisualEntity) -> VisualEntity {
     let lower = entity.text.to_lowercase();
     let word_count = lower.split_whitespace().count().max(1);
     let mut score: f32 = 0.30 + 0.20 * (word_count as f32 - 1.0);
-    if is_visual_object_hint(&lower) {
+    if entity.r#type == "OBJECT" || is_visual_object_hint(&lower) {
         score += 0.15;
     }
     if VISUAL_OBJECT_KEYWORDS

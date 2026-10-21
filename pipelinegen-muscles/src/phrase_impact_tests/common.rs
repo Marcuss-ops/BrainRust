@@ -42,6 +42,7 @@ pub(super) fn vec3(x: f32, y: f32, z: f32) -> Vec<f32> {
 
 pub(super) fn request(lines: &[&str], embeddings: Vec<Vec<f32>>, options: Options) -> Request {
     Request {
+        semantic_bullet_spans: None,
         transcript: lines.join(" "),
         language: "en".into(),
         embeddings,
@@ -121,6 +122,7 @@ pub(super) fn labeled_test_sentences(count: usize) -> Vec<String> {
 
 pub(super) fn lexical_scene_request(transcript: &str) -> Request {
     Request {
+        semantic_bullet_spans: None,
         transcript: transcript.into(),
         language: "en".into(),
         embeddings: Vec::new(),
@@ -134,6 +136,7 @@ pub(super) fn lexical_scene_request(transcript: &str) -> Request {
 
 pub(super) fn lexical_scene_request_in(transcript: &str, language: &str) -> Request {
     Request {
+        semantic_bullet_spans: None,
         transcript: transcript.into(),
         language: language.into(),
         embeddings: Vec::new(),
@@ -160,6 +163,7 @@ pub(super) fn generated_chapter_sentences(count: usize) -> Vec<String> {
 
 pub(super) fn lexical_chapter_request(sentences: &[String]) -> Request {
     Request {
+        semantic_bullet_spans: None,
         transcript: sentences.join(" "),
         language: "und".into(),
         embeddings: Vec::new(),

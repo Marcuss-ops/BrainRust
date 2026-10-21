@@ -2,6 +2,50 @@ use super::super::*;
 use super::common::*;
 
 #[test]
+fn semantic_bullet_candidates_are_ranked_but_never_expanded() {
+    let first = "Germany lost one hundred thousand industrial jobs in a single year.";
+    let second = "Factory orders declined for the sixth consecutive quarter.";
+    let transcript = format!("{first} {second}");
+    let start = first.len() + 1;
+    let mut request = lexical_scene_request(&transcript);
+    request.semantic_bullet_spans = Some(vec![SemanticBulletSpan {
+        start_byte: start,
+        end_byte: start + second.len(),
+        text: second.to_string(),
+    }]);
+
+    let result = run_with_scene_inputs(
+        request,
+        &[SceneInput {
+            scene_id: "semantic-candidate-scene".into(),
+            text: transcript.clone(),
+            topic: None,
+            start_byte: Some(0),
+            end_byte: Some(transcript.len()),
+        }],
+        &ChapterOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(result.bullet_points.len(), 1);
+    assert_eq!(result.bullet_points[0].text, second);
+    assert_eq!(result.scene_highlights.len(), 1);
+    assert_eq!(result.scene_highlights[0].bullets.len(), 1);
+    assert_eq!(result.scene_highlights[0].bullets[0].text, second);
+}
+
+#[test]
+fn invalid_semantic_bullet_evidence_fails_closed() {
+    let transcript = "Factory orders declined for the sixth consecutive quarter.";
+    let mut request = lexical_scene_request(transcript);
+    request.semantic_bullet_spans = Some(vec![SemanticBulletSpan {
+        start_byte: 0,
+        end_byte: transcript.len(),
+        text: "unsupported sentence".to_string(),
+    }]);
+    assert!(run(request).is_err());
+}
+
+#[test]
 fn globally_indexed_bullets_match_canonical_sentence_ranges() {
     // R09: every bullet must equal the concatenation of the canonical
     // global sentences in [sentence_start, sentence_end).
@@ -336,6 +380,7 @@ fn chapter_bullets_never_publish_fragments_or_continuation_chunks() {
     }
     let transcript = sentences.join(" ");
     let result = run(Request {
+        semantic_bullet_spans: None,
         transcript: transcript.clone(),
         language: "it".into(),
         embeddings: Vec::new(),

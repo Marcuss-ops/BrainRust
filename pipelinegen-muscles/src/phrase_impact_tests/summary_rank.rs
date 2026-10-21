@@ -38,6 +38,7 @@ fn synthetic_transcript_summarization_keeps_negation_and_source_spans() {
     ))
     .unwrap();
     let result = run(Request {
+        semantic_bullet_spans: None,
         transcript: transcript.to_string(),
         language: "it".into(),
         embeddings: Vec::new(),
@@ -182,6 +183,7 @@ fn end_to_end_outputs_preserve_sentences_in_supported_languages() {
     ];
     for (language, lines) in cases {
         let result = run(Request {
+            semantic_bullet_spans: None,
             transcript: lines.join(" "),
             language: language.into(),
             embeddings: orthogonal_embeddings(lines.len()),
@@ -540,6 +542,7 @@ fn timeline_is_chronological_and_ranked_is_descending() {
     // equal-pairwise-similarity shape this check was written against.
     let fixture_stopwords: HashSet<String> = HashSet::new();
     let result = run(Request {
+        semantic_bullet_spans: None,
         transcript: lines.join(" "),
         language: "en".into(),
         embeddings: lines
@@ -630,6 +633,7 @@ fn deterministic_across_one_hundred_runs_and_invalid_vectors_fail_closed() {
     let invalid_cases = [
         (
             Request {
+                semantic_bullet_spans: None,
                 transcript: "Sentence one. Sentence two.".into(),
                 language: "en".into(),
                 embeddings: vec![vec3(1., 0., 0.)],
@@ -643,6 +647,7 @@ fn deterministic_across_one_hundred_runs_and_invalid_vectors_fail_closed() {
         ),
         (
             Request {
+                semantic_bullet_spans: None,
                 transcript: "Sentence one.".into(),
                 language: "en".into(),
                 embeddings: vec![vec3(f32::NAN, 0., 0.)],
@@ -656,6 +661,7 @@ fn deterministic_across_one_hundred_runs_and_invalid_vectors_fail_closed() {
         ),
         (
             Request {
+                semantic_bullet_spans: None,
                 transcript: "Sentence one.".into(),
                 language: "en".into(),
                 embeddings: vec![vec3(1., 0., 0.)],
@@ -672,6 +678,7 @@ fn deterministic_across_one_hundred_runs_and_invalid_vectors_fail_closed() {
         ),
         (
             Request {
+                semantic_bullet_spans: None,
                 transcript: "Sentence one.".into(),
                 language: "en".into(),
                 embeddings: vec![vec3(1., 0., 0.)],
@@ -871,6 +878,7 @@ fn synthetic_labeled_corpus_computes_precision_and_recall_transparently() {
             .collect::<Vec<_>>()
             .join(" ");
         let result = run(Request {
+            semantic_bullet_spans: None,
             transcript: text,
             language: "en".into(),
             embeddings: vectors,

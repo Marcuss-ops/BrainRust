@@ -83,6 +83,16 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
     }
     let tokens = tokenize(source_text, language)?;
     let mut candidates = noun_phrase_candidates(&tokens, source_text, language);
+    for object in object_lexicon_candidates(&tokens, source_text, language) {
+        if let Some(existing) = candidates
+            .iter_mut()
+            .find(|candidate| candidate.start == object.start && candidate.end == object.end)
+        {
+            existing.entity_type = Some("OBJECT".to_string());
+        } else {
+            candidates.push(object);
+        }
+    }
     candidates.extend(value_candidates(source_text));
     mark_contextual_locations(&mut candidates, &tokens, source_text);
     let spelled_candidates = crate::spellout::candidates(source_text, language)?;
@@ -113,7 +123,10 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
         // part of a scaled quantity; the value span carries it, so the bare
         // number must not become an entity that charts as 2.0.
         .filter(|candidate| {
-            let bare = candidate.text.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | ','));
+            let bare = candidate
+                .text
+                .chars()
+                .all(|c| c.is_ascii_digit() || matches!(c, '.' | ','));
             !(bare && values::scale_word_follows(source_text, candidate.end))
         })
         .filter_map(|c| validate_evidence(c, source_text))
@@ -159,6 +172,246 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
     Ok(reserve_numeric_slots(unique, options.top_n()))
 }
 
+/// Adds typed candidates for a small, high-precision visual-object vocabulary.
+/// This lexical backstop catches common objects even when a POS model tags the
+/// noun unreliably; it still uses exact tokenizer spans and never rewrites the
+/// source surface. The vocabulary is deliberately explicit and expandable
+/// from corpus evidence rather than guessing that every noun is an object.
+fn object_lexicon_candidates(
+    tokens: &[Token],
+    source_text: &str,
+    language: &str,
+) -> Vec<Candidate> {
+    let terms: &[&str] = match language.split(['-', '_']).next().unwrap_or("") {
+        "en" => &[
+            "ball",
+            "football",
+            "trophy",
+            "jersey",
+            "shirt",
+            "medal",
+            "cup",
+            "helmet",
+            "racket",
+            "bat",
+            "puck",
+            "net",
+            "boots",
+            "cleats",
+            "flag",
+            "microphone",
+            "camera",
+            "map",
+            "book",
+            "phone",
+            "car",
+            "train",
+            "airplane",
+            "document",
+        ],
+        "it" => &[
+            "pallone",
+            "palla",
+            "trofeo",
+            "coppa",
+            "maglia",
+            "medaglia",
+            "casco",
+            "racchetta",
+            "mazza",
+            "rete",
+            "bandiera",
+            "microfono",
+            "fotocamera",
+            "mappa",
+            "libro",
+            "telefono",
+            "auto",
+            "treno",
+            "aereo",
+            "documento",
+        ],
+        "es" => &[
+            "balón",
+            "pelota",
+            "trofeo",
+            "camiseta",
+            "camisa",
+            "medalla",
+            "copa",
+            "casco",
+            "raqueta",
+            "bate",
+            "disco",
+            "red",
+            "botas",
+            "bandera",
+            "micrófono",
+            "cámara",
+            "mapa",
+            "libro",
+            "teléfono",
+            "coche",
+            "tren",
+            "avión",
+            "documento",
+        ],
+        "fr" => &[
+            "ballon",
+            "football",
+            "trophée",
+            "maillot",
+            "chemise",
+            "médaille",
+            "coupe",
+            "casque",
+            "raquette",
+            "batte",
+            "palet",
+            "filet",
+            "bottes",
+            "drapeau",
+            "microphone",
+            "appareil photo",
+            "carte",
+            "livre",
+            "téléphone",
+            "voiture",
+            "train",
+            "avion",
+            "document",
+        ],
+        "de" => &[
+            "ball",
+            "fußball",
+            "pokal",
+            "trikot",
+            "hemd",
+            "medaille",
+            "helm",
+            "schläger",
+            "puck",
+            "netz",
+            "stiefel",
+            "flagge",
+            "mikrofon",
+            "kamera",
+            "karte",
+            "buch",
+            "telefon",
+            "auto",
+            "zug",
+            "flugzeug",
+            "dokument",
+        ],
+        "pt" => &[
+            "bola",
+            "troféu",
+            "camiseta",
+            "camisa",
+            "medalha",
+            "taça",
+            "capacete",
+            "raquete",
+            "bastão",
+            "disco",
+            "rede",
+            "botas",
+            "bandeira",
+            "microfone",
+            "câmera",
+            "mapa",
+            "livro",
+            "telefone",
+            "carro",
+            "trem",
+            "avião",
+            "documento",
+        ],
+        "pl" => &[
+            "piłka",
+            "trofeum",
+            "koszulka",
+            "medal",
+            "kask",
+            "rakieta",
+            "kij",
+            "siatka",
+            "flaga",
+            "mikrofon",
+            "kamera",
+            "mapa",
+            "książka",
+            "telefon",
+            "samochód",
+            "pociąg",
+            "samolot",
+            "dokument",
+        ],
+        "ru" => &[
+            "мяч",
+            "трофей",
+            "футболка",
+            "медаль",
+            "шлем",
+            "ракетка",
+            "клюшка",
+            "сетка",
+            "флаг",
+            "микрофон",
+            "камера",
+            "карта",
+            "книга",
+            "телефон",
+            "машина",
+            "поезд",
+            "самолет",
+            "документ",
+        ],
+        "tr" => &[
+            "top", "kupa", "forma", "madalya", "kask", "raket", "sopa", "file", "bayrak",
+            "mikrofon", "kamera", "harita", "kitap", "telefon", "araba", "tren", "uçak", "belge",
+        ],
+        "id" => &[
+            "bola", "piala", "seragam", "medali", "helm", "raket", "tongkat", "jaring", "bendera",
+            "mikrofon", "kamera", "peta", "buku", "telepon", "mobil", "kereta", "pesawat",
+            "dokumen",
+        ],
+        _ => return Vec::new(),
+    };
+    let mut candidates = Vec::new();
+    for start_index in 0..tokens.len() {
+        let mut normalized = String::new();
+        let max_end = (start_index + 3).min(tokens.len());
+        for end_index in start_index..max_end {
+            if end_index > start_index {
+                let gap = &source_text[tokens[end_index - 1].end..tokens[end_index].start];
+                if gap.is_empty() || !gap.chars().all(char::is_whitespace) {
+                    break;
+                }
+                normalized.push(' ');
+            }
+            normalized.push_str(&tokens[end_index].text.to_lowercase());
+            if !terms.contains(&normalized.as_str()) {
+                continue;
+            }
+            let start = tokens[start_index].start;
+            let end = tokens[end_index].end;
+            let Some(text) = source_text.get(start..end) else {
+                continue;
+            };
+            candidates.push(Candidate {
+                text: text.to_string(),
+                normalized: normalized.clone(),
+                start,
+                end,
+                entity_type: Some("OBJECT".to_string()),
+            });
+        }
+    }
+    candidates
+}
+
 /// Applies the top-N cap while keeping a minimum share of numeric value
 /// entities (NUMBER/PERCENT/MONEY). Without this, a low cap ranks every value
 /// below the identities and the chart loses its numbers entirely. The share is
@@ -172,7 +425,9 @@ fn reserve_numeric_slots(ranked: Vec<VisualEntity>, top_n: usize) -> Vec<VisualE
     let is_numeric = |e: &VisualEntity| matches!(e.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY");
     let reserve = (top_n / 3).max(1).min(top_n);
     let kept_numeric = ranked[..top_n].iter().filter(|e| is_numeric(e)).count();
-    let spare: Vec<usize> = (top_n..ranked.len()).filter(|&i| is_numeric(&ranked[i])).collect();
+    let spare: Vec<usize> = (top_n..ranked.len())
+        .filter(|&i| is_numeric(&ranked[i]))
+        .collect();
     let needed = reserve.saturating_sub(kept_numeric).min(spare.len());
     let mut keep = vec![true; top_n];
     let mut evicted = 0;
@@ -185,7 +440,10 @@ fn reserve_numeric_slots(ranked: Vec<VisualEntity>, top_n: usize) -> Vec<VisualE
             evicted += 1;
         }
     }
-    let mut selected: Vec<usize> = (0..top_n).filter(|&pos| keep[pos]).chain(spare.into_iter().take(needed)).collect();
+    let mut selected: Vec<usize> = (0..top_n)
+        .filter(|&pos| keep[pos])
+        .chain(spare.into_iter().take(needed))
+        .collect();
     selected.sort_unstable();
     let mut slots: Vec<Option<VisualEntity>> = ranked.into_iter().map(Some).collect();
     selected
@@ -335,11 +593,7 @@ fn elided_clitic_split(source_text: &str, token: &Token) -> Option<(usize, usize
 /// hard phrase boundary). Multi-word phrases ("feta cheese",
 /// "olive oil") score higher than singletons, which is what makes the
 /// Mediterranean golden fixture's anchors win over generic singletons.
-fn noun_phrase_candidates(
-    tokens: &[Token],
-    source_text: &str,
-    language: &str,
-) -> Vec<Candidate> {
+fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -> Vec<Candidate> {
     let bytes = source_text.as_bytes();
     let mut out = Vec::new();
     // Named people/organizations are bounded to the contiguous title-case run.

@@ -4,7 +4,11 @@ use super::*;
 /// syntax supplies geographic context. The extractor has no gazetteer, so it
 /// does not guess from capitalization alone; cues such as "em Fortaleza" and
 /// "no bairro Aldeota" provide the evidence for this classification.
-pub(super) fn mark_contextual_locations(candidates: &mut Vec<Candidate>, tokens: &[Token], source_text: &str) {
+pub(super) fn mark_contextual_locations(
+    candidates: &mut Vec<Candidate>,
+    tokens: &[Token],
+    source_text: &str,
+) {
     let bytes = source_text.as_bytes();
     let mut contextual = Vec::new();
     for index in 0..tokens.len() {

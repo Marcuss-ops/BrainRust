@@ -174,7 +174,7 @@ pub struct SceneHighlight {
 /// Extracts strict numeric literals from source text; no number words or
 /// inferred values are introduced. Runtime must still match these tokens to
 /// grounded, audio-timed annotations before rendering a chart.
-fn extract_chart_values(text: &str) -> Vec<String> {
+pub(crate) fn extract_chart_values(text: &str, language: &str) -> Vec<String> {
     let mut values = Vec::new();
     for token in text.split_whitespace() {
         let candidate = token.trim_matches(|c: char| {
@@ -183,22 +183,11 @@ fn extract_chart_values(text: &str) -> Vec<String> {
                 '(' | ')' | '[' | ']' | '{' | '}' | ':' | ';' | '"' | '\'' | '.' | ',' | '!' | '?'
             )
         });
+        // Phrase Impact retains its literal-span policy, while the shared
+        // semantic core owns locale-aware parsing and ambiguity rejection.
         let numeric = candidate.trim_matches(|c: char| matches!(c, '%' | '€' | '$' | '£' | '¥'));
-        let digits = numeric.chars().filter(|c| c.is_ascii_digit()).count();
-        if digits == 0
-            || !numeric
-                .chars()
-                .all(|c| c.is_ascii_digit() || matches!(c, '.' | ',' | '-'))
-        {
-            continue;
-        }
-        if numeric.matches('.').count() + numeric.matches(',').count() > 1
-            && !(numeric.contains('.') && numeric.contains(','))
-        {
-            continue;
-        }
-        let normalized = numeric.replace(',', ".");
-        if normalized.parse::<f64>().is_err() || values.iter().any(|existing| existing == candidate)
+        if semantic_core::parse_unambiguous_value(numeric, language).is_none()
+            || values.iter().any(|existing| existing == candidate)
         {
             continue;
         }
@@ -210,8 +199,8 @@ fn extract_chart_values(text: &str) -> Vec<String> {
     values
 }
 
-fn scene_chart_values(scene: &SceneInput) -> Vec<String> {
-    let values = extract_chart_values(&scene.text);
+fn scene_chart_values(scene: &SceneInput, language: &str) -> Vec<String> {
+    let values = extract_chart_values(&scene.text, language);
     if values.len() >= 2 {
         values
     } else {
@@ -244,6 +233,18 @@ pub struct Request {
     /// Empty means "no filtering"; the Go adapter always injects the set.
     #[serde(default)]
     pub stopwords: Vec<String>,
+    /// Optional source-grounded candidates from the unified semantic engine.
+    /// `None` preserves the legacy candidate source; `Some([])` deliberately
+    /// means there are no eligible semantic bullets for this transcript.
+    #[serde(default)]
+    pub semantic_bullet_spans: Option<Vec<SemanticBulletSpan>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SemanticBulletSpan {
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub text: String,
 }
 
 fn default_language() -> String {
@@ -408,6 +409,7 @@ pub fn run_with_scene_inputs(
         inputs,
         &request.language,
         &stopwords,
+        request.semantic_bullet_spans.as_deref(),
     );
     if !certified {
         return Err("incoherent scene identity".into());
@@ -636,6 +638,28 @@ pub fn run_with_chapter_options(
         .iter()
         .map(|segment| segment.text.as_str())
         .collect();
+    let allowed_semantic_bullets = match &request.semantic_bullet_spans {
+        None => None,
+        Some(spans) => {
+            let mut allowed = std::collections::HashSet::new();
+            for span in spans {
+                if span.start_byte >= span.end_byte
+                    || span.end_byte > request.transcript.len()
+                    || !request.transcript.is_char_boundary(span.start_byte)
+                    || !request.transcript.is_char_boundary(span.end_byte)
+                    || request.transcript[span.start_byte..span.end_byte] != span.text
+                {
+                    return Err("invalid semantic bullet span".into());
+                }
+                for (index, segment) in segments.iter().enumerate() {
+                    if segment.start_byte == span.start_byte && segment.end_byte == span.end_byte {
+                        allowed.insert(index);
+                    }
+                }
+            }
+            Some(allowed)
+        }
+    };
     let bullet_candidates: Vec<usize> = rank_indices
         .iter()
         .copied()
@@ -643,6 +667,9 @@ pub fn run_with_chapter_options(
             bullet_starts_sentence(&segment_texts, index)
                 && bullet_completes_sentence(&segment_texts, index)
                 && bullet_has_substance(segment_texts[index])
+                && allowed_semantic_bullets
+                    .as_ref()
+                    .is_none_or(|allowed| allowed.contains(&index))
         })
         .collect();
     let bullets = select_diverse(&bullet_candidates, &source_order, &vectors, bullet_limit)

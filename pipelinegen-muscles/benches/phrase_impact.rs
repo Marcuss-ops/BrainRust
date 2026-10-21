@@ -114,6 +114,7 @@ fn synthetic_embeddings(count: usize) -> Vec<Vec<f32>> {
 fn request(text: String) -> Request {
     let sentence_count = split_sentences(&text, "en").len();
     Request {
+        semantic_bullet_spans: None,
         transcript: text,
         language: "en".to_string(),
         embeddings: synthetic_embeddings(sentence_count),

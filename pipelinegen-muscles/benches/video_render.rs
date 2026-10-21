@@ -241,8 +241,8 @@ fn main() {
     fs::create_dir_all(&bench_dir).expect("create report directory");
     let ffmpeg_path =
         std::env::var("VIDEO_RENDER_BENCH_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
-    let encoder = std::env::var("VIDEO_RENDER_BENCH_ENCODER")
-        .unwrap_or_else(|_| "libx264".to_string());
+    let encoder =
+        std::env::var("VIDEO_RENDER_BENCH_ENCODER").unwrap_or_else(|_| "libx264".to_string());
     let ffmpeg = workspace_bin(&ffmpeg_path);
     let fixture = fixture_path(&bench_dir);
     ensure_fixture(&ffmpeg, &fixture);

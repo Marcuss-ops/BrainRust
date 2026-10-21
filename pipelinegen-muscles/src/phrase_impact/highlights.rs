@@ -9,6 +9,7 @@ pub(super) fn build_scene_highlights(
     scenes: &[SceneInput],
     language: &str,
     stopwords: &HashSet<String>,
+    semantic_bullet_spans: Option<&[SemanticBulletSpan]>,
 ) -> (Vec<SceneHighlight>, bool) {
     let mut out = Vec::new();
     let mut certified = true;
@@ -43,7 +44,7 @@ pub(super) fn build_scene_highlights(
                         title_source: "none".into(),
                         bullets: Vec::new(),
                         highlights: Vec::new(),
-                        chart_values: scene_chart_values(scene),
+                        chart_values: scene_chart_values(scene, language),
                         globally_indexed,
                     });
                     continue;
@@ -84,7 +85,7 @@ pub(super) fn build_scene_highlights(
                     title_source: "none".into(),
                     bullets: Vec::new(),
                     highlights: Vec::new(),
-                    chart_values: scene_chart_values(scene),
+                    chart_values: scene_chart_values(scene, language),
                     globally_indexed,
                 });
                 continue;
@@ -100,7 +101,7 @@ pub(super) fn build_scene_highlights(
                 title_source: "none".into(),
                 bullets: Vec::new(),
                 highlights: Vec::new(),
-                chart_values: scene_chart_values(scene),
+                chart_values: scene_chart_values(scene, language),
                 globally_indexed,
             });
             continue;
@@ -149,6 +150,15 @@ pub(super) fn build_scene_highlights(
                 .map(|segment| segment.text.as_str())
                 .collect::<Vec<_>>()
                 .join(" ");
+            if let Some(candidates) = semantic_bullet_spans {
+                let start_byte = scene_segments[li].start_byte;
+                let end_byte = scene_segments[end - 1].end_byte;
+                if !candidates.iter().any(|candidate| {
+                    candidate.start_byte == start_byte && candidate.end_byte == end_byte
+                }) {
+                    continue;
+                }
+            }
             // Fragments are not bullets: "impronta 33." is noise, not a point.
             if !bullet_has_substance(&text) {
                 continue;
@@ -190,7 +200,7 @@ pub(super) fn build_scene_highlights(
             title_source,
             bullets,
             highlights,
-            chart_values: scene_chart_values(scene),
+            chart_values: scene_chart_values(scene, language),
             globally_indexed,
         });
     }

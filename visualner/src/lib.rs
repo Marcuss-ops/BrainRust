@@ -47,7 +47,7 @@ pub mod types;
 pub use analysis::{analyze, Analysis};
 pub use extractor::extract;
 pub use spellout::supported_spellout_language_count;
-pub use temporal::TemporalFact;
 pub use temporal::temporal_facts;
+pub use temporal::TemporalFact;
 pub use temporal::{PRECISION_DAY, PRECISION_MONTH, PRECISION_UNRESOLVED, PRECISION_YEAR};
 pub use types::{ExtractOptions, VisualEntity};

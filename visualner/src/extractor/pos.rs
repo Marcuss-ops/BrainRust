@@ -26,7 +26,9 @@ thread_local! {
 const CONTENT_UPOS: &[&str] = &["NOUN", "PROPN", "NUM"];
 
 /// Universal POS tags that never start or extend a visual phrase.
-const FUNCTION_UPOS: &[&str] = &["DET", "ADP", "CCONJ", "SCONJ", "PART", "INTJ", "PUNCT", "SYM", "VERB"];
+const FUNCTION_UPOS: &[&str] = &[
+    "DET", "ADP", "CCONJ", "SCONJ", "PART", "INTJ", "PUNCT", "SYM", "VERB",
+];
 
 /// is_stop_token reports whether a token must break a candidate phrase.
 /// Tags decide for nouns, numbers and function words. Adjectives, verbs,
@@ -39,6 +41,10 @@ pub(super) fn is_stop_token(token: &Token) -> bool {
     }
     match token.upos.as_deref() {
         Some(upos) if FUNCTION_UPOS.contains(&upos) => true,
+        // A pronoun is usually non-visual, but acronym/proper-name POS errors
+        // are common (for example OpenAI can be tagged PRON). Exclude only
+        // pronouns already covered by the language stopword list.
+        Some("PRON") => super::stopwords::is_stop_word(&token.text),
         Some(upos) if CONTENT_UPOS.contains(&upos) => false,
         _ => super::stopwords::is_stop_word(&token.text),
     }
@@ -144,8 +150,7 @@ fn load_model(language: &str) -> Option<Rc<udpipe_rs::Model>> {
 fn model_path(language: &str) -> Option<PathBuf> {
     let dir = match std::env::var_os("VISUALNER_MODEL_DIR") {
         Some(dir) => PathBuf::from(dir),
-        None => PathBuf::from(std::env::var_os("HOME")?)
-            .join(".local/share/visualner/models"),
+        None => PathBuf::from(std::env::var_os("HOME")?).join(".local/share/visualner/models"),
     };
     // Treebank per language, matching the codes in config/multilingual.yaml.
     let treebank = match language.split(['-', '_']).next()? {
@@ -188,22 +193,30 @@ mod tests {
         assert!(is_stop_token(&token("the", Some("DET"))));
         // Verbs and adjectives defer to the stopword list.
         assert!(is_stop_token(&token("imagine", Some("VERB"))));
+        assert!(is_stop_token(&token("si", Some("PRON"))));
         assert!(!is_stop_token(&token("olive", Some("ADJ"))));
-    }	#[test]
-	fn fallback_uses_stopword_list_without_tags() {
-		assert!(is_stop_token(&token("the", None)));
-		assert!(!is_stop_token(&token("feta", None)));
-	}
+    }
+    #[test]
+    fn fallback_uses_stopword_list_without_tags() {
+        assert!(is_stop_token(&token("the", None)));
+        assert!(!is_stop_token(&token("feta", None)));
+    }
 
-	#[test]
-	fn locate_word_skips_matches_inside_a_longer_word() {
-		// "di" (the first component of the Italian contraction "della") occurs
-		// inside "Lombardia"; only the standalone occurrence is a word.
-		let source = "capoluogo della Lombardia";
-		assert_eq!(locate_word(source, "di", 0), None);
-		assert_eq!(locate_word(source, "Lombardia", 0), source.find("Lombardia"));
-		// A clitic carrying punctuation is matched where it is attached.
-		let contraction = "dell'arte";
-		assert_eq!(locate_word(contraction, "l'", 0), Some(contraction.find("l'").unwrap()));
-	}
+    #[test]
+    fn locate_word_skips_matches_inside_a_longer_word() {
+        // "di" (the first component of the Italian contraction "della") occurs
+        // inside "Lombardia"; only the standalone occurrence is a word.
+        let source = "capoluogo della Lombardia";
+        assert_eq!(locate_word(source, "di", 0), None);
+        assert_eq!(
+            locate_word(source, "Lombardia", 0),
+            source.find("Lombardia")
+        );
+        // A clitic carrying punctuation is matched where it is attached.
+        let contraction = "dell'arte";
+        assert_eq!(
+            locate_word(contraction, "l'", 0),
+            Some(contraction.find("l'").unwrap())
+        );
+    }
 }

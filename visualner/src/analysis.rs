@@ -10,6 +10,8 @@
 use crate::extractor::{extract, numeric_value_spans};
 use crate::temporal::temporal_facts;
 use crate::types::{ExtractOptions, VisualEntity};
+use semantic_core::numbers::parse_unambiguous_value;
+use semantic_core::sentences::{split_sentences, SentenceSpan};
 use serde::Serialize;
 
 /// Full analysis of one segment of source text.
@@ -22,7 +24,9 @@ pub struct Analysis {
     pub lower_thirds: Vec<LowerThird>,
     /// One bullet per sentence that mentions at least one entity.
     pub bullets: Vec<Bullet>,
-    /// Numeric entities whose value is unambiguous (e.g. `25%`, `$1200`).
+    /// Unambiguous numeric values (e.g. `25%`, `$1200`), projected from the
+    /// single [`Analysis::numeric_facts`] collection. There is no second
+    /// number scanner: a chart point is a typed view over a grounded fact.
     pub chart_points: Vec<ChartPoint>,
     /// Every source-grounded date occurrence, independent of the visual
     /// top-N budget, with calendar normalization and precision. A scene with
@@ -36,24 +40,11 @@ pub struct Analysis {
     pub numeric_facts: Vec<NumericFact>,
 }
 
-/// One grounded numeric-value fact. `value` is parsed only when the surface
-/// is unambiguous for the scene language (`25%`, `$1,200`, `12,5% euro`); a
-/// scaled quantity such as `2 million` carries no raw value instead of a
-/// guessed one. The killer rule is inherited: surface == evidence == source
-/// slice at `[start_byte, end_byte)`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct NumericFact {
-    /// Exact source form (e.g. "25%").
-    pub surface: String,
-    /// One of `NUMBER`, `PERCENT`, `MONEY`.
-    #[serde(rename = "type")]
-    pub kind: String,
-    /// Parsed numeric value when unambiguous; `None` otherwise.
-    pub value: Option<f64>,
-    pub start_byte: usize,
-    pub end_byte: usize,
-    pub evidence: String,
-}
+/// One grounded numeric-value fact. The type is shared with `semantic-core`
+/// so every extractor agrees on the parse: `value` is set only when the
+/// surface is unambiguous for the scene language. Re-exported to keep the
+/// `visualner::analysis::NumericFact` path stable for callers.
+pub use semantic_core::numbers::NumericFact;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct EntityRelation {
@@ -85,24 +76,25 @@ pub struct Bullet {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ChartPoint {
-    pub entity: usize,
+    /// Exact numeric surface (e.g. `"25%"`).
+    pub text: String,
     pub kind: String,
     pub value: f64,
+    /// The sentence the value appears in (verbatim).
     pub label: String,
     pub sentence_index: usize,
-}
-
-/// A sentence span `[start, end)` of the source text, already trimmed.
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Sentence {
-    start: usize,
-    end: usize,
+    pub start: usize,
+    pub end: usize,
+    /// Index of the matching NER entity, when one survived the visual top-N.
+    /// A chart is admitted from the numeric fact, never from this link.
+    pub entity: Option<usize>,
 }
 
 /// Extracts entities and derives the analysis structures from them.
 pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, String> {
     let entities = extract(source_text, options)?;
-    let sentences = split_sentences(source_text);
+    // One canonical segmenter for every extractor (semantic-core).
+    let sentences = split_sentences(source_text, &options.language, None);
     let entity_sentence: Vec<Option<usize>> = entities
         .iter()
         .map(|entity| sentence_index_of(&sentences, entity.start))
@@ -126,15 +118,12 @@ pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, 
         })
         .collect();
     let bullets = bullets(source_text, &sentences, &entity_sentence);
-    let chart_points = chart_points(
-        source_text,
-        &entities,
-        &sentences,
-        &entity_sentence,
-        &options.language,
-    );
-    let temporal_facts = temporal_facts(source_text, &options.language);
+    // ONE numeric collection, two typed views: `numeric_facts` keeps every
+    // grounded value (top-N independent) and `chart_points` is the subset with
+    // an unambiguous parse. No second scanner can disagree with the first.
     let numeric_facts = numeric_facts(source_text, &options.language);
+    let chart_points = chart_points(source_text, &numeric_facts, &sentences, &entities);
+    let temporal_facts = temporal_facts(source_text, &options.language);
 
     Ok(Analysis {
         entities,
@@ -167,7 +156,7 @@ fn numeric_facts(source_text: &str, language: &str) -> Vec<NumericFact> {
 fn relations(
     source_text: &str,
     entities: &[VisualEntity],
-    sentences: &[Sentence],
+    sentences: &[SentenceSpan],
     entity_sentence: &[Option<usize>],
 ) -> Vec<EntityRelation> {
     let mut out = Vec::new();
@@ -184,7 +173,7 @@ fn relations(
                 source,
                 target,
                 sentence_index: a,
-                evidence: source_text[sentence.start..sentence.end].to_string(),
+                evidence: source_text[sentence.start_byte..sentence.end_byte].to_string(),
             });
         }
     }
@@ -193,7 +182,7 @@ fn relations(
 
 fn bullets(
     source_text: &str,
-    sentences: &[Sentence],
+    sentences: &[SentenceSpan],
     entity_sentence: &[Option<usize>],
 ) -> Vec<Bullet> {
     sentences
@@ -211,167 +200,58 @@ fn bullets(
             }
             Some(Bullet {
                 sentence_index: index,
-                text: source_text[sentence.start..sentence.end].to_string(),
-                start: sentence.start,
-                end: sentence.end,
+                text: source_text[sentence.start_byte..sentence.end_byte].to_string(),
+                start: sentence.start_byte,
+                end: sentence.end_byte,
                 entities,
             })
         })
         .collect()
 }
 
+/// Projects the unambiguous subset of `numeric_facts` into chart points.
+///
+/// The numeric facts are the only scanner; a chart point adds the sentence it
+/// belongs to and the matching NER entity index (when one survived the top-N
+/// visual budget). Because the fact collection is top-N independent, a scene
+/// with more numbers than entities no longer loses chart values.
 fn chart_points(
     source_text: &str,
+    numeric_facts: &[NumericFact],
+    sentences: &[SentenceSpan],
     entities: &[VisualEntity],
-    sentences: &[Sentence],
-    entity_sentence: &[Option<usize>],
-    language: &str,
 ) -> Vec<ChartPoint> {
-    let numeric = |entity: &VisualEntity| {
-        matches!(entity.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY")
-    };
-    entities
+    numeric_facts
         .iter()
-        .enumerate()
-        .filter(|(_, entity)| numeric(entity))
-        // A bare NUMBER inside a larger numeric span ("25" in "25%", "1,200"
-        // in "$1,200") is the same quantity, so keep only the outer entity.
-        // Only drop it when the outer span actually yields a value; otherwise
-        // ("3.141" inside "3.141 units") the inner number is the value.
-        .filter(|(_, entity)| {
-            !(entity.r#type == "NUMBER"
-                && entities.iter().any(|other| {
-                    numeric(other)
-                        && other.start <= entity.start
-                        && entity.end <= other.end
-                        && (other.start, other.end) != (entity.start, entity.end)
-                        && parse_unambiguous_value(&other.text, language).is_some()
-                }))
-        })
-        .filter_map(|(index, entity)| {
-            let sentence_index = entity_sentence[index]?;
-            let value = parse_unambiguous_value(&entity.text, language)?;
+        .filter_map(|fact| {
+            let value = fact.value?;
+            let sentence_index = sentence_index_of(sentences, fact.start_byte)?;
             let sentence = sentences[sentence_index];
+            let entity = entities
+                .iter()
+                .position(|entity| entity.start == fact.start_byte && entity.end == fact.end_byte);
             Some(ChartPoint {
-                entity: index,
-                kind: entity.r#type.clone(),
+                text: fact.surface.clone(),
+                kind: fact.kind.clone(),
                 value,
-                label: source_text[sentence.start..sentence.end].to_string(),
+                label: source_text[sentence.start_byte..sentence.end_byte].to_string(),
                 sentence_index,
+                start: fact.start_byte,
+                end: fact.end_byte,
+                entity,
             })
         })
         .collect()
-}
-
-/// Parses a numeric surface such as `25%`, `$1,200`, `1.200 euro`, `12,5%`,
-/// `3.5` or `25 percent`, using the separator convention of `language`:
-/// English groups thousands with `,` and uses `.` as decimal point; the
-/// other supported languages (it, de, fr, es, pt, pl, ru, tr, id) use `.` for
-/// thousands and `,` as decimal point. Returns `None` for scale words
-/// (`million`) and for any grouping that does not match the convention, so a
-/// chart never plots a guessed value.
-fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
-    let mut rest = text.trim().to_lowercase();
-    for suffix in ["percent", "dollars", "euros", "euro", "pounds", "yen"] {
-        if let Some(stripped) = rest.strip_suffix(suffix) {
-            rest = stripped.trim_end().to_string();
-            break;
-        }
-    }
-    let rest = rest
-        .trim_matches(|c: char| matches!(c, '%' | '$' | '£' | '€' | '¥') || c.is_whitespace());
-    if rest.is_empty() || !rest.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ',') {
-        return None;
-    }
-    let (thousands, decimal) = if language.eq_ignore_ascii_case("en") {
-        (',', '.')
-    } else {
-        ('.', ',')
-    };
-    let (int_part, frac_part) = match rest.matches(decimal).count() {
-        0 => (rest, None),
-        1 => {
-            let (int_part, frac) = rest.split_once(decimal)?;
-            (int_part, Some(frac))
-        }
-        _ => return None,
-    };
-    if matches!(frac_part, Some(frac) if frac.is_empty() || frac.contains(thousands)) {
-        return None;
-    }
-    // A lone decimal-comma followed by exactly three digits ("1,200" in an
-    // Italian sentence) reads as 1.2 by convention, but is the usual way an
-    // English thousands group is written, so it is refused rather than guessed.
-    if decimal == ',' && !rest.contains(thousands) && frac_part.is_some_and(|frac| frac.len() == 3) {
-        return None;
-    }
-    let int_digits = if int_part.contains(thousands) {
-        let groups: Vec<&str> = int_part.split(thousands).collect();
-        let (first, rest_groups) = groups.split_first()?;
-        let valid = (1..=3).contains(&first.len())
-            && rest_groups.iter().all(|group| group.len() == 3);
-        if !valid {
-            return None;
-        }
-        groups.concat()
-    } else {
-        int_part.to_string()
-    };
-    if int_digits.is_empty() {
-        return None;
-    }
-    let number = match frac_part {
-        Some(frac) => format!("{int_digits}.{frac}"),
-        None => int_digits,
-    };
-    number.parse::<f64>().ok()
 }
 
 fn same_surface(a: &VisualEntity, b: &VisualEntity) -> bool {
     a.text.to_lowercase() == b.text.to_lowercase()
 }
 
-fn sentence_index_of(sentences: &[Sentence], offset: usize) -> Option<usize> {
+fn sentence_index_of(sentences: &[SentenceSpan], offset: usize) -> Option<usize> {
     sentences
         .iter()
-        .position(|sentence| sentence.start <= offset && offset < sentence.end)
-}
-
-/// Splits on `.`, `!`, `?` and newlines. A `.` between two digits (e.g. `3.5`)
-/// does not end a sentence.
-fn split_sentences(source_text: &str) -> Vec<Sentence> {
-    let bytes = source_text.as_bytes();
-    let mut sentences = Vec::new();
-    let mut start = 0;
-    for (i, &b) in bytes.iter().enumerate() {
-        let is_break = match b {
-            b'!' | b'?' | b'\n' => true,
-            b'.' => {
-                let digit_before = i > 0 && bytes[i - 1].is_ascii_digit();
-                let digit_after = bytes.get(i + 1).is_some_and(|c| c.is_ascii_digit());
-                !(digit_before && digit_after)
-            }
-            _ => false,
-        };
-        if is_break {
-            push_trimmed(source_text, start, i + 1, &mut sentences);
-            start = i + 1;
-        }
-    }
-    push_trimmed(source_text, start, bytes.len(), &mut sentences);
-    sentences
-}
-
-fn push_trimmed(source_text: &str, start: usize, end: usize, out: &mut Vec<Sentence>) {
-    let raw = &source_text[start..end];
-    let trimmed_start = start + (raw.len() - raw.trim_start().len());
-    let trimmed_end = trimmed_start + raw.trim().len();
-    if trimmed_end > trimmed_start {
-        out.push(Sentence {
-            start: trimmed_start,
-            end: trimmed_end,
-        });
-    }
+        .position(|sentence| sentence.start_byte <= offset && offset < sentence.end_byte)
 }
 
 #[cfg(test)]
@@ -508,7 +388,10 @@ mod tests {
     #[test]
     fn decimal_comma_languages_use_dot_thousands() {
         assert_eq!(parse_unambiguous_value("1.200 euro", "it"), Some(1200.0));
-        assert_eq!(parse_unambiguous_value("1.200.000", "de"), Some(1_200_000.0));
+        assert_eq!(
+            parse_unambiguous_value("1.200.000", "de"),
+            Some(1_200_000.0)
+        );
         assert_eq!(parse_unambiguous_value("12,5%", "it"), Some(12.5));
         // A lone comma followed by three digits is ambiguous in Italian: refuse.
         assert_eq!(parse_unambiguous_value("1,200", "it"), None);
@@ -524,14 +407,42 @@ mod tests {
     fn overlapping_numeric_spans_yield_one_chart_point() {
         let source = "Costs rose 25% to $1,200 in 2025.";
         let entities = vec![
-            VisualEntity { text: "25".into(), r#type: "NUMBER".into(), start: 12, end: 14, score: 1.0, evidence: String::new() },
-            VisualEntity { text: "25%".into(), r#type: "PERCENT".into(), start: 12, end: 15, score: 1.0, evidence: String::new() },
-            VisualEntity { text: "$1,200".into(), r#type: "MONEY".into(), start: 19, end: 25, score: 1.0, evidence: String::new() },
-            VisualEntity { text: "1,200".into(), r#type: "NUMBER".into(), start: 20, end: 25, score: 1.0, evidence: String::new() },
+            VisualEntity {
+                text: "25".into(),
+                r#type: "NUMBER".into(),
+                start: 12,
+                end: 14,
+                score: 1.0,
+                evidence: String::new(),
+            },
+            VisualEntity {
+                text: "25%".into(),
+                r#type: "PERCENT".into(),
+                start: 12,
+                end: 15,
+                score: 1.0,
+                evidence: String::new(),
+            },
+            VisualEntity {
+                text: "$1,200".into(),
+                r#type: "MONEY".into(),
+                start: 19,
+                end: 25,
+                score: 1.0,
+                evidence: String::new(),
+            },
+            VisualEntity {
+                text: "1,200".into(),
+                r#type: "NUMBER".into(),
+                start: 20,
+                end: 25,
+                score: 1.0,
+                evidence: String::new(),
+            },
         ];
-        let sentences = split_sentences(source);
-        let owners = vec![Some(0); entities.len()];
-        let points = chart_points(source, &entities, &sentences, &owners, "en");
+        let sentences = split_sentences(source, "en", None);
+        let facts = numeric_facts(source, "en");
+        let points = chart_points(source, &facts, &sentences, &entities);
         let values: Vec<f64> = points.iter().map(|p| p.value).collect();
         assert_eq!(values, vec![25.0, 1200.0]);
     }
@@ -540,20 +451,37 @@ mod tests {
     fn inner_number_survives_when_outer_span_has_no_value() {
         let source = "Units: 3.25 units sold.";
         let entities = vec![
-            VisualEntity { text: "3.25 units".into(), r#type: "NUMBER".into(), start: 7, end: 17, score: 1.0, evidence: String::new() },
-            VisualEntity { text: "3.25".into(), r#type: "NUMBER".into(), start: 7, end: 11, score: 1.0, evidence: String::new() },
+            VisualEntity {
+                text: "3.25 units".into(),
+                r#type: "NUMBER".into(),
+                start: 7,
+                end: 17,
+                score: 1.0,
+                evidence: String::new(),
+            },
+            VisualEntity {
+                text: "3.25".into(),
+                r#type: "NUMBER".into(),
+                start: 7,
+                end: 11,
+                score: 1.0,
+                evidence: String::new(),
+            },
         ];
-        let sentences = split_sentences(source);
-        let owners = vec![Some(0); entities.len()];
-        let points = chart_points(source, &entities, &sentences, &owners, "en");
+        let sentences = split_sentences(source, "en", None);
+        let facts = numeric_facts(source, "en");
+        let points = chart_points(source, &facts, &sentences, &entities);
         let values: Vec<f64> = points.iter().map(|p| p.value).collect();
         assert_eq!(values, vec![3.25]);
     }
 
     #[test]
     fn decimal_point_does_not_split_sentences() {
-        let sentences = split_sentences("Pi is 3.14. Done");
+        let sentences = split_sentences("Pi is 3.14. Done", "en", None);
         assert_eq!(sentences.len(), 2);
-        assert_eq!(&"Pi is 3.14. Done"[sentences[0].start..sentences[0].end], "Pi is 3.14.");
+        assert_eq!(
+            &"Pi is 3.14. Done"[sentences[0].start_byte..sentences[0].end_byte],
+            "Pi is 3.14."
+        );
     }
 }

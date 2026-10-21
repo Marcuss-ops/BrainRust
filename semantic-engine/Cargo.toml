@@ -1,0 +1,24 @@
+[package]
+name = "semantic-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "semantic-engine"
+path = "src/main.rs"
+
+[dependencies]
+# Single NER/temporal/numeric extractor. Reused as a library, not as a
+# second process, so the script is analysed once per scene.
+visualner = { path = "../visualner" }
+semantic-core = { workspace = true }
+ndjson-stdio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -75,7 +75,10 @@ fn italian_contraction_is_tagged_and_never_leaks_into_entities() {
             !entity.text.contains("dell'arte"),
             "contraction leaked into entity: {entities:?}"
         );
-        assert_eq!(source.get(entity.start..entity.end), Some(entity.text.as_str()));
+        assert_eq!(
+            source.get(entity.start..entity.end),
+            Some(entity.text.as_str())
+        );
     }
 }
 
@@ -101,10 +104,9 @@ fn every_language_in_multilingual_config_loads_a_pos_model() {
             continue;
         }
         assert!(
-            tokens.iter().any(|token| matches!(
-                token.upos.as_deref(),
-                Some("NOUN" | "PROPN")
-            )),
+            tokens
+                .iter()
+                .any(|token| matches!(token.upos.as_deref(), Some("NOUN" | "PROPN"))),
             "{language}: no noun tagged in {source:?}: {tokens:?}"
         );
     }
@@ -113,27 +115,47 @@ fn every_language_in_multilingual_config_loads_a_pos_model() {
 #[test]
 fn polish_russian_turkish_indonesian_sentences_match_gold_pos() {
     // Gold UPOS for the content words (NOUN/PROPN/VERB) of short sentences.
-    type GoldCase = (&'static str, &'static str, &'static [(&'static str, &'static str)]);
+    type GoldCase = (
+        &'static str,
+        &'static str,
+        &'static [(&'static str, &'static str)],
+    );
     let cases: [GoldCase; 4] = [
         (
             "pl",
             "Prezydent odwiedza Kraków.",
-            &[("Prezydent", "NOUN"), ("odwiedza", "VERB"), ("Kraków", "PROPN")],
+            &[
+                ("Prezydent", "NOUN"),
+                ("odwiedza", "VERB"),
+                ("Kraków", "PROPN"),
+            ],
         ),
         (
             "ru",
             "Президент посетил Москву.",
-            &[("Президент", "NOUN"), ("посетил", "VERB"), ("Москву", "PROPN")],
+            &[
+                ("Президент", "NOUN"),
+                ("посетил", "VERB"),
+                ("Москву", "PROPN"),
+            ],
         ),
         (
             "tr",
             "Cumhurbaşkanı Ankara'yı ziyaret etti.",
-            &[("Cumhurbaşkanı", "NOUN"), ("ziyaret", "NOUN"), ("etti", "VERB")],
+            &[
+                ("Cumhurbaşkanı", "NOUN"),
+                ("ziyaret", "NOUN"),
+                ("etti", "VERB"),
+            ],
         ),
         (
             "id",
             "Presiden mengunjungi Jakarta.",
-            &[("Presiden", "NOUN"), ("mengunjungi", "VERB"), ("Jakarta", "PROPN")],
+            &[
+                ("Presiden", "NOUN"),
+                ("mengunjungi", "VERB"),
+                ("Jakarta", "PROPN"),
+            ],
         ),
     ];
     for (language, source, gold) in cases {
@@ -179,7 +201,9 @@ fn numeric_value_survives_a_low_entity_cap() {
     .unwrap();
     assert_eq!(entities.len(), 3);
     assert!(
-        entities.iter().any(|e| matches!(e.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY")),
+        entities
+            .iter()
+            .any(|e| matches!(e.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY")),
         "no numeric value in {:?}",
         texts(&entities)
     );
@@ -636,6 +660,63 @@ fn typed_entities_use_shared_vocabulary() {
 }
 
 #[test]
+fn common_sports_objects_receive_the_typed_object_category() {
+    for (language, source, objects) in [
+        ("en", "Ball, trophy, jersey.", ["ball", "trophy", "jersey"]),
+        (
+            "it",
+            "Pallone, trofeo, maglia.",
+            ["pallone", "trofeo", "maglia"],
+        ),
+        (
+            "es",
+            "Balón, trofeo, camiseta.",
+            ["balón", "trofeo", "camiseta"],
+        ),
+        (
+            "fr",
+            "Ballon, trophée, maillot.",
+            ["ballon", "trophée", "maillot"],
+        ),
+        ("de", "Ball, Pokal, Trikot.", ["ball", "pokal", "trikot"]),
+        (
+            "pt",
+            "Bola, troféu, camiseta.",
+            ["bola", "troféu", "camiseta"],
+        ),
+        (
+            "pl",
+            "Piłka, trofeum, koszulka.",
+            ["piłka", "trofeum", "koszulka"],
+        ),
+        (
+            "ru",
+            "Мяч, трофей, футболка.",
+            ["мяч", "трофей", "футболка"],
+        ),
+        ("tr", "Top, kupa, forma.", ["top", "kupa", "forma"]),
+        ("id", "Bola, piala, seragam.", ["bola", "piala", "seragam"]),
+    ] {
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: language.to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        for object in objects {
+            let candidate = entities
+                .iter()
+                .find(|entity| entity.text.to_lowercase() == object)
+                .unwrap_or_else(|| panic!("object {object:?} missing: {entities:?}"));
+            assert_eq!(candidate.r#type, "OBJECT");
+            assert_eq!(&source[candidate.start..candidate.end], candidate.text);
+        }
+    }
+}
+
+#[test]
 fn extracts_typed_brands_metrics_money_and_dates_with_exact_spans() {
     let source = "OpenAI reported 25% growth, $2.5 million in revenue, 42 orders on March 5, 2026, November 22, 1986 and 03/06/2026.";
     let entities = extract(
@@ -1009,27 +1090,86 @@ fn deterministic_across_runs() {
     }
 }
 
-
 // The Italian city corpus of the "entity with text" run: every sentence names
 // a regional capital and its region. The extractor must ground at least one
 // LOCATION per scene, or the category-only request (locations) drops the
 // scene and no entity card can be planned for it.
 const ITALIAN_CITY_CORPUS: &[(&str, &str, &str)] = &[
-    ("Roma", "Lazio", "Roma è la capitale dell'Italia e si trova nel Lazio."),
-    ("Milano", "Lombardia", "Milano è il capoluogo della Lombardia e sorge nella pianura padana."),
-    ("Torino", "Piemonte", "Torino si trova in Piemonte e ospita la Mole Antonelliana."),
-    ("Napoli", "Campania", "Napoli è il capoluogo della Campania e si affaccia sul golfo."),
-    ("Firenze", "Toscana", "Firenze è il capoluogo della Toscana e attraversata dall'Arno."),
-    ("Venezia", "Veneto", "Venezia è il capoluogo del Veneto e sorge sulla laguna."),
-    ("Bologna", "Emilia-Romagna", "Bologna è il capoluogo dell'Emilia-Romagna e ospita la più antica università."),
-    ("Genova", "Liguria", "Genova è il capoluogo della Liguria e affacciata sul mar Ligure."),
-    ("Palermo", "Sicilia", "Palermo è il capoluogo della Sicilia e si trova sul mar Tirreno."),
-    ("Bari", "Puglia", "Bari è il capoluogo della Puglia e guarda il mare Adriatico."),
-    ("Cagliari", "Sardegna", "Cagliari è il capoluogo della Sardegna e sorge nel golfo degli Angeli."),
-    ("Trieste", "Friuli-Venezia Giulia", "Trieste è il capoluogo del Friuli-Venezia Giulia e si affaccia sull'Adriatico."),
-    ("Perugia", "Umbria", "Perugia è il capoluogo dell'Umbria e si trova sul Tevere."),
-    ("L'Aquila", "Abruzzo", "L'Aquila è il capoluogo dell'Abruzzo e sorge sull'Aterno."),
-    ("Potenza", "Basilicata", "Potenza è il capoluogo della Basilicata e si trova nell'Appennino lucano."),
+    (
+        "Roma",
+        "Lazio",
+        "Roma è la capitale dell'Italia e si trova nel Lazio.",
+    ),
+    (
+        "Milano",
+        "Lombardia",
+        "Milano è il capoluogo della Lombardia e sorge nella pianura padana.",
+    ),
+    (
+        "Torino",
+        "Piemonte",
+        "Torino si trova in Piemonte e ospita la Mole Antonelliana.",
+    ),
+    (
+        "Napoli",
+        "Campania",
+        "Napoli è il capoluogo della Campania e si affaccia sul golfo.",
+    ),
+    (
+        "Firenze",
+        "Toscana",
+        "Firenze è il capoluogo della Toscana e attraversata dall'Arno.",
+    ),
+    (
+        "Venezia",
+        "Veneto",
+        "Venezia è il capoluogo del Veneto e sorge sulla laguna.",
+    ),
+    (
+        "Bologna",
+        "Emilia-Romagna",
+        "Bologna è il capoluogo dell'Emilia-Romagna e ospita la più antica università.",
+    ),
+    (
+        "Genova",
+        "Liguria",
+        "Genova è il capoluogo della Liguria e affacciata sul mar Ligure.",
+    ),
+    (
+        "Palermo",
+        "Sicilia",
+        "Palermo è il capoluogo della Sicilia e si trova sul mar Tirreno.",
+    ),
+    (
+        "Bari",
+        "Puglia",
+        "Bari è il capoluogo della Puglia e guarda il mare Adriatico.",
+    ),
+    (
+        "Cagliari",
+        "Sardegna",
+        "Cagliari è il capoluogo della Sardegna e sorge nel golfo degli Angeli.",
+    ),
+    (
+        "Trieste",
+        "Friuli-Venezia Giulia",
+        "Trieste è il capoluogo del Friuli-Venezia Giulia e si affaccia sull'Adriatico.",
+    ),
+    (
+        "Perugia",
+        "Umbria",
+        "Perugia è il capoluogo dell'Umbria e si trova sul Tevere.",
+    ),
+    (
+        "L'Aquila",
+        "Abruzzo",
+        "L'Aquila è il capoluogo dell'Abruzzo e sorge sull'Aterno.",
+    ),
+    (
+        "Potenza",
+        "Basilicata",
+        "Potenza è il capoluogo della Basilicata e si trova nell'Appennino lucano.",
+    ),
 ];
 
 #[test]
@@ -1050,7 +1190,10 @@ fn italian_city_corpus_marks_every_scene_as_a_location() {
                 .find(|entity| entity.text == *place)
                 .unwrap_or_else(|| panic!("{text:?}: missing {place:?} in {entities:?}"));
             if found.r#type != "LOCATION" {
-                failures.push(format!("{text:?}: {place:?} typed {} ({found:?})", found.r#type));
+                failures.push(format!(
+                    "{text:?}: {place:?} typed {} ({found:?})",
+                    found.r#type
+                ));
             }
             if text.get(found.start..found.end) != Some(place) {
                 failures.push(format!("{text:?}: {place:?} not grounded in the source"));
@@ -1061,9 +1204,24 @@ fn italian_city_corpus_marks_every_scene_as_a_location() {
             // model there is no POS tag, so the curated verb vocabulary
             // must keep narration verbs out of the candidates entirely.
             if matches!(entity.r#type.as_str(), "VISUAL_CONCEPT")
-                && ["sorge", "trova", "affaccia", "ospita", "guarda", "avvenne", "arrivò", "cambiò", "nacque", "conservato"].contains(&entity.text.as_str())
+                && [
+                    "sorge",
+                    "trova",
+                    "affaccia",
+                    "ospita",
+                    "guarda",
+                    "avvenne",
+                    "arrivò",
+                    "cambiò",
+                    "nacque",
+                    "conservato",
+                ]
+                .contains(&entity.text.as_str())
             {
-                failures.push(format!("{text:?}: verb {:?} leaked as an entity", entity.text));
+                failures.push(format!(
+                    "{text:?}: verb {:?} leaked as an entity",
+                    entity.text
+                ));
             }
         }
     }
