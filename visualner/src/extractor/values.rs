@@ -9,7 +9,12 @@ pub(super) struct Candidate {
     pub(super) entity_type: Option<String>,
 }
 
-pub(super) fn classify_value_type(text: &str, gazetteer_eligible: bool, language: &str) -> String {
+pub(super) fn classify_value_type(
+    text: &str,
+    gazetteer_eligible: bool,
+    proper_noun: bool,
+    language: &str,
+) -> String {
     if text.is_empty() {
         return "VISUAL_CONCEPT".to_string();
     }
@@ -32,8 +37,7 @@ pub(super) fn classify_value_type(text: &str, gazetteer_eligible: bool, language
             .ok()
             .is_some_and(|year| (1000..=2099).contains(&year));
         let has_month = semantic_core::lexicon::lexicon()
-            .location_cues
-            .month_names
+            .month_typing_names
             .iter()
             .any(|month| lower.contains(month.as_str()));
         if year || has_month || text.contains('/') {
@@ -41,7 +45,7 @@ pub(super) fn classify_value_type(text: &str, gazetteer_eligible: bool, language
         }
         return "NUMBER".to_string();
     }
-    classify_type(text, gazetteer_eligible, language)
+    classify_type(text, gazetteer_eligible, proper_noun, language)
 }
 
 fn contains(list: &[String], value: &str) -> bool {
@@ -52,7 +56,12 @@ fn contains(list: &[String], value: &str) -> bool {
 /// brands, cities, works, known people and object words. This table is the
 /// seam of a real gazetteer (Wikidata/GeoNames): when that index lands, only
 /// this data source changes — never the typing mechanism below.
-fn classify_type(text: &str, gazetteer_eligible: bool, language: &str) -> String {
+fn classify_type(
+    text: &str,
+    gazetteer_eligible: bool,
+    proper_noun: bool,
+    language: &str,
+) -> String {
     let lower = text.to_lowercase();
     let lexicon = semantic_core::lexicon::lexicon();
     let gazetteer = &lexicon.gazetteer;
@@ -104,11 +113,28 @@ fn classify_type(text: &str, gazetteer_eligible: bool, language: &str) -> String
     {
         return "PRODUCT".to_string();
     }
+    // Capitalization is name evidence only where the orthography makes it
+    // meaningful: not in Han/Arabic/Thai (no case), and not in German (every
+    // noun is capitalized, so "Die Neue Halle" is not a person).
     let title_tokens = text
         .split_whitespace()
         .filter(|word| word.chars().next().map(char::is_uppercase).unwrap_or(false))
         .count();
-    if title_tokens >= 2 && text.split_whitespace().count() >= 2 {
+    let case_is_evidence = lexicon
+        .language_profiles
+        .uppercase_is_name_evidence(language);
+    if case_is_evidence && title_tokens >= 2 && text.split_whitespace().count() >= 2 {
+        return "PERSON".to_string();
+    }
+    // In German the tagger's PROPN substitutes for the case signal that the
+    // orthography destroys: it restores person recall without letting every
+    // capitalized noun phrase become a PERSON. In a caseless script PROPN only
+    // says "proper noun" (a country, an organization, a person), so it is not
+    // evidence of PERSON and the surface stays a visual concept.
+    if lexicon.language_profiles.capitalized_nouns(language)
+        && proper_noun
+        && text.split_whitespace().count() >= 2
+    {
         return "PERSON".to_string();
     }
     "VISUAL_CONCEPT".to_string()
@@ -328,8 +354,7 @@ fn month_before_day(source: &str, number_start: usize) -> Option<usize> {
         .unwrap_or(0);
     let month = trimmed.get(start..)?.to_lowercase();
     semantic_core::lexicon::lexicon()
-        .location_cues
-        .month_names
+        .month_typing_names
         .iter()
         .any(|name| name == &month)
         .then_some(start)
@@ -339,8 +364,7 @@ fn month_after_day(source: &str, number_end: usize) -> Option<usize> {
     let tail = source[number_end..].trim_start();
     let lower = tail.to_lowercase();
     let month = semantic_core::lexicon::lexicon()
-        .location_cues
-        .month_names
+        .month_typing_names
         .iter()
         .find(|month| lower.starts_with(month.as_str()))?;
     if !has_word_boundary(&lower, month.len()) {
@@ -365,5 +389,32 @@ mod tests {
             candidate.text == "giugno 1988"
                 && source.get(candidate.start..candidate.end) == Some("giugno 1988")
         }));
+    }
+
+    #[test]
+    fn capitalization_is_name_evidence_only_where_the_script_makes_it_so() {
+        // Two capitalized words are a person in a cased script that keeps
+        // common nouns lowercase.
+        assert_eq!(classify_type("Alice Johnson", true, false, "it"), "PERSON");
+        // Not in German: every noun is capitalized, so "Neue Halle" proves
+        // nothing.
+        assert_eq!(
+            classify_type("Neue Halle", true, false, "de"),
+            "VISUAL_CONCEPT"
+        );
+        // The tagger's PROPN restores person recall where case cannot, but a
+        // single PROPN is not enough: "Deutschland" is a country.
+        assert_eq!(classify_type("Alice Johnson", true, true, "de"), "PERSON");
+        assert_eq!(
+            classify_type("Deutschland", true, true, "de"),
+            "VISUAL_CONCEPT"
+        );
+        // A caseless script never produces the capitalization signal, and a
+        // bare PROPN is not evidence of PERSON there (a country is a PROPN).
+        assert_eq!(
+            classify_type("北京 大学", true, false, "zh"),
+            "VISUAL_CONCEPT"
+        );
+        assert_eq!(classify_type("日本", true, true, "zh"), "VISUAL_CONCEPT");
     }
 }

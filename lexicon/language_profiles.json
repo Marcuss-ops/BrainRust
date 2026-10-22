@@ -1,0 +1,53 @@
+{
+  "schema": "lexicon.v1",
+  "profiles": {
+    "default": {
+      "date_order": "day_first",
+      "thousands_separator": ".",
+      "decimal_separator": ",",
+      "verb_filter": false
+    },
+    "en": {
+      "treebank": "english-ewt",
+      "script": "latin",
+      "date_order": "month_first",
+      "thousands_separator": ",",
+      "decimal_separator": "."
+    },
+    "it": {
+      "treebank": "italian-isdt",
+      "script": "latin",
+      "verb_filter": true,
+      "infinitive_suffixes": ["re"]
+    },
+    "pl": { "treebank": "polish-pdb", "script": "latin" },
+    "ru": { "treebank": "russian-syntagrus", "script": "cyrillic" },
+    "de": {
+      "treebank": "german-gsd",
+      "script": "latin",
+      "capitalized_nouns": true
+    },
+    "es": { "treebank": "spanish-gsd", "script": "latin" },
+    "pt": { "treebank": "portuguese-gsd", "script": "latin" },
+    "fr": { "treebank": "french-gsd", "script": "latin" },
+    "tr": { "treebank": "turkish-imst", "script": "latin" },
+    "id": { "treebank": "indonesian-gsd", "script": "latin" },
+    "zh": { "treebank": "chinese-gsdsimp", "script": "han" },
+    "ja": { "treebank": "japanese-gsd", "script": "japanese" },
+    "ko": { "script": "hangul" },
+    "ar": { "script": "arabic" },
+    "hi": { "script": "devanagari" },
+    "th": { "script": "thai" }
+  },
+  "scripts": {
+    "latin": { "cased": true },
+    "cyrillic": { "cased": true },
+    "greek": { "cased": true },
+    "han": { "cased": false },
+    "japanese": { "cased": false },
+    "hangul": { "cased": false },
+    "arabic": { "cased": false },
+    "devanagari": { "cased": false },
+    "thai": { "cased": false }
+  }
+}

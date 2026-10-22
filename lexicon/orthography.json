@@ -1,0 +1,37 @@
+{
+  "schema": "lexicon.v1",
+  "abbreviations": {
+    "common": [
+      "dr.", "mr.", "mrs.", "ms.", "prof.", "sr.", "sra.", "srta.", "st.",
+      "vs.", "e.g.", "i.e.", "no.", "ph.d.", "etc.", "ecc."
+    ],
+    "corporate": ["inc.", "corp.", "ltd.", "co.", "llc.", "gmbh."],
+    "by_language": {
+      "it": ["dott.", "sig.", "ecc."],
+      "es": ["dra.", "dpto.", "núm."],
+      "fr": ["m.", "mme.", "mlle.", "etc."],
+      "de": ["z.b.", "bzw.", "usw.", "dr."],
+      "pt": ["dr.", "dra.", "sr.", "sra.", "etc."]
+    }
+  },
+  "era_markers": [
+    { "marker": "b.c.e.", "era": "bce" },
+    { "marker": "b.c.", "era": "bce" },
+    { "marker": "bce", "era": "bce" },
+    { "marker": "bc", "era": "bce" },
+    { "marker": "a.c.", "era": "bce" },
+    { "marker": "v.chr.", "era": "bce" },
+    { "marker": "p.n.e.", "era": "bce" },
+    { "marker": "m.ö.", "era": "bce" },
+    { "marker": "a.d.", "era": "ce" },
+    { "marker": "a.d", "era": "ce" },
+    { "marker": "c.e.", "era": "ce" },
+    { "marker": "ce", "era": "ce" },
+    { "marker": "d.c.", "era": "ce" },
+    { "marker": "d.c", "era": "ce" },
+    { "marker": "n.chr.", "era": "ce" },
+    { "marker": "n.e.", "era": "ce" },
+    { "marker": "m.s.", "era": "ce" },
+    { "marker": "ad", "era": "ce" }
+  ]
+}

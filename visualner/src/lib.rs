@@ -46,6 +46,7 @@ pub mod types;
 
 pub use analysis::{analyze, Analysis};
 pub use extractor::extract;
+pub use extractor::model_path;
 pub use spellout::supported_spellout_language_count;
 pub use temporal::temporal_facts;
 pub use temporal::TemporalFact;

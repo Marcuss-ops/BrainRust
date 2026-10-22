@@ -8,10 +8,11 @@ result is merged into the existing gazetteer JSON as `places`, preserving every
 hand-curated field (brands, persons, works, ...).
 
 Each place carries its primary name, country, population and the aliases the
-extractor can type as LOCATION. Aliases are lowercased and limited to Latin,
-Greek and Cyrillic scripts; the runtime lookup adds a capitalization guard so a
-common noun that happens to equal a foreign place name ("casa" -> Chas) does
-not become a location. When `wordfreq` is installed (`pip install wordfreq`),
+extractor can type as LOCATION. Aliases are lowercased and kept for every
+script the pipeline writes in (Latin, Greek, Cyrillic, Han, kana, Hangul,
+Arabic, Devanagari, Thai); the runtime lookup applies a capitalization guard
+only for cased scripts, so a common noun that happens to equal a foreign place
+name ("casa" -> Chas) does not become a location while "北京" still does. When `wordfreq` is installed (`pip install wordfreq`),
 the generator also rebuilds the per-language `place_ambiguities` table; without
 it, the existing ambiguity table is preserved.
 
@@ -41,22 +42,77 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_GAZETTEER = HERE.parent / "entity_gazetteer.json"
 DUMP_URL = "https://download.geonames.org/export/dump/cities500.zip"
 MIN_ALIAS_LENGTH = 4
+# Han/kana place names are short: "北京" is a complete name, not a fragment.
+CJK_MIN_ALIAS_LENGTH = 2
 MAX_ALIASES = 12
+# The 12-alias cap used to be filled by Latin spellings alone, so Han/kana/
+# Hangul/Arabic/Devanagari/Thai names never reached the index. Each non-cased
+# script gets its own slots on top of the unchanged cased set.
+NON_CASED_SCRIPT_ALIASES = 4
 AMBIGUITY_LANGUAGE = "it"
 AMBIGUITY_MAX_POPULATION = 100_000
 
 
 def is_supported_script(value: str) -> bool:
-    """Latin (incl. accents), Greek and Cyrillic, plus name punctuation."""
+    """Every script the pipeline can write: Latin (incl. accents), Greek,
+    Cyrillic, Han, kana, Hangul, Arabic, Devanagari and Thai, plus name
+    punctuation."""
     for char in value:
         if "\u0041" <= char <= "\u024f":
             continue
         if "\u0370" <= char <= "\u03ff" or "\u0400" <= char <= "\u04ff":
             continue
+        if "\u3040" <= char <= "\u30ff":
+            continue
+        if "\u3400" <= char <= "\u4dbf" or "\u4e00" <= char <= "\u9fff":
+            continue
+        if "\uac00" <= char <= "\ud7af" or "\u1100" <= char <= "\u11ff":
+            continue
+        if "\u0600" <= char <= "\u06ff" or "\u0750" <= char <= "\u077f":
+            continue
+        if "\u0900" <= char <= "\u097f" or "\u0e00" <= char <= "\u0e7f":
+            continue
         if char in " -'.":
             continue
         return False
     return True
+
+
+def script_group(value: str) -> str:
+    """The script bucket of a name. Latin, Greek and Cyrillic share the
+    historical cased pool; every other supported script gets its own.
+
+    The whole string is scanned: a mixed spelling such as "aksrayے" starts
+    with a Latin letter but belongs to the Urdu/Arabic bucket, and letting it
+    into the cased pool would displace a real ASCII alias."""
+    for char in value:
+        if "\u3040" <= char <= "\u30ff" or "\u3400" <= char <= "\u4dbf" or "\u4e00" <= char <= "\u9fff":
+            return "han"
+        if "\uac00" <= char <= "\ud7af" or "\u1100" <= char <= "\u11ff":
+            return "hangul"
+        if "\u0600" <= char <= "\u06ff" or "\u0750" <= char <= "\u077f":
+            return "arabic"
+        if "\u0900" <= char <= "\u097f":
+            return "devanagari"
+        if "\u0e00" <= char <= "\u0e7f":
+            return "thai"
+    return "cased"
+
+
+def is_supported_alias(value: str) -> bool:
+    """A place alias long enough to be a name in its own script."""
+    minimum = (
+        CJK_MIN_ALIAS_LENGTH
+        if any(
+            "\u3040" <= char <= "\u30ff"
+            or "\u3400" <= char <= "\u4dbf"
+            or "\u4e00" <= char <= "\u9fff"
+            or "\uac00" <= char <= "\ud7af"
+            for char in value
+        )
+        else MIN_ALIAS_LENGTH
+    )
+    return len(value) >= minimum and is_supported_script(value)
 
 
 def read_rows(input_path: Path | None) -> list[list[str]]:
@@ -79,15 +135,24 @@ def place_rows(rows: list[list[str]], min_population: int) -> list[dict]:
         # news script is most likely to name.
         if population < min_population and row[7] != "PPLC":
             continue
-        aliases: list[str] = []
+        cased: list[str] = []
+        other: list[str] = []
+        per_script: dict[str, int] = {}
         for value in [row[1], row[2]] + row[3].split(","):
             alias = value.strip().lower()
-            if len(alias) < MIN_ALIAS_LENGTH or alias in aliases:
+            if not alias or alias in cased or alias in other:
                 continue
-            if is_supported_script(alias):
-                aliases.append(alias)
-            if len(aliases) == MAX_ALIASES:
-                break
+            if not is_supported_alias(alias):
+                continue
+            group = script_group(alias)
+            if group == "cased":
+                # Identical to the historical index: the first 12 cased names.
+                if len(cased) < MAX_ALIASES:
+                    cased.append(alias)
+            elif per_script.get(group, 0) < NON_CASED_SCRIPT_ALIASES:
+                per_script[group] = per_script.get(group, 0) + 1
+                other.append(alias)
+        aliases = cased + other
         places.append(
             {
                 "name": row[1],

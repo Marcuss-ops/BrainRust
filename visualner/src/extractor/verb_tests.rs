@@ -48,6 +48,20 @@ fn infinitive_lemma_catches_an_ambiguous_tag() {
 }
 
 #[test]
+fn verb_filter_and_suffixes_are_data_per_language() {
+    // The same tagged predicate is filtered in Italian (certified) and kept
+    // in German (not certified yet): the gate is the profile entry, not a
+    // hardcoded list of languages.
+    let words = tokens(&[("baut", Some("VERB"), Some("bauen"))]);
+    assert!(is_verbal_predicate(&words, 0, 1, "it"));
+    assert!(!is_verbal_predicate(&words, 0, 1, "de"));
+    // German declares no infinitive suffixes, so a lemma alone cannot decide
+    // a predicate there.
+    let words = tokens(&[("baut", Some("X"), Some("bauen"))]);
+    assert!(!is_verbal_predicate(&words, 0, 1, "de"));
+}
+
+#[test]
 fn clitic_plus_verb_is_one_predicate() {
     let words = tokens(&[
         ("Torino", Some("PROPN"), Some("Torino")),

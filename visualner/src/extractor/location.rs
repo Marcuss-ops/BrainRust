@@ -11,18 +11,31 @@ pub(super) fn mark_contextual_locations(
     candidates: &mut Vec<Candidate>,
     tokens: &[Token],
     source_text: &str,
+    language: &str,
 ) {
     let bytes = source_text.as_bytes();
     let mut contextual = Vec::new();
+    // A capitalized initial is name evidence only in a cased script. In Han,
+    // Japanese, Arabic or Thai there is no uppercase, so the cue alone must
+    // be able to ground the following word ("在 北京"); stopwords and month
+    // names still keep common words out.
+    let cased = lexicon().language_profiles.is_cased(language);
+    let name_evidence = |text: &str| {
+        if cased {
+            starts_uppercase(text)
+        } else {
+            !super::stopwords::is_stop_word(text) && !is_month_name(text)
+        }
+    };
     for index in 0..tokens.len() {
-        if !starts_uppercase(&tokens[index].text)
+        if !name_evidence(&tokens[index].text)
             || is_month_name(&tokens[index].text)
             || !has_location_context(tokens, bytes, index)
         {
             continue;
         }
         let mut end = index + 1;
-        while end < tokens.len() && starts_uppercase(&tokens[end].text) {
+        while end < tokens.len() && name_evidence(&tokens[end].text) {
             if bytes[tokens[end - 1].end..tokens[end].start]
                 .iter()
                 .any(|byte| !byte.is_ascii_whitespace())
@@ -40,7 +53,7 @@ pub(super) fn mark_contextual_locations(
     }
 
     for candidate in candidates.iter_mut() {
-        if candidate.entity_type.is_some() || !starts_uppercase(&candidate.text) {
+        if candidate.entity_type.is_some() || !name_evidence(&candidate.text) {
             continue;
         }
         let Some(token_index) = tokens
@@ -96,8 +109,7 @@ pub(super) fn has_location_context(tokens: &[Token], bytes: &[u8], token_index: 
 pub(super) fn is_month_name(text: &str) -> bool {
     let lower = text.to_lowercase();
     lexicon()
-        .location_cues
-        .month_names
+        .month_typing_names
         .iter()
         .any(|month| month == &lower)
 }

@@ -166,26 +166,17 @@ fn load_model(language: &str) -> Option<Rc<udpipe_rs::Model>> {
 }
 
 /// model_path resolves the UDPipe file for a language tag inside the model
-/// directory. Only languages with a known file name are supported.
-fn model_path(language: &str) -> Option<PathBuf> {
+/// directory. The treebank per language is data (`language_profiles.json`),
+/// so adding a language is an entry, never a recompile. A language without a
+/// certified entry has no model and keeps the model-free fallback.
+pub(super) fn model_path(language: &str) -> Option<PathBuf> {
     let dir = match std::env::var_os("VISUALNER_MODEL_DIR") {
         Some(dir) => PathBuf::from(dir),
         None => PathBuf::from(std::env::var_os("HOME")?).join(".local/share/visualner/models"),
     };
-    // Treebank per language, matching the codes in config/multilingual.yaml.
-    let treebank = match language.split(['-', '_']).next()? {
-        "en" => "english-ewt",
-        "it" => "italian-isdt",
-        "pl" => "polish-pdb",
-        "ru" => "russian-syntagrus",
-        "de" => "german-gsd",
-        "es" => "spanish-gsd",
-        "pt" => "portuguese-gsd",
-        "fr" => "french-gsd",
-        "tr" => "turkish-imst",
-        "id" => "indonesian-gsd",
-        _ => return None,
-    };
+    let treebank = semantic_core::lexicon::lexicon()
+        .language_profiles
+        .treebank(language)?;
     let file = udpipe_rs::model_filename(treebank);
     let path = dir.join(file);
     path.is_file().then_some(path)

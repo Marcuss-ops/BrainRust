@@ -12,15 +12,12 @@
    "de",
    "pt",
    "pl",
-   "ru"
-  ]
+   "ru",
+   "tr",
+   "id"
+  ],
+  "tie_break": "names that are strict prefixes of other names sort last"
  },
- "date_scan_exclusions": [
-  {
-   "name": "may",
-   "reason": "English modal verb 'may' is not evidence of a date; kept for whole-token entity typing only"
-  }
- ],
  "legacy_aliases": [
   {
    "name": "aout",
@@ -68,10 +65,10 @@
    ]
   },
   {
-   "name": "januar",
+   "name": "januari",
    "month": 1,
    "locales": [
-    "de"
+    "id"
    ],
    "contexts": [
     "format",
@@ -94,6 +91,17 @@
    "month": 1,
    "locales": [
     "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "ocak",
+   "month": 1,
+   "locales": [
+    "tr"
    ],
    "contexts": [
     "format",
@@ -163,10 +171,10 @@
    ]
   },
   {
-   "name": "februar",
+   "name": "februari",
    "month": 2,
    "locales": [
-    "de"
+    "id"
    ],
    "contexts": [
     "format",
@@ -227,6 +235,17 @@
    ]
   },
   {
+   "name": "şubat",
+   "month": 2,
+   "locales": [
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "февраль",
    "month": 2,
    "locales": [
@@ -268,10 +287,32 @@
    ]
   },
   {
+   "name": "maret",
+   "month": 3,
+   "locales": [
+    "id"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "mars",
    "month": 3,
    "locales": [
     "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "mart",
+   "month": 3,
+   "locales": [
+    "tr"
    ],
    "contexts": [
     "format",
@@ -323,16 +364,6 @@
    ]
   },
   {
-   "name": "март",
-   "month": 3,
-   "locales": [
-    "ru"
-   ],
-   "contexts": [
-    "standalone"
-   ]
-  },
-  {
    "name": "марта",
    "month": 3,
    "locales": [
@@ -348,18 +379,6 @@
    "locales": [
     "es",
     "pt"
-   ],
-   "contexts": [
-    "format",
-    "standalone"
-   ]
-  },
-  {
-   "name": "april",
-   "month": 4,
-   "locales": [
-    "de",
-    "en"
    ],
    "contexts": [
     "format",
@@ -409,6 +428,17 @@
    ]
   },
   {
+   "name": "nisan",
+   "month": 4,
+   "locales": [
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "апрель",
    "month": 4,
    "locales": [
@@ -440,18 +470,6 @@
    ]
   },
   {
-   "name": "mai",
-   "month": 5,
-   "locales": [
-    "de",
-    "fr"
-   ],
-   "contexts": [
-    "format",
-    "standalone"
-   ]
-  },
-  {
    "name": "maio",
    "month": 5,
    "locales": [
@@ -459,16 +477,6 @@
    ],
    "contexts": [
     "format",
-    "standalone"
-   ]
-  },
-  {
-   "name": "maj",
-   "month": 5,
-   "locales": [
-    "pl"
-   ],
-   "contexts": [
     "standalone"
    ]
   },
@@ -483,10 +491,10 @@
    ]
   },
   {
-   "name": "may",
+   "name": "mayo",
    "month": 5,
    "locales": [
-    "en"
+    "es"
    ],
    "contexts": [
     "format",
@@ -494,10 +502,21 @@
    ]
   },
   {
-   "name": "mayo",
+   "name": "mayıs",
    "month": 5,
    "locales": [
-    "es"
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "mei",
+   "month": 5,
+   "locales": [
+    "id"
    ],
    "contexts": [
     "format",
@@ -556,6 +575,17 @@
    ]
   },
   {
+   "name": "haziran",
+   "month": 6,
+   "locales": [
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "juin",
    "month": 6,
    "locales": [
@@ -582,17 +612,6 @@
    "month": 6,
    "locales": [
     "pt"
-   ],
-   "contexts": [
-    "format",
-    "standalone"
-   ]
-  },
-  {
-   "name": "juni",
-   "month": 6,
-   "locales": [
-    "de"
    ],
    "contexts": [
     "format",
@@ -653,17 +672,6 @@
    ]
   },
   {
-   "name": "juli",
-   "month": 7,
-   "locales": [
-    "de"
-   ],
-   "contexts": [
-    "format",
-    "standalone"
-   ]
-  },
-  {
    "name": "julio",
    "month": 7,
    "locales": [
@@ -717,6 +725,17 @@
    ]
   },
   {
+   "name": "temmuz",
+   "month": 7,
+   "locales": [
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "июль",
    "month": 7,
    "locales": [
@@ -743,6 +762,17 @@
     "es",
     "it",
     "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "agustus",
+   "month": 8,
+   "locales": [
+    "id"
    ],
    "contexts": [
     "format",
@@ -779,6 +809,17 @@
    ]
   },
   {
+   "name": "ağustos",
+   "month": 8,
+   "locales": [
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "sierpień",
    "month": 8,
    "locales": [
@@ -799,16 +840,6 @@
    ]
   },
   {
-   "name": "август",
-   "month": 8,
-   "locales": [
-    "ru"
-   ],
-   "contexts": [
-    "standalone"
-   ]
-  },
-  {
    "name": "августа",
    "month": 8,
    "locales": [
@@ -819,11 +850,23 @@
    ]
   },
   {
+   "name": "eylül",
+   "month": 9,
+   "locales": [
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "september",
    "month": 9,
    "locales": [
     "de",
-    "en"
+    "en",
+    "id"
    ],
    "contexts": [
     "format",
@@ -915,6 +958,17 @@
    ]
   },
   {
+   "name": "ekim",
+   "month": 10,
+   "locales": [
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "october",
    "month": 10,
    "locales": [
@@ -951,7 +1005,8 @@
    "name": "oktober",
    "month": 10,
    "locales": [
-    "de"
+    "de",
+    "id"
    ],
    "contexts": [
     "format",
@@ -977,16 +1032,6 @@
    ],
    "contexts": [
     "format",
-    "standalone"
-   ]
-  },
-  {
-   "name": "październik",
-   "month": 10,
-   "locales": [
-    "pl"
-   ],
-   "contexts": [
     "standalone"
    ]
   },
@@ -1021,12 +1066,13 @@
    ]
   },
   {
-   "name": "listopad",
+   "name": "kasım",
    "month": 11,
    "locales": [
-    "pl"
+    "tr"
    ],
    "contexts": [
+    "format",
     "standalone"
    ]
   },
@@ -1045,7 +1091,8 @@
    "month": 11,
    "locales": [
     "de",
-    "en"
+    "en",
+    "id"
    ],
    "contexts": [
     "format",
@@ -1107,6 +1154,17 @@
    ]
   },
   {
+   "name": "aralık",
+   "month": 12,
+   "locales": [
+    "tr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
    "name": "december",
    "month": 12,
    "locales": [
@@ -1122,6 +1180,17 @@
    "month": 12,
    "locales": [],
    "contexts": []
+  },
+  {
+   "name": "desember",
+   "month": 12,
+   "locales": [
+    "id"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
   },
   {
    "name": "dezember",
@@ -1216,6 +1285,138 @@
    ],
    "contexts": [
     "format"
+   ]
+  },
+  {
+   "name": "januar",
+   "month": 1,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "februar",
+   "month": 2,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "март",
+   "month": 3,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "april",
+   "month": 4,
+   "locales": [
+    "de",
+    "en",
+    "id"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "mai",
+   "month": 5,
+   "locales": [
+    "de",
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "maj",
+   "month": 5,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "may",
+   "month": 5,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "juni",
+   "month": 6,
+   "locales": [
+    "de",
+    "id"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "juli",
+   "month": 7,
+   "locales": [
+    "de",
+    "id"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "август",
+   "month": 8,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "październik",
+   "month": 10,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "listopad",
+   "month": 11,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
    ]
   }
  ]

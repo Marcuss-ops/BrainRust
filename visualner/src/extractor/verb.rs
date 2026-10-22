@@ -13,9 +13,12 @@
 //! authoritative there; the lemma adds recall when the tagger picks an
 //! ambiguous tag (ADJ/X) for an inflected verb.
 //!
-//! Scope: Italian (`it`), the language whose lexical behavior is certified.
-//! Without a model there is no lemma, so the extractor keeps its model-free
-//! behavior (no predicate filtering) instead of guessing from suffixes.
+//! Scope: languages whose verbal morphology is certified, declared by
+//! `verb_filter` + `infinitive_suffixes` in `language_profiles.json`. Without
+//! a model there is no lemma, so the extractor keeps its model-free behavior
+//! (no predicate filtering) instead of guessing from suffixes.
+
+use semantic_core::lexicon::lexicon;
 
 use super::Token;
 
@@ -28,7 +31,7 @@ pub(super) fn is_verbal_predicate(
     phrase_end: usize,
     language: &str,
 ) -> bool {
-    if !is_italian(language) || phrase_start >= phrase_end {
+    if !lexicon().language_profiles.verb_filter(language) || phrase_start >= phrase_end {
         return false;
     }
     // Proper names are never dropped by the predicate rule: "E Milano" is a
@@ -38,24 +41,22 @@ pub(super) fn is_verbal_predicate(
     }
     // A clitic plus its verb ("si trova") is one predicate; the model supplies
     // the lemma for the verb token, so the whole span is checked.
-    tokens[phrase_start..phrase_end].iter().any(is_verb_token)
+    tokens[phrase_start..phrase_end]
+        .iter()
+        .any(|token| is_verb_token(token, language))
 }
 
 /// is_verbal_continuation reports whether the token at `index` continues a
 /// predicate instead of the noun phrase being built ("I tifosi **festeggiano**
 /// sugli spalti"): a verb breaks the phrase and is never candidate material.
 pub(super) fn is_verbal_continuation(tokens: &[Token], index: usize, language: &str) -> bool {
-    if !is_italian(language) {
+    if !lexicon().language_profiles.verb_filter(language) {
         return false;
     }
     let Some(token) = tokens.get(index) else {
         return false;
     };
-    !super::starts_uppercase(&token.text) && is_verb_token(token)
-}
-
-fn is_italian(language: &str) -> bool {
-    matches!(language.split(['-', '_']).next(), Some("it"))
+    !super::starts_uppercase(&token.text) && is_verb_token(token, language)
 }
 
 /// is_verb_token reads the model evidence. A `VERB`/`AUX` tag is decisive; a
@@ -63,20 +64,27 @@ fn is_italian(language: &str) -> bool {
 /// `sorgere`) is the fallback for an ambiguous tag. A noun whose lemma equals
 /// its surface (`guarda` -> `guarda`, `università` -> `università`) is never a
 /// predicate, which is why the suffix list is no longer needed.
-fn is_verb_token(token: &Token) -> bool {
-    matches!(token.upos.as_deref(), Some("VERB" | "AUX")) || lemma_is_infinitive(token)
+fn is_verb_token(token: &Token, language: &str) -> bool {
+    matches!(token.upos.as_deref(), Some("VERB" | "AUX")) || lemma_is_infinitive(token, language)
 }
 
-fn lemma_is_infinitive(token: &Token) -> bool {
+fn lemma_is_infinitive(token: &Token, language: &str) -> bool {
     let Some(lemma) = token.lemma.as_deref() else {
         return false;
     };
     let lemma = lemma.to_lowercase();
     let surface = token.text.to_lowercase();
-    // Every Italian infinitive ends in "re"; requiring a different, purely
-    // alphabetic lemma rejects nouns that also end in "re" ("mare", "fiore")
-    // and the dictionary form of an infinitive used as a noun.
-    lemma != surface && lemma.ends_with("re") && lemma.chars().all(char::is_alphabetic)
+    // The infinitive endings per language live in `language_profiles.json`
+    // (`infinitive_suffixes`): Italian "re" rejects a noun that also ends in
+    // "re" ("mare", "fiore") and the dictionary form of an infinitive used as
+    // a noun. An empty list means the language has no certified lemma rule, so
+    // only the tag can filter a predicate.
+    let suffixes = lexicon().language_profiles.infinitive_suffixes(language);
+    lemma != surface
+        && lemma.chars().all(char::is_alphabetic)
+        && suffixes
+            .iter()
+            .any(|suffix| lemma.ends_with(suffix.as_str()))
 }
 
 #[cfg(test)]

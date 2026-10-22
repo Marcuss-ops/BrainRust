@@ -392,31 +392,20 @@ fn suppress_abbreviation(
     }
     let token: String = chars[start..=period].iter().map(|(_, c)| *c).collect();
     let token = token.to_lowercase();
-    let lang = language
-        .split(['-', '_'])
-        .next()
-        .unwrap_or("en")
-        .to_lowercase();
-    let common = [
-        "dr.", "mr.", "mrs.", "ms.", "prof.", "sr.", "sra.", "srta.", "st.", "vs.", "e.g.", "i.e.",
-        "no.", "ph.d.",
-    ];
-    let localized: &[&str] = match lang.as_str() {
-        "it" => &["dott.", "sig.", "ecc."],
-        "es" => &["dra.", "dpto.", "núm."],
-        "fr" => &["m.", "mme.", "mlle.", "etc."],
-        "de" => &["z.b.", "bzw.", "usw.", "dr."],
-        "pt" => &["dr.", "dra.", "sr.", "sra.", "etc."],
-        _ => &[],
-    };
-    let corporate = ["inc.", "corp.", "ltd.", "co.", "llc.", "gmbh."];
+    // Abbreviation sets live in `lexicon/orthography.json`: the common forms
+    // apply to every language, the localized ones are per-language data.
+    let abbreviations = &crate::lexicon::lexicon().orthography.abbreviations;
     let next = chars.get(following).map(|(_, c)| *c);
-    if corporate.contains(&token.as_str()) {
+    if abbreviations
+        .corporate
+        .iter()
+        .any(|corporate| corporate == &token)
+    {
         return next.is_some_and(|c| c.is_lowercase());
     }
-    let abbreviation = common.contains(&token.as_str())
-        || localized.contains(&token.as_str())
-        || ["etc.", "ecc."].contains(&token.as_str());
+    let abbreviation = abbreviations
+        .for_language(language)
+        .any(|candidate| candidate == token.as_str());
     abbreviation && next.is_some_and(|c| c.is_alphanumeric())
 }
 

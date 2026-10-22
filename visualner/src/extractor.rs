@@ -91,7 +91,7 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
         }
     }
     candidates.extend(value_candidates(source_text));
-    mark_contextual_locations(&mut candidates, &tokens, source_text);
+    mark_contextual_locations(&mut candidates, &tokens, source_text, language);
     let spelled_candidates = crate::spellout::candidates(source_text, language)?;
     let spelled_ranges: Vec<(usize, usize)> = spelled_candidates
         .iter()
@@ -606,27 +606,41 @@ fn validate_evidence(
     // while a common noun tagged PROPN by the tagger has a lowercase lemma
     // ("la Corte" -> "corte") and stays out of the gazetteer. Without a tag,
     // the capitalization guard alone keeps the model-free behavior.
-    let gazetteer_eligible = tokens
-        .iter()
-        .find(|token| token.start == c.start)
-        .is_none_or(|token| match token.upos.as_deref() {
-            Some("PROPN") => token
-                .lemma
-                .as_deref()
-                .is_none_or(|lemma| lemma.chars().next().is_some_and(char::is_uppercase)),
-            Some(_) => false,
-            None => true,
-        });
+    let cased = semantic_core::lexicon::lexicon()
+        .language_profiles
+        .is_cased(language);
+    let start_token = tokens.iter().find(|token| token.start == c.start);
+    let gazetteer_eligible = start_token.is_none_or(|token| match token.upos.as_deref() {
+        // In an uncased script the tag is the only signal: there is no
+        // capitalized lemma to confirm it against.
+        Some("PROPN") => {
+            !cased
+                || token
+                    .lemma
+                    .as_deref()
+                    .is_none_or(|lemma| lemma.chars().next().is_some_and(char::is_uppercase))
+        }
+        Some(_) => false,
+        None => true,
+    });
+    let proper_noun = start_token.is_some_and(|token| token.upos.as_deref() == Some("PROPN"));
     Some(VisualEntity {
         text: c.text.clone(),
-        r#type: c
-            .entity_type
-            .unwrap_or_else(|| classify_value_type(&c.text, gazetteer_eligible, language)),
+        r#type: c.entity_type.unwrap_or_else(|| {
+            classify_value_type(&c.text, gazetteer_eligible, proper_noun, language)
+        }),
         score: 0.0,
         start: c.start,
         end: c.end,
         evidence: evidence.to_string(),
     })
+}
+
+/// Resolves the UDPipe model file for a language tag. Exposed for the
+/// profile/model acceptance test, so a certified language without an
+/// installed model fails loudly instead of degrading silently.
+pub fn model_path(language: &str) -> Option<std::path::PathBuf> {
+    pos::model_path(language)
 }
 
 // ── Stopword + blocklist tables ──────────────────────────────────────

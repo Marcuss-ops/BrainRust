@@ -312,7 +312,7 @@ fn collect_month_word_facts(source: &str) -> Vec<RawFact> {
     let mut out = Vec::new();
     let mut folded_cursor = 0;
     while let Some((folded_start, month, folded_width)) = find_month(&view, folded_cursor) {
-        let folded_next = folded_start + 1;
+        let folded_next = folded_start + next_char_width(&view.text[folded_start..]);
         if month_token_bounded(&view.text, folded_start, folded_width) {
             if let Some((start, end)) = view.to_source(folded_start, folded_start + folded_width) {
                 let width = end - start;
@@ -364,6 +364,11 @@ impl FoldedSource {
         if folded_start > folded_end || folded_end > self.text.len() {
             return None;
         }
+        // A byte index inside a multi-byte character is not a span. Returning
+        // None keeps the fact contract honest instead of panicking the worker.
+        if !self.text.is_char_boundary(folded_start) || !self.text.is_char_boundary(folded_end) {
+            return None;
+        }
         let char_start = self.text[..folded_start].chars().count();
         let char_end = self.text[..folded_end].chars().count();
         let start = self.offsets.get(char_start).copied()?;
@@ -381,25 +386,42 @@ fn find_month(view: &FoldedSource, cursor: usize) -> Option<(usize, u8, usize)> 
     let mut best: Option<(usize, u8, usize)> = None;
     for (word, month) in month_names() {
         let mut offset = 0;
-        while let Some(found) = hay[offset..].find(word) {
+        while let Some(found) = hay[offset..].find(word.as_str()) {
             let position = cursor + offset + found;
             if month_token_bounded(&view.text, position, word.len()) {
                 let candidate = (position, *month, word.len());
                 best = match best {
                     None => Some(candidate),
-                    Some(existing) if candidate.0 < existing.0 => Some(candidate),
+                    // Earliest position wins. At the same position the LONGER
+                    // form wins, because a month name can be a prefix of its
+                    // own inflected form (Russian "март" / "марта"): the
+                    // shorter one would leave the suffix unconsumed and the
+                    // date unresolved.
+                    Some(existing)
+                        if candidate.0 < existing.0
+                            || (candidate.0 == existing.0 && candidate.2 > existing.2) =>
+                    {
+                        Some(candidate)
+                    }
                     Some(existing) => Some(existing),
                 };
                 break;
             }
             // `found` is relative to the current suffix (`hay[offset..]`).
             // Keep the cursor monotonic when a month name occurs more than
-            // once; assigning `found + 1` can move it backwards and revisit
-            // the same unbounded occurrence forever.
-            offset += found + 1;
+            // once: advance by one CHARACTER, never one byte, because month
+            // names are not ASCII ("марта", "březen", "şubat") and a byte
+            // step would land inside a code point.
+            offset += found + next_char_width(&hay[found..]);
         }
     }
     best
+}
+
+/// Byte width of the first character of `text`, or 1 for an empty slice.
+/// Used to advance a scan cursor without splitting a UTF-8 code point.
+fn next_char_width(text: &str) -> usize {
+    text.chars().next().map_or(1, char::len_utf8)
 }
 
 /// True when `separator` holds a date separator (`/`, `-`) followed by a
@@ -476,10 +498,10 @@ fn collect_era_years(source: &str) -> Vec<RawFact> {
     let bytes = source.as_bytes();
     let mut out: Vec<(usize, usize, i32, Era)> = Vec::new();
     for marker in era_markers() {
-        let marker_len = marker.len();
+        let marker_len = marker.marker.len();
         let mut cursor = 0;
         while cursor + marker_len <= bytes.len() {
-            if bytes[cursor..cursor + marker_len].eq_ignore_ascii_case(marker.as_bytes()) {
+            if bytes[cursor..cursor + marker_len].eq_ignore_ascii_case(marker.marker.as_bytes()) {
                 let end = cursor + marker_len;
                 let before_ok = bytes
                     .get(cursor.wrapping_sub(1))
@@ -489,7 +511,7 @@ fn collect_era_years(source: &str) -> Vec<RawFact> {
                     .is_none_or(|&byte| !byte.is_ascii_alphabetic());
                 if before_ok && after_ok {
                     if let Some((start, year)) = year_before_marker(source, cursor) {
-                        out.push((start, end, year, marker_era(marker)));
+                        out.push((start, end, year, era_of(marker)));
                     }
                 }
                 cursor = end.max(cursor + 1);
@@ -627,12 +649,15 @@ fn next_after_separator_valid(bytes: &[u8], separator: usize) -> bool {
         .is_some_and(|&byte| byte.is_ascii_digit())
 }
 
-/// Day-first writing convention for the pipeline's supported languages
-/// (`it`, `es`, `fr`, `de`, `ru`, `pl`, `tr`, `id`, …); English keeps its
-/// month-first editorial convention.
+/// Day-first writing convention for the language. The order is a fact in
+/// `language_profiles.json` (`date_order`), not a `!= "en"` rule: languages
+/// that write year-month-day or month-first need their own entry, and the
+/// `default` entry keeps today's day-first behavior for the rest.
 fn language_is_day_first(language: &str) -> bool {
-    let base = language.split(['-', '_']).next().unwrap_or("");
-    !matches!(base, "en")
+    crate::lexicon::lexicon()
+        .language_profiles
+        .date_order(language)
+        == crate::lexicon::DateOrder::DayFirst
 }
 
 /// Era marker check at `from`: whitespace-separated and token-bounded.
@@ -646,8 +671,8 @@ fn era_after(source: &str, from: usize) -> Option<Era> {
     }
     let tail = source.get(from..)?;
     for marker in era_markers() {
-        if matches_marker(tail, marker) {
-            return Some(marker_era(marker));
+        if matches_marker(tail, &marker.marker) {
+            return Some(era_of(marker));
         }
     }
     None
@@ -663,21 +688,17 @@ fn matches_marker(tail: &str, marker: &str) -> bool {
             .is_none_or(|&byte| !byte.is_ascii_alphabetic())
 }
 
-/// Era markers, lowercase ASCII, longer forms first so `b.c.e.` wins before
-/// `b.c.` and `bc`.
-#[rustfmt::skip]
-fn era_markers() -> &'static [&'static str] {
-    &[
-        "b.c.e.", "b.c.", "bce", "bc",
-        "a.d.", "a.d", "c.e.", "ce", "a.c.", "a.d.", "d.c.", "d.c",
-        "v.chr.", "n.chr.", "p.n.e.", "n.e.", "m.ö.", "m.s.", "ad",
-    ]
+/// Era markers from `lexicon/orthography.json`, in data order: longer forms
+/// first so `b.c.e.` wins before `b.c.` and `bc`.
+fn era_markers() -> &'static [crate::lexicon::EraMarker] {
+    &crate::lexicon::lexicon().orthography.era_markers
 }
 
-fn marker_era(marker: &str) -> Era {
-    match marker {
-        "b.c.e." | "b.c." | "bce" | "bc" | "a.c." | "v.chr." | "p.n.e." | "m.ö." => Bce,
-        _ => Ce,
+fn era_of(marker: &crate::lexicon::EraMarker) -> Era {
+    if marker.era == "bce" {
+        Bce
+    } else {
+        Ce
     }
 }
 
@@ -817,11 +838,11 @@ fn year_after(source: &str, month_end: usize) -> Option<(i32, Era, usize)> {
         let tail = source[digits_end..].trim_start();
         match era_markers()
             .iter()
-            .find(|&&marker| matches_marker(tail, marker))
+            .find(|marker| matches_marker(tail, &marker.marker))
         {
-            Some(&marker) => {
-                end = digits_end + (source[digits_end..].len() - tail.len()) + marker.len();
-                marker_era(marker)
+            Some(marker) => {
+                end = digits_end + (source[digits_end..].len() - tail.len()) + marker.marker.len();
+                era_of(marker)
             }
             None => Ce,
         }
@@ -834,60 +855,15 @@ fn year_after(source: &str, month_end: usize) -> Option<(i32, Era, usize)> {
 //–––––––––––––––––––––––––––– Month table –––––––––––––––––––––––––––––––––
 
 /// Month names recognized case-insensitively across the pipeline's supported
-/// languages, mapped to calendar numbers. Names are recursive-free literals;
-/// duplicated across-language homographs are intentionally harmless because
+/// languages, mapped to calendar numbers: the CLDR-generated table in
+/// `lexicon/months.json` (see `lexicon/tools/sync_cldr_months.py`). Its order
+/// is the tie-break order: a name that is a strict prefix of another name
+/// sorts after it, so the longer name wins at the same offset (the boundary
+/// check only guards ASCII letters, so "may" must not win inside "mayıs").
+/// Duplicated across-language homographs are intentionally harmless because
 /// they agree on the month number.
-#[rustfmt::skip]
-fn month_names() -> &'static [(&'static str, u8)] {
-    &[
-        // English
-        ("january", 1), ("february", 2), ("march", 3), ("april", 4), ("june", 6),
-        ("july", 7), ("august", 8), ("september", 9), ("october", 10),
-        ("november", 11), ("december", 12),
-        // Italian (+ Spanish marzo/aprile/mayo homographs agree numerically)
-        ("gennaio", 1), ("febbraio", 2), ("marzo", 3), ("aprile", 4), ("maggio", 5),
-        ("giugno", 6), ("luglio", 7), ("agosto", 8), ("settembre", 9),
-        ("ottobre", 10), ("novembre", 11), ("dicembre", 12),
-        // Spanish
-        ("enero", 1), ("febrero", 2), ("abril", 4), ("junio", 6), ("julio", 7),
-        ("agosto", 8), ("septiembre", 9), ("octubre", 10), ("noviembre", 11),
-        ("diciembre", 12),
-        // French
-        ("janvier", 1), ("février", 2), ("mars", 3), ("avril", 4),
-        ("mai", 5), ("juin", 6), ("juillet", 7), ("aout", 8),
-        ("septembre", 9), ("octobre", 10), ("novembre", 11), ("decembre", 12),
-        // German
-        ("januar", 1), ("februar", 2), ("märz", 3), ("mai", 5), ("juni", 6),
-        ("juli", 7), ("august", 8), ("oktober", 10), ("november", 11),
-        ("dezember", 12),
-        // Portuguese (março/maio share the It./Es. homographs' numbers)
-        ("janeiro", 1), ("fevereiro", 2), ("março", 3), ("abril", 4),
-        ("maio", 5), ("junho", 6), ("julho", 7), ("agosto", 8),
-        ("setembro", 9), ("outubro", 10), ("novembro", 11), ("dezembro", 12),
-        // Russian: nominative + genitive forms
-        ("январь", 1), ("января", 1), ("февраль", 2), ("февраля", 2),
-        ("март", 3), ("марта", 3), ("апрель", 4), ("апреля", 4),
-        ("май", 5), ("мая", 5), ("июнь", 6), ("июня", 6), ("июль", 7), ("июля", 7),
-        ("август", 8), ("августа", 8), ("сентябрь", 9), ("сентября", 9),
-        ("октябрь", 10), ("октября", 10), ("ноябрь", 11), ("ноября", 11),
-        ("декабрь", 12), ("декабря", 12),
-        // Polish: nominative + genitive
-        ("styczeń", 1), ("stycznia", 1), ("luty", 2), ("lutego", 2),
-        ("marzec", 3), ("marca", 3), ("kwiecień", 4), ("kwietnia", 4),
-        ("maj", 5), ("maja", 5), ("czerwiec", 6), ("czerwca", 6),
-        ("lipiec", 7), ("lipca", 7), ("sierpień", 8), ("sierpnia", 8),
-        ("wrzesień", 9), ("września", 9), ("październik", 10), ("października", 10),
-        ("listopad", 11), ("listopada", 11), ("grudzień", 12), ("grudnia", 12),
-        // Turkish
-        ("ocak", 1), ("şubat", 2), ("mart", 3), ("nisan", 4), ("mayıs", 5),
-        ("haziran", 6), ("temmuz", 7), ("ağustos", 8), ("eylül", 9),
-        ("ekim", 10), ("kasım", 11), ("aralık", 12),
-        // Indonesian
-        ("januari", 1), ("februari", 2), ("desember", 12),
-        // English may, deliberately indexed last so unambiguous homographs
-        // win at equal offsets.
-        ("may", 5),
-    ]
+fn month_names() -> &'static [(String, u8)] {
+    &crate::lexicon::Lexicon::global().month_date_scan_table
 }
 
 //–––––––––––––––––––––––––––––– Tests –––––––––––––––––––––––––––––––––––––
@@ -939,6 +915,74 @@ mod tests {
     }
 
     #[test]
+    fn turkish_month_suffix_keeps_the_long_name_over_the_english_prefix() {
+        // The ASCII-only boundary check lets "may" match inside "mayıs";
+        // the generated tie-break order must keep the long name winning.
+        let text = "5 mayıs 2020 tarihinde başlandı.";
+        let all = facts(text, "tr");
+        assert_grounded(text, &all);
+        let fact = all
+            .iter()
+            .find(|fact| fact.normalized.as_deref() == Some("2020-05-05"))
+            .expect("5 mayıs 2020 must normalize to 2020-05-05");
+        assert!(
+            fact.surface.contains("mayıs"),
+            "the long Turkish name must win the tie: {}",
+            fact.surface
+        );
+    }
+
+    #[test]
+    fn english_may_still_names_a_month() {
+        let text = "The launch was May 5, 2020.";
+        let all = facts(text, "en");
+        assert_grounded(text, &all);
+        assert!(
+            all.iter()
+                .any(|fact| fact.normalized.as_deref() == Some("2020-05-05")),
+            "May 5, 2020 must normalize to 2020-05-05: {all:?}"
+        );
+    }
+
+    #[test]
+    fn cldr_generated_names_cover_accented_and_new_month_forms() {
+        for (text, language, iso) in [
+            ("12 mayo 2020.", "es", "2020-05-12"),
+            ("15 août 2020.", "fr", "2020-08-15"),
+            ("15 aout 2020.", "fr", "2020-08-15"),
+            ("3 maret 2020.", "id", "2020-03-03"),
+        ] {
+            let all = facts(text, language);
+            assert!(
+                all.iter()
+                    .any(|fact| fact.normalized.as_deref() == Some(iso)),
+                "{text} must normalize to {iso}: {all:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn multibyte_month_names_never_bisect_a_code_point() {
+        // The month scan used to advance one BYTE, so a Cyrillic month name
+        // ("марта") put the cursor inside 'м' and the worker panicked on the
+        // next slice. Two Cyrillic months and a repeated one must produce
+        // grounded facts instead of a crash.
+        let text = "Выручка выросла 12 марта 2007 года, а отчёт вышел 3 апреля 2008 года.";
+        let all = facts(text, "ru");
+        assert_grounded(text, &all);
+        assert!(
+            all.iter()
+                .any(|fact| fact.normalized.as_deref() == Some("2007-03-12")),
+            "12 марта 2007 must normalize: {all:?}"
+        );
+        assert!(
+            all.iter()
+                .any(|fact| fact.normalized.as_deref() == Some("2008-04-03")),
+            "3 апреля 2008 must normalize: {all:?}"
+        );
+    }
+
+    #[test]
     fn repeated_month_name_after_an_earlier_month_terminates_and_keeps_dates() {
         // A repeated month word after a different month used to move the
         // month-search cursor backwards and spin forever in long scripts.
@@ -980,6 +1024,18 @@ e il 7 settembre 2019 completò la storia.";
         assert!(all
             .iter()
             .any(|fact| fact.normalized.as_deref() == Some("2001-03-12")));
+    }
+
+    #[test]
+    fn unlisted_language_uses_the_default_date_order() {
+        // The day/month order is read from the profile's `default` entry for
+        // a language without its own: day-first, never English month-first.
+        let all = facts("Il 03/04/2020 cambiò tutto.", "xx");
+        let fact = all
+            .iter()
+            .find(|fact| fact.ambiguous)
+            .expect("03/04/2020 must be flagged ambiguous");
+        assert_eq!(fact.normalized.as_deref(), Some("2020-04-03"));
     }
 
     #[test]

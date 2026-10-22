@@ -4,13 +4,12 @@
 Month names are no longer hand-typed: this tool extracts the CLDR wide month
 names (format + standalone contexts) for the pipeline's date-scan languages
 straight from the ICU the workspace links against, so the table can never
-drift from the locale data behind the runtime.
+drift from the locale data behind the runtime.The generated file keeps the extraction behaviour of the historical hand
+ table through two explicit, documented policy layers:
 
-The generated file keeps the extraction behaviour of the historical hand
-table through two explicit, documented policy layers:
-
-* ``date_scan_exclusions`` — names dropped only from date-span scanning
-  (English "may" is a modal verb, not evidence of a date);
+* ``tie-break ordering`` — a name that is a strict prefix of another name
+  sorts after it, so the longer name wins at the same offset (English "may"
+  inside Turkish "mayıs": the boundary check only guards ASCII letters);
 * ``legacy_aliases`` — spellings the pipeline matched historically that CLDR
   does not emit (accent-stripped French forms).
 
@@ -29,18 +28,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "months.json"
 
-# Date-scan languages: the locales whose month names the pipeline has always
-# recognized in text. Turkish and Indonesian have CLDR month names too, but no
-# month-name matching today; enabling them is a deliberate coverage decision,
-# not a data-sync side effect.
-LOCALES = ["en", "it", "es", "fr", "de", "pt", "pl", "ru"]
-
-# Names excluded from the date-span scan only. The entity-typing view matches
-# whole tokens and keeps them.
-DATE_SCAN_EXCLUSIONS = {
-    "may": "English modal verb 'may' is not evidence of a date; kept for "
-    "whole-token entity typing only",
-}
+# The pipeline's ten supported languages: the locales whose month names the
+# historical hand table recognized in text.
+LOCALES = ["en", "it", "es", "fr", "de", "pt", "pl", "ru", "tr", "id"]
 
 # Spellings matched historically that CLDR does not emit. Kept so the
 # data-driven table is a superset of the certified hand table.
@@ -165,9 +155,13 @@ def generate() -> str:
         entries.setdefault(
             name, {"month": month, "locales": set(), "contexts": set()}
         )
-    for name in DATE_SCAN_EXCLUSIONS:
-        if name not in entries:
-            raise SystemExit(f"exclusion {name!r} not produced by CLDR; drop it")
+
+    # Tie-break policy: a name that is a strict prefix of another name sorts
+    # after it, so the longer name wins at the same offset (see module doc).
+    names = set(entries)
+
+    def is_prefix(name: str) -> bool:
+        return any(other != name and other.startswith(name) for other in names)
 
     months = [
         {
@@ -176,7 +170,9 @@ def generate() -> str:
             "locales": sorted(data["locales"]),
             "contexts": sorted(data["contexts"]),
         }
-        for name, data in sorted(entries.items(), key=lambda kv: (kv[1]["month"], kv[0]))
+        for name, data in sorted(
+            entries.items(), key=lambda kv: (is_prefix(kv[0]), kv[1]["month"], kv[0])
+        )
     ]
     document = {
         "schema": "months.v1",
@@ -185,11 +181,8 @@ def generate() -> str:
             "source": "system ICU (CLDR wide month names, format + standalone contexts)",
             "icu_version": icu_version,
             "locales": LOCALES,
+            "tie_break": "names that are strict prefixes of other names sort last",
         },
-        "date_scan_exclusions": [
-            {"name": name, "reason": reason}
-            for name, reason in sorted(DATE_SCAN_EXCLUSIONS.items())
-        ],
         "legacy_aliases": [
             {"name": name, "month": month, "reason": reason}
             for name, (month, reason) in sorted(LEGACY_ALIASES.items())
@@ -211,7 +204,8 @@ def main() -> int:
     months = json.loads(text)["months"]
     print(f"wrote {OUT} — {len(months)} month names, "
           f"{sum(1 for m in months if m['locales'])} from CLDR, "
-          f"{len(LEGACY_ALIASES)} legacy aliases")
+          f"{len(LEGACY_ALIASES)} legacy aliases, "
+          f"{sum(1 for m in months if not m['locales'])} unlocalized")
     return 0
 
 

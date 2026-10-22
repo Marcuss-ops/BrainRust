@@ -30,12 +30,11 @@ pub struct NumericFact {
 }
 
 /// Parses a numeric surface such as `25%`, `$1,200`, `1.200 euro`, `12,5%`,
-/// `3.5` or `25 percent`, using the separator convention of `language`:
-/// English groups thousands with `,` and uses `.` as decimal point; the
-/// other supported languages (it, de, fr, es, pt, pl, ru, tr, id) use `.` for
-/// thousands and `,` as decimal point. Returns `None` for scale words
-/// (`million`) and for any grouping that does not match the convention, so a
-/// chart never plots a guessed value.
+/// `3.5` or `25 percent`, using the separator convention in
+/// `language_profiles.json`: `thousands_separator` and `decimal_separator` of
+/// the language, falling back to the `default` entry. Returns `None` for
+/// scale words (`million`) and for any grouping that does not match the
+/// convention, so a chart never plots a guessed value.
 pub fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
     let mut rest = text.trim().to_lowercase();
     for suffix in ["percent", "dollars", "euros", "euro", "pounds", "yen"] {
@@ -53,11 +52,9 @@ pub fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
     {
         return None;
     }
-    let (thousands, decimal) = if language.eq_ignore_ascii_case("en") {
-        (',', '.')
-    } else {
-        ('.', ',')
-    };
+    let profiles = &crate::lexicon::lexicon().language_profiles;
+    let thousands = profiles.thousands_separator(language);
+    let decimal = profiles.decimal_separator(language);
     let (int_part, frac_part) = match rest.matches(decimal).count() {
         0 => (rest, None),
         1 => {
@@ -105,4 +102,23 @@ pub fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
 /// gate a chart resolver must pass before proposing `bar_comparison`.
 pub fn values_are_comparable(a: &NumericFact, b: &NumericFact) -> bool {
     a.kind == b.kind && a.value.is_some() && b.value.is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn separators_come_from_the_language_profile() {
+        // Grouping and decimals per language, read from data.
+        assert_eq!(parse_unambiguous_value("1,200.50", "en"), Some(1200.5));
+        assert_eq!(parse_unambiguous_value("1.200,50", "it"), Some(1200.5));
+        assert_eq!(parse_unambiguous_value("1.200,50", "de"), Some(1200.5));
+        assert_eq!(parse_unambiguous_value("25%", "it"), Some(25.0));
+        // A language without its own entry falls back to the default entry.
+        assert_eq!(parse_unambiguous_value("1.200,50", "xx"), Some(1200.5));
+        // The refused ambiguous form stays refused: "1,200" in Italian would
+        // be 1.2 by convention and 1,200 by English grouping, so it is None.
+        assert_eq!(parse_unambiguous_value("1,200", "it"), None);
+    }
 }
