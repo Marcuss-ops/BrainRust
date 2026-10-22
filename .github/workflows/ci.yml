@@ -1,0 +1,54 @@
+name: Rust workspace
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Test and lint (ICU-pinned)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v7
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    # visualner links rust_icu_* against the system ICU4C and pins the
+    # generated symbols to its major (see README.md). The major is read from
+    # pkg-config so the CI host and the build can never disagree.
+    - name: Install ICU4C development package
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libicu-dev pkg-config
+
+    - name: Export ICU major for rust_icu
+      run: |
+        ICU_MAJOR=$(pkg-config --modversion icu-i18n | cut -d. -f1)
+        echo "RUST_ICU_MAJOR_VERSION_NUMBER=$ICU_MAJOR" >> "$GITHUB_ENV"
+
+    # The suite fails closed when a language profile declares a UDPipe
+    # treebank but its model is absent (visualner/tests/language_profiles.rs).
+    # The 234 MB model set is a provisioned fixture, not repository content:
+    # cache it and let the installer download only what is missing.
+    - name: Cache UDPipe models
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/visualner/models
+        key: udpipe-models-2.5-191206-v1
+
+    - name: Install UDPipe models
+      run: ./visualner/tools/install_udpipe_models.sh
+
+    - name: cargo fmt (check)
+      run: cargo fmt --all -- --check
+
+    - name: cargo clippy (warnings are errors)
+      run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+    - name: cargo test (workspace)
+      run: cargo test --workspace --locked

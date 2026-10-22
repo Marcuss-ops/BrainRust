@@ -1,9 +1,11 @@
-# PipelineGen Rust components
+# BrainRust — PipelineGen Rust components
 
-This directory is the isolated Rust boundary for native execution
-components (the “muscles”). The Go application remains the composition root
-and owns canonical state, application decisions, jobs, and the transactional
-outbox.
+This repository is the isolated Rust boundary for PipelineGen's native
+execution components (the “muscles”). It is built and tested on its own; the
+PipelineGen checkout consumes it as the `rust/` submodule pinned to a
+released commit, so every `rust/...` build path there stays valid. The Go
+application remains the composition root and owns canonical state,
+application decisions, jobs, and the transactional outbox.
 
 ## Boundary
 
@@ -91,7 +93,7 @@ RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run st
 # Prints distinct language identifiers with installed ICU spellout rules.
 RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo run -p visualner -- --locale-count
 
-# Build the executables consumed by the Go adapter (see contract/ in PipelineGen).
+# Build the executables consumed by the Go adapter (see rustexec in PipelineGen).
 cargo build --release
 ```
 
@@ -180,7 +182,8 @@ repository, so WindowDiff, Boundary F1, baseline comparisons, and the proposed
 90% title-acceptance target remain unclaimed.
 
 Per-title latency of the production worker (one NDJSON request/response per
-titled narration, measured against `bin/phrase_impact`):
+titled narration, measured against `bin/phrase_impact`) is measured from a
+PipelineGen checkout, which installs the worker and owns the Go benchmark:
 
 ```sh
 PHRASE_IMPACT_BIN="$PWD/bin/phrase_impact" go test ./scripts/bench \
@@ -188,7 +191,7 @@ PHRASE_IMPACT_BIN="$PWD/bin/phrase_impact" go test ./scripts/bench \
 ```
 
 The offline Python comparison of extractors over archived scripts stays in
-`scripts/bench/phrase_impact.py`.
+PipelineGen's `scripts/bench/phrase_impact.py`.
 
 Run the optimized local benchmark (10 warmups / 100 samples at each requested
 word count, concurrency sweep, and 10,000-run memory stress):

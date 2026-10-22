@@ -1,1 +1,3 @@
 /target/
+# Benchmark reports (see README.md, phrase impact).
+**/.cache/
