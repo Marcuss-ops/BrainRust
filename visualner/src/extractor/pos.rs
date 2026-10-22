@@ -157,9 +157,24 @@ fn load_model(language: &str) -> Option<Rc<udpipe_rs::Model>> {
         if let Some(entry) = cache.borrow().get(&key) {
             return entry.clone();
         }
-        let loaded = model_path(&key)
-            .and_then(|path| udpipe_rs::Model::load(path).ok())
-            .map(Rc::new);
+        let loaded = match model_path(&key) {
+            Some(path) => match udpipe_rs::Model::load(&path) {
+                Ok(model) => Some(Rc::new(model)),
+                Err(error) => {
+                    eprintln!(
+                        "visualner: UDPipe model {} failed to load for {key}: {error}; continuing with the model-free fallback",
+                        path.display()
+                    );
+                    None
+                }
+            },
+            None => {
+                eprintln!(
+                    "visualner: no UDPipe model installed for {key}; POS evidence and verb filtering are disabled for this language"
+                );
+                None
+            }
+        };
         cache.borrow_mut().insert(key, loaded.clone());
         loaded
     })
