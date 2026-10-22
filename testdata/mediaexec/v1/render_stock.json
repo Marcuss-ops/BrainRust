@@ -1,0 +1,49 @@
+{
+  "request": {
+    "version": "mediaexec.v1",
+    "operation": "render_stock",
+    "ffmpeg_path": "/usr/bin/ffmpeg",
+    "output_path": "/fixtures/rendered.mp4",
+    "input_paths": [
+      "/fixtures/clip-001.mp4",
+      "/fixtures/clip-002.mp4"
+    ],
+    "codec": "h264_nvenc",
+    "preset": "p1",
+    "crf": 23,
+    "width": 1920,
+    "height": 1080,
+    "fps": 24,
+    "keyframe_interval": 48,
+    "audio_codec": "aac",
+    "audio_bitrate": "128k",
+    "sample_rate": 48000,
+    "channels": 2,
+    "keep_audio": false,
+    "no_transitions": false,
+    "clip_duration_sec": 5,
+    "transitions": [
+      {
+        "clip_index": 1,
+        "segment": "end",
+        "id": "fadeblack"
+      }
+    ],
+    "no_effects": false,
+    "effect_paths": [
+      {
+        "clip_index": 1,
+        "path": "/fixtures/effect-001.mp4"
+      }
+    ],
+    "overlay_opacity": 0.25
+  },
+  "response": {
+    "ok": true,
+    "operation": "render_stock",
+    "source_path": null,
+    "items": [],
+    "metadata": null,
+    "error": null
+  }
+}

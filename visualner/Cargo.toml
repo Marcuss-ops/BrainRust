@@ -12,7 +12,7 @@ name = "visualner"
 path = "src/main.rs"
 
 [dependencies]
-# ICU4C is the SINGLE spellout backend (see rust/README.md, "Decision: ICU is
+# ICU4C is the SINGLE spellout backend (see README.md, "Decision: ICU is
 # the single spellout backend"): deliberately NOT behind an optional feature,
 # because disabling it would silently degrade number-word entity extraction.
 rust_icu_sys = { version = "5.8.0", default-features = false, features = ["icu_version_in_env", "renaming"] }

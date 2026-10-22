@@ -3,7 +3,7 @@
 //! Every curated vocabulary this workspace used to hard-code in Rust
 //! (stopwords, boilerplate phrases, object vocabularies, location cues, scale
 //! words, legal markers, discourse cues, process phases) lives in JSON tables
-//! under `rust/lexicon/`. Rust owns the
+//! under `lexicon/`. Rust owns the
 //! mechanism (tokenization, spans, scoring, grounding); the lexicon owns the
 //! knowledge. Adding or correcting a word is a data change, never a code
 //! change, so a new language or editorial domain scales without recompiling.

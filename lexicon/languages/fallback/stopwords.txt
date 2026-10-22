@@ -1,0 +1,27 @@
+# Fallback stopwords — cross-linguistic set for unknown languages
+the
+and
+a
+an
+of
+in
+to
+is
+it
+for
+on
+with
+at
+by
+from
+le
+la
+della
+de
+et
+un
+une
+el
+los
+y
+o

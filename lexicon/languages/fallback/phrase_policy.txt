@@ -1,0 +1,5 @@
+# Fallback phrase extraction policy
+min_words=2
+max_words=16
+max_results=5
+reject_verbs_when_all=true

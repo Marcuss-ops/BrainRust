@@ -1,15 +1,16 @@
 use super::super::*;
 
-/// The production phrase stop-word set for a language, read from the single
-/// source of truth the Go adapter also injects (config/lexicons/<lang>/).
+/// The production phrase stop-word set for a language, read from the copy of
+/// the PipelineGen lexicons vendored under `lexicon/languages/<lang>/`.
 ///
-/// Reading the real files keeps these tests honest: the crate holds NO language
+/// Reading real word lists keeps these tests honest: the crate holds NO language
 /// word list of its own, so a test that needs linguistic data must take it from
-/// the same place production does. A language the lexicon does not enumerate
-/// resolves to the repository's cross-linguistic `fallback` profile, exactly as
-/// the registry does it in Go.
+/// the same data the production registry is seeded with. The vendored copy is
+/// refreshed from `PipelineGen/config/lexicons/` when that source changes; a
+/// language it does not enumerate resolves to the cross-linguistic `fallback`
+/// profile, exactly as the registry does it in Go.
 pub(super) fn lexicon_stopwords(language: &str) -> Vec<String> {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/lexicons");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../lexicon/languages");
     let dir = if root.join(language).is_dir() {
         root.join(language)
     } else {

@@ -1,0 +1,13 @@
+# Fallback function words
+the
+a
+an
+of
+in
+on
+at
+to
+for
+with
+by
+from

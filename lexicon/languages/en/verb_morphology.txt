@@ -1,0 +1,7 @@
+# English verb morphology — suffixes that indicate verb forms
+# One suffix per line
+ing
+ed
+en
+es
+s

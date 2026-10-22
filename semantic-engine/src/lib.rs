@@ -1908,7 +1908,11 @@ fn contextual_visual_query<'a>(
     mention_start: usize,
     mention_end: usize,
 ) -> Option<&'a str> {
-    const MAX_WORDS: usize = 8;
+    // Six words is the shortest window that keeps a mention's subject and its
+    // immediate action together while staying a provider-friendly query. A
+    // multiword mention must not push the window past it (and end on a bare
+    // article such as "la").
+    const MAX_WORDS: usize = 6;
     const WORDS_BEFORE: usize = 2;
     const WORDS_AFTER: usize = 4;
 

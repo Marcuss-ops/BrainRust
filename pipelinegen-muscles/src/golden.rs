@@ -12,8 +12,9 @@ mod tests {
     }
 
     fn fixture(name: &str) -> Fixture {
+        // Vendored copy of PipelineGen/testdata/mediaexec/v1: the shared
+        // goldens the Go adapter also decodes, kept at the repository root.
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
             .join("..")
             .join("testdata")
             .join("mediaexec")

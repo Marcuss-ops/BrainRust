@@ -1,0 +1,7 @@
+# Fallback verb morphology — common cross-linguistic suffixes
+ing
+ed
+ando
+endo
+ato
+ito

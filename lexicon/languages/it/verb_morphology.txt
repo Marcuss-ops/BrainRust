@@ -1,0 +1,55 @@
+# Italian verb morphology — suffixes that indicate verb forms
+# One suffix per line
+# Infinitive
+are
+ere
+ire
+# Gerund
+ando
+endo
+# Past participle
+ato
+uto
+ito
+# Imperfect
+avo
+eva
+ivo
+avi
+evi
+ivi
+ava
+eva
+iva
+avamo
+evamo
+ivamo
+avate
+evate
+ivate
+avano
+evano
+ivano
+# Present 3rd person
+ano
+ono
+ino
+# Past remote
+ai
+esti
+ò
+ammo
+aste
+arono
+etti
+esti
+ette
+emmo
+este
+ettero
+ii
+isti
+ì
+immo
+iste
+irono

@@ -68,17 +68,31 @@ VisualNER uses the system ICU4C RBNF/CLDR spellout rules. Install the ICU
 runtime hosts that execute `bin/visualner` need the matching ICU shared-library
 major. The build pins rust_icu's generated symbol names to the installed major
 via `RUST_ICU_MAJOR_VERSION_NUMBER`; do not copy that binary to a host with a
-different major. The project Dockerfile builds and runs against Bookworm ICU 72.
+different major. The consuming PipelineGen Dockerfile builds and runs against
+Bookworm ICU 72.
+
+The tests also need the UDPipe 2.5 models declared by
+`lexicon/language_profiles.json`. Provision them once (the installer is
+idempotent and reads the profile table, so a new language adds its model
+automatically):
 
 ```sh
+./visualner/tools/install_udpipe_models.sh
+```
+
+The suite fails closed when a declared model is missing; it never silently
+degrades to the model-free extractor.
+
+```sh
+cd <this repository>
 ICU_MAJOR=$(pkg-config --modversion icu-i18n | cut -d. -f1)
-RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo test --manifest-path rust/Cargo.toml
+RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo test --workspace
 
 # Prints distinct language identifiers with installed ICU spellout rules.
-RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo run --manifest-path rust/Cargo.toml -p visualner -- --locale-count
+RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo run -p visualner -- --locale-count
 
-# Build the executable consumed by the Go adapter.
-make build-muscles
+# Build the executables consumed by the Go adapter (see contract/ in PipelineGen).
+cargo build --release
 ```
 
 VisualNER requests must include a BCP-47 `language`. ICU does not provide
@@ -180,10 +194,10 @@ Run the optimized local benchmark (10 warmups / 100 samples at each requested
 word count, concurrency sweep, and 10,000-run memory stress):
 
 ```sh
-cargo bench --manifest-path rust/Cargo.toml -p pipelinegen-muscles --bench phrase_impact
+cargo bench -p pipelinegen-muscles --bench phrase_impact
 ```
 
 The JSON report defaults to the ignored
-`rust/pipelinegen-muscles/.cache/phrase-impact/rust_benchmark.json` (Cargo runs
+`pipelinegen-muscles/.cache/phrase-impact/rust_benchmark.json` (Cargo runs
 the benchmark from the package directory); override its path with
 `PHRASE_IMPACT_BENCH_OUTPUT`.
