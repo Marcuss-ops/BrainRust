@@ -1,298 +1,82 @@
-/// Stopwords: single tokens that never start or extend a noun phrase.
-/// Includes the LIVE-test hallucination seeds "imagine", "ready", "get",
-/// "the", "a", "and", etc. so "Imagine the" / "Get ready" never produce
-/// candidates in the first place.
-pub(super) const STOP_WORDS: &[&str] = &[
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "of",
-    "to",
-    "in",
-    "on",
-    "for",
-    "with",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "has",
-    "have",
-    "had",
-    "this",
-    "that",
-    "these",
-    "those",
-    "it",
-    "its",
-    "as",
-    "by",
-    "at",
-    "from",
-    // hallucination seeds observed in the LIVE test
-    "imagine",
-    "ready",
-    "get",
-    "dive",
-    "into",
-    "discover",
-    "let",
-    "us",
-    // pronouns / generic verbs
-    "you",
-    "we",
-    "they",
-    "he",
-    "she",
-    "i",
-    "me",
-    "him",
-    "her",
-    "do",
-    "does",
-    "did",
-    "not",
-    "no",
-    "yes",
-    "about",
-    "your",
-    "our",
-    "their",
-    "his",
-    // generic spatial/temporal words
-    "now",
-    "then",
-    "here",
-    "there",
-    "when",
-    "where",
-    "what",
-    "which",
-    "who",
-    // connector / descriptive verbs that glue non-visual phrases
-    // together in the Mediterranean golden-fixture sentences. These are
-    // not visual objects, so a phrase that includes them is not a single
-    // visual noun phrase; breaking here keeps "feta cheese" separate
-    // from "tomatoes" when the sentence reads "combines fresh tomatoes".
-    "combines",
-    "contains",
-    "features",
-    "traditionally",
-    "made",
-    "fresh",
-    "prepared",
-    "spoke",
-    "released",
-    // sentence-opening gerund; it must not absorb the following proper name
-    // into a false entity such as "Understanding Donald Trump's".
-    "understanding",
-    // High-frequency function words and titles in the supported generation
-    // languages. Keep this deterministic vocabulary conservative: removing a
-    // token from candidate construction is safer than emitting it as an entity.
-    "el",
-    "la",
-    "los",
-    "las",
-    "un",
-    "una",
-    "unos",
-    "unas",
-    "y",
-    "de",
-    "del",
-    "en",
-    "por",
-    "con",
-    "para",
-    "es",
-    "son",
-    "fue",
-    "han",
-    "ha",
-    "al",
-    "lo",
-    "le",
-    "les",
-    "des",
-    "du",
-    "un",
-    "une",
-    "et",
-    "est",
-    "sont",
-    "au",
-    "aux",
-    "dans",
-    "sur",
-    "a",
-    "o",
-    "os",
-    "as",
-    "um",
-    "uma",
-    "e",
-    "do",
-    "da",
-    "dos",
-    "das",
-    "no",
-    "na",
-    "nos",
-    "nas",
-    "com",
-    "que",
-    "il",
-    "i",
-    "gli",
-    "lo",
-    "una",
-    "uno",
-    "è",
-    "sono",
-    "si",
-    "ha",
-    "hanno",
-    "nel",
-    "nella",
-    "di",
-    "che",
-    "mit",
-    "der",
-    "die",
-    "das",
-    "den",
-    "dem",
-    "ein",
-    "eine",
-    "einer",
-    "eines",
-    "und",
-    "ist",
-    "sind",
-    "war",
-    "wurde",
-    "nach",
-    "bei",
-    "von",
-    "zu",
-    "zum",
-    "zur",
-    "presidente",
-    "président",
-    "bundeskanzler",
-    "kanzler",
-    "discussed",
-    "visited",
-    "visitó",
-    "visitou",
-    "visitato",
-    "visité",
-    "besuchte",
-    "company",
-    // Italian narration verbs: the UDPipe POS filter handles them when a
-    // model is installed, but the fallback path has no model, so a curated
-    // vocabulary keeps frequent verbs out of the visual candidates too. A
-    // verb is never a visual noun phrase; it only glues one to its subject.
-    "essendo",
-    "fu",
-    "furono",
-    "era",
-    "erano",
-    "trova",
-    "trovò",
-    "sorge",
-    "sorse",
-    "affaccia",
-    "attraversa",
-    "attraversò",
-    "ospita",
-    "ospitò",
-    "ospitava",
-    "guarda",
-    "sempre",
-    "avvenne",
-    "accadde",
-    "successe",
-    "arrivò",
-    "cambiò",
-    "cambia",
-    "rimase",
-    "restò",
-    "divenne",
-    "nacque",
-    "nasce",
-    "morì",
-    "muore",
-    "permise",
-    "approva",
-    "approvò",
-    "racconta",
-    "raccontò",
-    "mostra",
-    "mostrò",
-    "narra",
-    "narrò",
-    "descrive",
-    "descrisse",
-    "documenta",
-    "documentò",
-    "raccolse",
-    "conservato",
-    "conservata",
-    "costruito",
-    "costruita",
-    "proprieta",
-    "dichiarato",
-    "dichiarata",
-];
+//! Candidate-exclusion vocabularies: stopwords, stop phrases, title roles
+//! and narration boilerplate. Every word lives in the shared lexicon
+//! (`stopwords.json`); this module owns only the matching semantics, so a
+//! vocabulary change is a data change and never a code change.
 
-/// Stop phrases: multi-word surfaces that are generic even when none of
-/// their tokens are individually stopwords.
-pub(super) const STOP_PHRASES: &[&str] = &["get ready", "let us", "imagine the"];
+use semantic_core::lexicon::lexicon;
 
 pub(super) fn is_stop_word(word: &str) -> bool {
     let lower = word.to_lowercase();
-    STOP_WORDS.iter().any(|s| *s == lower)
+    let table = &lexicon().stopwords;
+    table.stop_words.iter().any(|s| s == &lower)
         || word
             .chars()
             .any(|ch| matches!(ch, 'à' | 'è' | 'é' | 'ì' | 'ò' | 'ù' | 'ü' | 'ö' | 'ä'))
-            && NON_ASCII_STOP_WORDS.iter().any(|stop| *stop == lower)
+            && table.non_ascii_stop_words.iter().any(|s| s == &lower)
 }
 
-pub(super) const NON_ASCII_STOP_WORDS: &[&str] = &[
-    "è",
-    "président",
-    "présidente",
-    "präsident",
-    "município",
-    "região",
-    "província",
-];
-
-/// Role and title nouns. UDPipe tags them as ordinary nouns, but they name a
-/// office, not a visible object, so they stay excluded even when a POS tag is
-/// available.
-pub(super) const TITLE_WORDS: &[&str] = &[
-    "presidente",
-    "président",
-    "présidente",
-    "präsident",
-    "bundeskanzler",
-    "kanzler",
-];
-
+/// Role and title nouns. UDPipe tags them as ordinary nouns, but they name
+/// an office, not a visible object, so they stay excluded even when a POS
+/// tag is available.
 pub(super) fn is_title_word(word: &str) -> bool {
     let lower = word.to_lowercase();
-    TITLE_WORDS.contains(&lower.as_str())
+    lexicon().stopwords.title_words.iter().any(|s| s == &lower)
 }
 
+/// Stop phrases: multi-word surfaces that are generic even when none of
+/// their tokens are individually stopwords.
 pub(super) fn is_stop_phrase(normalized: &str) -> bool {
-    STOP_PHRASES.contains(&normalized)
+    lexicon()
+        .stopwords
+        .stop_phrases
+        .iter()
+        .any(|s| s == normalized)
+}
+
+/// Narration boilerplate ("Imagine the", "Get ready", ...) that must never
+/// become an entity. The seeds come from observed voiceover scripts and are
+/// curated in the lexicon, not in code.
+pub(super) fn is_generic_phrase(normalized: &str) -> bool {
+    lexicon()
+        .stopwords
+        .generic_phrases
+        .iter()
+        .any(|s| s == normalized)
 }
 
 // ── Tests ────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn english_and_italian_stop_words_are_excluded() {
+        assert!(is_stop_word("the"));
+        assert!(is_stop_word("The"));
+        assert!(is_stop_word("della"));
+        assert!(is_stop_word("dopo"));
+        assert!(!is_stop_word("tifosi"));
+        assert!(!is_stop_word("feta"));
+    }
+
+    #[test]
+    fn non_ascii_stop_words_match_their_accented_forms() {
+        assert!(is_stop_word("è"));
+        assert!(is_stop_word("président"));
+        assert!(is_stop_word("präsident"));
+    }
+
+    #[test]
+    fn boilerplate_phrases_never_become_entities() {
+        assert!(is_stop_phrase("imagine the"));
+        assert!(is_generic_phrase("get ready"));
+        assert!(!is_generic_phrase("stadio"));
+    }
+
+    #[test]
+    fn title_roles_are_excluded() {
+        assert!(is_title_word("presidente"));
+        assert!(!is_title_word("stadio"));
+    }
+}

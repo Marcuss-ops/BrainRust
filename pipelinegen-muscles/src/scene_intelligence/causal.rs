@@ -1,4 +1,9 @@
 //! Internal split of scene_intelligence (pure move, no behavior change).
+//!
+//! Every marker vocabulary of this module (cause/contribute/sequence
+//! markers, hypothetical auxiliaries, attribution prefixes, sentence-split
+//! separators) lives in the shared lexicon (`discourse_cues.json`), so the
+//! mechanism below carries no linguistic knowledge.
 
 use super::*;
 
@@ -26,88 +31,21 @@ pub struct CausalRelation {
     pub hypothetical: bool,
 }
 
-/// Cause markers where the cause FOLLOWS the marker in the text
-/// ("Y a causa di X" → cause X, effect Y): direction is preserved even
-/// when the relation is expressed in reverse order.
-pub(super) const CAUSE_AFTER_MARKERS: &[&[&str]] = &[
-    &["a", "causa", "di"],
-    &["a", "causa"],
-    &["perché"],
-    &["perche"],
-    &["because"],
-    &["caused", "by"],
-    &["è", "stata", "causata"],
-    &["è", "stato", "causato"],
-    &["was", "caused"],
-    &["verursacht"],
-    &["provoqué"],
-];
-
-/// Cause markers where the cause PRECEDES the marker
-/// ("X ha causato Y" → cause X, effect Y). Conditional forms included:
-/// mood is recorded as `hypothetical`, never as certainty.
-pub(super) const CAUSE_BEFORE_MARKERS: &[&[&str]] = &[
-    &["ha", "causato"],
-    &["hanno", "causato"],
-    &["provocando"],
-    &["ha", "provocato"],
-    &["hanno", "provocato"],
-    &["avrebbe", "provocato"],
-    &["avrebbero", "provocato"],
-    &["caused"],
-    &["has", "caused"],
-    &["have", "caused"],
-    &["had", "caused"],
-    &["would", "have", "caused"],
-    &["hanno", "ridotto"],
-];
-
-/// Conditional auxiliaries marking hypothetical causation.
-pub(super) const HYPOTHETICAL_MARKERS: &[&str] = &[
-    "avrebbe",
-    "avrebbero",
-    "would",
-    "could",
-    "might",
-    "potrebbe",
-    "potrebbero",
-    "würde",
-    "würden",
-    "pourrait",
-];
-
-/// Attribution prefixes (verbatim, before the first comma).
-pub(super) const ATTRIBUTION_MARKERS: &[&str] =
-    &["secondo", "according", "selon", "laut", "según", "segun"];
-
-pub(super) const CONTRIBUTE_MARKERS: &[&[&str]] = &[
-    &["contribuì", "a"],
-    &["contribui", "a"],
-    &["contribuisce", "a"],
-    &["ha", "contribuito"],
-    &["hanno", "contribuito"],
-    &["contribuito", "a"],
-    &["contribuito"],
-    &["contributed", "to"],
-    &["contributes", "to"],
-    &["contributing", "to"],
-    &["contribuendo", "a"],
-];
-
-pub(super) const SEQUENCE_MARKERS: &[&str] = &[
-    "dopo", "after", "nach", "après", "apres", "después", "despues",
-];
-
-/// Marker hit with its token position and cause direction.
+/// Marker hit with its token position and cause direction. `causal_after`
+/// marks relations whose cause FOLLOWS the marker ("Y a causa di X" → cause
+/// X, effect Y) and `causal_before` those whose cause PRECEDES it ("X ha
+/// causato Y"), so direction survives reversed text order. Conditional
+/// forms are included and stay recorded as `hypothetical`, never certainty.
 pub(super) fn find_causal_marker(toks: &[String]) -> Option<(bool, usize, usize)> {
     // (cause_after, marker_len, pos)
+    let cues = &semantic_core::lexicon::lexicon().discourse;
     for i in 0..toks.len() {
-        for m in CAUSE_AFTER_MARKERS {
+        for m in &cues.causal_after {
             if window_eq(toks, i, m) {
                 return Some((true, m.len(), i));
             }
         }
-        for m in CAUSE_BEFORE_MARKERS {
+        for m in &cues.causal_before {
             if window_eq(toks, i, m) {
                 return Some((false, m.len(), i));
             }
@@ -153,6 +91,7 @@ pub(super) fn split_at_marker(
 /// and hypothetical flag with lowered confidence.
 pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
     let toks = tokens(&sentence.text);
+    let cues = &semantic_core::lexicon::lexicon().discourse;
     if let Some((cause_after, mlen, pos)) = find_causal_marker(&toks) {
         if is_negated(&toks, pos) {
             return None;
@@ -166,9 +105,7 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
         if cause.is_empty() || effect.is_empty() {
             return None;
         }
-        let hypothetical = HYPOTHETICAL_MARKERS
-            .iter()
-            .any(|m| contains_token(&toks, m));
+        let hypothetical = is_hypothetical(&toks);
         let attribution = extract_attribution(&sentence.text);
         return Some(CausalRelation {
             kind: "causal_relation".to_string(),
@@ -181,7 +118,8 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
             hypothetical,
         });
     }
-    if let Some(pos) = CONTRIBUTE_MARKERS
+    if let Some(pos) = cues
+        .contribute
         .iter()
         .filter_map(|p| {
             toks.windows(p.len())
@@ -194,7 +132,8 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
         if is_negated(&toks, pos) {
             return None;
         }
-        let mlen = CONTRIBUTE_MARKERS
+        let mlen = cues
+            .contribute
             .iter()
             .find(|p| window_eq(&toks, pos, p))
             .map(|p| p.len())
@@ -203,9 +142,7 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
         if before.is_empty() || after.is_empty() {
             return None;
         }
-        let hypothetical = HYPOTHETICAL_MARKERS
-            .iter()
-            .any(|m| contains_token(&toks, m));
+        let hypothetical = is_hypothetical(&toks);
         let attribution = extract_attribution(&sentence.text);
         return Some(CausalRelation {
             kind: "causal_relation".to_string(),
@@ -218,7 +155,11 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
             hypothetical,
         });
     }
-    if SEQUENCE_MARKERS.iter().any(|m| contains_token(&toks, m)) {
+    if cues
+        .sequence
+        .iter()
+        .any(|m| contains_token(&toks, m.as_str()))
+    {
         let (cause, effect) = split_around(&sentence.text);
         return Some(CausalRelation {
             kind: "causal_relation".to_string(),
@@ -234,6 +175,16 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
     None
 }
 
+/// Conditional auxiliaries ("avrebbe", "would", ...) mark hypothetical
+/// causation; the vocabulary lives in the lexicon.
+pub(super) fn is_hypothetical(toks: &[String]) -> bool {
+    semantic_core::lexicon::lexicon()
+        .discourse
+        .hypothetical
+        .iter()
+        .any(|m| contains_token(toks, m.as_str()))
+}
+
 /// Verbatim attribution prefix ("Secondo gli analisti, ..." →
 /// "Secondo gli analisti").
 pub(super) fn extract_attribution(text: &str) -> Option<String> {
@@ -242,9 +193,10 @@ pub(super) fn extract_attribution(text: &str) -> Option<String> {
         return None;
     }
     let lt = first.to_lowercase();
-    if ATTRIBUTION_MARKERS
+    let markers = &semantic_core::lexicon::lexicon().discourse.attribution;
+    if markers
         .iter()
-        .any(|m| lt.split_whitespace().any(|w| w == *m))
+        .any(|m| lt.split_whitespace().any(|w| w == m.as_str()))
     {
         return Some(first);
     }
@@ -253,15 +205,8 @@ pub(super) fn extract_attribution(text: &str) -> Option<String> {
 
 pub(super) fn split_around(text: &str) -> (String, String) {
     let lower = text.to_lowercase();
-    for sep in [
-        ", provocando",
-        ", contribuendo",
-        " ha ridotto",
-        " hanno ridotto",
-        " dopo ",
-        " after ",
-    ] {
-        if let Some(pos) = lower.find(sep) {
+    for sep in &semantic_core::lexicon::lexicon().discourse.split_separators {
+        if let Some(pos) = lower.find(sep.as_str()) {
             let a = text[..pos]
                 .trim()
                 .trim_matches(|c| c == '.' || c == ',' || c == ';')

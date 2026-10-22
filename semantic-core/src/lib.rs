@@ -23,21 +23,25 @@
 
 #![deny(unsafe_code)]
 
+pub mod bullets;
 pub mod dates;
 pub mod grounding;
 pub mod identity;
+pub mod lexicon;
 pub mod manifest;
 pub mod numbers;
 pub mod phrase_impact;
 pub mod relations;
 pub mod sentences;
 
+pub use bullets::{BulletCandidate, BulletSignal, SignalKind};
 pub use dates::{temporal_facts, TemporalFact};
 pub use identity::{CanonicalIdentity, IdentityRegistry, Mention};
 pub use manifest::ChartItem;
 pub use manifest::{
-    AnalyzerVersions, Candidate, EntityFact, SceneInput, SceneManifest, ScriptRequest,
-    SemanticGroup, SemanticGroupMember, SemanticManifest, VisualProposal, SCHEMA_VERSION,
+    AnalyzerVersions, Candidate, EntityFact, MicroSummary, SceneInput, SceneManifest,
+    ScriptRequest, SemanticGroup, SemanticGroupMember, SemanticManifest, VisualProposal,
+    SCHEMA_VERSION,
 };
 pub use numbers::{parse_unambiguous_value, values_are_comparable, NumericFact};
 pub use relations::{AssertedRelation, CoMention, RelationStatus, RelationView};

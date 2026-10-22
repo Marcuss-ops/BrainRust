@@ -265,23 +265,23 @@ fn exactly_three_entities_returned() {
     );
 }
 
-// Greek salad regression — the canonical golden-fixture input.
-// Expected: feta cheese, tomatoes, olives (top 3 by visual score).
+// Golden-fixture regression, domain-free: the scorer has no dish or
+// ingredient vocabulary, so the guarantees here are structural — a multi-word
+// noun phrase outranks singletons on phrase length alone, every retained
+// entity keeps its verbatim evidence, and no candidate outside the source
+// can appear (NO EVIDENCE → NO ENTITY).
 #[test]
-fn greek_salad_returns_feta_tomatoes_olives() {
+fn multiword_phrases_outrank_singletons_and_stay_grounded() {
     let entities = top3("Greek salad contains tomatoes, feta cheese and olives.");
     let surfaces = texts(&entities);
     assert!(
         surfaces.iter().any(|s| s.to_lowercase() == "feta cheese"),
         "feta cheese missing: {surfaces:?}"
     );
-    assert!(
-        surfaces.iter().any(|s| s.to_lowercase() == "tomatoes"),
-        "tomatoes missing: {surfaces:?}"
-    );
-    assert!(
-        surfaces.iter().any(|s| s.to_lowercase() == "olives"),
-        "olives missing: {surfaces:?}"
+    assert_eq!(
+        surfaces[0].to_lowercase(),
+        "feta cheese",
+        "the multi-word phrase must win on phrase length alone: {surfaces:?}"
     );
     // All 3 must be source-grounded.
     for e in &entities {
@@ -1246,4 +1246,33 @@ fn italian_contractions_keep_the_proper_name_and_never_move_its_tag() {
         .find(|entity| entity.text == "Lombardia")
         .unwrap_or_else(|| panic!("missing Lombardia: {entities:?}"));
     assert_eq!(lombardia.r#type, "LOCATION", "{lombardia:?}");
+}
+
+#[test]
+fn articulated_prepositions_do_not_glue_onto_visual_keywords() {
+    // UDPipe can leave an articulated preposition untagged; the deterministic
+    // fallback list must still stop a fragment such as "progettazione dello"
+    // or "maglia della" from becoming a visual keyword.
+    let text = "La progettazione dello Stadio Aurora e la maglia della Juventus.";
+    let entities = extract(
+        text,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 24,
+        },
+    )
+    .expect("it extraction");
+    assert!(
+        entities.iter().any(|entity| entity.text == "progettazione"),
+        "the noun survives without its preposition: {entities:?}"
+    );
+    assert!(
+        !entities.iter().any(|entity| {
+            entity.text.ends_with(" dello")
+                || entity.text.ends_with(" della")
+                || entity.text.starts_with("dello ")
+                || entity.text.starts_with("della ")
+        }),
+        "no fragment may keep an articulated preposition: {entities:?}"
+    );
 }

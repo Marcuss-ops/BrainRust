@@ -12,6 +12,7 @@ fn semantic_bullet_candidates_are_ranked_but_never_expanded() {
         start_byte: start,
         end_byte: start + second.len(),
         text: second.to_string(),
+        score: None,
     }]);
 
     let result = run_with_scene_inputs(
@@ -34,6 +35,40 @@ fn semantic_bullet_candidates_are_ranked_but_never_expanded() {
 }
 
 #[test]
+fn shared_semantic_score_changes_the_editorial_pick() {
+    let first = "The factory closed after the order was cancelled.";
+    let second = "The factory reopened after the order was restored.";
+    let transcript = format!("{first} {second}");
+    let first_start = 0usize;
+    let second_start = first.len() + 1;
+
+    let pick = |first_score: f32, second_score: f32| {
+        let mut request = lexical_scene_request(&transcript);
+        request.options.bullet_count = 1;
+        request.semantic_bullet_spans = Some(vec![
+            SemanticBulletSpan {
+                start_byte: first_start,
+                end_byte: first.len(),
+                text: first.to_string(),
+                score: Some(first_score),
+            },
+            SemanticBulletSpan {
+                start_byte: second_start,
+                end_byte: second_start + second.len(),
+                text: second.to_string(),
+                score: Some(second_score),
+            },
+        ]);
+        run(request).unwrap().bullet_points[0].text.clone()
+    };
+
+    let first_wins = pick(1.0, 0.0);
+    let second_wins = pick(0.0, 1.0);
+    assert_eq!(first_wins, first);
+    assert_eq!(second_wins, second);
+}
+
+#[test]
 fn invalid_semantic_bullet_evidence_fails_closed() {
     let transcript = "Factory orders declined for the sixth consecutive quarter.";
     let mut request = lexical_scene_request(transcript);
@@ -41,6 +76,7 @@ fn invalid_semantic_bullet_evidence_fails_closed() {
         start_byte: 0,
         end_byte: transcript.len(),
         text: "unsupported sentence".to_string(),
+        score: None,
     }]);
     assert!(run(request).is_err());
 }

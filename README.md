@@ -36,12 +36,30 @@ textual claim is externally true, and empty or unsupported categories stay
 empty. Editorial top-N and asset availability remain planner decisions.
 
 The current V2 engine emits chronology groups only when multiple normalized
-dates occur in sentences with explicit event predicates. It also recognizes
-consecutive numbered source lines as enumerations or rankings; a declared Top
-10 carries its actual member count and completeness flag. It does not fill
-missing ranks. Process, causal, cross-scene groups, entity-linked property
-ownership/location facts, and visual search-query generation are not yet part of this engine;
-Phrase Impact and Scene Intelligence remain separate during that migration.
+dates occur in sentences with explicit event predicates. It recognizes
+consecutive numbered items (one per line or inline in a paragraph) as
+enumerations or rankings; a declared Top 10, or ten consecutive explicit
+ranks, carries its actual member count and completeness flag. It does not fill
+missing ranks. Process groups (including completion phases), explicit
+comparison groups, asserted cause-effect edges and their cross-scene variants
+are emitted with grounded per-scene evidence. Facility facts link inauguration,
+capacity, ownership and location to the scene's canonical facility, including
+sentences that refer to it anaphorically when the scene names only one
+facility. A separate conservative pass (`semantic-engine::legal`) links
+acquittal, conviction, confirmation, annulment-with-remand, finality,
+investigation status, procedural acts, sentence length, age and partner facts
+to grounded people, courts and roles. It only uses a date stated in the same
+sentence, keeps negation/uncertainty in `status`, and splits the canonical
+outcome (`normalized_value`) from the ISO ordering date
+(`normalized_date`); `semantic-engine::micro` projects asserted facts into
+fact-backed micro phrases and chronological or comparison groups without
+rewriting `not convicted` as innocence. Every retained visual entity gets a
+source-grounded search query.
+Bullet candidates and their editorial salience come from one shared
+`semantic-core::bullets` implementation; Phrase Impact combines that score
+with its embedding importance and still owns duplicate/novelty selection.
+Phrase Impact is computed inside the same worker batch; Scene Intelligence
+remains an explicitly opt-in shadow path pending its own retirement evidence.
 
 ## Local check
 

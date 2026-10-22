@@ -9,7 +9,10 @@ pub(super) struct Candidate {
     pub(super) entity_type: Option<String>,
 }
 
-pub(super) fn classify_value_type(text: &str) -> String {
+pub(super) fn classify_value_type(text: &str, gazetteer_eligible: bool, language: &str) -> String {
+    if text.is_empty() {
+        return "VISUAL_CONCEPT".to_string();
+    }
     if text.chars().any(|c| matches!(c, '$' | '£' | '€' | '¥')) || {
         let lower = text.to_lowercase();
         ["dollar", "euro", "pound", "yen"]
@@ -28,24 +31,35 @@ pub(super) fn classify_value_type(text: &str) -> String {
             .parse::<u32>()
             .ok()
             .is_some_and(|year| (1000..=2099).contains(&year));
-        let has_month = month_names().iter().any(|month| lower.contains(month));
+        let has_month = semantic_core::lexicon::lexicon()
+            .location_cues
+            .month_names
+            .iter()
+            .any(|month| lower.contains(month.as_str()));
         if year || has_month || text.contains('/') {
             return "DATE".to_string();
         }
         return "NUMBER".to_string();
     }
-    classify_type(text)
+    classify_type(text, gazetteer_eligible, language)
 }
 
-fn classify_type(text: &str) -> String {
+fn contains(list: &[String], value: &str) -> bool {
+    list.iter().any(|item| item == value)
+}
+
+/// Types a single surface from the curated micro-gazetteer (`entity_gazetteer.json`):
+/// brands, cities, works, known people and object words. This table is the
+/// seam of a real gazetteer (Wikidata/GeoNames): when that index lands, only
+/// this data source changes — never the typing mechanism below.
+fn classify_type(text: &str, gazetteer_eligible: bool, language: &str) -> String {
     let lower = text.to_lowercase();
-    if matches!(
-        lower.as_str(),
-        "ball" | "football" | "trophy" | "jersey" | "shirt" | "pallone" | "trofeo" | "maglia"
-    ) {
+    let lexicon = semantic_core::lexicon::lexicon();
+    let gazetteer = &lexicon.gazetteer;
+    if contains(&gazetteer.object_words, &lower) {
         return "OBJECT".to_string();
     }
-    if matches!(lower.as_str(), "company" | "corporation") {
+    if contains(&gazetteer.generic_visual_nouns, &lower) {
         return "VISUAL_CONCEPT".to_string();
     }
     let last_token = lower
@@ -53,128 +67,41 @@ fn classify_type(text: &str) -> String {
         .last()
         .unwrap_or("")
         .trim_matches(|ch: char| !ch.is_ascii_alphanumeric());
-    if matches!(
-        last_token,
-        "inc"
-            | "incorporated"
-            | "corp"
-            | "corporation"
-            | "ltd"
-            | "limited"
-            | "llc"
-            | "plc"
-            | "gmbh"
-    ) {
+    if contains(&gazetteer.company_suffixes, last_token) {
         return "ORGANIZATION".to_string();
     }
-    if matches!(
-        lower.as_str(),
-        "apple"
-            | "google"
-            | "microsoft"
-            | "amazon"
-            | "meta"
-            | "openai"
-            | "tesla"
-            | "spacex"
-            | "nike"
-            | "adidas"
-            | "samsung"
-            | "coca-cola"
-            | "coca cola"
-            | "netflix"
-            | "disney"
-    ) {
+    if contains(&gazetteer.brands, &lower) {
         return "BRAND".to_string();
     }
-    if matches!(
-        lower.as_str(),
-        "london"
-            | "paris"
-            | "parís"
-            | "parigi"
-            | "rome"
-            | "roma"
-            | "berlin"
-            | "berlino"
-            | "lisbon"
-            | "lisboa"
-            | "madrid"
-            | "barcelona"
-            | "munich"
-            | "münchen"
-            | "vienna"
-            | "wien"
-            | "brussels"
-            | "bruxelles"
-            | "bruselas"
-            | "geneva"
-            | "genève"
-            | "ginevra"
-            | "rio de janeiro"
-            | "são paulo"
-            | "sao paulo"
-            | "new york city"
-            | "new york"
-            | "las vegas"
-            | "atlantic city"
-            | "north carolina"
-            | "tennessee"
-            | "nashville"
-            | "sevier county"
-            | "great smoky mountains"
-    ) {
+    // The hand-curated seed is explicit and always wins, even when a tagger
+    // mislabels the city ("Cagliari" as NOUN): it is high-precision data.
+    if contains(&gazetteer.locations, &lower) {
         return "LOCATION".to_string();
     }
-    // Italian regional capitals (plus the country and its macro-areas) are
-    // curated for the same reason as the entries above: the narration names a
-    // place as the subject of the sentence, where no geographic cue precedes
-    // it ("Milano è il capoluogo della Lombardia"), so capitalization alone
-    // would otherwise degrade it to an unclassified visual concept.
-    if matches!(
-        lower.as_str(),
-        "milano"
-            | "torino"
-            | "napoli"
-            | "firenze"
-            | "venezia"
-            | "bologna"
-            | "genova"
-            | "palermo"
-            | "bari"
-            | "cagliari"
-            | "trieste"
-            | "perugia"
-            | "l'aquila"
-            | "potenza"
-    ) {
+    // The real GeoNames index is consulted only for place names: "Come"
+    // (ADV) and "Corte" (PROPN with a lowercase lemma) also exist as place
+    // aliases, but they are not places in this text. Without a POS model (no
+    // tag) the capitalization guard inside `is_place` still applies.
+    if gazetteer_eligible && lexicon.is_place(text, language) {
         return "LOCATION".to_string();
     }
-    // Deterministic V1 work/title exceptions prevent song and programme names
+    // Deterministic work/title exceptions prevent song and programme names
     // from satisfying the generic multi-token person rule.
-    if matches!(
-        lower.as_str(),
-        "jolene"
-            | "9 to 5"
-            | "i will always love you"
-            | "will always love you"
-            | "will always love"
-            | "imagination library"
-            | "dollywood foundation"
-    ) {
+    if contains(&gazetteer.works, &lower) {
         return "WORK".to_string();
     }
     // Recognize single-token people explicitly. Without contextual NER, a
     // generic capitalization rule would mistake sentence-initial nouns for
-    // people, so keep this deterministic list limited to the Brazil 1970
-    // player names used by the entity-caption pipeline.
-    if matches!(
-        lower.as_str(),
-        "pelé" | "pele" | "gérson" | "gerson" | "jairzinho"
-    ) {
+    // people, so the curated gazetteer decides instead.
+    if contains(&gazetteer.persons, &lower) {
         return "PERSON".to_string();
     }
-    if lower == "iphone" || lower.contains("smartphone") {
+    if contains(&gazetteer.product_names, &lower)
+        || gazetteer
+            .product_substrings
+            .iter()
+            .any(|product| lower.contains(product.as_str()))
+    {
         return "PRODUCT".to_string();
     }
     let title_tokens = text
@@ -187,53 +114,18 @@ fn classify_type(text: &str) -> String {
     "VISUAL_CONCEPT".to_string()
 }
 
-// Scale words in the supported languages. Like the English "million" and
-// "thousand", they make the number a scaled quantity, so the span must keep
-// them: a bare "2" or "500" would otherwise become its own entity and chart
-// with the unscaled value.
-pub(super) const LOCAL_SCALE_WORDS: &[&str] = &[
-    "miliardi",
-    "milioni",
-    "milliarden",
-    "millionen",
-    "milliards",
-    "millions",
-    "millones",
-    "miliardy",
-    "miliardów",
-    "milionów",
-    "miliony",
-    "миллиардов",
-    "миллиарда",
-    "миллионов",
-    "миллиона",
-    "milyar",
-    "milyon",
-    "miliar",
-    "triliun",
-    "juta",
-    // thousands
-    "mila",
-    "mil",
-    "mille",
-    "tausend",
-    "tysięcy",
-    "tysiące",
-    "tysiecy",
-    "тысяч",
-    "тысячи",
-    "тысяча",
-    "bin",
-    "ribu",
-];
+// Scale words, units and currencies live in the shared lexicon
+// (`scale_words.json`); this module keeps only the numeric mechanism.
 /// True when a scale word (`million`, `milioni`, `Millionen`, ...) follows
 /// `end` after optional whitespace, so the number before it is a scaled quantity.
 pub(super) fn scale_word_follows(source_text: &str, end: usize) -> bool {
     let tail = source_text[end..].trim_start().to_lowercase();
-    LOCAL_SCALE_WORDS
+    let scale = &semantic_core::lexicon::lexicon().scale_words;
+    scale
+        .words
         .iter()
-        .chain(["million", "billion", "trillion"].iter())
-        .any(|word| tail.starts_with(word) && has_word_boundary(&tail, word.len()))
+        .chain(scale.english_scale_words.iter())
+        .any(|word| tail.starts_with(word.as_str()) && has_word_boundary(&tail, word.len()))
 }
 
 /// Find source-grounded numeric spans ignored by the noun-phrase tokenizer.
@@ -295,38 +187,16 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
             suffix += 1;
         }
         let tail = source_text[suffix..].to_lowercase();
-        let local_scale = LOCAL_SCALE_WORDS
+        let local_scale = semantic_core::lexicon::lexicon()
+            .scale_words
+            .words
             .iter()
-            .find(|word| tail.starts_with(**word) && has_word_boundary(&tail, word.len()));
-        let unit = [
-            "percent",
-            "%",
-            "million dollars",
-            "billion dollars",
-            "trillion dollars",
-            "million euros",
-            "billion euros",
-            "dollars",
-            "euros",
-            "pounds",
-            "yen",
-            "million",
-            "billion",
-            "trillion",
-            "thousand",
-            "mandates",
-            "orders",
-            "searches",
-            "people",
-            "years old",
-            "years",
-            "votes",
-            "seats",
-            "cases",
-            "percent",
-        ]
-        .iter()
-        .find(|unit| tail.starts_with(**unit));
+            .find(|word| tail.starts_with(word.as_str()) && has_word_boundary(&tail, word.len()));
+        let unit = semantic_core::lexicon::lexicon()
+            .scale_words
+            .unit_words
+            .iter()
+            .find(|unit| tail.starts_with(unit.as_str()));
         let unit = unit.filter(|_| local_scale.is_none());
         if let Some(scale) = local_scale {
             end = suffix + scale.len();
@@ -341,16 +211,17 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
                 kind = "MONEY";
             } else if *unit == "percent" || *unit == "%" {
                 kind = "PERCENT";
-            } else if matches!(*unit, "million" | "billion" | "trillion") {
+            } else if matches!(unit.as_str(), "million" | "billion" | "trillion") {
                 let remainder = source_text[end..].trim_start();
                 let lower = remainder.to_lowercase();
-                if let Some(currency) =
-                    ["dollars", "euros", "pounds", "yen"]
-                        .iter()
-                        .find(|currency| {
-                            lower.starts_with(**currency)
-                                && has_word_boundary(&lower, currency.len())
-                        })
+                if let Some(currency) = semantic_core::lexicon::lexicon()
+                    .scale_words
+                    .currency_words
+                    .iter()
+                    .find(|currency| {
+                        lower.starts_with(currency.as_str())
+                            && has_word_boundary(&lower, currency.len())
+                    })
                 {
                     let whitespace = source_text[end..].len() - remainder.len();
                     end += whitespace + currency.len();
@@ -456,48 +327,26 @@ fn month_before_day(source: &str, number_start: usize) -> Option<usize> {
         .map(|(idx, ch)| idx + ch.len_utf8())
         .unwrap_or(0);
     let month = trimmed.get(start..)?.to_lowercase();
-    month_names().contains(&month.as_str()).then_some(start)
+    semantic_core::lexicon::lexicon()
+        .location_cues
+        .month_names
+        .iter()
+        .any(|name| name == &month)
+        .then_some(start)
 }
 
 fn month_after_day(source: &str, number_end: usize) -> Option<usize> {
     let tail = source[number_end..].trim_start();
     let lower = tail.to_lowercase();
-    let month = month_names()
+    let month = semantic_core::lexicon::lexicon()
+        .location_cues
+        .month_names
         .iter()
-        .find(|month| lower.starts_with(**month))?;
+        .find(|month| lower.starts_with(month.as_str()))?;
     if !has_word_boundary(&lower, month.len()) {
         return None;
     }
     Some(number_end + source[number_end..].len() - tail.len() + month.len())
-}
-
-fn month_names() -> &'static [&'static str] {
-    &[
-        "january",
-        "february",
-        "march",
-        "april",
-        "may",
-        "june",
-        "july",
-        "august",
-        "september",
-        "october",
-        "november",
-        "december",
-        "gennaio",
-        "febbraio",
-        "marzo",
-        "aprile",
-        "maggio",
-        "giugno",
-        "luglio",
-        "agosto",
-        "settembre",
-        "ottobre",
-        "novembre",
-        "dicembre",
-    ]
 }
 
 #[cfg(test)]

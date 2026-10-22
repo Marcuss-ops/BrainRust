@@ -55,69 +55,19 @@ pub struct ExplicitRelationMarker {
 /// Detect a small, multilingual set of explicit relation predicates. This
 /// function never upgrades entity co-occurrence to a relation: callers must
 /// provide two grounded identities in the same sentence before using it.
+/// The marker vocabulary lives in the shared lexicon (`relation_cues.json`).
 pub fn explicit_relation_marker(sentence: &str, language: &str) -> Option<ExplicitRelationMarker> {
     let folded = sentence.to_lowercase();
-    let markers: &[(&str, &[&str])] = &[
-        (
-            "ownership",
-            &["owned by", "owns", "possiede", "proprietà di"],
-        ),
-        ("funding", &["funds", "finanzia", "financed", "finanziert"]),
-        (
-            "collaboration",
-            &[
-                "collaborates with",
-                "collaborated with",
-                "collabora con",
-                "lavora con",
-                "partners with",
-                "partnered with",
-            ],
-        ),
-        (
-            "competition",
-            &[
-                "competes with",
-                "competed with",
-                "compete con",
-                "rivalizza con",
-            ],
-        ),
-        (
-            "contrast",
-            &[
-                "whereas",
-                "while",
-                "mentre",
-                "invece",
-                "mientras",
-                "tandis que",
-            ],
-        ),
-        (
-            "causal",
-            &[
-                "causes",
-                "caused",
-                "causa",
-                "provoca",
-                "leads to",
-                "contributes to",
-                "contribuisce a",
-            ],
-        ),
-        ("temporal", &["preceded", "precede", "prima di", "before"]),
-    ];
     let mut found = None;
-    for (predicate, variants) in markers {
-        for marker in *variants {
-            if let Some(start_byte) = folded.find(marker) {
+    for group in &crate::lexicon::lexicon().relation.relation_markers {
+        for marker in &group.markers {
+            if let Some(start_byte) = folded.find(marker.as_str()) {
                 if found
                     .as_ref()
                     .is_none_or(|current: &ExplicitRelationMarker| start_byte < current.start_byte)
                 {
                     found = Some(ExplicitRelationMarker {
-                        predicate: (*predicate).to_string(),
+                        predicate: group.predicate.clone(),
                         status: relation_status(&folded, start_byte, language),
                         start_byte,
                     });
@@ -128,38 +78,49 @@ pub fn explicit_relation_marker(sentence: &str, language: &str) -> Option<Explic
     found
 }
 
-fn relation_status(sentence: &str, marker_start: usize, language: &str) -> RelationStatus {
-    let prefix = &sentence[..marker_start];
-    let clause_start = [" e ", " and ", " y ", " et ", " und ", ";"]
+/// Byte offset where the clause containing `marker_start` begins: right
+/// after the last clause separator before it. Shared by every status reader
+/// so a negation in an earlier clause can never flip a later assertion.
+pub fn clause_start(prefix: &str) -> usize {
+    crate::lexicon::lexicon()
+        .relation
+        .clause_separators
         .iter()
         .filter_map(|separator| {
             prefix
-                .rfind(separator)
+                .rfind(separator.as_str())
                 .map(|offset| offset + separator.len())
         })
         .max()
-        .unwrap_or(0);
-    let clause = &sentence[clause_start..];
-    if clause
-        .split_whitespace()
-        .any(|word| is_negation_cue(word, language))
-    {
+        .unwrap_or(0)
+}
+
+/// Status of one clause: negation is read from the named negation
+/// vocabularies, uncertainty from the shared cue table. Negation is
+/// preserved, never flipped into the opposite claim.
+pub fn clause_status(clause: &str, negation_languages: &[&str]) -> RelationStatus {
+    let lexicon = crate::lexicon::lexicon();
+    if clause.split_whitespace().any(|word| {
+        negation_languages
+            .iter()
+            .any(|language| is_negation_cue(word, language))
+    }) {
         RelationStatus::Negated
-    } else if [
-        "forse",
-        "perhaps",
-        "allegedly",
-        "presumibilmente",
-        "maybe",
-        "possibly",
-    ]
-    .iter()
-    .any(|cue| clause.contains(cue))
+    } else if lexicon
+        .relation
+        .uncertainty_cues
+        .iter()
+        .any(|cue| clause.contains(cue.as_str()))
     {
         RelationStatus::Uncertain
     } else {
         RelationStatus::Asserted
     }
+}
+
+fn relation_status(sentence: &str, marker_start: usize, language: &str) -> RelationStatus {
+    let clause = &sentence[clause_start(&sentence[..marker_start])..];
+    clause_status(clause, &[language])
 }
 
 /// A scene's relation view, kept in two separate collections on purpose.
@@ -171,24 +132,12 @@ pub struct RelationView {
 
 /// Negation cue words per supported language, used to mark an assertion as
 /// `negated` instead of dropping it (the evidence still exists in the source).
+/// The vocabulary lives in the shared lexicon (`relation_cues.json`).
 pub fn is_negation_cue(word: &str, language: &str) -> bool {
     let word = word.trim().to_lowercase();
-    let lang = language.split(['-', '_']).next().unwrap_or("en");
-    match lang {
-        "it" => matches!(
-            word.as_str(),
-            "non" | "mai" | "senza" | "niente" | "nessuno"
-        ),
-        "en" => matches!(
-            word.as_str(),
-            "not" | "never" | "no" | "without" | "denies" | "denied"
-        ),
-        "es" => matches!(word.as_str(), "no" | "nunca" | "sin" | "nada" | "niega"),
-        "fr" => matches!(word.as_str(), "ne" | "pas" | "jamais" | "sans" | "nie"),
-        "de" => matches!(
-            word.as_str(),
-            "nicht" | "nie" | "ohne" | "kein" | "bestreitet"
-        ),
-        _ => matches!(word.as_str(), "not" | "never" | "no" | "without"),
-    }
+    crate::lexicon::lexicon()
+        .relation
+        .negation_cues_for(language)
+        .iter()
+        .any(|cue| cue == &word)
 }

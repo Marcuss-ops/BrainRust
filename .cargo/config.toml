@@ -1,0 +1,17 @@
+# Cargo configuration for the Rust workspace (semantic pipeline).
+#
+# These entries mirror the shell setup the builds used to require, so that a
+# plain `cargo build` / `cargo test` is reproducible without manual exports.
+# `[env]` values are used only when the variable is NOT already set in the
+# environment, so an explicit export (e.g. on a machine with another ICU)
+# always wins over the values below.
+
+[env]
+# rust_icu_sys reads the ICU major version at compile time to link the
+# matching libicuuc/libicui18n. Derived from `pkg-config --modversion icu-uc`
+# (70.1 -> 70 here). Bump it when the system ICU major version changes.
+RUST_ICU_MAJOR_VERSION_NUMBER = "70"
+
+# Directory holding the system ICU shared libraries (libicuuc.so.70, ...).
+# Binaries and tests need it at runtime to resolve the ICU linkage.
+LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu"

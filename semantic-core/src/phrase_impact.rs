@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 const GRAPH_K: usize = 6;
@@ -239,11 +239,15 @@ pub struct Request {
     pub semantic_bullet_spans: Option<Vec<SemanticBulletSpan>>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct SemanticBulletSpan {
     pub start_byte: usize,
     pub end_byte: usize,
     pub text: String,
+    /// Shared salience from `crate::bullets`. Absent on callers that only
+    /// ground spans (legacy standalone worker); the semantic worker fills it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score: Option<f32>,
 }
 
 fn default_language() -> String {
@@ -631,10 +635,11 @@ pub fn run_with_chapter_options(
         .iter()
         .map(|segment| segment.text.as_str())
         .collect();
-    let allowed_semantic_bullets = match &request.semantic_bullet_spans {
-        None => None,
+    let (allowed_semantic_bullets, semantic_bullet_scores) = match &request.semantic_bullet_spans {
+        None => (None, HashMap::new()),
         Some(spans) => {
             let mut allowed = std::collections::HashSet::new();
+            let mut scores: HashMap<usize, f32> = HashMap::new();
             for span in spans {
                 if span.start_byte >= span.end_byte
                     || span.end_byte > request.transcript.len()
@@ -647,13 +652,16 @@ pub fn run_with_chapter_options(
                 for (index, segment) in segments.iter().enumerate() {
                     if segment.start_byte == span.start_byte && segment.end_byte == span.end_byte {
                         allowed.insert(index);
+                        if let Some(score) = span.score {
+                            scores.insert(index, score);
+                        }
                     }
                 }
             }
-            Some(allowed)
+            (Some(allowed), scores)
         }
     };
-    let bullet_candidates: Vec<usize> = rank_indices
+    let mut bullet_candidates: Vec<usize> = rank_indices
         .iter()
         .copied()
         .filter(|&index| {
@@ -665,6 +673,20 @@ pub fn run_with_chapter_options(
                     .is_none_or(|allowed| allowed.contains(&index))
         })
         .collect();
+    // The semantic worker already ranked these candidates with the shared
+    // `bullets` salience. Combine it with the embedding importance through the
+    // same `editorial_priority` function instead of keeping two rankings.
+    if !semantic_bullet_scores.is_empty() {
+        bullet_candidates.sort_by(|&a, &b| {
+            let priority = |index: usize| {
+                crate::bullets::editorial_priority(
+                    source_order[index].importance,
+                    semantic_bullet_scores.get(&index).copied().unwrap_or(0.0),
+                )
+            };
+            priority(b).total_cmp(&priority(a)).then(a.cmp(&b))
+        });
+    }
     let bullets = select_diverse(&bullet_candidates, &source_order, &vectors, bullet_limit)
         .into_iter()
         .map(|index| BulletPoint {

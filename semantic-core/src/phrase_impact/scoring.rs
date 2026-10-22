@@ -5,93 +5,13 @@ use super::*;
 pub(super) fn content_signal(text: &str, language: &str) -> f64 {
     let text = text.to_lowercase();
     let language = language.to_lowercase();
-    let cues: &[&str] = match language.split(['-', '_']).next().unwrap_or("en") {
-        "it" => &[
-            "annunc",
-            "licenzi",
-            "bancarott",
-            "acquis",
-            "lanci",
-            "dimess",
-            "arrest",
-            "record",
-            "prima",
-            "uccis",
-            "morto",
-            "approv",
-            "accord",
-        ],
-        "es" => &[
-            "anunci",
-            "despid",
-            "bancarrota",
-            "adquis",
-            "lanz",
-            "renunci",
-            "arrest",
-            "récord",
-            "primer",
-            "muert",
-            "aprob",
-            "acuerdo",
-        ],
-        "pt" => &[
-            "anunci", "demiss", "falên", "aquis", "lanç", "renunci", "preso", "record", "primeir",
-            "mort", "aprov", "acordo",
-        ],
-        "fr" => &[
-            "annonc",
-            "licenci",
-            "faillite",
-            "acquisition",
-            "lancé",
-            "démission",
-            "arrêt",
-            "record",
-            "premièr",
-            "mort",
-            "approuv",
-            "accord",
-        ],
-        "de" => &[
-            "ankündig",
-            "entlass",
-            "insolven",
-            "übernahm",
-            "start",
-            "rücktritt",
-            "verhaft",
-            "rekord",
-            "erstmal",
-            "gestorb",
-            "genehmig",
-            "vereinbar",
-        ],
-        _ => &[
-            "announc",
-            "layoff",
-            "laid off",
-            "bankrupt",
-            "acquisition",
-            "acquired",
-            "launch",
-            "resign",
-            "arrest",
-            "charged",
-            "denied",
-            "recall",
-            "record",
-            "first",
-            "disaster",
-            "killed",
-            "died",
-            "approved",
-            "settlement",
-            "fired",
-            "warn",
-        ],
-    };
-    if cues.iter().any(|cue| text.contains(cue)) {
+    // News-event salience cues live in the shared lexicon table
+    // (`discourse_cues.json`), one entry per language with a `default`
+    // fallback — knowledge out of code, so a new language is a data change.
+    let cues = crate::lexicon::lexicon()
+        .discourse
+        .content_cues_for(&language);
+    if cues.iter().any(|cue| text.contains(cue.as_str())) {
         1.0
     } else if text
         .chars()
@@ -109,14 +29,26 @@ pub(super) fn apply_noise_penalty(text: &str, importance: f64) -> f64 {
         .split(|character: char| !character.is_alphanumeric())
         .filter(|word| !word.is_empty())
         .collect();
+    let lexicon = crate::lexicon::lexicon();
     let mut filler_count = words
         .iter()
-        .filter(|word| matches!(**word, "um" | "uh" | "erm" | "er" | "hmm" | "ah"))
+        .filter(|word| {
+            lexicon
+                .discourse
+                .filler_words
+                .iter()
+                .any(|f| f.as_str() == **word)
+        })
         .count();
-    for phrase in [(&["you", "know"][..]), (&["i", "mean"][..])] {
+    for phrase in &lexicon.discourse.filler_phrases {
         filler_count += words
             .windows(phrase.len())
-            .filter(|window| *window == phrase)
+            .filter(|window| {
+                window
+                    .iter()
+                    .zip(phrase)
+                    .all(|(word, filler)| *word == filler.as_str())
+            })
             .count();
     }
     if words.first() == Some(&"well") {

@@ -198,14 +198,17 @@ pub(super) fn scan_years(text: &str) -> Vec<i32> {
 }
 
 pub(super) fn number_word(t: &str) -> Option<i32> {
-    match t {
-        "un" | "uno" | "una" | "one" | "ein" | "eine" => Some(1),
-        "due" | "two" | "zwei" | "deux" | "dos" => Some(2),
-        "tre" | "three" | "drei" | "trois" | "tres" => Some(3),
-        "quattro" | "four" | "vier" | "quatre" | "cuatro" => Some(4),
-        "cinque" | "five" | "fünf" | "funf" | "cinq" | "cinco" => Some(5),
-        _ => t.parse::<i32>().ok().filter(|n| (1..=50).contains(n)),
+    // Number words ("tre" → 3) live in the shared lexicon; digits and any
+    // other numeric token parse directly inside the documented 1..=50 range.
+    if let Some(entry) = semantic_core::lexicon::lexicon()
+        .discourse
+        .number_words
+        .iter()
+        .find(|entry| entry.words.iter().any(|word| word == t))
+    {
+        return Some(entry.value);
     }
+    t.parse::<i32>().ok().filter(|n| (1..=50).contains(n))
 }
 
 /// Offset in years for relative expressions WITH the in-sentence byte span
@@ -213,20 +216,9 @@ pub(super) fn number_word(t: &str) -> Option<i32> {
 /// relative expression.
 pub(super) fn relative_offset_span(text: &str) -> Option<(i32, usize, usize)> {
     let toks = tokens(text);
-    const REL_PLURAL: &[&[&str]] = &[
-        &["anni", "dopo"],
-        &["years", "later"],
-        &["jahre", "später"],
-        &["jahre", "spaeter"],
-        &["ans", "plus", "tard"],
-    ];
-    const REL_SINGLE: &[&str] = &[
-        "successivo",
-        "successiva",
-        "following",
-        "suivante",
-        "siguiente",
-    ];
+    let cues = &semantic_core::lexicon::lexicon().discourse;
+    let rel_plural = &cues.relative_plural;
+    let rel_single = &cues.relative_single;
     // Token→char boundary approximation: tokens are lowercase words built
     // over the same text, so reconstruct the span by searching the surface.
     let span_of = |toks: &[String], from: usize, to: usize| -> (usize, usize) {
@@ -237,9 +229,9 @@ pub(super) fn relative_offset_span(text: &str) -> Option<(i32, usize, usize)> {
             .map(|pos| (pos, pos + joined.len()))
             .unwrap_or((0, text.len()))
     };
-    for pat in REL_PLURAL {
+    for pat in rel_plural {
         for i in 0..toks.len().saturating_sub(pat.len() - 1) {
-            if toks[i..i + pat.len()] == **pat {
+            if toks[i..i + pat.len()] == pat[..] {
                 let mut offset = None;
                 // Number word just before the pattern, else +1 year.
                 if i > 0 {
@@ -250,21 +242,22 @@ pub(super) fn relative_offset_span(text: &str) -> Option<(i32, usize, usize)> {
             }
         }
     }
-    if let Some(win) = toks.windows(2).position(|w| {
-        (w[0] == "anno" || w[0] == "year" || w[0] == "jahr" || w[0] == "an")
-            && REL_SINGLE.contains(&w[1].as_str())
-    }) {
+    if let Some(win) = toks
+        .windows(2)
+        .position(|w| cues.year_units.contains(&w[0]) && rel_single.iter().any(|s| s == &w[1]))
+    {
         let span = span_of(&toks, win, win + 2);
         return Some((1, span.0, span.1));
     }
-    if contains_phrase(&toks, &["tre", "anni", "dopo"])
-        || contains_phrase(&toks, &["three", "years", "later"])
-    {
+    for pattern in &cues.relative_fixed {
+        if !contains_phrase(&toks, pattern) {
+            continue;
+        }
         if let Some(pos) = toks
-            .windows(3)
-            .position(|w| w == ["tre", "anni", "dopo"] || w == ["three", "years", "later"])
+            .windows(pattern.len())
+            .position(|w| w.iter().zip(pattern.iter()).all(|(a, b)| a == b))
         {
-            let span = span_of(&toks, pos, pos + 3);
+            let span = span_of(&toks, pos, pos + pattern.len());
             return Some((3, span.0, span.1));
         }
         return Some((3, 0, text.len()));
@@ -272,13 +265,14 @@ pub(super) fn relative_offset_span(text: &str) -> Option<(i32, usize, usize)> {
     None
 }
 
-/// Token-window equality against a marker phrase.
-pub(super) fn window_eq(toks: &[String], pos: usize, marker: &[&str]) -> bool {
+/// Token-window equality against a marker phrase. Generic over the marker
+/// storage so the same matcher serves lexicon tables and inline literals.
+pub(super) fn window_eq<S: AsRef<str>>(toks: &[String], pos: usize, marker: &[S]) -> bool {
     pos + marker.len() <= toks.len()
         && toks[pos..pos + marker.len()]
             .iter()
             .zip(marker.iter())
-            .all(|(a, b)| a == b)
+            .all(|(a, b)| a.as_str() == b.as_ref())
 }
 
 /// Intervals with byte spans: (start, end, expression, in-sentence start,
@@ -330,7 +324,10 @@ pub(super) fn scan_intervals(text: &str) -> Vec<(i32, i32, String, usize, usize)
             let is_sep = between == "-"
                 || between == "–"
                 || between == "—"
-                || ["al", "to", "and", "e", "e il", "bis", "au", "a"].contains(&between.as_str());
+                || semantic_core::lexicon::lexicon()
+                    .discourse
+                    .interval_connectives
+                    .contains(&between);
             if is_sep && y1 >= y0 {
                 let trimmed_start = s0 + text[s0..e1].len() - text[s0..e1].trim_start().len();
                 let trimmed_end = e1 - (text[s0..e1].len() - text[s0..e1].trim_end().len());
@@ -359,14 +356,12 @@ pub(super) fn interval_years(text: &str) -> std::collections::BTreeSet<i32> {
 
 pub(super) fn relative_expression(text: &str) -> String {
     let lower = text.to_lowercase();
-    for cand in [
-        "tre anni dopo",
-        "three years later",
-        "anni dopo",
-        "years later",
-    ] {
-        if lower.contains(cand) {
-            return cand.to_string();
+    for cand in &semantic_core::lexicon::lexicon()
+        .discourse
+        .relative_expressions
+    {
+        if lower.contains(cand.as_str()) {
+            return cand.clone();
         }
     }
     "relative".to_string()

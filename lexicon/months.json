@@ -1,0 +1,1222 @@
+{
+ "schema": "months.v1",
+ "provenance": {
+  "generator": "lexicon/tools/sync_cldr_months.py",
+  "source": "system ICU (CLDR wide month names, format + standalone contexts)",
+  "icu_version": "70.1",
+  "locales": [
+   "en",
+   "it",
+   "es",
+   "fr",
+   "de",
+   "pt",
+   "pl",
+   "ru"
+  ]
+ },
+ "date_scan_exclusions": [
+  {
+   "name": "may",
+   "reason": "English modal verb 'may' is not evidence of a date; kept for whole-token entity typing only"
+  }
+ ],
+ "legacy_aliases": [
+  {
+   "name": "aout",
+   "month": 8,
+   "reason": "historical accent-stripped French spelling of 'aout'"
+  },
+  {
+   "name": "decembre",
+   "month": 12,
+   "reason": "historical accent-stripped French spelling of 'decembre'"
+  }
+ ],
+ "months": [
+  {
+   "name": "enero",
+   "month": 1,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "gennaio",
+   "month": 1,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "janeiro",
+   "month": 1,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "januar",
+   "month": 1,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "january",
+   "month": 1,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "janvier",
+   "month": 1,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "styczeń",
+   "month": 1,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "stycznia",
+   "month": 1,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "январь",
+   "month": 1,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "января",
+   "month": 1,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "febbraio",
+   "month": 2,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "febrero",
+   "month": 2,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "februar",
+   "month": 2,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "february",
+   "month": 2,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "fevereiro",
+   "month": 2,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "février",
+   "month": 2,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "lutego",
+   "month": 2,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "luty",
+   "month": 2,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "февраль",
+   "month": 2,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "февраля",
+   "month": 2,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "marca",
+   "month": 3,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "march",
+   "month": 3,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "mars",
+   "month": 3,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "marzec",
+   "month": 3,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "marzo",
+   "month": 3,
+   "locales": [
+    "es",
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "março",
+   "month": 3,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "märz",
+   "month": 3,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "март",
+   "month": 3,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "марта",
+   "month": 3,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "abril",
+   "month": 4,
+   "locales": [
+    "es",
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "april",
+   "month": 4,
+   "locales": [
+    "de",
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "aprile",
+   "month": 4,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "avril",
+   "month": 4,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "kwiecień",
+   "month": 4,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "kwietnia",
+   "month": 4,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "апрель",
+   "month": 4,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "апреля",
+   "month": 4,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "maggio",
+   "month": 5,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "mai",
+   "month": 5,
+   "locales": [
+    "de",
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "maio",
+   "month": 5,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "maj",
+   "month": 5,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "maja",
+   "month": 5,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "may",
+   "month": 5,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "mayo",
+   "month": 5,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "май",
+   "month": 5,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "мая",
+   "month": 5,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "czerwca",
+   "month": 6,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "czerwiec",
+   "month": 6,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "giugno",
+   "month": 6,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "juin",
+   "month": 6,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "june",
+   "month": 6,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "junho",
+   "month": 6,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "juni",
+   "month": 6,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "junio",
+   "month": 6,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "июнь",
+   "month": 6,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "июня",
+   "month": 6,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "juillet",
+   "month": 7,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "julho",
+   "month": 7,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "juli",
+   "month": 7,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "julio",
+   "month": 7,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "july",
+   "month": 7,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "lipca",
+   "month": 7,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "lipiec",
+   "month": 7,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "luglio",
+   "month": 7,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "июль",
+   "month": 7,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "июля",
+   "month": 7,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "agosto",
+   "month": 8,
+   "locales": [
+    "es",
+    "it",
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "aout",
+   "month": 8,
+   "locales": [],
+   "contexts": []
+  },
+  {
+   "name": "août",
+   "month": 8,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "august",
+   "month": 8,
+   "locales": [
+    "de",
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "sierpień",
+   "month": 8,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "sierpnia",
+   "month": 8,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "август",
+   "month": 8,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "августа",
+   "month": 8,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "september",
+   "month": 9,
+   "locales": [
+    "de",
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "septembre",
+   "month": 9,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "septiembre",
+   "month": 9,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "setembro",
+   "month": 9,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "settembre",
+   "month": 9,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "wrzesień",
+   "month": 9,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "września",
+   "month": 9,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "сентябрь",
+   "month": 9,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "сентября",
+   "month": 9,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "october",
+   "month": 10,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "octobre",
+   "month": 10,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "octubre",
+   "month": 10,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "oktober",
+   "month": 10,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "ottobre",
+   "month": 10,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "outubro",
+   "month": 10,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "październik",
+   "month": 10,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "października",
+   "month": 10,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "октябрь",
+   "month": 10,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "октября",
+   "month": 10,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "listopad",
+   "month": 11,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "listopada",
+   "month": 11,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "november",
+   "month": 11,
+   "locales": [
+    "de",
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "novembre",
+   "month": 11,
+   "locales": [
+    "fr",
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "novembro",
+   "month": 11,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "noviembre",
+   "month": 11,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "ноябрь",
+   "month": 11,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "ноября",
+   "month": 11,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "december",
+   "month": 12,
+   "locales": [
+    "en"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "decembre",
+   "month": 12,
+   "locales": [],
+   "contexts": []
+  },
+  {
+   "name": "dezember",
+   "month": 12,
+   "locales": [
+    "de"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "dezembro",
+   "month": 12,
+   "locales": [
+    "pt"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "dicembre",
+   "month": 12,
+   "locales": [
+    "it"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "diciembre",
+   "month": 12,
+   "locales": [
+    "es"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "décembre",
+   "month": 12,
+   "locales": [
+    "fr"
+   ],
+   "contexts": [
+    "format",
+    "standalone"
+   ]
+  },
+  {
+   "name": "grudnia",
+   "month": 12,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "format"
+   ]
+  },
+  {
+   "name": "grudzień",
+   "month": 12,
+   "locales": [
+    "pl"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "декабрь",
+   "month": 12,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "standalone"
+   ]
+  },
+  {
+   "name": "декабря",
+   "month": 12,
+   "locales": [
+    "ru"
+   ],
+   "contexts": [
+    "format"
+   ]
+  }
+ ]
+}

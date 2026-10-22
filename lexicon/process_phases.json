@@ -1,0 +1,96 @@
+{
+  "schema": "lexicon.v1",
+  "phases": [
+    {
+      "order": 1,
+      "name": "planning",
+      "markers": [
+        "progett",
+        "pianificat",
+        "planned",
+        "designed",
+        "conceived"
+      ]
+    },
+    {
+      "order": 2,
+      "name": "construction",
+      "markers": [
+        "costru",
+        "building",
+        "built",
+        "constructed"
+      ]
+    },
+    {
+      "order": 3,
+      "name": "opening",
+      "markers": [
+        "inaugur",
+        "opened",
+        "opening",
+        "complet",
+        "ultimat",
+        "finished",
+        "conclus"
+      ]
+    },
+    {
+      "order": 4,
+      "name": "expansion",
+      "markers": [
+        "ampli",
+        "expanded",
+        "expansion",
+        "renovated",
+        "ristruttur"
+      ]
+    }
+  ],
+  "event_predicate_markers": [
+    "progett",
+    "costru",
+    "inaugur",
+    "apert",
+    "ampli",
+    "ristruttur",
+    "inizi",
+    "termin",
+    "fondat",
+    "nasc",
+    "morto",
+    "vinto",
+    "pers",
+    "annull",
+    "conferm",
+    "condann",
+    "assolt",
+    "riapert",
+    "restaur",
+    "final",
+    "campionat",
+    "record",
+    "premiat",
+    "trasfer",
+    "acquist",
+    "nomina",
+    "elett",
+    "laure",
+    "matrimoni",
+    "nascit",
+    "pronunci",
+    "decret",
+    "built",
+    "opened",
+    "founded",
+    "began",
+    "started",
+    "completed",
+    "expanded",
+    "renovated",
+    "won",
+    "lost",
+    "born",
+    "died"
+  ]
+}

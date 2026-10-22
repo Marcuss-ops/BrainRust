@@ -10,6 +10,7 @@
 use crate::extractor::{extract, numeric_value_spans};
 use crate::temporal::temporal_facts;
 use crate::types::{ExtractOptions, VisualEntity};
+use semantic_core::bullets::{generate_with_sentences, BulletSignal, SignalKind};
 use semantic_core::numbers::parse_unambiguous_value;
 use semantic_core::sentences::{split_sentences, SentenceSpan};
 use serde::Serialize;
@@ -72,6 +73,9 @@ pub struct Bullet {
     pub start: usize,
     pub end: usize,
     pub entities: Vec<usize>,
+    /// Shared editorial salience from `semantic_core::bullets`. It ranks
+    /// candidates only; it is not a confidence and never admits a new span.
+    pub score: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -117,7 +121,12 @@ pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, 
             })
         })
         .collect();
-    let bullets = bullets(source_text, &sentences, &entity_sentence);
+    let bullets = bullets(
+        source_text,
+        entities.as_slice(),
+        &sentences,
+        &entity_sentence,
+    );
     // ONE numeric collection, two typed views: `numeric_facts` keeps every
     // grounded value (top-N independent) and `chart_points` is the subset with
     // an unambiguous parse. No second scanner can disagree with the first.
@@ -180,33 +189,50 @@ fn relations(
     out
 }
 
+/// Projects the shared bullet candidates (one generation and one scoring
+/// algorithm, owned by `semantic-core`) into VisualNER's wire type. The
+/// entity indices stay scene-local; the score is the shared salience.
 fn bullets(
     source_text: &str,
+    entities: &[VisualEntity],
     sentences: &[SentenceSpan],
     entity_sentence: &[Option<usize>],
 ) -> Vec<Bullet> {
-    sentences
+    let signals: Vec<BulletSignal> = entities
         .iter()
-        .enumerate()
-        .filter_map(|(index, sentence)| {
+        .map(|entity| BulletSignal {
+            start_byte: entity.start,
+            end_byte: entity.end,
+            kind: if is_measurement(&entity.r#type) {
+                SignalKind::Measurement
+            } else {
+                SignalKind::Visual
+            },
+        })
+        .collect();
+    generate_with_sentences(source_text, sentences, &signals)
+        .into_iter()
+        .map(|candidate| {
             let entities: Vec<usize> = entity_sentence
                 .iter()
                 .enumerate()
-                .filter(|(_, s)| **s == Some(index))
+                .filter(|(_, sentence)| **sentence == Some(candidate.sentence_index))
                 .map(|(entity, _)| entity)
                 .collect();
-            if entities.is_empty() {
-                return None;
-            }
-            Some(Bullet {
-                sentence_index: index,
-                text: source_text[sentence.start_byte..sentence.end_byte].to_string(),
-                start: sentence.start_byte,
-                end: sentence.end_byte,
+            Bullet {
+                sentence_index: candidate.sentence_index,
+                text: candidate.text,
+                start: candidate.start_byte,
+                end: candidate.end_byte,
                 entities,
-            })
+                score: candidate.score,
+            }
         })
         .collect()
+}
+
+fn is_measurement(entity_type: &str) -> bool {
+    matches!(entity_type, "NUMBER" | "PERCENT" | "MONEY" | "DATE")
 }
 
 /// Projects the unambiguous subset of `numeric_facts` into chart points.

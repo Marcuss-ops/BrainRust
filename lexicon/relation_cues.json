@@ -1,0 +1,50 @@
+{
+  "schema": "lexicon.v1",
+  "clause_separators": [" e ", " and ", " y ", " et ", " und ", ";", " ma ", " but "],
+  "uncertainty_cues": ["forse", "perhaps", "allegedly", "presumibilmente", "maybe", "possibly"],
+  "relation_markers": [
+    {
+      "predicate": "ownership",
+      "markers": ["owned by", "owns", "possiede", "proprietà di"]
+    },
+    {
+      "predicate": "funding",
+      "markers": ["funds", "finanzia", "financed", "finanziert"]
+    },
+    {
+      "predicate": "collaboration",
+      "markers": [
+        "collaborates with",
+        "collaborated with",
+        "collabora con",
+        "lavora con",
+        "partners with",
+        "partnered with"
+      ]
+    },
+    {
+      "predicate": "competition",
+      "markers": ["competes with", "competed with", "compete con", "rivalizza con"]
+    },
+    {
+      "predicate": "contrast",
+      "markers": ["whereas", "while", "mentre", "invece", "mientras", "tandis que"]
+    },
+    {
+      "predicate": "causal",
+      "markers": ["causes", "caused", "causa", "provoca", "leads to", "contributes to", "contribuisce a"]
+    },
+    {
+      "predicate": "temporal",
+      "markers": ["preceded", "precede", "prima di", "before"]
+    }
+  ],
+  "negation_cues": {
+    "it": ["non", "mai", "senza", "niente", "nessuno"],
+    "en": ["not", "never", "no", "without", "denies", "denied"],
+    "es": ["no", "nunca", "sin", "nada", "niega"],
+    "fr": ["ne", "pas", "jamais", "sans", "nie"],
+    "de": ["nicht", "nie", "ohne", "kein", "bestreitet"],
+    "default": ["not", "never", "no", "without"]
+  }
+}

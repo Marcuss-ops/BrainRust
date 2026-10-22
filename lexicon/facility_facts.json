@@ -1,0 +1,66 @@
+{
+  "schema": "lexicon.v1",
+  "inauguration_markers": [
+    "inaugur",
+    "opened",
+    "inaugurated"
+  ],
+  "capacity_markers": [
+    "capienza",
+    "posti",
+    "capacity",
+    "seats"
+  ],
+  "capacity_unit_markers": [
+    "posti",
+    "seats"
+  ],
+  "operators": [
+    {
+      "symbol": "<=",
+      "markers": [
+        "non superiore a",
+        "not more than",
+        "at most"
+      ]
+    },
+    {
+      "symbol": ">=",
+      "markers": [
+        "non inferiore a",
+        "not less than",
+        "at least"
+      ]
+    },
+    {
+      "symbol": ">",
+      "markers": [
+        "oltre",
+        "superiore a",
+        "more than",
+        "over"
+      ]
+    },
+    {
+      "symbol": "<",
+      "markers": [
+        "meno di",
+        "inferiore a",
+        "less than",
+        "under"
+      ]
+    }
+  ],
+  "status_uncertainty_cues": [
+    "forse",
+    "perhaps",
+    "allegedly",
+    "presumibilmente"
+  ],
+  "status_negation_substrings": [
+    "non ",
+    "not ",
+    "never ",
+    "mai "
+  ]
+}

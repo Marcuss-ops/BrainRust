@@ -24,6 +24,9 @@ pub struct AnalyzerVersions {
     pub visualner: String,
     pub semantic_core: String,
     pub phrase_impact: String,
+    /// Version of the lexical knowledge tables (`semantic_core::lexicon`),
+    /// so a vocabulary change can never serve a stale cached analysis.
+    pub lexicon: String,
 }
 
 /// One grounded candidate with the fields shared by every projection.
@@ -143,6 +146,11 @@ pub struct EntityFact {
     pub value_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub normalized_value: Option<String>,
+    /// ISO date backing a fact whose `normalized_value` is a non-date
+    /// conclusion (e.g. `acquitted`). Ordering uses this field so the
+    /// canonical outcome stays readable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalized_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_entity_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -159,6 +167,76 @@ pub struct EntityFact {
     /// Sentence span that proves the predicate-to-value association.
     pub evidence_start_byte: usize,
     pub evidence_end_byte: usize,
+    /// Deterministic rule-based weight in `[0, 1]`: dated and asserted facts
+    /// about a grounded subject rank higher. Used for ordering only; it is not
+    /// a measured relevance score.
+    pub importance: f32,
+    /// Canonical identifiers a downstream visual planner may bind to this
+    /// fact: the subject, and the target when the fact links two entities.
+    pub visual_concept_ids: Vec<String>,
+}
+
+impl EntityFact {
+    /// Fills `importance` and `visual_concept_ids` from fields the extractor
+    /// already grounded. Every producer calls this once, so the rule lives in
+    /// one place.
+    pub fn finalize(&mut self) {
+        let outcome = self.predicate == "investigation_status"
+            || matches!(
+                self.normalized_value.as_deref(),
+                Some("acquitted" | "convicted" | "annulled_with_remand" | "final")
+            );
+        let mut weight: f32 = if outcome {
+            0.9
+        } else if self.normalized_date.is_some() {
+            0.7
+        } else if self.target_entity_id.is_some() {
+            0.6
+        } else {
+            0.4
+        };
+        if self.status != "asserted" {
+            weight *= 0.6;
+        }
+        self.importance = weight;
+
+        let mut ids = vec![self.subject_entity_id.clone()];
+        if let Some(target) = &self.target_entity_id {
+            if !ids.contains(target) {
+                ids.push(target.clone());
+            }
+        }
+        self.visual_concept_ids = ids;
+    }
+}
+
+/// A short, source-grounded phrase derived from one or more atomic facts.
+///
+/// The text may change the wording but never the subject, state, date or
+/// attribution: every claim must be justified by `evidence_fact_ids`, and the
+/// span points at the sentence that carries the evidence. A summary without a
+/// fact backing is not emitted.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct MicroSummary {
+    pub id: String,
+    /// `micro_summary`, `fact_comparison`, `step_sequence` or
+    /// `timeline_summary`.
+    pub kind: String,
+    pub text: String,
+    /// Facts that justify every claim in `text` (never empty).
+    pub evidence_fact_ids: Vec<String>,
+    /// Canonical subject of the summary, when one fact owns it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject_entity_id: Option<String>,
+    /// ISO-normalized date backing the summary, used for ordering only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalized_date: Option<String>,
+    pub sentence_index: usize,
+    /// Verbatim evidence sentence.
+    pub evidence: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub score: f32,
 }
 
 /// Every fact and proposal extracted for one scene.
@@ -187,6 +265,8 @@ pub struct SceneManifest {
     pub visual_proposals: Vec<VisualProposal>,
     /// Grounded multi-item structures suitable for planner selection.
     pub semantic_groups: Vec<SemanticGroup>,
+    /// Fact-backed micro phrases and their comparison/sequence projections.
+    pub micro_summaries: Vec<MicroSummary>,
     /// Candidates dropped by the grounding check (never silently lost).
     pub rejected_items: usize,
 }

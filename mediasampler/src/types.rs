@@ -123,57 +123,9 @@ impl SampleResult {
 /// any other blend ratio.
 pub const DEFAULT_DIVERSITY_WEIGHT: f32 = 0.025;
 
-/// Curated mismatched subjects: lowercase substrings that signal a candidate
-/// is about a completely different topic. V1 defaults; requests may replace
-/// the table domain-by-domain (Go supplies the data-driven list).
-pub const DEFAULT_MISMATCHED_SUBJECTS: &[&str] = &[
-    "boxing",
-    "boxer",
-    "gym",
-    "fitness",
-    "workout",
-    "soccer",
-    "football",
-    "basketball",
-    "tennis",
-    "sport",
-    "runner",
-    "running",
-];
-
-/// Curated compatible keywords: lowercase substrings weakly compatible with
-/// any Mediterranean-food scene. V1 defaults; data-driven when supplied.
-pub const DEFAULT_COMPATIBLE_KEYWORDS: &[&str] = &[
-    "mediterranean",
-    "greek",
-    "italian",
-    "restaurant",
-    "kitchen",
-    "food",
-    "dish",
-    "meal",
-    "cooking",
-    "recipe",
-];
-
-/// Curated action verbs signalling a preparation action.
-pub const DEFAULT_ACTION_VERBS: &[&str] = &[
-    "prepar", "cooking", "making", "serving", "chopping", "cutting", "mixing",
-];
-
-/// Curated context keywords signalling a cuisine context.
-pub const DEFAULT_CONTEXT_KEYWORDS: &[&str] = &[
-    "mediterranean",
-    "greek",
-    "italian",
-    "restaurant",
-    "kitchen",
-    "table",
-];
-
 /// Sampler options. `allow_reuse` controls the cross-scene reuse check; the
-/// keyword tables are data-driven (V1 defaults below) so the sampler is not
-/// hardwired to a single content domain.
+/// keyword tables are data-driven and supplied per content domain, so the
+/// sampler is never hardwired to a single domain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SampleOptions {
     /// When false, a candidate already bound to another scene is rejected
@@ -188,8 +140,9 @@ pub struct SampleOptions {
     /// scores byte-identical.
     #[serde(default = "default_diversity_weight")]
     pub diversity_weight: f32,
-    /// Domain keyword tables (lowercase substrings). Empty V1 defaults are
-    /// replaced wholesale, never merged, so a domain list is auditable.
+    /// Domain keyword tables (lowercase substrings), supplied by the caller.
+    /// A request's lists replace the tables wholesale (never merged), so a
+    /// domain list is auditable; an empty table disables that signal.
     #[serde(default)]
     pub mismatched_subjects: Vec<String>,
     #[serde(default)]
@@ -210,24 +163,12 @@ impl Default for SampleOptions {
             allow_reuse: false,
             images_per_scene: 0,
             diversity_weight: DEFAULT_DIVERSITY_WEIGHT,
-            // Billion-dollar guard: an absent table keeps the V1 curated
-            // behaviour instead of silently disabling mismatch rejection.
-            mismatched_subjects: DEFAULT_MISMATCHED_SUBJECTS
-                .iter()
-                .map(|value| value.to_string())
-                .collect(),
-            compatible_keywords: DEFAULT_COMPATIBLE_KEYWORDS
-                .iter()
-                .map(|value| value.to_string())
-                .collect(),
-            action_verbs: DEFAULT_ACTION_VERBS
-                .iter()
-                .map(|value| value.to_string())
-                .collect(),
-            context_keywords: DEFAULT_CONTEXT_KEYWORDS
-                .iter()
-                .map(|value| value.to_string())
-                .collect(),
+            // No baked-in content domain: the caller supplies the keyword
+            // tables per domain and an absent table disables that signal.
+            mismatched_subjects: Vec::new(),
+            compatible_keywords: Vec::new(),
+            action_verbs: Vec::new(),
+            context_keywords: Vec::new(),
         }
     }
 }

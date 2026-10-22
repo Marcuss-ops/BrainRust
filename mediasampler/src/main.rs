@@ -50,9 +50,9 @@ struct SampleRequest {
     /// `[0.0, 0.1]` fail closed (the stage is bounded by its blend weight).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     diversity_weight: Option<f32>,
-    /// Data-driven keyword tables. Absent (the default) keeps the curated
-    /// V1 tables so a Go-side domain that does not send them stays on the
-    /// certified behaviour; supplied lists REPLACE the tables wholesale.
+    /// Data-driven keyword tables, supplied per content domain. Supplied
+    /// lists REPLACE the tables wholesale (never merged), so a domain list is
+    /// auditable end-to-end; absent means that signal is disabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     mismatched_subjects: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -254,6 +254,18 @@ mod tests {
         ])
     }
 
+    // The request carries the domain keyword tables: the worker has no
+    // baked-in content domain, so the Go side supplies the lists it wants
+    // (here the Mediterranean-food fixtures of the sampler tests).
+    fn domain_tables() -> serde_json::Value {
+        serde_json::json!({
+            "mismatched_subjects": ["boxing", "gym", "fitness"],
+            "compatible_keywords": ["salad", "feta", "olive", "tomato", "mediterranean", "kitchen"],
+            "action_verbs": ["prepar", "cooking"],
+            "context_keywords": ["mediterranean", "kitchen"],
+        })
+    }
+
     fn select_group_request(operation: &str, group_size: serde_json::Value) -> String {
         serde_json::json!({
             "version": "mediasampler.v1",
@@ -261,6 +273,10 @@ mod tests {
             "scene": scene(),
             "candidates": candidates(),
             "group_size": group_size,
+            "mismatched_subjects": domain_tables()["mismatched_subjects"],
+            "compatible_keywords": domain_tables()["compatible_keywords"],
+            "action_verbs": domain_tables()["action_verbs"],
+            "context_keywords": domain_tables()["context_keywords"],
         })
         .to_string()
     }

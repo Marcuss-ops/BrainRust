@@ -295,9 +295,9 @@ fn evaluate(
 /// semantically incompatible with the scene subject. A candidate is a
 /// mismatch when its label references NONE of: the scene subject, any
 /// visual term, OR any known-compatible keyword — AND references a
-/// known mismatched subject (boxing, gym, fitness, ...). The keyword tables
-/// are data-driven (see [`SampleOptions`]); the curated V1 tables are the
-/// defaults, so a different content domain can replace them wholesale.
+/// known mismatched subject. The keyword tables are data-driven (see
+/// [`SampleOptions`]) and supplied per content domain; an empty table
+/// disables that signal.
 fn is_subject_mismatch(scene: &Scene, candidate: &Candidate, options: &SampleOptions) -> bool {
     let label = candidate.label.to_lowercase();
     let subject = scene.subject.to_lowercase();
@@ -316,8 +316,7 @@ fn is_subject_mismatch(scene: &Scene, candidate: &Candidate, options: &SampleOpt
         }
     }
     // If the label references a known-compatible keyword, it is not a
-    // mismatch (e.g. "mediterranean restaurant" for a greek salad scene
-    // is a weak-but-acceptable backup, not a mismatch).
+    // mismatch (a weak-but-acceptable backup for the scene's topic).
     for kw in options.compatible_keywords.iter() {
         if !kw.is_empty() && label.contains(&kw.to_lowercase()) {
             return false;
@@ -337,9 +336,8 @@ fn is_subject_mismatch(scene: &Scene, candidate: &Candidate, options: &SampleOpt
 }
 
 /// action_relevance scores whether the candidate label references an
-/// action verb compatible with the scene (e.g. "being prepared",
-/// "cooking", "making"). Returns a small bonus in `[0.0, 0.1]`.
-/// The verb table is data-driven (V1 curated table as default).
+/// action verb compatible with the scene. Returns a small bonus in
+/// `[0.0, 0.1]`. The verb table is data-driven (caller-supplied per domain).
 fn action_relevance(candidate: &Candidate, options: &SampleOptions) -> f32 {
     let label = candidate.label.to_lowercase();
     for action in options.action_verbs.iter() {
@@ -351,9 +349,8 @@ fn action_relevance(candidate: &Candidate, options: &SampleOptions) -> f32 {
 }
 
 /// context_relevance scores whether the candidate label references a
-/// context keyword compatible with the scene (e.g. "mediterranean",
-/// "restaurant", "kitchen"). Returns a small bonus in `[0.0, 0.1]`.
-/// The table is data-driven (V1 curated table as default).
+/// context keyword compatible with the scene. Returns a small bonus in
+/// `[0.0, 0.1]`. The table is data-driven (caller-supplied per domain).
 fn context_relevance(candidate: &Candidate, options: &SampleOptions) -> f32 {
     let label = candidate.label.to_lowercase();
     for ctx in options.context_keywords.iter() {
@@ -425,6 +422,97 @@ fn semantic_score(scene: &Scene, candidate: &Candidate) -> f32 {
 mod tests {
     use super::*;
 
+    // The fixture domain for these tests is Mediterranean food. Under the
+    // data-driven contract the caller supplies the keyword tables, so the
+    // tests carry the domain lists explicitly instead of relying on any
+    // baked-in default.
+    fn food_domain_options() -> SampleOptions {
+        SampleOptions {
+            mismatched_subjects: [
+                "boxing",
+                "boxer",
+                "boxing gym",
+                "gym",
+                "fitness",
+                "workout",
+                "weightlifting",
+                "bodybuilding",
+                "crossfit",
+                "yoga",
+                "pilates",
+                "martial arts",
+                "karate",
+                "mma",
+                "basketball",
+                "football",
+                "soccer",
+                "tennis",
+                "baseball",
+                "volleyball",
+                "swimming",
+                "cycling",
+                "running",
+                "marathon",
+                "boxing match",
+                "boxing ring",
+                "boxing gloves",
+            ]
+            .iter()
+            .map(|value| value.to_string())
+            .collect(),
+            compatible_keywords: [
+                "restaurant",
+                "table",
+                "dining",
+                "kitchen",
+                "recipe",
+                "cooking",
+                "meal",
+                "food",
+                "cuisine",
+                "dish",
+                "plate",
+                "bowl",
+                "ingredients",
+                "fresh",
+                "healthy",
+                "mediterranean",
+                "greek",
+                "italian",
+                "feta",
+                "olive",
+                "olive oil",
+                "tomato",
+                "tomatoes",
+                "vegetables",
+                "salad",
+                "paella",
+                "seafood",
+            ]
+            .iter()
+            .map(|value| value.to_string())
+            .collect(),
+            action_verbs: [
+                "prepar", "cooking", "making", "serving", "chopping", "cutting", "mixing",
+            ]
+            .iter()
+            .map(|value| value.to_string())
+            .collect(),
+            context_keywords: [
+                "mediterranean",
+                "greek",
+                "italian",
+                "restaurant",
+                "kitchen",
+                "table",
+            ]
+            .iter()
+            .map(|value| value.to_string())
+            .collect(),
+            ..SampleOptions::default()
+        }
+    }
+
     fn greek_salad_scene() -> Scene {
         Scene {
             id: "mediterranean-01-greek-salad".to_string(),
@@ -479,7 +567,7 @@ mod tests {
         ];
         let mut bound = BoundAssets::new();
         let (results, winner) =
-            sample_scene(&scene, &candidates, &SampleOptions::default(), &mut bound);
+            sample_scene(&scene, &candidates, &food_domain_options(), &mut bound);
         // Boxing must be rejected.
         let boxing = results
             .iter()
@@ -514,14 +602,9 @@ mod tests {
             restaurant_candidate(),
         ];
         let mut bound = BoundAssets::new();
-        let (results, group) = sample_scene_group(
-            &scene,
-            &candidates,
-            &SampleOptions::default(),
-            &mut bound,
-            3,
-        )
-        .expect("x3 group");
+        let (results, group) =
+            sample_scene_group(&scene, &candidates, &food_domain_options(), &mut bound, 3)
+                .expect("x3 group");
         // Boxing never enters the group: 2 acceptable assets only.
         assert_eq!(group.len(), 2, "group: {group:?}");
         assert!(!group.contains(&"artlist-boxing-001".to_string()));
@@ -543,27 +626,16 @@ mod tests {
         ];
         let first = {
             let mut bound = BoundAssets::new();
-            sample_scene_group(
-                &scene,
-                &candidates,
-                &SampleOptions::default(),
-                &mut bound,
-                5,
-            )
-            .unwrap()
-            .1
+            sample_scene_group(&scene, &candidates, &food_domain_options(), &mut bound, 5)
+                .unwrap()
+                .1
         };
         for _ in 0..99 {
             let mut bound = BoundAssets::new();
-            let group = sample_scene_group(
-                &scene,
-                &candidates,
-                &SampleOptions::default(),
-                &mut bound,
-                5,
-            )
-            .unwrap()
-            .1;
+            let group =
+                sample_scene_group(&scene, &candidates, &food_domain_options(), &mut bound, 5)
+                    .unwrap()
+                    .1;
             assert_eq!(group, first);
         }
         let ids = first.clone();
@@ -583,7 +655,7 @@ mod tests {
             assert!(sample_scene_group(
                 &scene,
                 &candidates,
-                &SampleOptions::default(),
+                &food_domain_options(),
                 &mut bound,
                 bad
             )
@@ -597,14 +669,9 @@ mod tests {
         let mut bound = BoundAssets::new();
         bound.bind("artlist-greek-salad-001", "other-scene");
         let candidates = vec![greek_salad_candidate(), restaurant_candidate()];
-        let (results, group) = sample_scene_group(
-            &scene,
-            &candidates,
-            &SampleOptions::default(),
-            &mut bound,
-            5,
-        )
-        .expect("x2+ group");
+        let (results, group) =
+            sample_scene_group(&scene, &candidates, &food_domain_options(), &mut bound, 5)
+                .expect("x2+ group");
         assert!(
             !group.contains(&"artlist-greek-salad-001".to_string()),
             "already-bound asset must not reappear: {group:?}"
@@ -625,11 +692,11 @@ mod tests {
         ];
         let first = {
             let mut bound = BoundAssets::new();
-            sample_scene(&scene, &candidates, &SampleOptions::default(), &mut bound).1
+            sample_scene(&scene, &candidates, &food_domain_options(), &mut bound).1
         };
         for _ in 0..99 {
             let mut bound = BoundAssets::new();
-            let winner = sample_scene(&scene, &candidates, &SampleOptions::default(), &mut bound).1;
+            let winner = sample_scene(&scene, &candidates, &food_domain_options(), &mut bound).1;
             assert_eq!(winner, first, "non-deterministic winner");
         }
     }
@@ -670,7 +737,7 @@ mod tests {
         let (_, winner0) = sample_scene(
             &scene0,
             &[shared.clone(), paella.clone()],
-            &SampleOptions::default(),
+            &food_domain_options(),
             &mut bound,
         );
         assert_eq!(winner0.as_deref(), Some("artlist-shared-001"));
@@ -678,7 +745,7 @@ mod tests {
         let (results4, winner4) = sample_scene(
             &scene4,
             &[shared.clone(), paella.clone()],
-            &SampleOptions::default(),
+            &food_domain_options(),
             &mut bound,
         );
         let shared_result = results4
@@ -715,7 +782,7 @@ mod tests {
             &SampleOptions {
                 allow_reuse: false,
                 images_per_scene: 3,
-                ..SampleOptions::default()
+                ..food_domain_options()
             },
             &mut bound,
         );
@@ -751,7 +818,7 @@ mod tests {
             &SampleOptions {
                 allow_reuse: false,
                 images_per_scene: 3,
-                ..SampleOptions::default()
+                ..food_domain_options()
             },
             &mut bound,
         );
@@ -772,7 +839,7 @@ mod tests {
         candidate.owner_segment_id = "mediterranean-02-hummus".to_string();
         let mut bound = BoundAssets::new();
         let (results, winner) =
-            sample_scene(&scene, &[candidate], &SampleOptions::default(), &mut bound);
+            sample_scene(&scene, &[candidate], &food_domain_options(), &mut bound);
         let r = results.first().unwrap();
         assert_eq!(r.rejection, Some(RejectionReason::OwnerMismatch));
         assert!(winner.is_none());
@@ -811,7 +878,7 @@ mod tests {
             action_verbs: vec!["crossing".to_string()],
             context_keywords: vec!["alpine".to_string()],
             diversity_weight: 0.0, // V1-neutral scoring for a clear ranking
-            ..SampleOptions::default()
+            ..food_domain_options()
         };
         let mut bound = BoundAssets::new();
         let (results, winner) = sample_scene(&scene, &candidates, &options, &mut bound);
@@ -854,7 +921,7 @@ mod tests {
         let (results, winner) = sample_scene(
             &scene,
             &[with_embedding, without],
-            &SampleOptions::default(),
+            &food_domain_options(),
             &mut bound,
         );
         assert_eq!(winner.as_deref(), Some("a-embedding"));
@@ -888,12 +955,8 @@ mod tests {
             embedding_similarity: None,
         };
         let mut bound = BoundAssets::new();
-        let (results, winner) = sample_scene(
-            &scene,
-            &[boxing, weak],
-            &SampleOptions::default(),
-            &mut bound,
-        );
+        let (results, winner) =
+            sample_scene(&scene, &[boxing, weak], &food_domain_options(), &mut bound);
         let rejected = results
             .iter()
             .find(|r| r.candidate_id == "a-boxing")
@@ -925,7 +988,7 @@ mod tests {
         sample_scene(
             &bound_scene,
             &[previous],
-            &SampleOptions::default(),
+            &food_domain_options(),
             &mut bound,
         );
         assert!(
@@ -954,7 +1017,7 @@ mod tests {
         let (results_next, winner_next) = sample_scene(
             &next,
             &[overlapping, distinct],
-            &SampleOptions::default(),
+            &food_domain_options(),
             &mut bound,
         );
         assert_eq!(winner_next.as_deref(), Some("b-distinct"));
@@ -982,7 +1045,7 @@ mod tests {
         ];
         let options = SampleOptions {
             diversity_weight: 0.0,
-            ..SampleOptions::default()
+            ..food_domain_options()
         };
         let mut bound = BoundAssets::new();
         let (results, _) = sample_scene(&scene, &candidates, &options, &mut bound);
@@ -1040,7 +1103,7 @@ mod tests {
         sample_scene_group(
             &ready_to_use_scene(),
             &varied_candidates(),
-            &SampleOptions::default(),
+            &food_domain_options(),
             bound_assets,
             count,
         )
@@ -1151,14 +1214,9 @@ mod tests {
         })
         .collect();
         let mut bound = BoundAssets::new();
-        let (_, group) = sample_scene_group(
-            &scene,
-            &candidates,
-            &SampleOptions::default(),
-            &mut bound,
-            4,
-        )
-        .expect("legal count");
+        let (_, group) =
+            sample_scene_group(&scene, &candidates, &food_domain_options(), &mut bound, 4)
+                .expect("legal count");
         assert_eq!(group.len(), 2, "group: {group:?}");
         let distinct: std::collections::HashSet<&String> = group.iter().collect();
         assert_eq!(distinct.len(), 2);
@@ -1172,7 +1230,7 @@ mod tests {
             let error = sample_scene_group(
                 &scene,
                 &varied_candidates(),
-                &SampleOptions::default(),
+                &food_domain_options(),
                 &mut bound,
                 count,
             )

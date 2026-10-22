@@ -15,21 +15,22 @@
 pub mod cache;
 pub mod groups;
 pub mod identity_lookup;
+pub mod legal;
+pub mod micro;
 pub mod protocol;
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use semantic_core::grounding::check_span;
-use semantic_core::grounding::Grounding;
+use semantic_core::grounding::{check_span, retain_grounded, Grounding};
+use semantic_core::lexicon;
 use semantic_core::{
     AssertedRelation, Candidate, CoMention, EntityFact, IdentityRegistry, RelationStatus,
     RelationView, SceneManifest, SemanticGroup, SemanticGroupMember, SemanticManifest,
     VisualProposal,
 };
-use visualner::analysis::Bullet;
 use visualner::{analyze, ExtractOptions, TemporalFact, VisualEntity};
 
-use groups::VisualCandidate;
+use groups::{is_visual_entity as is_visual_subject, VisualCandidate};
 use identity_lookup::IdentityLookup;
 
 /// Wire version of the manifest produced by this engine.
@@ -50,6 +51,7 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
         visualner: "visualner".to_string(),
         semantic_core: env!("CARGO_PKG_VERSION").to_string(),
         phrase_impact: "phrase_impact".to_string(),
+        lexicon: semantic_core::lexicon::LEXICON_VERSION.to_string(),
     }
 }
 
@@ -87,6 +89,7 @@ pub fn analyze_scene(
                 important_words: Vec::new(),
                 visual_proposals: Vec::new(),
                 semantic_groups: Vec::new(),
+                micro_summaries: Vec::new(),
                 rejected_items: 0,
             };
         }
@@ -108,11 +111,39 @@ pub fn analyze_scene(
         }
     }
     collect_explicit_owner_entities(source, &mut analysis.entities, safety_cap);
+    // Courts, prosecutors and procedural roles are not typed reliably by the
+    // general tokenizer; a curated grounded span makes them usable as fact
+    // subjects without inventing any fact.
+    let remaining = safety_cap.saturating_sub(analysis.entities.len());
+    for legal_entity in legal::collect_entities(source).into_iter().take(remaining) {
+        // Upgrade only the entity that starts with the legal head
+        // ("Procura" -> "Procura di Pavia"). Any-overlap matching used to
+        // replace a nested location ("Pavia") when the gazetteer typed it,
+        // erasing a valid LOCATION from the manifest.
+        if let Some(existing) = analysis
+            .entities
+            .iter_mut()
+            .find(|entity| entity.start == legal_entity.start && entity.end <= legal_entity.end)
+        {
+            if legal_entity.end - legal_entity.start > existing.end - existing.start {
+                existing.text = legal_entity.text;
+                existing.r#type = legal_entity.r#type;
+                existing.start = legal_entity.start;
+                existing.end = legal_entity.end;
+                existing.evidence = existing.text.clone();
+                existing.score = existing.score.max(legal_entity.score);
+            } else if existing.r#type == "VISUAL_CONCEPT" {
+                existing.r#type = legal_entity.r#type;
+            }
+        } else {
+            analysis.entities.push(legal_entity);
+        }
+    }
     let (entities, rejected_entities) = retain_grounded_entities(source, analysis.entities);
     let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
 
     let identities = IdentityLookup::build(registry, &scene.scene_id, &entities);
-    let entity_facts = extract_entity_facts(
+    let mut entity_facts = extract_entity_facts(
         source,
         language,
         &entities,
@@ -120,6 +151,21 @@ pub fn analyze_scene(
         &temporal_facts,
         &identities,
     );
+    let entity_ids: Vec<String> = (0..entities.len())
+        .map(|index| identities.id_of(index))
+        .collect();
+    entity_facts.extend(legal::extract(
+        source,
+        language,
+        &entities,
+        &entity_ids,
+        &temporal_facts,
+        &analysis.numeric_facts,
+    ));
+    for fact in &mut entity_facts {
+        fact.finalize();
+    }
+    let built = micro::build(&scene.scene_id, &entity_facts, &entities, &entity_ids);
     let relations = build_relations(
         source,
         language,
@@ -128,7 +174,7 @@ pub fn analyze_scene(
         &entity_facts,
         &identities,
     );
-    let bullets = bullet_candidates(source, &analysis.bullets);
+    let bullets = bullet_candidates(source, language, &entities);
     let candidates = groups::build_candidates(
         &entities,
         &analysis.bullets,
@@ -164,6 +210,7 @@ pub fn analyze_scene(
             &relations,
         ));
         groups.extend(numbered_groups(&scene.scene_id, source, language));
+        groups.extend(built.groups.clone());
         groups
     };
 
@@ -187,6 +234,7 @@ pub fn analyze_scene(
             .map(|candidate| to_visual_proposal(candidate, source, &sentence_spans))
             .collect(),
         semantic_groups,
+        micro_summaries: built.summaries,
         rejected_items: rejected_entities + rejected_candidates,
     }
 }
@@ -299,6 +347,7 @@ fn semantic_bullet_spans(
                 start_byte: global_start,
                 end_byte: global_end,
                 text: candidate.text.clone(),
+                score: Some(candidate.score),
             });
         }
     }
@@ -319,12 +368,7 @@ pub fn request_fingerprint(
         analyzers,
     ))
     .unwrap_or_default();
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in body {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    format!("{hash:016x}")
+    fnv1a_hex(&body)
 }
 
 /// FNV-1a 64 over the canonical request and analyzer versions. Equal inputs
@@ -335,9 +379,14 @@ pub fn fingerprint(
     analyzers: &semantic_core::AnalyzerVersions,
 ) -> String {
     let body = serde_json::to_vec(&(language, scenes, analyzers)).unwrap_or_default();
+    fnv1a_hex(&body)
+}
+
+/// One FNV-1a 64 implementation for every manifest fingerprint.
+fn fnv1a_hex(body: &[u8]) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in body {
-        hash ^= u64::from(byte);
+        hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     format!("{hash:016x}")
@@ -523,28 +572,36 @@ fn entity_candidates(
         .collect()
 }
 
-fn bullet_candidates(source: &str, bullets: &[Bullet]) -> Vec<Candidate> {
-    bullets
+/// Generates the manifest's bullet candidates with the shared algorithm over
+/// the FINAL grounded entity list, so facility mentions added by this engine
+/// participate in the same scoring as tokenizer-extracted entities.
+fn bullet_candidates(source: &str, language: &str, entities: &[VisualEntity]) -> Vec<Candidate> {
+    let sentences = semantic_core::split_sentences(source, language, None);
+    let signals: Vec<semantic_core::bullets::BulletSignal> = entities
         .iter()
-        .enumerate()
-        .map(|(index, bullet)| Candidate {
-            id: format!("bullet_{:02}", index + 1),
-            text: bullet.text.clone(),
-            kind: "SENTENCE".to_string(),
-            start_byte: bullet.start,
-            end_byte: bullet.end,
-            sentence_index: bullet.sentence_index,
-            evidence: bullet.text.clone(),
-            score: 1.0,
-            provenance: "visualner".to_string(),
+        .map(|entity| semantic_core::bullets::BulletSignal {
+            start_byte: entity.start,
+            end_byte: entity.end,
+            kind: if is_visual_subject(entity) {
+                semantic_core::bullets::SignalKind::Visual
+            } else {
+                semantic_core::bullets::SignalKind::Measurement
+            },
         })
-        .filter(|candidate| {
-            check_span(
-                source,
-                candidate.start_byte,
-                candidate.end_byte,
-                &candidate.evidence,
-            ) == Grounding::Grounded
+        .collect();
+    semantic_core::bullets::generate_with_sentences(source, &sentences, &signals)
+        .into_iter()
+        .enumerate()
+        .map(|(index, candidate)| Candidate {
+            id: format!("bullet_{:02}", index + 1),
+            text: candidate.text.clone(),
+            kind: "SENTENCE".to_string(),
+            start_byte: candidate.start_byte,
+            end_byte: candidate.end_byte,
+            sentence_index: candidate.sentence_index,
+            evidence: candidate.text,
+            score: candidate.score,
+            provenance: "semantic_core_bullets".to_string(),
         })
         .collect()
 }
@@ -668,21 +725,30 @@ fn collect_facilities(source: &str, remaining: usize) -> Vec<VisualEntity> {
             let name_start = cue_start + cue.len();
             let tail = &source[name_start..];
             let mut name_end = name_start;
+            let mut cursor = 0usize;
             for token in tail.split_whitespace().take(3) {
-                let token_start = source[name_start..]
-                    .find(token)
-                    .map(|offset| name_start + offset)
-                    .unwrap_or(name_start);
-                let Some(first) = token.chars().next() else {
+                let Some(relative) = tail[cursor..].find(token) else {
+                    break;
+                };
+                let token_start = name_start + cursor + relative;
+                // "Aurora. La" is two sentences, not one facility name: a
+                // token that carries sentence punctuation closes the name.
+                let core_len = token
+                    .trim_end_matches(|ch: char| ch.is_ascii_punctuation())
+                    .len();
+                let core = &token[..core_len];
+                let Some(first) = core.chars().next() else {
                     break;
                 };
                 if !first.is_uppercase() {
                     break;
                 }
-                let token_end = token_start + token.len();
-                name_end = token_end;
-                if source[token_end..].starts_with(" di ")
-                    || source[token_end..].starts_with(" of ")
+                name_end = token_start + core_len;
+                cursor += relative + token.len();
+                if core_len != token.len() {
+                    break;
+                }
+                if source[name_end..].starts_with(" di ") || source[name_end..].starts_with(" of ")
                 {
                     break;
                 }
@@ -767,17 +833,31 @@ fn extract_entity_facts(
     identities: &IdentityLookup,
 ) -> Vec<EntityFact> {
     let sentences = semantic_core::split_sentences(source, language, None);
+    let facility_indices: Vec<usize> = entities
+        .iter()
+        .enumerate()
+        .filter(|(_, entity)| entity.r#type == "FACILITY")
+        .map(|(index, _)| index)
+        .collect();
+    if facility_indices.is_empty() {
+        return Vec::new();
+    }
+    // A scene that names a single facility can keep attributing facts to it
+    // when a later sentence uses an anaphor ("l'impianto", "la struttura")
+    // instead of repeating the name. Two distinct facilities make that
+    // attribution ambiguous, so facts are attached only to a facility named in
+    // the same sentence.
+    let facility_ids: BTreeSet<String> = facility_indices
+        .iter()
+        .map(|&index| identities.id_of(index))
+        .collect();
+    let unique_facility = (facility_ids.len() == 1).then(|| facility_indices[0]);
     let mut out = Vec::new();
-    for entity_index in 0..entities.len() {
-        let entity = &entities[entity_index];
-        if entity.r#type != "FACILITY" {
-            continue;
-        }
-        let Some((sentence_index, sentence)) =
-            sentences.iter().enumerate().find(|(_, sentence)| {
-                entity.start >= sentence.start_byte && entity.end <= sentence.end_byte
-            })
-        else {
+    for (sentence_index, sentence) in sentences.iter().enumerate() {
+        let facility_in_sentence = facility_indices.iter().copied().find(|&index| {
+            entities[index].start >= sentence.start_byte && entities[index].end <= sentence.end_byte
+        });
+        let Some(entity_index) = facility_in_sentence.or(unique_facility) else {
             continue;
         };
         let Some(evidence) = source.get(sentence.start_byte..sentence.end_byte) else {
@@ -789,7 +869,10 @@ fn extract_entity_facts(
             if fact.start_byte < sentence.start_byte || fact.end_byte > sentence.end_byte {
                 continue;
             }
-            if !contains_any(&normalized_sentence, &["inaugur", "opened", "inaugurated"]) {
+            if !contains_any(
+                &normalized_sentence,
+                &lexicon::lexicon().facility.inauguration_markers,
+            ) {
                 continue;
             }
             out.push(EntityFact {
@@ -799,6 +882,7 @@ fn extract_entity_facts(
                 value: fact.surface.clone(),
                 value_type: "DATE".to_string(),
                 normalized_value: fact.normalized.clone(),
+                normalized_date: fact.normalized.clone(),
                 target_entity_id: None,
                 unit: None,
                 operator: None,
@@ -809,6 +893,8 @@ fn extract_entity_facts(
                 end_byte: fact.end_byte,
                 evidence_start_byte: sentence.start_byte,
                 evidence_end_byte: sentence.end_byte,
+                importance: 0.0,
+                visual_concept_ids: Vec::new(),
             });
         }
         for fact in numeric_facts {
@@ -820,40 +906,32 @@ fn extract_entity_facts(
             {
                 continue;
             }
-            if !contains_any(
-                &normalized_sentence,
-                &["capienza", "posti", "capacity", "seats"],
-            ) {
+            // Overlapping numeric spans ("oltre 10.000 posti" and "10.000")
+            // describe ONE value: keep the widest grounded surface so a
+            // capacity fact is never emitted twice with different text.
+            if numeric_facts.iter().any(|other| {
+                other.start_byte >= sentence.start_byte
+                    && other.end_byte <= sentence.end_byte
+                    && other.start_byte <= fact.start_byte
+                    && other.end_byte >= fact.end_byte
+                    && (other.end_byte - other.start_byte) > (fact.end_byte - fact.start_byte)
+            }) {
                 continue;
             }
-            let unit = if contains_any(&normalized_sentence, &["posti", "seats"]) {
+            let facility = &lexicon::lexicon().facility;
+            if !contains_any(&normalized_sentence, &facility.capacity_markers) {
+                continue;
+            }
+            let unit = if contains_any(&normalized_sentence, &facility.capacity_unit_markers) {
                 Some("seats")
             } else {
                 None
             };
-            let operator = if contains_any(
-                &normalized_sentence,
-                &["non superiore a", "not more than", "at most"],
-            ) {
-                Some("<=")
-            } else if contains_any(
-                &normalized_sentence,
-                &["non inferiore a", "not less than", "at least"],
-            ) {
-                Some(">=")
-            } else if contains_any(
-                &normalized_sentence,
-                &["oltre", "superiore a", "more than", "over"],
-            ) {
-                Some(">")
-            } else if contains_any(
-                &normalized_sentence,
-                &["meno di", "inferiore a", "less than", "under"],
-            ) {
-                Some("<")
-            } else {
-                None
-            };
+            let operator = facility
+                .operators
+                .iter()
+                .find(|operator| contains_any(&normalized_sentence, &operator.markers))
+                .map(|operator| operator.symbol.as_str());
             out.push(EntityFact {
                 id: format!("{}_capacity_{:02}", subject_entity_id, out.len() + 1),
                 subject_entity_id: subject_entity_id.clone(),
@@ -861,6 +939,7 @@ fn extract_entity_facts(
                 value: fact.surface.clone(),
                 value_type: fact.kind.clone(),
                 normalized_value: fact.value.map(|value| value.to_string()),
+                normalized_date: None,
                 target_entity_id: None,
                 unit: unit.map(str::to_string),
                 operator: operator.map(str::to_string),
@@ -871,6 +950,8 @@ fn extract_entity_facts(
                 end_byte: fact.end_byte,
                 evidence_start_byte: sentence.start_byte,
                 evidence_end_byte: sentence.end_byte,
+                importance: 0.0,
+                visual_concept_ids: Vec::new(),
             });
         }
         for (marker, predicate, target_kind) in [
@@ -910,6 +991,7 @@ fn extract_entity_facts(
                 value: target.text.clone(),
                 value_type: "ENTITY".to_string(),
                 normalized_value: None,
+                normalized_date: None,
                 target_entity_id: Some(target_entity_id),
                 unit: None,
                 operator: None,
@@ -920,23 +1002,81 @@ fn extract_entity_facts(
                 end_byte: target.end,
                 evidence_start_byte: sentence.start_byte,
                 evidence_end_byte: sentence.end_byte,
+                importance: 0.0,
+                visual_concept_ids: Vec::new(),
             });
+        }
+        // "lo stadio di Torino": a bare prepositional phrase is enough when
+        // the subject is the scene's facility and the target is a grounded
+        // LOCATION mention. An explicit marker above wins over this fallback.
+        let has_location = out.iter().any(|fact| {
+            fact.subject_entity_id == subject_entity_id && fact.predicate == "located_in"
+        });
+        if !has_location {
+            let target = entities.iter().enumerate().find(|(index, candidate)| {
+                *index != entity_index
+                    && candidate.r#type == "LOCATION"
+                    && candidate.start >= sentence.start_byte
+                    && candidate.end <= sentence.end_byte
+                    && location_cue_precedes(source, sentence.start_byte, candidate.start)
+            });
+            if let Some((target_index, target)) = target {
+                out.push(EntityFact {
+                    id: format!(
+                        "{}_{}_{:02}",
+                        subject_entity_id,
+                        "located_in",
+                        out.len() + 1
+                    ),
+                    subject_entity_id: subject_entity_id.clone(),
+                    predicate: "located_in".to_string(),
+                    value: target.text.clone(),
+                    value_type: "ENTITY".to_string(),
+                    normalized_value: None,
+                    normalized_date: None,
+                    target_entity_id: Some(identities.id_of(target_index)),
+                    unit: None,
+                    operator: None,
+                    status: fact_status(&normalized_sentence),
+                    sentence_index,
+                    evidence: evidence.to_string(),
+                    start_byte: target.start,
+                    end_byte: target.end,
+                    evidence_start_byte: sentence.start_byte,
+                    evidence_end_byte: sentence.end_byte,
+                    importance: 0.0,
+                    visual_concept_ids: Vec::new(),
+                });
+            }
         }
     }
     out
 }
 
-fn contains_any(text: &str, markers: &[&str]) -> bool {
-    markers.iter().any(|marker| text.contains(marker))
+/// True when the word immediately before `target_start` is a locative
+/// preposition ("di Torino", "a Roma", "in Lombardia").
+fn location_cue_precedes(source: &str, sentence_start: usize, target_start: usize) -> bool {
+    let prefix = source
+        .get(sentence_start..target_start)
+        .unwrap_or_default()
+        .trim_end();
+    let word = prefix.split_whitespace().next_back().unwrap_or_default();
+    lexicon::lexicon()
+        .location_cues
+        .sentence_locative_prepositions
+        .contains(&word.to_lowercase())
+}
+
+/// Substring marker check shared by every fact extractor in this crate.
+pub(crate) fn contains_any<S: AsRef<str>>(text: &str, markers: &[S]) -> bool {
+    markers.iter().any(|marker| text.contains(marker.as_ref()))
 }
 
 fn fact_status(sentence: &str) -> String {
-    if contains_any(
-        sentence,
-        &["forse", "perhaps", "allegedly", "presumibilmente"],
-    ) {
+    let facility = &lexicon::lexicon().facility;
+    if contains_any(sentence, &facility.status_uncertainty_cues) {
         "uncertain".to_string()
-    } else if contains_any(sentence, &["non ", "not ", "never ", "mai "]) {
+    } else if contains_any(sentence, &facility.status_negation_substrings) {
         "negated".to_string()
     } else {
         "asserted".to_string()
@@ -945,16 +1085,7 @@ fn fact_status(sentence: &str) -> String {
 
 fn relation_fact_status(sentence: &str, marker_offset: usize) -> String {
     let prefix = &sentence[..marker_offset];
-    let clause_start = [" e ", " and ", " y ", " et ", " und ", ";"]
-        .iter()
-        .filter_map(|separator| {
-            prefix
-                .rfind(separator)
-                .map(|offset| offset + separator.len())
-        })
-        .max()
-        .unwrap_or(0);
-    fact_status(&sentence[clause_start..])
+    fact_status(&sentence[semantic_core::relations::clause_start(prefix)..])
 }
 
 /// Forms a chronology only when at least two dates are fully normalized and
@@ -1022,42 +1153,11 @@ fn chronological_groups(
 /// a visual timeline. Merely placing unrelated dates in a scene is not enough.
 fn is_event_sentence(sentence: &str) -> bool {
     let sentence = sentence.to_lowercase();
-    [
-        "progett",
-        "costru",
-        "inaugur",
-        "apert",
-        "ampli",
-        "ristruttur",
-        "inizi",
-        "termin",
-        "fondat",
-        "nasc",
-        "morto",
-        "vinto",
-        "pers",
-        "annull",
-        "conferm",
-        "condann",
-        "assolt",
-        "riapert",
-        "pronunci",
-        "decret",
-        "built",
-        "opened",
-        "founded",
-        "began",
-        "started",
-        "completed",
-        "expanded",
-        "renovated",
-        "won",
-        "lost",
-        "born",
-        "died",
-    ]
-    .iter()
-    .any(|marker| sentence.contains(marker))
+    lexicon::lexicon()
+        .process_phases
+        .event_predicate_markers
+        .iter()
+        .any(|marker| sentence.contains(marker.as_str()))
 }
 
 /// Links explicit phases only when the same grounded entity is named in each
@@ -1144,32 +1244,19 @@ fn process_groups(
         .collect()
 }
 
-fn process_phase(sentence: &str) -> Option<(usize, &'static str)> {
+fn process_phase(sentence: &str) -> Option<(usize, String)> {
     let sentence = sentence.to_lowercase();
-    let phases: &[(usize, &str, &[&str])] = &[
-        (
-            1,
-            "planning",
-            &["progett", "pianificat", "planned", "designed", "conceived"],
-        ),
-        (
-            2,
-            "construction",
-            &["costru", "building", "built", "constructed"],
-        ),
-        (3, "opening", &["inaugur", "opened", "opening"]),
-        (
-            4,
-            "expansion",
-            &["ampli", "expanded", "expansion", "renovated", "ristruttur"],
-        ),
-    ];
-    phases.iter().find_map(|(phase, name, markers)| {
-        markers
-            .iter()
-            .any(|marker| sentence.contains(marker))
-            .then_some((*phase, *name))
-    })
+    lexicon::lexicon()
+        .process_phases
+        .phases
+        .iter()
+        .find(|phase| {
+            phase
+                .markers
+                .iter()
+                .any(|marker| sentence.contains(marker.as_str()))
+        })
+        .map(|phase| (phase.order, phase.name.clone()))
 }
 
 fn comparison_groups(
@@ -1613,37 +1700,83 @@ fn add_cross_scene_process_groups(
 /// Top 10 is complete only when all ten distinct ranks are present; no items
 /// are generated to fill a gap.
 fn numbered_groups(scene_id: &str, source: &str, language: &str) -> Vec<SemanticGroup> {
-    let target_count =
+    let mut target_count =
         if source.to_lowercase().contains("top 10") || source.to_lowercase().contains("top ten") {
             Some(10usize)
         } else {
             None
         };
-    let mut candidates = Vec::<(usize, usize, usize, String)>::new();
-    let mut offset = 0usize;
-    for line in source.split_inclusive('\n') {
-        let content = line.trim_end_matches(['\n', '\r']);
-        let leading = content.len() - content.trim_start().len();
-        let trimmed = &content[leading..];
-        let digits = trimmed.bytes().take_while(u8::is_ascii_digit).count();
-        if digits > 0 && digits <= 2 {
-            let delimiter = trimmed.as_bytes().get(digits).copied();
-            if matches!(delimiter, Some(b'.' | b')'))
-                && trimmed
-                    .as_bytes()
-                    .get(digits + 1)
-                    .is_some_and(u8::is_ascii_whitespace)
-            {
-                if let Ok(rank) = trimmed[..digits].parse::<usize>() {
-                    if rank > 0 {
-                        let start = offset + leading;
-                        let end = offset + content.len();
-                        candidates.push((rank, start, end, content[leading..].to_string()));
-                    }
-                }
+    // Items may be one per line OR an inline list in a single narration
+    // paragraph ("1. ... 2. ..."). The scanner therefore walks the whole
+    // source instead of splitting on newlines only, and each item runs from
+    // its own marker to the next marker.
+    let mut markers = Vec::<(usize, usize, usize)>::new();
+    let bytes = source.as_bytes();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if !bytes[index].is_ascii_digit() {
+            index += 1;
+            continue;
+        }
+        let at_boundary = index == 0
+            || bytes[index - 1].is_ascii_whitespace()
+            || matches!(bytes[index - 1], b'>' | b'(' | b'\n');
+        if !at_boundary {
+            index += 1;
+            continue;
+        }
+        let mut digits_end = index;
+        while digits_end < bytes.len()
+            && bytes[digits_end].is_ascii_digit()
+            && digits_end - index < 2
+        {
+            digits_end += 1;
+        }
+        let delimiter = bytes.get(digits_end).copied();
+        let after = digits_end + 1;
+        let valid = digits_end > index
+            && matches!(delimiter, Some(b'.' | b')'))
+            && bytes.get(after).is_some_and(u8::is_ascii_whitespace)
+            && source
+                .get(after..)
+                .and_then(|tail| tail.trim_start().chars().next())
+                .is_some_and(|first| !first.is_whitespace());
+        if !valid {
+            index = after.max(index + 1);
+            continue;
+        }
+        if let Ok(rank) = source[index..digits_end].parse::<usize>() {
+            let text_start = source[after..]
+                .find(|ch: char| !ch.is_whitespace())
+                .map(|offset| after + offset)
+                .unwrap_or(after);
+            if rank > 0 {
+                markers.push((rank, index, text_start));
             }
         }
-        offset += line.len();
+        index = after;
+    }
+
+    let sentences = semantic_core::split_sentences(source, language, None);
+    let mut candidates = Vec::<(usize, usize, usize, String)>::new();
+    for (position, (rank, start, _)) in markers.iter().enumerate() {
+        let end = markers
+            .get(position + 1)
+            .map(|(_, next_start, _)| *next_start)
+            .unwrap_or_else(|| {
+                // The last item ends with its own sentence, so trailing
+                // narration is not swallowed into the list.
+                sentences
+                    .iter()
+                    .find(|sentence| *start >= sentence.start_byte && *start < sentence.end_byte)
+                    .map(|sentence| sentence.end_byte)
+                    .unwrap_or(bytes.len())
+            });
+        let evidence = source[*start..end].trim_end().to_string();
+        if evidence.is_empty() {
+            continue;
+        }
+        candidates.push((*rank, *start, *start + evidence.len(), evidence));
     }
     if candidates.len() < 2 {
         return Vec::new();
@@ -1656,7 +1789,12 @@ fn numbered_groups(scene_id: &str, source: &str, language: &str) -> Vec<Semantic
     if target_count.is_some_and(|target| candidates.len() > target) {
         return Vec::new();
     }
-    let sentences = semantic_core::split_sentences(source, language, None);
+    // Ten consecutive explicit ranks are a complete Top 10 even when the
+    // narration never spells out the words "Top 10". Fewer items stay an
+    // enumeration: completeness is unknown, so nothing is invented.
+    if target_count.is_none() && candidates.len() == 10 {
+        target_count = Some(10);
+    }
     let mut members = Vec::with_capacity(candidates.len());
     for (rank, start, end, evidence) in &candidates {
         if check_span(source, *start, *end, evidence) != Grounding::Grounded {
@@ -1803,53 +1941,49 @@ fn contextual_visual_query<'a>(
     source.get(start..end)
 }
 
-/// A visual subject is something that can be pictured: not a measurement.
-fn is_visual_subject(entity: &VisualEntity) -> bool {
-    !matches!(
-        entity.r#type.as_str(),
-        "NUMBER" | "PERCENT" | "MONEY" | "DATE"
-    )
-}
-
 fn retain_grounded_entities(
     source: &str,
     entities: Vec<VisualEntity>,
 ) -> (Vec<VisualEntity>, usize) {
     let total = entities.len();
-    let kept: Vec<VisualEntity> = entities
+    // One grounding gate for every projection: the shared `retain_grounded`
+    // owns the byte-span check, and entity surfaces additionally require their
+    // display text to be the verbatim evidence slice.
+    let (kept, _) = retain_grounded(
+        source,
+        entities,
+        |entity| entity.start,
+        |entity| entity.end,
+        |entity| entity.evidence.as_str(),
+    );
+    let kept: Vec<VisualEntity> = kept
         .into_iter()
-        .filter(|entity| {
-            entity.text == entity.evidence
-                && check_span(source, entity.start, entity.end, &entity.evidence)
-                    == Grounding::Grounded
-        })
+        .filter(|entity| entity.text == entity.evidence)
         .collect();
-    let dropped = total - kept.len();
+    let dropped = total.saturating_sub(kept.len());
     (kept, dropped)
 }
 
 fn retain_grounded_temporal(source: &str, facts: Vec<TemporalFact>) -> Vec<TemporalFact> {
-    facts
-        .into_iter()
-        .filter(|fact| {
-            check_span(source, fact.start_byte, fact.end_byte, &fact.evidence)
-                == Grounding::Grounded
-        })
-        .collect()
+    retain_grounded(
+        source,
+        facts,
+        |fact| fact.start_byte,
+        |fact| fact.end_byte,
+        |fact| fact.evidence.as_str(),
+    )
+    .0
 }
 
 fn retain_grounded_candidates(
     source: &str,
     candidates: Vec<VisualCandidate>,
 ) -> (Vec<VisualCandidate>, usize) {
-    let total = candidates.len();
-    let kept: Vec<VisualCandidate> = candidates
-        .into_iter()
-        .filter(|candidate| {
-            check_span(source, candidate.start, candidate.end, &candidate.evidence)
-                == Grounding::Grounded
-        })
-        .collect();
-    let dropped = total - kept.len();
-    (kept, dropped)
+    retain_grounded(
+        source,
+        candidates,
+        |candidate| candidate.start,
+        |candidate| candidate.end,
+        |candidate| candidate.evidence.as_str(),
+    )
 }

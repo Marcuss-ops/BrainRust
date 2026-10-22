@@ -14,49 +14,10 @@ pub struct EntityRelation {
     pub evidence_sentence_ids: Vec<usize>,
 }
 
-pub(super) const RELATION_MARKERS: &[(&str, &[&str])] = &[
-    (
-        "owns",
-        &["possiede", "owns", "owns,", "besitzt", "possède", "posee"],
-    ),
-    (
-        "funds",
-        &["finanzia", "funds", "finanziert", "finance", "financia"],
-    ),
-    (
-        "partners_with",
-        &[
-            "collabora",
-            "partners",
-            "partnered",
-            "arbeitet",
-            "zusammen",
-            "collabore",
-            "colabora",
-        ],
-    ),
-    (
-        "competes_with",
-        &[
-            "compete",
-            "competes",
-            "concorre",
-            "konkurriert",
-            "concurrence",
-            "compite",
-        ],
-    ),
-    (
-        "contrasts_with",
-        &[
-            "mentre", "while", "während", "wahrend", "tandis", "mientras",
-        ],
-    ),
-];
-
 /// Extract typed relations grounded in explicit markers. `entities` are the
 /// known canonical surfaces; a sentence with two entities but no marker
-/// yields no relation.
+/// yields no relation. The marker vocabulary lives in the shared lexicon
+/// (`discourse_cues.json`).
 pub fn extract_relations(sentence: &Sentence, entities: &[String]) -> Vec<EntityRelation> {
     let toks = tokens(&sentence.text);
     let entity_lc: Vec<String> = entities.iter().map(|e| e.to_lowercase()).collect();
@@ -71,8 +32,11 @@ pub fn extract_relations(sentence: &Sentence, entities: &[String]) -> Vec<Entity
         return Vec::new();
     }
     let mut out = Vec::new();
-    'markers: for (relation, markers) in RELATION_MARKERS {
-        for m in *markers {
+    'markers: for group in &semantic_core::lexicon::lexicon()
+        .discourse
+        .entity_relation_markers
+    {
+        for m in &group.markers {
             if let Some(pos) = toks.iter().position(|t| t == m) {
                 // Negated markers ("non possiede più") yield NO positive
                 // relation: negation and time are preserved by silence +
@@ -83,7 +47,7 @@ pub fn extract_relations(sentence: &Sentence, entities: &[String]) -> Vec<Entity
                 out.push(EntityRelation {
                     subject: present[0].clone(),
                     object: present[1].clone(),
-                    relation: relation.to_string(),
+                    relation: group.relation.clone(),
                     evidence_sentence_ids: vec![sentence.id],
                 });
                 break 'markers;

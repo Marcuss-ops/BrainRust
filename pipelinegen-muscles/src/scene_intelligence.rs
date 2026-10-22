@@ -124,13 +124,17 @@ fn contains_token(haystack: &[String], needle: &str) -> bool {
     haystack.iter().any(|t| t == needle)
 }
 
-fn contains_phrase(haystack: &[String], phrase: &[&str]) -> bool {
+/// Consecutive-token phrase match. Generic over the marker storage so the
+/// same matcher serves lexicon tables (`Vec<String>`) and inline literals.
+fn contains_phrase<S: AsRef<str>>(haystack: &[String], phrase: &[S]) -> bool {
     if phrase.is_empty() || phrase.len() > haystack.len() {
         return false;
     }
-    haystack
-        .windows(phrase.len())
-        .any(|w| w.iter().zip(phrase.iter()).all(|(a, b)| a == b))
+    haystack.windows(phrase.len()).any(|w| {
+        w.iter()
+            .zip(phrase.iter())
+            .all(|(a, b)| a.as_str() == b.as_ref())
+    })
 }
 
 // ── 1. Information density ────────────────────────────────────────

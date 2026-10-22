@@ -1,0 +1,619 @@
+{
+  "schema": "lexicon.v1",
+  "content_cues": {
+    "it": [
+      "annunc",
+      "licenzi",
+      "bancarott",
+      "acquis",
+      "lanci",
+      "dimess",
+      "arrest",
+      "record",
+      "prima",
+      "uccis",
+      "morto",
+      "approv",
+      "accord"
+    ],
+    "es": [
+      "anunci",
+      "despid",
+      "bancarrota",
+      "adquis",
+      "lanz",
+      "renunci",
+      "arrest",
+      "récord",
+      "primer",
+      "muert",
+      "aprob",
+      "acuerdo"
+    ],
+    "pt": [
+      "anunci",
+      "demiss",
+      "falên",
+      "aquis",
+      "lanç",
+      "renunci",
+      "preso",
+      "record",
+      "primeir",
+      "mort",
+      "aprov",
+      "acordo"
+    ],
+    "fr": [
+      "annonc",
+      "licenci",
+      "faillite",
+      "acquisition",
+      "lancé",
+      "démission",
+      "arrêt",
+      "record",
+      "premièr",
+      "mort",
+      "approuv",
+      "accord"
+    ],
+    "de": [
+      "ankündig",
+      "entlass",
+      "insolven",
+      "übernahm",
+      "start",
+      "rücktritt",
+      "verhaft",
+      "rekord",
+      "erstmal",
+      "gestorb",
+      "genehmig",
+      "vereinbar"
+    ],
+    "default": [
+      "announc",
+      "layoff",
+      "laid off",
+      "bankrupt",
+      "acquisition",
+      "acquired",
+      "launch",
+      "resign",
+      "arrest",
+      "charged",
+      "denied",
+      "recall",
+      "record",
+      "first",
+      "disaster",
+      "killed",
+      "died",
+      "approved",
+      "settlement",
+      "fired",
+      "warn"
+    ]
+  },
+  "filler_words": [
+    "um",
+    "uh",
+    "erm",
+    "er",
+    "hmm",
+    "ah"
+  ],
+  "filler_phrases": [
+    [
+      "you",
+      "know"
+    ],
+    [
+      "i",
+      "mean"
+    ]
+  ],
+  "causal_after": [
+    [
+      "a",
+      "causa",
+      "di"
+    ],
+    [
+      "a",
+      "causa"
+    ],
+    [
+      "perché"
+    ],
+    [
+      "perche"
+    ],
+    [
+      "because"
+    ],
+    [
+      "caused",
+      "by"
+    ],
+    [
+      "è",
+      "stata",
+      "causata"
+    ],
+    [
+      "è",
+      "stato",
+      "causato"
+    ],
+    [
+      "was",
+      "caused"
+    ],
+    [
+      "verursacht"
+    ],
+    [
+      "provoqué"
+    ]
+  ],
+  "causal_before": [
+    [
+      "ha",
+      "causato"
+    ],
+    [
+      "hanno",
+      "causato"
+    ],
+    [
+      "provocando"
+    ],
+    [
+      "ha",
+      "provocato"
+    ],
+    [
+      "hanno",
+      "provocato"
+    ],
+    [
+      "avrebbe",
+      "provocato"
+    ],
+    [
+      "avrebbero",
+      "provocato"
+    ],
+    [
+      "caused"
+    ],
+    [
+      "has",
+      "caused"
+    ],
+    [
+      "have",
+      "caused"
+    ],
+    [
+      "had",
+      "caused"
+    ],
+    [
+      "would",
+      "have",
+      "caused"
+    ],
+    [
+      "hanno",
+      "ridotto"
+    ]
+  ],
+  "hypothetical": [
+    "avrebbe",
+    "avrebbero",
+    "would",
+    "could",
+    "might",
+    "potrebbe",
+    "potrebbero",
+    "würde",
+    "würden",
+    "pourrait"
+  ],
+  "attribution": [
+    "secondo",
+    "according",
+    "selon",
+    "laut",
+    "según",
+    "segun"
+  ],
+  "contribute": [
+    [
+      "contribuì",
+      "a"
+    ],
+    [
+      "contribui",
+      "a"
+    ],
+    [
+      "contribuisce",
+      "a"
+    ],
+    [
+      "ha",
+      "contribuito"
+    ],
+    [
+      "hanno",
+      "contribuito"
+    ],
+    [
+      "contribuito",
+      "a"
+    ],
+    [
+      "contribuito"
+    ],
+    [
+      "contributed",
+      "to"
+    ],
+    [
+      "contributes",
+      "to"
+    ],
+    [
+      "contributing",
+      "to"
+    ],
+    [
+      "contribuendo",
+      "a"
+    ]
+  ],
+  "sequence": [
+    "dopo",
+    "after",
+    "nach",
+    "après",
+    "apres",
+    "después",
+    "despues"
+  ],
+  "comparison_signals": [
+    [
+      "vs"
+    ],
+    [
+      "versus"
+    ],
+    [
+      "compared",
+      "to"
+    ],
+    [
+      "compared",
+      "with"
+    ],
+    [
+      "in",
+      "contrast"
+    ],
+    [
+      "rispetto",
+      "a"
+    ],
+    [
+      "mentre"
+    ],
+    [
+      "contro"
+    ],
+    [
+      "confronto"
+    ],
+    [
+      "im",
+      "vergleich"
+    ],
+    [
+      "gegenüber"
+    ],
+    [
+      "gegenueber"
+    ],
+    [
+      "par",
+      "rapport"
+    ]
+  ],
+  "comparative_adj": [
+    "superiore",
+    "inferiore",
+    "maggiore",
+    "minore",
+    "migliore",
+    "peggiore",
+    "superior",
+    "inferior",
+    "greater",
+    "lesser",
+    "higher",
+    "lower",
+    "better",
+    "worse",
+    "höher",
+    "niedriger",
+    "meilleur",
+    "pire",
+    "superieur",
+    "inférieur"
+  ],
+  "negation_tokens": [
+    "non",
+    "no",
+    "not",
+    "nope",
+    "mai",
+    "nunca",
+    "nicht",
+    "kein",
+    "keine",
+    "ne",
+    "pas",
+    "jamais",
+    "não",
+    "nao",
+    "niet"
+  ],
+  "contrast_verbs": [
+    "cresce",
+    "rallenta",
+    "grows",
+    "slows",
+    "growing",
+    "slowing",
+    "steigt",
+    "sinkt",
+    "augmente",
+    "ralentit",
+    "aumenta",
+    "disminuye",
+    "crescono",
+    "rallentano",
+    "rose",
+    "fell",
+    "sale",
+    "scende"
+  ],
+  "entity_relation_markers": [
+    {
+      "relation": "owns",
+      "markers": [
+        "possiede",
+        "owns",
+        "owns,",
+        "besitzt",
+        "possède",
+        "posee"
+      ]
+    },
+    {
+      "relation": "funds",
+      "markers": [
+        "finanzia",
+        "funds",
+        "finanziert",
+        "finance",
+        "financia"
+      ]
+    },
+    {
+      "relation": "partners_with",
+      "markers": [
+        "collabora",
+        "partners",
+        "partnered",
+        "arbeitet",
+        "zusammen",
+        "collabore",
+        "colabora"
+      ]
+    },
+    {
+      "relation": "competes_with",
+      "markers": [
+        "compete",
+        "competes",
+        "concorre",
+        "konkurriert",
+        "concurrence",
+        "compite"
+      ]
+    },
+    {
+      "relation": "contrasts_with",
+      "markers": [
+        "mentre",
+        "while",
+        "während",
+        "wahrend",
+        "tandis",
+        "mientras"
+      ]
+    }
+  ],
+  "dimensions": [
+    {
+      "name": "investment",
+      "markers": [
+        "investment",
+        "investimenti",
+        "investimento",
+        "investition",
+        "investissement"
+      ]
+    },
+    {
+      "name": "cost",
+      "markers": [
+        "cost",
+        "costi",
+        "costo",
+        "kosten",
+        "coût",
+        "cout"
+      ]
+    },
+    {
+      "name": "growth",
+      "markers": [
+        "growth",
+        "crescita",
+        "wachstum",
+        "croissance",
+        "crecimiento"
+      ]
+    },
+    {
+      "name": "strategy",
+      "markers": [
+        "strategy",
+        "strategia",
+        "strategie",
+        "stratégie"
+      ]
+    }
+  ],
+  "split_separators": [
+    ", provocando",
+    ", contribuendo",
+    " ha ridotto",
+    " hanno ridotto",
+    " dopo ",
+    " after "
+  ],
+  "relative_plural": [
+    [
+      "anni",
+      "dopo"
+    ],
+    [
+      "years",
+      "later"
+    ],
+    [
+      "jahre",
+      "später"
+    ],
+    [
+      "jahre",
+      "spaeter"
+    ],
+    [
+      "ans",
+      "plus",
+      "tard"
+    ]
+  ],
+  "relative_single": [
+    "successivo",
+    "successiva",
+    "following",
+    "suivante",
+    "siguiente"
+  ],
+  "relative_fixed": [
+    [
+      "tre",
+      "anni",
+      "dopo"
+    ],
+    [
+      "three",
+      "years",
+      "later"
+    ]
+  ],
+  "year_units": [
+    "anno",
+    "year",
+    "jahr",
+    "an"
+  ],
+  "interval_connectives": [
+    "al",
+    "to",
+    "and",
+    "e",
+    "e il",
+    "bis",
+    "au",
+    "a"
+  ],
+  "number_words": [
+    {
+      "value": 1,
+      "words": [
+        "un",
+        "uno",
+        "una",
+        "one",
+        "ein",
+        "eine"
+      ]
+    },
+    {
+      "value": 2,
+      "words": [
+        "due",
+        "two",
+        "zwei",
+        "deux",
+        "dos"
+      ]
+    },
+    {
+      "value": 3,
+      "words": [
+        "tre",
+        "three",
+        "drei",
+        "trois",
+        "tres"
+      ]
+    },
+    {
+      "value": 4,
+      "words": [
+        "quattro",
+        "four",
+        "vier",
+        "quatre",
+        "cuatro"
+      ]
+    },
+    {
+      "value": 5,
+      "words": [
+        "cinque",
+        "five",
+        "fünf",
+        "funf",
+        "cinq",
+        "cinco"
+      ]
+    }
+  ],
+  "relative_expressions": [
+    "tre anni dopo",
+    "three years later",
+    "anni dopo",
+    "years later"
+  ]
+}

@@ -1,4 +1,9 @@
 //! Internal split of scene_intelligence (pure move, no behavior change).
+//!
+//! Every marker vocabulary of this module (comparison signals, comparative
+//! adjectives, negation tokens, contrast verbs, dimension keys) lives in the
+//! shared lexicon (`discourse_cues.json`), so the mechanism below carries no
+//! linguistic knowledge.
 
 use super::*;
 
@@ -22,84 +27,20 @@ pub struct Comparison {
     pub negated: bool,
 }
 
-pub(super) const COMPARISON_SIGNALS: &[&[&str]] = &[
-    &["vs"],
-    &["versus"],
-    &["compared", "to"],
-    &["compared", "with"],
-    &["in", "contrast"],
-    &["rispetto", "a"],
-    &["mentre"],
-    &["contro"],
-    &["confronto"],
-    &["im", "vergleich"],
-    &["gegenüber"],
-    &["gegenueber"],
-    &["par", "rapport"],
-];
-
-/// Comparative adjectives that mark an implicit comparison when two
-/// subjects are present (no per-topic rules, closed multilingual list).
-pub(super) const COMPARATIVE_ADJ: &[&str] = &[
-    "superiore",
-    "inferiore",
-    "maggiore",
-    "minore",
-    "migliore",
-    "peggiore",
-    "superior",
-    "inferior",
-    "greater",
-    "lesser",
-    "higher",
-    "lower",
-    "better",
-    "worse",
-    "höher",
-    "niedriger",
-    "meilleur",
-    "pire",
-    "superieur",
-    "inférieur",
-];
-
-/// Negation tokens (sentence-scope heuristic: a negated marker yields NO
-/// positive signal — fail-soft toward silence, never toward an inverted
-/// claim).
-pub(super) const NEGATION_TOKENS: &[&str] = &[
-    "non", "no", "not", "nope", "mai", "nunca", "nicht", "kein", "keine", "ne", "pas", "jamais",
-    "não", "nao", "niet",
-];
-
 /// True when a negation token scopes over a marker at `marker_pos` (within
 /// the preceding 4 tokens or anywhere before a sentence-initial marker).
+/// Sentence-scope heuristic: a negated marker yields NO positive signal —
+/// fail-soft toward silence, never toward an inverted claim.
 pub(super) fn is_negated(toks: &[String], marker_pos: usize) -> bool {
     let from = marker_pos.saturating_sub(4);
-    toks[from..marker_pos.min(toks.len())]
-        .iter()
-        .any(|t| NEGATION_TOKENS.contains(&t.as_str()))
+    toks[from..marker_pos.min(toks.len())].iter().any(|t| {
+        semantic_core::lexicon::lexicon()
+            .discourse
+            .negation_tokens
+            .iter()
+            .any(|n| n == t)
+    })
 }
-
-pub(super) const CONTRAST_VERBS: &[&str] = &[
-    "cresce",
-    "rallenta",
-    "grows",
-    "slows",
-    "growing",
-    "slowing",
-    "steigt",
-    "sinkt",
-    "augmente",
-    "ralentit",
-    "aumenta",
-    "disminuye",
-    "crescono",
-    "rallentano",
-    "rose",
-    "fell",
-    "sale",
-    "scende",
-];
 
 /// Detect explicit or implicit comparisons without any per-topic rules.
 /// `entities` are the known entity surfaces for subject grounding.
@@ -112,14 +53,21 @@ pub fn detect_comparison(
     sentences: &[&Sentence],
     entities: &[String],
 ) -> Option<Comparison> {
+    let cues = &semantic_core::lexicon::lexicon().discourse;
     let entity_lc: Vec<String> = entities.iter().map(|e| e.to_lowercase()).collect();
     for s in sentences {
         let toks = tokens(&s.text);
-        let explicit = COMPARISON_SIGNALS.iter().any(|p| contains_phrase(&toks, p));
-        let verb_contrast = CONTRAST_VERBS.iter().any(|v| contains_token(&toks, v));
+        let explicit = cues
+            .comparison_signals
+            .iter()
+            .any(|p| contains_phrase(&toks, p));
+        let verb_contrast = cues
+            .contrast_verbs
+            .iter()
+            .any(|v| contains_token(&toks, v.as_str()));
         let adj_pos = toks
             .iter()
-            .position(|t| COMPARATIVE_ADJ.contains(&t.as_str()));
+            .position(|t| cues.comparative_adj.iter().any(|adj| adj == t));
         let has_signal = explicit
             || (verb_contrast && capitalized_terms(&s.text).len() >= 2)
             || adj_pos.is_some();
@@ -241,40 +189,16 @@ pub(super) fn ground_subjects(sentence: &str, entities: &[String]) -> Vec<String
     out
 }
 
+/// Comparison dimension from the shared cue table ("investment", "cost",
+/// "growth", "strategy"); `general` when no key matches.
 pub(super) fn guess_dimension(toks: &[String]) -> String {
-    let dims = [
-        (
-            "investment",
-            &[
-                "investment",
-                "investimenti",
-                "investimento",
-                "investition",
-                "investissement",
-            ][..],
-        ),
-        (
-            "cost",
-            &["cost", "costi", "costo", "kosten", "coût", "cout"][..],
-        ),
-        (
-            "growth",
-            &[
-                "growth",
-                "crescita",
-                "wachstum",
-                "croissance",
-                "crecimiento",
-            ][..],
-        ),
-        (
-            "strategy",
-            &["strategy", "strategia", "strategie", "stratégie"][..],
-        ),
-    ];
-    for (name, keys) in dims {
-        if keys.iter().any(|k| contains_token(toks, k)) {
-            return format!("{}_strategy", name);
+    for dimension in &semantic_core::lexicon::lexicon().discourse.dimensions {
+        if dimension
+            .markers
+            .iter()
+            .any(|k| contains_token(toks, k.as_str()))
+        {
+            return format!("{}_strategy", dimension.name);
         }
     }
     "general".to_string()

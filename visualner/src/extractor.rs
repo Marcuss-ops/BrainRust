@@ -37,10 +37,7 @@ use crate::types::{ExtractOptions, VisualEntity};
 mod ranking;
 mod values;
 
-use ranking::{
-    entity_identity_key, is_generic_phrase, is_subject_phrase, is_visual_object_hint,
-    named_entity_rank, score_entity,
-};
+use ranking::{entity_identity_key, named_entity_rank, score_entity};
 use values::{classify_value_type, value_candidates, Candidate};
 
 /// Byte span of one numeric-value candidate (NUMBER/PERCENT/MONEY),
@@ -129,7 +126,7 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
                 .all(|c| c.is_ascii_digit() || matches!(c, '.' | ','));
             !(bare && values::scale_word_follows(source_text, candidate.end))
         })
-        .filter_map(|c| validate_evidence(c, source_text))
+        .filter_map(|c| validate_evidence(c, source_text, &tokens, language))
         .map(score_entity)
         .collect();
     // Rank: highest score first; ties broken by earliest start offset so
@@ -182,203 +179,10 @@ fn object_lexicon_candidates(
     source_text: &str,
     language: &str,
 ) -> Vec<Candidate> {
-    let terms: &[&str] = match language.split(['-', '_']).next().unwrap_or("") {
-        "en" => &[
-            "ball",
-            "football",
-            "trophy",
-            "jersey",
-            "shirt",
-            "medal",
-            "cup",
-            "helmet",
-            "racket",
-            "bat",
-            "puck",
-            "net",
-            "boots",
-            "cleats",
-            "flag",
-            "microphone",
-            "camera",
-            "map",
-            "book",
-            "phone",
-            "car",
-            "train",
-            "airplane",
-            "document",
-        ],
-        "it" => &[
-            "pallone",
-            "palla",
-            "trofeo",
-            "coppa",
-            "maglia",
-            "medaglia",
-            "casco",
-            "racchetta",
-            "mazza",
-            "rete",
-            "bandiera",
-            "microfono",
-            "fotocamera",
-            "mappa",
-            "libro",
-            "telefono",
-            "auto",
-            "treno",
-            "aereo",
-            "documento",
-        ],
-        "es" => &[
-            "balón",
-            "pelota",
-            "trofeo",
-            "camiseta",
-            "camisa",
-            "medalla",
-            "copa",
-            "casco",
-            "raqueta",
-            "bate",
-            "disco",
-            "red",
-            "botas",
-            "bandera",
-            "micrófono",
-            "cámara",
-            "mapa",
-            "libro",
-            "teléfono",
-            "coche",
-            "tren",
-            "avión",
-            "documento",
-        ],
-        "fr" => &[
-            "ballon",
-            "football",
-            "trophée",
-            "maillot",
-            "chemise",
-            "médaille",
-            "coupe",
-            "casque",
-            "raquette",
-            "batte",
-            "palet",
-            "filet",
-            "bottes",
-            "drapeau",
-            "microphone",
-            "appareil photo",
-            "carte",
-            "livre",
-            "téléphone",
-            "voiture",
-            "train",
-            "avion",
-            "document",
-        ],
-        "de" => &[
-            "ball",
-            "fußball",
-            "pokal",
-            "trikot",
-            "hemd",
-            "medaille",
-            "helm",
-            "schläger",
-            "puck",
-            "netz",
-            "stiefel",
-            "flagge",
-            "mikrofon",
-            "kamera",
-            "karte",
-            "buch",
-            "telefon",
-            "auto",
-            "zug",
-            "flugzeug",
-            "dokument",
-        ],
-        "pt" => &[
-            "bola",
-            "troféu",
-            "camiseta",
-            "camisa",
-            "medalha",
-            "taça",
-            "capacete",
-            "raquete",
-            "bastão",
-            "disco",
-            "rede",
-            "botas",
-            "bandeira",
-            "microfone",
-            "câmera",
-            "mapa",
-            "livro",
-            "telefone",
-            "carro",
-            "trem",
-            "avião",
-            "documento",
-        ],
-        "pl" => &[
-            "piłka",
-            "trofeum",
-            "koszulka",
-            "medal",
-            "kask",
-            "rakieta",
-            "kij",
-            "siatka",
-            "flaga",
-            "mikrofon",
-            "kamera",
-            "mapa",
-            "książka",
-            "telefon",
-            "samochód",
-            "pociąg",
-            "samolot",
-            "dokument",
-        ],
-        "ru" => &[
-            "мяч",
-            "трофей",
-            "футболка",
-            "медаль",
-            "шлем",
-            "ракетка",
-            "клюшка",
-            "сетка",
-            "флаг",
-            "микрофон",
-            "камера",
-            "карта",
-            "книга",
-            "телефон",
-            "машина",
-            "поезд",
-            "самолет",
-            "документ",
-        ],
-        "tr" => &[
-            "top", "kupa", "forma", "madalya", "kask", "raket", "sopa", "file", "bayrak",
-            "mikrofon", "kamera", "harita", "kitap", "telefon", "araba", "tren", "uçak", "belge",
-        ],
-        "id" => &[
-            "bola", "piala", "seragam", "medali", "helm", "raket", "tongkat", "jaring", "bendera",
-            "mikrofon", "kamera", "peta", "buku", "telepon", "mobil", "kereta", "pesawat",
-            "dokumen",
-        ],
-        _ => return Vec::new(),
-    };
+    let terms = semantic_core::lexicon::lexicon().object_terms(language);
+    if terms.is_empty() {
+        return Vec::new();
+    }
     let mut candidates = Vec::new();
     for start_index in 0..tokens.len() {
         let mut normalized = String::new();
@@ -392,7 +196,7 @@ fn object_lexicon_candidates(
                 normalized.push(' ');
             }
             normalized.push_str(&tokens[end_index].text.to_lowercase());
-            if !terms.contains(&normalized.as_str()) {
+            if !terms.iter().any(|term| term == &normalized) {
                 continue;
             }
             let start = tokens[start_index].start;
@@ -462,6 +266,8 @@ struct Token {
     end: usize,
     /// Universal POS tag from UDPipe, when a model for the language is installed.
     upos: Option<String>,
+    /// Dictionary form from the same UDPipe model, when it is installed.
+    lemma: Option<String>,
 }
 
 /// tokenize segments `source_text` into words with ICU's word-break rules for
@@ -530,6 +336,7 @@ fn tokenize(source_text: &str, language: &str) -> Result<Vec<Token>, String> {
             start,
             end: token_end,
             upos: None,
+            lemma: None,
         });
     }
     let mut tokens = split_elided_clitics(source_text, tokens);
@@ -591,8 +398,8 @@ fn elided_clitic_split(source_text: &str, token: &Token) -> Option<(usize, usize
 /// surface is not a stopword, AND that are separated only by whitespace
 /// (a comma, period, semicolon or other punctuation between two tokens is a
 /// hard phrase boundary). Multi-word phrases ("feta cheese",
-/// "olive oil") score higher than singletons, which is what makes the
-/// Mediterranean golden fixture's anchors win over generic singletons.
+/// "olive oil") score higher than singletons, which is what makes concrete
+/// multi-word objects win over generic singletons.
 fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -> Vec<Candidate> {
     let bytes = source_text.as_bytes();
     let mut out = Vec::new();
@@ -633,18 +440,6 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
                 }
                 j += 1;
             }
-            // Keep the curated multi-word visual subjects intact even when
-            // their first token is title-cased at sentence start.
-            if j == phrase_start + 1 && j < tokens.len() && !is_stop_token(&tokens[j]) {
-                let gap = &bytes[tokens[j - 1].end..tokens[j].start];
-                let compound =
-                    format!("{} {}", tokens[phrase_start].text, tokens[j].text).to_lowercase();
-                if !gap.iter().any(|b| is_phrase_breaking_byte(*b))
-                    && (is_visual_object_hint(&compound) || is_subject_phrase(&compound))
-                {
-                    j += 1;
-                }
-            }
         } else {
             while j < tokens.len() && !is_stop_token(&tokens[j]) {
                 if j > phrase_start {
@@ -656,6 +451,13 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
                         // next title-cased name into a VISUAL_CONCEPT span
                         // (e.g. "discussed Tesla"). Let the proper-name
                         // candidate own the capitalized token instead.
+                        break;
+                    }
+                    // A finite verbal predicate continues the clause, not
+                    // the noun phrase ("I tifosi festeggiano sugli spalti"):
+                    // the verb breaks the phrase here and is skipped below,
+                    // so it can never glue to a subject or become an entity.
+                    if verb::is_verbal_continuation(tokens, j, language) {
                         break;
                     }
                 }
@@ -680,20 +482,12 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
             continue;
         }
         // Reject phrases whose normalized surface is a stop phrase, a
-        // generic phrase, OR a multi-word subject phrase. Multi-word
-        // dish names ("greek salad", "grilled sardines", "seafood paella")
-        // belong on SceneIR.Profile.Subject, not in Entities; dropping
-        // them here lets the concrete ingredients ("feta cheese",
-        // "tomatoes", "olives") fill the top-N. Single-word subjects
-        // ("hummus", "shakshuka", "paella") are NOT dropped — they are
-        // legitimate one-word ingredient/dish candidates.
-        // A contextual verbal predicate ("e sorge nella pianura") is not a
-        // visualizable concept: GEN-01 keeps verbs out of the entity set
-        // without a lexical blacklist, so nominal readings of the same
-        // surface ("La guarda del castello") stay extractable.
+        // generic phrase, or a contextual verbal predicate ("e sorge nella
+        // pianura"): GEN-01 keeps verbs out of the entity set without a
+        // lexical blacklist, so nominal readings of the same surface
+        // ("La guarda del castello") stay extractable.
         if !is_stop_phrase(&normalized)
             && !is_generic_phrase(&normalized)
-            && !is_subject_phrase(&normalized)
             && !verb::is_verbal_predicate(tokens, phrase_start, phrase_end, language)
         {
             out.push(Candidate {
@@ -705,6 +499,10 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
             });
         }
         i = phrase_end;
+        // The finite verb that broke the phrase is not candidate material.
+        if i < tokens.len() && verb::is_verbal_continuation(tokens, i, language) {
+            i += 1;
+        }
     }
     out
 }
@@ -787,7 +585,12 @@ fn candidate_from_tokens(
 /// spans that don't round-trip (defensive: catches a future refactor bug
 /// where offsets drift from the text). Returns `None` for an ungrounded
 /// candidate.
-fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
+fn validate_evidence(
+    c: Candidate,
+    source_text: &str,
+    tokens: &[Token],
+    language: &str,
+) -> Option<VisualEntity> {
     if c.start >= c.end || c.end > source_text.len() {
         return None;
     }
@@ -798,11 +601,27 @@ fn validate_evidence(c: Candidate, source_text: &str) -> Option<VisualEntity> {
     if evidence != c.text {
         return None;
     }
+    // The POS model decides whether a gazetteer hit is a place name. A
+    // place is a PROPN whose lemma keeps its capital ("Pavia" -> "Pavia"),
+    // while a common noun tagged PROPN by the tagger has a lowercase lemma
+    // ("la Corte" -> "corte") and stays out of the gazetteer. Without a tag,
+    // the capitalization guard alone keeps the model-free behavior.
+    let gazetteer_eligible = tokens
+        .iter()
+        .find(|token| token.start == c.start)
+        .is_none_or(|token| match token.upos.as_deref() {
+            Some("PROPN") => token
+                .lemma
+                .as_deref()
+                .is_none_or(|lemma| lemma.chars().next().is_some_and(char::is_uppercase)),
+            Some(_) => false,
+            None => true,
+        });
     Some(VisualEntity {
         text: c.text.clone(),
         r#type: c
             .entity_type
-            .unwrap_or_else(|| classify_value_type(&c.text)),
+            .unwrap_or_else(|| classify_value_type(&c.text, gazetteer_eligible, language)),
         score: 0.0,
         start: c.start,
         end: c.end,

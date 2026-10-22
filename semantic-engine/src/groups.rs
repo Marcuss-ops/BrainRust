@@ -265,7 +265,7 @@ fn entity_cards(
 /// Numbers and dates are measurements, not things to picture. A spelled-out
 /// number such as "due" must never become a person card or a co-mention group;
 /// measurements feed charts and timelines instead.
-fn is_visual_entity(entity: &VisualEntity) -> bool {
+pub(crate) fn is_visual_entity(entity: &VisualEntity) -> bool {
     !matches!(
         entity.r#type.as_str(),
         "NUMBER" | "PERCENT" | "MONEY" | "DATE"

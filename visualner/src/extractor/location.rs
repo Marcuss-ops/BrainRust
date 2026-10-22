@@ -1,9 +1,12 @@
 use super::*;
 
+use semantic_core::lexicon::lexicon;
+
 /// Mark a source-grounded proper-name candidate as a place when its local
 /// syntax supplies geographic context. The extractor has no gazetteer, so it
 /// does not guess from capitalization alone; cues such as "em Fortaleza" and
-/// "no bairro Aldeota" provide the evidence for this classification.
+/// "no bairro Aldeota" provide the evidence for this classification. The cue
+/// vocabularies live in the shared lexicon (`location_cues.json`).
 pub(super) fn mark_contextual_locations(
     candidates: &mut Vec<Candidate>,
     tokens: &[Token],
@@ -63,6 +66,9 @@ pub(super) fn mark_contextual_locations(
     }
 }
 
+/// True when the token before `tokens[token_index]` is a geographic cue and
+/// the two tokens are adjacent ("em Fortaleza"), or the cue chain is
+/// genitive + container noun ("cidade de", "city of").
 pub(super) fn has_location_context(tokens: &[Token], bytes: &[u8], token_index: usize) -> bool {
     let Some(previous) = token_index.checked_sub(1).map(|index| &tokens[index]) else {
         return false;
@@ -73,146 +79,36 @@ pub(super) fn has_location_context(tokens: &[Token], bytes: &[u8], token_index: 
     {
         return false;
     }
+    let cues = &lexicon().location_cues;
     let previous = previous.text.to_lowercase();
-    matches!(
-        previous.as_str(),
-        "em" | "no"
-            | "na"
-            | "nos"
-            | "nas"
-            | "in"
-            | "at"
-            | "near"
-            | "bairro"
-            | "city"
-            | "county"
-            | "state"
-            | "province"
-            | "municipality"
-            | "município"
-            | "região"
-            | "region"
-            // Italian articulated prepositions carry the same geographic cue as
-            // the Portuguese/English entries above ("nel Lazio", "della
-            // Lombardia", "del Veneto", "sull'Adriatico"). The elided forms
-            // keep their apostrophe, because the tokenizer splits
-            // "dell'Abruzzo" into the clitic "dell'" and the place "Abruzzo".
-            | "a"
-            | "nel"
-            | "nello"
-            | "nella"
-            | "nei"
-            | "negli"
-            | "nelle"
-            | "nell"
-            | "nell'"
-            | "del"
-            | "dello"
-            | "della"
-            | "dei"
-            | "degli"
-            | "delle"
-            | "dell"
-            | "dell'"
-            | "al"
-            | "allo"
-            | "alla"
-            | "ai"
-            | "agli"
-            | "alle"
-            | "all"
-            | "all'"
-            | "dal"
-            | "dallo"
-            | "dalla"
-            | "dai"
-            | "dagli"
-            | "dalle"
-            | "dall"
-            | "dall'"
-            | "sul"
-            | "sullo"
-            | "sulla"
-            | "sui"
-            | "sugli"
-            | "sulle"
-            | "sull"
-            | "sull'"
-    ) || (matches!(previous.as_str(), "de" | "of")
-        && token_index >= 2
-        && matches!(
-            tokens[token_index - 2].text.to_lowercase().as_str(),
-            "cidade"
-                | "city"
-                | "município"
-                | "municipality"
-                | "região"
-                | "region"
-                | "estado"
-                | "state"
-                | "província"
-                | "province"
-                | "county"
-        ))
+    cues.context_prepositions.iter().any(|cue| cue == &previous)
+        || (cues
+            .genitive_prepositions
+            .iter()
+            .any(|cue| cue == &previous)
+            && token_index >= 2
+            && cues
+                .container_nouns
+                .iter()
+                .any(|cue| cue == &tokens[token_index - 2].text.to_lowercase()))
 }
 
 pub(super) fn is_month_name(text: &str) -> bool {
-    matches!(
-        text.to_lowercase().as_str(),
-        "january"
-            | "february"
-            | "march"
-            | "april"
-            | "may"
-            | "june"
-            | "july"
-            | "august"
-            | "september"
-            | "october"
-            | "november"
-            | "december"
-            | "janeiro"
-            | "fevereiro"
-            | "março"
-            | "abril"
-            | "maio"
-            | "junho"
-            | "julho"
-            | "agosto"
-            | "setembro"
-            | "outubro"
-            | "novembro"
-            | "dezembro"
-    )
+    let lower = text.to_lowercase();
+    lexicon()
+        .location_cues
+        .month_names
+        .iter()
+        .any(|month| month == &lower)
 }
 
 pub(super) fn is_generic_location_noun(text: &str) -> bool {
-    matches!(
-        text.to_lowercase().as_str(),
-        "city"
-            | "county"
-            | "state"
-            | "province"
-            | "municipality"
-            | "município"
-            | "bairro"
-            | "cidade"
-            | "região"
-            | "region"
-            | "estado"
-            | "província"
-            // Italian generic place words: after a geographic cue they name a
-            // kind of place, not a place ("nella città di Milano").
-            | "città"
-            | "paese"
-            | "comune"
-            | "regione"
-            | "provincia"
-            | "nazione"
-            | "stato"
-            | "località"
-            | "frazione"
-    )
+    let lower = text.to_lowercase();
+    lexicon()
+        .location_cues
+        .generic_location_nouns
+        .iter()
+        .any(|noun| noun == &lower)
 }
 
 pub(super) fn starts_uppercase(text: &str) -> bool {

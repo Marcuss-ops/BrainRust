@@ -58,6 +58,12 @@ pub fn split_sentences(text: &str, language: &str, max_words: Option<usize>) -> 
             i += 1;
             continue;
         }
+        // "1. La fondazione..." is a list marker, not a sentence boundary:
+        // splitting the rank into its own sentence would lose the item text.
+        if ch == '.' && is_list_marker(&chars, i) {
+            i += 1;
+            continue;
+        }
         let punctuation_end = punctuation_run_end(&chars, i);
         let next_index = punctuation_end + 1;
         let next = chars.get(next_index).map(|(_, c)| *c);
@@ -204,6 +210,42 @@ fn split_long_segment(
 
 fn word_count(text: &str) -> usize {
     text.split_whitespace().count()
+}
+
+/// A period that closes a one- or two-digit ordinal at the start of the
+/// text or after whitespace, followed by whitespace and the item text.
+fn is_list_marker(chars: &[(usize, char)], i: usize) -> bool {
+    if chars[i].1 != '.' || !chars.get(i + 1).is_some_and(|(_, c)| c.is_whitespace()) {
+        return false;
+    }
+    let mut cursor = i;
+    while cursor > 0 && chars[cursor - 1].1.is_ascii_digit() {
+        cursor -= 1;
+    }
+    let digits = i - cursor;
+    if digits == 0 || digits > 2 {
+        return false;
+    }
+    // The marker must start a line or follow a sentence terminator. This
+    // keeps a sentence-final cardinal ("Ha segnato 2. Poi uscì.") split, and
+    // the whitespace requirement keeps a decimal tail ("3.14.") out.
+    if cursor > 0 && !chars[cursor - 1].1.is_whitespace() {
+        return false;
+    }
+    let mut whitespace_start = cursor;
+    while whitespace_start > 0 && chars[whitespace_start - 1].1.is_whitespace() {
+        whitespace_start -= 1;
+    }
+    if whitespace_start == 0 {
+        return true;
+    }
+    if chars[whitespace_start..cursor]
+        .iter()
+        .any(|(_, value)| *value == '\n')
+    {
+        return true;
+    }
+    matches!(chars[whitespace_start - 1].1, '.' | '!' | '?' | ':')
 }
 
 fn is_decimal_point(chars: &[(usize, char)], i: usize) -> bool {
@@ -443,6 +485,19 @@ mod tests {
         }
         let joined: Vec<&str> = spans.iter().map(|span| span.text(source)).collect();
         assert_eq!(joined, vec!["uno due", "tre quattro", "cinque sei"]);
+    }
+
+    #[test]
+    fn numbered_list_markers_stay_with_their_item_text() {
+        assert_eq!(
+            texts("1. La fondazione. 2. L'inaugurazione.", "it"),
+            vec!["1. La fondazione.", "2. L'inaugurazione."]
+        );
+        // A four-digit year is not a list marker, so it still ends a sentence.
+        assert_eq!(
+            texts("Nel 1959. Poi arrivò il resto.", "it"),
+            vec!["Nel 1959.", "Poi arrivò il resto."]
+        );
     }
 
     #[test]

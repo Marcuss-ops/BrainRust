@@ -718,6 +718,148 @@ fn explicit_top_ten_reports_incomplete_lists_without_filling_them() {
 }
 
 #[test]
+fn facility_facts_survive_anaphoric_sentences_without_duplicating_capacity() {
+    let text = "Lo Stadio Aurora è un impianto sportivo di Torino. Lo Stadio Aurora fu inaugurato nel 1959. La capienza è di oltre 10.000 posti e l'impianto è di proprietà della famiglia Rossi.";
+    let value = manifest_value(vec![scene("stadio-anaphora", text)]);
+    let scene = &value["scenes"][0];
+    let facility_id = scene["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entity| entity["type"] == "FACILITY")
+        .and_then(|entity| entity["id"].as_str())
+        .expect("facility identity");
+    let facts = scene["entity_facts"].as_array().unwrap();
+    // The capacity sentence does not repeat the stadium name: a scene with a
+    // single facility still attributes its facts to that facility.
+    let capacities: Vec<&Value> = facts
+        .iter()
+        .filter(|fact| fact["predicate"] == "capacity")
+        .collect();
+    assert_eq!(
+        capacities.len(),
+        1,
+        "overlapping numeric spans must yield one capacity fact: {facts:?}"
+    );
+    assert_eq!(capacities[0]["unit"], "seats");
+    assert_eq!(capacities[0]["operator"], ">");
+    for predicate in ["inaugurated_year", "owned_by", "located_in"] {
+        let fact = facts
+            .iter()
+            .find(|fact| fact["predicate"] == predicate)
+            .unwrap_or_else(|| panic!("missing {predicate}: {facts:?}"));
+        assert_eq!(fact["subject_entity_id"], facility_id);
+    }
+    let location = facts
+        .iter()
+        .find(|fact| fact["predicate"] == "located_in")
+        .unwrap();
+    assert_eq!(location["value"], "Torino");
+    assert!(location["target_entity_id"].as_str().is_some());
+}
+
+#[test]
+fn completion_phase_completes_a_four_step_construction_sequence() {
+    let text = "La prima fase riguarda la progettazione dello Stadio Aurora. La seconda fase avvia la costruzione dello Stadio Aurora. La terza fase completa le tribune dello Stadio Aurora. La quarta fase amplia la capienza dello Stadio Aurora.";
+    let value = manifest_value(vec![scene("quattro-fasi", text)]);
+    let process: Vec<&Value> = value["scenes"][0]["semantic_groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|group| group["group_type"] == "process")
+        .collect();
+    assert_eq!(process.len(), 1, "one process group expected: {value}");
+    let members = process[0]["members"].as_array().unwrap();
+    assert_eq!(
+        members.len(),
+        4,
+        "all four phases must be linked: {members:?}"
+    );
+    for (index, member) in members.iter().enumerate() {
+        assert_eq!(member["sentence_index"], index);
+        assert!(member["evidence"]
+            .as_str()
+            .unwrap()
+            .contains("Stadio Aurora"));
+    }
+}
+
+#[test]
+fn inline_numbered_top_ten_is_one_complete_grounded_ranking() {
+    let items: Vec<String> = (1..=10)
+        .map(|rank| format!("{rank}. Momento numero {rank} del racconto."))
+        .collect();
+    let text = format!("Top 10 momenti importanti: {}", items.join(" "));
+    let value = manifest_value(vec![scene("top-10-inline", &text)]);
+    let groups = value["scenes"][0]["semantic_groups"].as_array().unwrap();
+    let ranking = groups
+        .iter()
+        .find(|group| group["group_type"] == "ranking")
+        .unwrap_or_else(|| panic!("inline ranking expected: {groups:?}"));
+    assert_eq!(ranking["target_count"], 10);
+    assert_eq!(ranking["complete"], true);
+    let members = ranking["members"].as_array().unwrap();
+    assert_eq!(members.len(), 10);
+    for (index, member) in members.iter().enumerate() {
+        let rank = index + 1;
+        assert_eq!(member["rank"], rank);
+        let start = member["start_byte"].as_u64().unwrap() as usize;
+        let end = member["end_byte"].as_u64().unwrap() as usize;
+        assert_eq!(text.get(start..end), member["evidence"].as_str());
+        assert!(
+            member["text"]
+                .as_str()
+                .unwrap()
+                .starts_with(&format!("{rank}.")),
+            "each item keeps its own rank marker: {}",
+            member["text"]
+        );
+        if rank < 10 {
+            assert!(
+                !member["text"]
+                    .as_str()
+                    .unwrap()
+                    .contains(&format!(" {}. ", rank + 1)),
+                "an item must not absorb the next one: {}",
+                member["text"]
+            );
+        }
+    }
+}
+
+#[test]
+fn inline_numbered_list_without_a_declared_top_ten_stays_an_enumeration() {
+    let text = "Le fasi sono: 1. Progettazione. 2. Costruzione. 3. Collaudo.";
+    let value = manifest_value(vec![scene("elenco-inline", text)]);
+    let groups = value["scenes"][0]["semantic_groups"].as_array().unwrap();
+    let enumeration = groups
+        .iter()
+        .find(|group| group["group_type"] == "enumeration")
+        .unwrap_or_else(|| panic!("enumeration expected: {groups:?}"));
+    assert_eq!(enumeration["members"].as_array().unwrap().len(), 3);
+    assert!(enumeration.get("complete").is_none());
+}
+
+#[test]
+fn bullet_candidates_carry_the_shared_semantic_salience() {
+    let text =
+        "Torino. Lo Stadio Aurora di Torino ha 10.000 posti e appartiene alla famiglia Rossi.";
+    let value = manifest_value(vec![scene("bullets-score", text)]);
+    let bullets = value["scenes"][0]["bullets"].as_array().unwrap();
+    assert_eq!(bullets.len(), 2, "both entity sentences are candidates");
+    assert!(bullets.iter().all(|bullet| {
+        let score = bullet["score"].as_f64().unwrap();
+        (0.0..=1.0).contains(&score) && bullet["provenance"] == "semantic_core_bullets"
+    }));
+    let sparse = bullets[0]["score"].as_f64().unwrap();
+    let rich = bullets[1]["score"].as_f64().unwrap();
+    assert!(
+        rich > sparse,
+        "the evidence-rich sentence must outrank the fragment: {bullets:?}"
+    );
+}
+
+#[test]
 fn same_person_in_two_scenes_keeps_one_canonical_id() {
     let scenes = vec![
         scene("a", "Alberto Stasi è il primo nome."),
@@ -841,6 +983,25 @@ fn every_mention_of_eight_people_survives_the_default_entity_budget() {
 }
 
 #[test]
+fn nested_location_survives_the_legal_org_upgrade() {
+    // "Procura di Pavia" is one ORG span, but Pavia is also a grounded
+    // LOCATION. Upgrading the head entity must not consume the nested place.
+    let text = "La Procura di Pavia ha formalizzato una seconda conclusione delle indagini.";
+    let value = manifest_value(vec![scene("procura-pavia", text)]);
+    let entities = value["scenes"][0]["entities"].as_array().unwrap();
+    let procura = entities
+        .iter()
+        .find(|entity| entity["text"] == "Procura di Pavia")
+        .unwrap_or_else(|| panic!("missing Procura di Pavia: {entities:?}"));
+    assert_eq!(procura["type"], "ORG");
+    let pavia = entities
+        .iter()
+        .find(|entity| entity["text"] == "Pavia")
+        .unwrap_or_else(|| panic!("nested Pavia was consumed: {entities:?}"));
+    assert_eq!(pavia["type"], "LOCATION");
+}
+
+#[test]
 fn empty_scene_is_valid_and_empty() {
     let value = manifest_value(vec![scene("vuota", "")]);
     let scene = &value["scenes"][0];
@@ -879,4 +1040,29 @@ fn ndjson_protocol_serves_health_analysis_and_errors() {
 
     let broken: Value = serde_json::from_str(&handle_line("not json")).unwrap();
     assert_eq!(broken["ok"], false);
+}
+
+#[test]
+fn entity_facts_carry_importance_and_visual_concept_ids_deterministically() {
+    let text = "Il Tribunale di Torino ha assolto Mario Rossi nel 2009. Mario Rossi è stato assolto in appello.";
+    let first = manifest_value(vec![scene("fatti-importanza", text)]);
+    let second = manifest_value(vec![scene("fatti-importanza", text)]);
+    assert_eq!(first, second, "same input must give the same manifest");
+
+    let facts = first["scenes"][0]["entity_facts"].as_array().unwrap();
+    assert!(!facts.is_empty(), "the acquittal must produce a fact");
+    for fact in facts {
+        let importance = fact["importance"].as_f64().unwrap();
+        assert!((0.0..=1.0).contains(&importance), "importance in [0,1]");
+        let ids = fact["visual_concept_ids"].as_array().unwrap();
+        assert_eq!(ids[0], fact["subject_entity_id"], "subject leads the ids");
+        if let Some(target) = fact["target_entity_id"].as_str() {
+            assert!(ids.iter().any(|id| id == target), "target id is bound");
+        }
+    }
+    let outcome = facts
+        .iter()
+        .find(|fact| fact["normalized_value"] == "acquitted")
+        .expect("acquitted outcome fact");
+    assert_eq!(outcome["importance"].as_f64().unwrap(), 0.9_f32 as f64);
 }
