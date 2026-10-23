@@ -19,13 +19,23 @@ fn every_profile_language_with_a_treebank_has_a_usable_model() {
 
     let mut checked = 0;
     let mut missing = Vec::new();
+    let mut unusable = Vec::new();
     for (code, profile) in &profiles.profiles {
         let Some(treebank) = profile.treebank.as_deref() else {
             continue;
         };
         checked += 1;
-        if visualner::model_path(code).is_none() {
-            missing.push(format!("{code} ({treebank})"));
+        match visualner::model_path(code) {
+            None => missing.push(format!("{code} ({treebank})")),
+            Some(path) => {
+                // Existence is not enough: the LINDAT UI used to answer the
+                // old bitstream URL with HTML, which the extractor silently
+                // treated as "model absent". Load every model so a repository
+                // error fails here instead of in a distant extraction test.
+                if let Err(error) = udpipe_rs::Model::load(&path) {
+                    unusable.push(format!("{code} ({}): {error}", path.display()));
+                }
+            }
         }
     }
     assert!(
@@ -40,5 +50,12 @@ fn every_profile_language_with_a_treebank_has_a_usable_model() {
         missing.len(),
         missing.join(", "),
         ""
+    );
+    assert!(
+        unusable.is_empty(),
+        "unusable UDPipe model for {} profile language(s): {}. \
+         Reinstall the models with visualner/tools/install_udpipe_models.sh.",
+        unusable.len(),
+        unusable.join("; ")
     );
 }

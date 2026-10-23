@@ -2,8 +2,12 @@
 
 Stato: piano storico importato da `refactored/docs/operations/` il 2026-10-23.
 L'estrazione è stata eseguita il 2026-10-22 con l'approccio submodule
-(`refactored/rust` → BrainRust); le fasi su contratto, release di artefatti e
-gate "niente cargo" non sono state adottate. I path `rust/...` citati sono
+(`refactored/rust` → BrainRust). Il 2026-10-23 sono stati aggiunti la release
+di artefatti (`release.yml` + `scripts/release/build-artifacts.sh`), il
+consumatore `make rust-fetch` in PipelineGen, il contratto esplicito
+`contract/mediaexec.v1` (schema + golden + `verify-rust-contract`) e il gate
+"niente cargo" sul percorso di build ordinario; il fallback `make build-muscles`
+resta disponibile e compila ancora dal submodule. I path `rust/...` citati sono
 quelli del monorepo PipelineGen.
 Data: 2026-10-22.
 Oggetto: estrarre `refactored/rust/` in una repository dedicata e consumarlo

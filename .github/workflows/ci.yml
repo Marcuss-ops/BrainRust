@@ -7,29 +7,43 @@ on:
 
 jobs:
   test:
-    name: Test and lint (ICU-pinned)
+    name: Test and lint (Bookworm ICU 72, pinned toolchain)
     runs-on: ubuntu-latest
+    # Bookworm is the runtime ABI of the released binaries: testing on the
+    # same ICU major is what makes the pin meaningful. buildpack-deps ships
+    # git/curl/build-essential so actions/checkout works before apt-get.
+    container: buildpack-deps:bookworm
     steps:
     - name: Check out code
       uses: actions/checkout@v7
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
-
-    # visualner links rust_icu_* against the system ICU4C and pins the
-    # generated symbols to its major (see README.md). The major is read from
-    # pkg-config so the CI host and the build can never disagree.
-    - name: Install ICU4C development package
+    - name: Install ICU4C development package and provisioning tools
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libicu-dev pkg-config
+        apt-get update
+        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv
 
-    - name: Export ICU major for rust_icu
+    # The canonical major is ICU_MAJOR (72, Bookworm). Refuse to test against
+    # a host that disagrees instead of silently producing a different ABI.
+    - name: Verify the ICU pin
       run: |
-        ICU_MAJOR=$(pkg-config --modversion icu-i18n | cut -d. -f1)
-        echo "RUST_ICU_MAJOR_VERSION_NUMBER=$ICU_MAJOR" >> "$GITHUB_ENV"
+        want=$(tr -dc '0-9' < ICU_MAJOR)
+        got=$(pkg-config --modversion icu-i18n | cut -d. -f1)
+        if [ "$want" != "$got" ]; then
+          echo "::error::ICU_MAJOR=$want but pkg-config reports ICU $got"
+          exit 1
+        fi
+        echo "RUST_ICU_MAJOR_VERSION_NUMBER=$got" >> "$GITHUB_ENV"
+
+    # rust-toolchain.toml is the single toolchain pin; the explicit install
+    # keeps the container from falling back to a distro or floating rustc.
+    - name: Install pinned Rust toolchain
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+        channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+        sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal \
+          --default-toolchain "$channel" \
+          --component rustfmt --component clippy
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
     # The suite fails closed when a language profile declares a UDPipe
     # treebank but its model is absent (visualner/tests/language_profiles.rs).
@@ -39,7 +53,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.local/share/visualner/models
-        key: udpipe-models-2.5-191206-v1
+        key: udpipe-models-2.5-191206-v2
 
     - name: Install UDPipe models
       run: ./visualner/tools/install_udpipe_models.sh
@@ -52,3 +66,9 @@ jobs:
 
     - name: cargo test (workspace)
       run: cargo test --workspace --locked
+
+    - name: Validate the mediaexec.v1 contract
+      run: |
+        python3 -m venv /tmp/contract-venv
+        /tmp/contract-venv/bin/pip install -q -r contract/mediaexec.v1/requirements.txt
+        /tmp/contract-venv/bin/python contract/mediaexec.v1/validate.py

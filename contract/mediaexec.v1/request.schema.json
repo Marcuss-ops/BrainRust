@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Marcuss-ops/BrainRust/contract/mediaexec.v1/request.schema.json",
+  "title": "mediaexec.v1 request (golden-certified envelope)",
+  "description": "The request envelope shared by the Rust executor and the Go rustexec consumer. Only fields exercised by the shared goldens are tightened here; operation-specific sealed plans are owned by the typed consumers and their e2e suites.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "operation"],
+  "properties": {
+    "version": { "const": "mediaexec.v1" },
+    "operation": {
+      "enum": [
+        "health",
+        "probe",
+        "cut_batch",
+        "normalize",
+        "cut_copy",
+        "cut_and_normalize",
+        "watermark",
+        "extract_frame",
+        "generate_proxy",
+        "generate_storyboard",
+        "remux_hls",
+        "trim",
+        "render_stock",
+        "render_clip",
+        "admin_render",
+        "merge_inputs",
+        "remove_silence",
+        "render_audio_plan",
+        "mux_audio_copy",
+        "assemble_copy"
+      ]
+    },
+    "ffmpeg_path": { "type": "string" },
+    "source_path": { "type": "string", "minLength": 1 },
+    "output_path": { "type": "string", "minLength": 1 },
+    "codec": { "type": "string" },
+    "preset": { "type": "string" },
+    "crf": { "type": "integer" },
+    "width": { "type": "integer", "minimum": 0 },
+    "height": { "type": "integer", "minimum": 0 },
+    "fps_num": { "type": "integer", "minimum": 0 },
+    "fps_den": { "type": "integer", "minimum": 0 },
+    "keyframe_interval": { "type": "integer", "minimum": 0 },
+    "audio_codec": { "type": "string" },
+    "audio_bitrate": { "type": "string" },
+    "sample_rate": { "type": "integer", "minimum": 0 },
+    "channels": { "type": "integer", "minimum": 0 },
+    "max_parallel_cuts": { "type": "integer", "minimum": 0 },
+    "jobs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/cut_job" }
+    },
+    "no_audio": { "type": "boolean" },
+    "duration_sec": { "type": "number", "minimum": 0 },
+    "keep_audio": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "operation": { "const": "probe" } }, "required": ["operation"] },
+      "then": { "required": ["source_path"] }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "cut_batch" } }, "required": ["operation"] },
+      "then": { "required": ["source_path", "jobs"] }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "normalize" } }, "required": ["operation"] },
+      "then": { "required": ["source_path", "output_path"] }
+    }
+  ],
+  "definitions": {
+    "cut_job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_id", "start_sec", "end_sec", "output_path"],
+      "properties": {
+        "job_id": { "type": "string", "minLength": 1 },
+        "start_sec": { "type": "number", "minimum": 0 },
+        "end_sec": { "type": "number", "exclusiveMinimum": 0 },
+        "output_path": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

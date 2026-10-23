@@ -12,13 +12,14 @@ mod tests {
     }
 
     fn fixture(name: &str) -> Fixture {
-        // Vendored copy of PipelineGen/testdata/mediaexec/v1: the shared
-        // goldens the Go adapter also decodes, kept at the repository root.
+        // Canonical mediaexec.v1 goldens. PipelineGen keeps a byte-identical
+        // consumer copy in testdata/mediaexec/v1; contract/check_consumer_copy.sh
+        // is the parity gate.
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
-            .join("testdata")
-            .join("mediaexec")
-            .join("v1")
+            .join("contract")
+            .join("mediaexec.v1")
+            .join("goldens")
             .join(format!("{name}.json"));
         let data = fs::read(&path)
             .unwrap_or_else(|error| panic!("read shared fixture {}: {error}", path.display()));
@@ -28,7 +29,9 @@ mod tests {
 
     #[test]
     fn mediaexec_v1_shared_goldens_match_rust_wire_types() {
-        for name in ["probe", "cut_batch", "render_stock", "normalize"] {
+        // render_stock is not in the shared set: production sends a sealed
+        // render_plan, covered by the typed consumers and the e2e suites.
+        for name in ["probe", "cut_batch", "normalize"] {
             let fixture = fixture(name);
             assert_eq!(fixture.request.version, crate::protocol::PROTOCOL_VERSION);
             fixture
@@ -49,11 +52,6 @@ mod tests {
                     assert_eq!(jobs.len(), 1);
                     assert_eq!(fixture.response.items.len(), 1);
                     assert_eq!(jobs[0].job_id, fixture.response.items[0].job_id);
-                }
-                "render_stock" => {
-                    assert_eq!(fixture.request.input_paths.as_ref().unwrap().len(), 2);
-                    assert_eq!(fixture.request.transitions.as_ref().unwrap().len(), 1);
-                    assert_eq!(fixture.request.effect_paths.as_ref().unwrap().len(), 1);
                 }
                 "normalize" => {
                     assert!(fixture.request.source_path.is_some());

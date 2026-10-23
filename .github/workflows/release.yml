@@ -1,0 +1,73 @@
+name: Release artifacts
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release assets
+    runs-on: ubuntu-latest
+    # The released binaries must link Bookworm's ICU 72, exactly like the
+    # PipelineGen runtime image; a different host would ship a different ABI.
+    container: buildpack-deps:bookworm
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v7
+
+    - name: Install ICU4C development package and provisioning tools
+      run: |
+        apt-get update
+        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv
+
+    - name: Verify the ICU pin
+      run: |
+        want=$(tr -dc '0-9' < ICU_MAJOR)
+        got=$(pkg-config --modversion icu-i18n | cut -d. -f1)
+        if [ "$want" != "$got" ]; then
+          echo "::error::ICU_MAJOR=$want but pkg-config reports ICU $got"
+          exit 1
+        fi
+        echo "RUST_ICU_MAJOR_VERSION_NUMBER=$got" >> "$GITHUB_ENV"
+
+    - name: Install pinned Rust toolchain
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+        channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+        sh /tmp/rustup-init.sh -y --no-modify-path --profile minimal \
+          --default-toolchain "$channel" \
+          --component rustfmt --component clippy
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+    - name: Cache UDPipe models
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/visualner/models
+        key: udpipe-models-2.5-191206-v2
+
+    - name: Install UDPipe models
+      run: ./visualner/tools/install_udpipe_models.sh
+
+    - name: Test the tagged tree
+      run: |
+        cargo fmt --all -- --check
+        cargo clippy --workspace --all-targets --locked -- -D warnings
+        cargo test --workspace --locked
+
+    - name: Validate the mediaexec.v1 contract
+      run: |
+        python3 -m venv /tmp/contract-venv
+        /tmp/contract-venv/bin/pip install -q -r contract/mediaexec.v1/requirements.txt
+        /tmp/contract-venv/bin/python contract/mediaexec.v1/validate.py
+
+    - name: Build release assets
+      run: ./scripts/release/build-artifacts.sh dist
+
+    - name: Publish release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*
+        generate_release_notes: true

@@ -65,13 +65,17 @@ remains an explicitly opt-in shadow path pending its own retirement evidence.
 
 ## Local check
 
-VisualNER uses the system ICU4C RBNF/CLDR spellout rules. Install the ICU
-**development** package (`libicu-dev`, including `pkg-config`) on build hosts;
-runtime hosts that execute `bin/visualner` need the matching ICU shared-library
-major. The build pins rust_icu's generated symbol names to the installed major
-via `RUST_ICU_MAJOR_VERSION_NUMBER`; do not copy that binary to a host with a
-different major. The consuming PipelineGen Dockerfile builds and runs against
-Bookworm ICU 72.
+VisualNER uses the system ICU4C RBNF/CLDR spellout rules. The canonical release
+ABI is **ICU 72** (Debian Bookworm), declared once in `ICU_MAJOR`; CI and
+`scripts/release/build-artifacts.sh` refuse to build when `pkg-config` reports
+a different major. Install the ICU **development** package (`libicu-dev`,
+including `pkg-config`) on build hosts; runtime hosts that execute
+`bin/visualner` need `libicu72`. Do not copy that binary to a host with a
+different major.
+
+The Rust toolchain is pinned in `rust-toolchain.toml`, so plain `cargo` picks
+it up automatically. On a host with a different ICU (for example ICU 70),
+override the `.cargo/config.toml` default explicitly.
 
 The tests also need the UDPipe 2.5 models declared by
 `lexicon/language_profiles.json`. Provision them once (the installer is
@@ -88,14 +92,30 @@ degrades to the model-free extractor.
 ```sh
 cd <this repository>
 ICU_MAJOR=$(pkg-config --modversion icu-i18n | cut -d. -f1)
-RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo test --workspace
+RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" cargo test --workspace
 
 # Prints distinct language identifiers with installed ICU spellout rules.
-RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" RUSTUP_TOOLCHAIN=stable rustup run stable cargo run -p visualner -- --locale-count
+RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" cargo run -p visualner -- --locale-count
 
 # Build the executables consumed by the Go adapter (see rustexec in PipelineGen).
 cargo build --release
 ```
+
+## Contract
+
+`contract/mediaexec.v1/` owns the request/response JSON Schemas and the shared
+goldens consumed by PipelineGen. Validate them with
+`python3 contract/mediaexec.v1/validate.py`; `check_consumer_copy.sh <dir>` is
+the parity gate for the Go consumer copy. See
+`contract/mediaexec.v1/README.md`.
+
+## Release
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which tests the tagged
+tree on Bookworm, builds the four binaries and publishes `sha256sums.txt`,
+`TOOLCHAIN` and `ICU_MAJOR` alongside them. PipelineGen consumes that bundle
+with `make rust-fetch RUST_VERSION=vX.Y.Z`; the source build remains available
+there as the explicit `make build-muscles` fallback.
 
 VisualNER requests must include a BCP-47 `language`. ICU does not provide
 spellout rules for every locale and some rule sets are incomplete; missing

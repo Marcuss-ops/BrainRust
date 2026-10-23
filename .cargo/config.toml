@@ -1,17 +1,20 @@
 # Cargo configuration for the Rust workspace (semantic pipeline).
 #
-# These entries mirror the shell setup the builds used to require, so that a
-# plain `cargo build` / `cargo test` is reproducible without manual exports.
+# The canonical ICU4C major is `ICU_MAJOR` (72: the Debian Bookworm runtime
+# that executes the release binaries). The CI and release workflows assert
+# that `pkg-config` reports the same major; this file is the local default and
+# must be bumped together with `ICU_MAJOR`.
+#
 # `[env]` values are used only when the variable is NOT already set in the
-# environment, so an explicit export (e.g. on a machine with another ICU)
-# always wins over the values below.
+# environment, so a host with a different ICU must export
+# RUST_ICU_MAJOR_VERSION_NUMBER explicitly (see README "Local check").
+#
+# LD_LIBRARY_PATH points at the Debian/Ubuntu multiarch directory where the
+# system libicuuc.so.72 lives; the loader needs it when ICU is not in a
+# standard path.
 
 [env]
-# rust_icu_sys reads the ICU major version at compile time to link the
-# matching libicuuc/libicui18n. Derived from `pkg-config --modversion icu-uc`
-# (70.1 -> 70 here). Bump it when the system ICU major version changes.
-RUST_ICU_MAJOR_VERSION_NUMBER = "70"
-
-# Directory holding the system ICU shared libraries (libicuuc.so.70, ...).
-# Binaries and tests need it at runtime to resolve the ICU linkage.
+# rust_icu_sys (feature `icu_version_in_env`) links the matching
+# libicuuc/libicui18n. Must equal ICU_MAJOR.
+RUST_ICU_MAJOR_VERSION_NUMBER = "72"
 LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu"

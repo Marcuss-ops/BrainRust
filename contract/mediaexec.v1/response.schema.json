@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Marcuss-ops/BrainRust/contract/mediaexec.v1/response.schema.json",
+  "title": "mediaexec.v1 response (golden-certified envelope)",
+  "description": "The success response envelope shared by the Rust executor and the Go rustexec consumer. The validator additionally requires operation equality with the request and ok=true for the golden set.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "operation", "source_path", "items", "metadata", "error"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "operation": { "type": "string", "minLength": 1 },
+    "source_path": { "type": ["string", "null"] },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/cut_item" }
+    },
+    "metadata": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/metadata" }]
+    },
+    "metrics": { "type": ["object", "null"] },
+    "error": { "type": ["string", "null"] }
+  },
+  "definitions": {
+    "cut_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_id", "output_path", "status", "size_bytes", "duration_sec", "error"],
+      "properties": {
+        "job_id": { "type": "string", "minLength": 1 },
+        "output_path": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "duration_sec": { "type": "number", "minimum": 0 },
+        "error": { "type": ["string", "null"] }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "duration_sec",
+        "width",
+        "height",
+        "fps",
+        "video_codec",
+        "audio_codec",
+        "sample_rate",
+        "channels",
+        "has_video",
+        "has_audio"
+      ],
+      "properties": {
+        "duration_sec": { "type": "number", "minimum": 0 },
+        "width": { "type": "integer", "minimum": 0 },
+        "height": { "type": "integer", "minimum": 0 },
+        "fps": { "type": "number", "minimum": 0 },
+        "video_codec": { "type": "string" },
+        "audio_codec": { "type": "string" },
+        "sample_rate": { "type": "integer", "minimum": 0 },
+        "channels": { "type": "integer", "minimum": 0 },
+        "has_video": { "type": "boolean" },
+        "has_audio": { "type": "boolean" }
+      }
+    }
+  }
+}
