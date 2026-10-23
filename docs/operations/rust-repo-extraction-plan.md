@@ -38,7 +38,7 @@ dal monorepo come submodule pinnato a tag, con artefatti binari verificabili.
 | I binari sono già path-configurabili | `internal/platform/config/types_external.go:25,36` (`VELOX_RUST_*_PATH`) |
 | Il workspace è autonomo nel codice | `rust/Cargo.toml`, 6 crate, 110 file `.rs`, ~33k righe, 139 file tracciati |
 | `target/` è già escluso | `.gitignore:85`, `.dockerignore:30` |
-| Il modello multi-repo è già in uso | `.gitmodules`: `Chronon3d`, `ChrononMotion3D`, `ChrononTemplate`, `RenderingGen`, `refactored` |
+| Il modello multi-repo è già in uso | `.gitmodules`: i tre repository del motore Chronon, `RenderingGen`, `refactored` |
 | Git history separabile per path | nessun submodule dentro `rust/`, quindi `filter-repo --subdirectory-filter` è sicuro |
 
 ## 3. Accoppiamenti da recidere
