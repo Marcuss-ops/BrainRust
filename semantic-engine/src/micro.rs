@@ -145,6 +145,9 @@ fn member(scene_id: &str, summary: &MicroSummary) -> SemanticGroupMember {
         start_byte: summary.start_byte,
         end_byte: summary.end_byte,
         temporal_surface: None,
+        // A step in a dated sequence keeps its ISO date, so a timeline
+        // overlay can order it without re-reading the phrase.
+        normalized_date: summary.normalized_date.clone(),
     }
 }
 

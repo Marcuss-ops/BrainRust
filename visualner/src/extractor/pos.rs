@@ -80,6 +80,10 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
     for token in tokens.iter_mut() {
         let surface = token.text.to_lowercase();
         let mut chosen: Option<(String, String)> = None;
+        // A contraction can hide a finite verb after its clitic ("C'è" is
+        // "ci" + "è"): the verb decides that the surface is a clause, and
+        // the clitic's PRON tag would otherwise hide it.
+        let mut verb_part: Option<(String, String)> = None;
         let mut consumed = word_index;
         let mut unmatched_content = 0;
         let mut scan = word_index;
@@ -93,6 +97,9 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
                 if chosen.is_none() || word.upostag == "PROPN" {
                     chosen = Some((word.upostag.clone(), word.lemma.clone()));
                 }
+                if matches!(word.upostag.as_str(), "VERB" | "AUX") {
+                    verb_part = Some((word.upostag.clone(), word.lemma.clone()));
+                }
                 consumed = scan + 1;
             } else if word.upostag == "PUNCT" {
                 // Consume punctuation only directly after a matched word.
@@ -101,6 +108,12 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
                 if chosen.is_some() {
                     consumed = consumed.max(scan + 1);
                 }
+            } else if chosen.is_some() && token_tail_matches(&surface, &form) {
+                // "dell'attenzione" is one ICU token but UDPipe emits
+                // "di", "l'", "attenzione": consume the remainder of
+                // the same token instead of leaving it for the next one.
+                consumed = scan + 1;
+                break;
             } else if chosen.is_some() {
                 // The token is tagged and this is the next token's content
                 // word: stop instead of consuming every later occurrence of
@@ -134,7 +147,7 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
             }
         }
         word_index = consumed;
-        if let Some((upos, lemma)) = chosen {
+        if let Some((upos, lemma)) = verb_part.or(chosen) {
             token.upos = Some(upos);
             token.lemma = Some(lemma);
         }
@@ -148,7 +161,24 @@ fn word_matches_token(surface: &str, form: &str) -> bool {
     if form.is_empty() {
         return false;
     }
-    surface == form || (form.chars().count() >= 2 && surface.contains(form))
+    if surface == form {
+        return true;
+    }
+    // Only an elided form is a part of a longer ICU token: UDPipe splits
+    // "dell'arte" into "di" + "l'" + "arte". A plain short word is never a
+    // part of another word ("con" is not inside "connessione"), which is what
+    // used to desynchronize the whole alignment and leave a scene untagged.
+    let elided = form.ends_with('\'') || form.ends_with('\u{2019}');
+    (elided && form.chars().count() >= 2 && surface.contains(form))
+        || token_tail_matches(surface, form)
+}
+
+/// True when `form` is the part of an elided ICU token after its apostrophe
+/// ("dell'attenzione" -> "attenzione").
+fn token_tail_matches(surface: &str, form: &str) -> bool {
+    surface
+        .rsplit_once(['\'', '\u{2019}'])
+        .is_some_and(|(_, tail)| !tail.is_empty() && tail == form)
 }
 
 fn load_model(language: &str) -> Option<Rc<udpipe_rs::Model>> {

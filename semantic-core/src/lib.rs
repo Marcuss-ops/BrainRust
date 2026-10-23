@@ -25,6 +25,7 @@
 
 pub mod bullets;
 pub mod dates;
+pub mod discourse;
 mod generated_language_packs;
 mod generated_legal_packs;
 pub mod grounding;
@@ -43,9 +44,10 @@ pub use dates::{temporal_facts, TemporalFact};
 pub use identity::{CanonicalIdentity, IdentityRegistry, Mention};
 pub use manifest::ChartItem;
 pub use manifest::{
-    AnalyzerVersions, Candidate, EntityFact, MicroSummary, SceneInput, SceneManifest,
-    ScriptRequest, SemanticGroup, SemanticGroupMember, SemanticManifest, VisualProposal,
-    SCHEMA_VERSION,
+    AnalyzerVersions, Candidate, CoverageItem, EntityFact, MicroSummary, SceneCoverage, SceneInput,
+    SceneManifest, ScriptRequest, SearchFeedback, SearchFeedbackEntry, SearchQuery, SearchRetry,
+    SemanticGroup, SemanticGroupMember, SemanticManifest, StoryEdge, StoryGraph, StoryNode,
+    VisualCoverage, VisualProposal, SCHEMA_VERSION,
 };
 pub use numbers::{parse_unambiguous_value, values_are_comparable, NumericFact};
 pub use relations::{AssertedRelation, CoMention, RelationStatus, RelationView};

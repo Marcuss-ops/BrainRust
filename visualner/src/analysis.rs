@@ -7,8 +7,8 @@
 //!
 //! Entities are referenced by their index in `Analysis::entities`.
 
-use crate::extractor::{extract, numeric_value_spans};
-use crate::temporal::{temporal_facts_with_words, SpelledNumber};
+use crate::extractor::numeric_value_spans;
+use crate::temporal::{temporal_facts_with_words, SpelledNumber, TemporalFact};
 use crate::types::{ExtractOptions, VisualEntity};
 use semantic_core::bullets::{generate_with_sentences, BulletSignal, SignalKind};
 use semantic_core::numbers::parse_unambiguous_value;
@@ -96,7 +96,22 @@ pub struct ChartPoint {
 
 /// Extracts entities and derives the analysis structures from them.
 pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, String> {
-    let entities = extract(source_text, options)?;
+    analyze_with_context(
+        source_text,
+        options,
+        &crate::extractor::ScriptContext::default(),
+    )
+}
+
+/// Same analysis with script-wide evidence: the engine passes the name tokens
+/// of the whole script so a scene that says only "Chiara" does not turn a
+/// person's first name into a place.
+pub fn analyze_with_context(
+    source_text: &str,
+    options: &ExtractOptions,
+    context: &crate::extractor::ScriptContext,
+) -> Result<Analysis, String> {
+    let entities = crate::extractor::extract_with_context(source_text, options, context)?;
     // One canonical segmenter for every extractor (semantic-core).
     let sentences = split_sentences(source_text, &options.language, None);
     let entity_sentence: Vec<Option<usize>> = entities
@@ -127,26 +142,34 @@ pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, 
         &sentences,
         &entity_sentence,
     );
-    // ONE numeric collection, two typed views: `numeric_facts` keeps every
-    // grounded value (top-N independent) and `chart_points` is the subset with
-    // an unambiguous parse. No second scanner can disagree with the first.
-    let numeric_facts = numeric_facts(source_text, &options.language);
-    let chart_points = chart_points(source_text, &numeric_facts, &sentences, &entities);
     // The date parser never spells a word itself: the locale's ICU RBNF
     // rules locate "tredici", "duemilasette" or "two thousand seven", and
     // semantic-core only resolves the calendar around the month token.
-    let spelled_numbers: Vec<SpelledNumber> =
-        crate::spellout::candidates(source_text, &options.language)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|candidate| SpelledNumber {
-                start: candidate.start,
-                end: candidate.end,
-                value: candidate.value.round() as i64,
-            })
-            .collect();
+    let spelled_candidates =
+        crate::spellout::candidates(source_text, &options.language).unwrap_or_default();
+    let spelled_numbers: Vec<SpelledNumber> = spelled_candidates
+        .iter()
+        .map(|candidate| SpelledNumber {
+            start: candidate.start,
+            end: candidate.end,
+            value: candidate.value.round() as i64,
+        })
+        .collect();
     let temporal_facts =
         temporal_facts_with_words(source_text, &options.language, &spelled_numbers);
+    // ONE numeric collection, two typed views: `numeric_facts` keeps every
+    // grounded value (top-N independent) and `chart_points` is the subset with
+    // an unambiguous parse. No second scanner can disagree with the first.
+    // Spelled values ("quarantadue per cento") join the same collection, but
+    // only when the span is not already a date: a spelled year is a date, not
+    // a bar.
+    let numeric_facts = numeric_facts(
+        source_text,
+        &options.language,
+        &spelled_candidates,
+        &temporal_facts,
+    );
+    let chart_points = chart_points(source_text, &numeric_facts, &sentences, &entities);
 
     Ok(Analysis {
         entities,
@@ -159,8 +182,13 @@ pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, 
     })
 }
 
-fn numeric_facts(source_text: &str, language: &str) -> Vec<NumericFact> {
-    numeric_value_spans(source_text)
+fn numeric_facts(
+    source_text: &str,
+    language: &str,
+    spelled: &[crate::spellout::WordNumberCandidate],
+    temporal_facts: &[TemporalFact],
+) -> Vec<NumericFact> {
+    let mut out: Vec<NumericFact> = numeric_value_spans(source_text)
         .into_iter()
         .filter_map(|span| {
             let surface = source_text.get(span.start..span.end)?;
@@ -173,7 +201,35 @@ fn numeric_facts(source_text: &str, language: &str) -> Vec<NumericFact> {
                 evidence: surface.to_string(),
             })
         })
-        .collect()
+        .collect();
+    for candidate in spelled {
+        // Only a spelled quantity that states its unit is a bar. A bare
+        // spelled count is a duration or a tally ("ten years", "dieci anni")
+        // and charting it would plot a number the sentence never measured.
+        if !matches!(candidate.entity_type, "PERCENT" | "MONEY") {
+            continue;
+        }
+        // A spelled year is already a date: it must never become a bar.
+        if temporal_facts
+            .iter()
+            .any(|fact| fact.start_byte <= candidate.start && candidate.end <= fact.end_byte)
+        {
+            continue;
+        }
+        let Some(surface) = source_text.get(candidate.start..candidate.end) else {
+            continue;
+        };
+        out.push(NumericFact {
+            surface: surface.to_string(),
+            kind: candidate.entity_type.to_string(),
+            value: Some(candidate.value),
+            start_byte: candidate.start,
+            end_byte: candidate.end,
+            evidence: surface.to_string(),
+        });
+    }
+    out.sort_by_key(|fact| (fact.start_byte, fact.end_byte));
+    out
 }
 
 fn relations(
@@ -481,7 +537,7 @@ mod tests {
             },
         ];
         let sentences = split_sentences(source, "en", None);
-        let facts = numeric_facts(source, "en");
+        let facts = numeric_facts(source, "en", &[], &[]);
         let points = chart_points(source, &facts, &sentences, &entities);
         let values: Vec<f64> = points.iter().map(|p| p.value).collect();
         assert_eq!(values, vec![25.0, 1200.0]);
@@ -509,7 +565,7 @@ mod tests {
             },
         ];
         let sentences = split_sentences(source, "en", None);
-        let facts = numeric_facts(source, "en");
+        let facts = numeric_facts(source, "en", &[], &[]);
         let points = chart_points(source, &facts, &sentences, &entities);
         let values: Vec<f64> = points.iter().map(|p| p.value).collect();
         assert_eq!(values, vec![3.25]);

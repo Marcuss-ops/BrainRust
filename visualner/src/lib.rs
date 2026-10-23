@@ -44,9 +44,9 @@ pub mod spellout;
 pub mod temporal;
 pub mod types;
 
-pub use analysis::{analyze, Analysis};
-pub use extractor::extract;
+pub use analysis::{analyze, analyze_with_context, Analysis};
 pub use extractor::model_path;
+pub use extractor::{extract, extract_with_context, script_person_tokens, ScriptContext};
 pub use spellout::supported_spellout_language_count;
 pub use temporal::temporal_facts;
 pub use temporal::TemporalFact;

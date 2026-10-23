@@ -1314,3 +1314,51 @@ fn spelled_italian_date_reaches_temporal_facts() {
         analysis.temporal_facts
     );
 }
+
+#[test]
+fn institutions_are_orgs_and_never_places_or_people() {
+    // A geographic cue in front of an office ("in Cassazione", "davanti alla
+    // Corte Suprema") names the office, not a point on a map; the curated
+    // legal cues decide the kind, and a common noun promoted by its position
+    // ("Udienza Preliminare") is not a person either.
+    let source = "In Cassazione si discute il ricorso. La Procura ha aperto un \
+                  fascicolo. Davanti alla Corte Suprema si discute ancora. Il \
+                  Giudice dell'Udienza Preliminare ha deciso, e la città di Pavia \
+                  resta il luogo del fatto.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 40,
+        },
+    )
+    .unwrap();
+    let find = |name: &str| entities.iter().find(|entity| entity.text == name);
+    for office in ["Cassazione", "Procura", "Corte Suprema"] {
+        let entity = find(office).unwrap_or_else(|| panic!("{office} missing: {entities:?}"));
+        assert_eq!(entity.r#type, "ORG", "{office} must be an organization");
+    }
+    for surface in [
+        "Cassazione",
+        "Procura",
+        "Corte Suprema",
+        "Udienza Preliminare",
+    ] {
+        assert!(
+            !entities
+                .iter()
+                .any(|entity| entity.text == surface && entity.r#type == "LOCATION"),
+            "{surface} must never be a LOCATION: {entities:?}"
+        );
+    }
+    assert_eq!(
+        find("Udienza Preliminare").map(|entity| entity.r#type.as_str()),
+        Some("VISUAL_CONCEPT"),
+        "a procedural act is not a person: {entities:?}"
+    );
+    assert_eq!(
+        find("Pavia").map(|entity| entity.r#type.as_str()),
+        Some("LOCATION"),
+        "a real place after the same kind of cue stays a place: {entities:?}"
+    );
+}

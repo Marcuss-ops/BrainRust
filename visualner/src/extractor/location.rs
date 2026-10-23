@@ -46,7 +46,9 @@ pub(super) fn mark_contextual_locations(
             end += 1;
         }
         let mut place = candidate_from_tokens(tokens, source_text, index, end);
-        if is_generic_location_noun(&place.text) {
+        if is_generic_location_noun(&place.text)
+            || !is_place_name(&tokens[index], &place.text, language, cased)
+        {
             continue;
         }
         place.entity_type = Some("LOCATION".to_string());
@@ -66,6 +68,9 @@ pub(super) fn mark_contextual_locations(
         else {
             continue;
         };
+        if !is_place_name(&tokens[token_index], &candidate.text, language, cased) {
+            continue;
+        }
         if has_location_context(tokens, bytes, token_index)
             && !is_month_name(&candidate.text)
             && !is_generic_location_noun(&candidate.text)
@@ -81,6 +86,60 @@ pub(super) fn mark_contextual_locations(
             candidates.push(place);
         }
     }
+}
+
+/// A geographic cue takes a proper name ("presso la Procura di Pavia" names
+/// Pavia, not the Procura). Three kinds of evidence decide:
+///
+/// * the POS tag — a NOUN is never a place;
+/// * the lemma — in a multi-word surface a common noun promoted to PROPN by
+///   its position keeps a lowercase lemma ("Udienza" -> "udienza"), while a
+///   toponym keeps its capital ("Great Smoky" -> "Great Smoky"). A
+///   single-token surface is not judged by its lemma: UDPipe lowercases the
+///   lemma of many real place names ("Lazio"), so the tag and the
+///   institutional vocabulary are the only evidence there;
+/// * the shared legal pack — an institution or role cue head ("Corte",
+///   "Procura", "Cassazione") names an office, not a point on a map.
+///
+/// Without a model every tag and lemma is `None` and only the institutional
+/// vocabulary and the capitalization guard apply, so the model-free path keeps
+/// its behavior.
+pub(super) fn is_place_name(token: &Token, surface: &str, language: &str, cased: bool) -> bool {
+    // UDPipe leaves some names untagged (X) or bare; the cue still applies.
+    if let Some("NOUN") = token.upos.as_deref() {
+        return false;
+    }
+    if cased && surface.contains(char::is_whitespace) {
+        if let Some(lemma) = token.lemma.as_deref() {
+            if lemma.chars().next().is_some_and(char::is_lowercase) {
+                return false;
+            }
+        }
+    }
+    !is_institution_name(surface, language)
+}
+
+/// True when the surface opens with the head word of a curated institution or
+/// role cue ("Corte di Cassazione", "Procura di ", "Cassazione", "GUP"). The
+/// vocabulary is the legal pack's, so a new court is a data entry.
+fn is_institution_name(text: &str, language: &str) -> bool {
+    let Some(pack) = semantic_core::legal_packs::get(language) else {
+        return false;
+    };
+    let head = text
+        .split_whitespace()
+        .next()
+        .unwrap_or(text)
+        .to_lowercase();
+    if head.is_empty() {
+        return false;
+    }
+    pack.entity_cues.iter().any(|cue| {
+        cue.cue
+            .split_whitespace()
+            .next()
+            .is_some_and(|word| word.to_lowercase() == head)
+    })
 }
 
 /// Short all-caps surfaces are acronyms (DNA, GUP, ANSA), never place names

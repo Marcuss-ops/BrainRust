@@ -30,7 +30,7 @@ use location::*;
 use pos::{is_stop_token, tag_tokens};
 use stopwords::*;
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::types::{ExtractOptions, VisualEntity};
 
@@ -74,6 +74,26 @@ pub fn numeric_value_spans(source_text: &str) -> Vec<NumericSpan> {
 /// This is the single canonical entry point. Returns entities in score-desc
 /// order (ties broken by earliest source position).
 pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<VisualEntity>, String> {
+    extract_with_context(source_text, options, &ScriptContext::default())
+}
+
+/// Script-wide evidence that is only available after every scene is tokenized:
+/// the tokens of the person names the script actually states. A one-token place
+/// candidate that matches one of them ("Chiara", "Poggi" next to "Chiara
+/// Poggi") is a name fragment, not a place. The set is derived from the text,
+/// never from a word list.
+#[derive(Debug, Default, Clone)]
+pub struct ScriptContext {
+    pub person_name_tokens: BTreeSet<String>,
+}
+
+/// `extract` with script-wide context. The engine builds the context once per
+/// script and passes the same value to every scene.
+pub fn extract_with_context(
+    source_text: &str,
+    options: &ExtractOptions,
+    context: &ScriptContext,
+) -> Result<Vec<VisualEntity>, String> {
     let language = options.language.trim();
     if language.is_empty() {
         return Err("VisualNER language is required".to_string());
@@ -93,9 +113,9 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
     candidates.extend(value_candidates(source_text));
     mark_contextual_locations(&mut candidates, &tokens, source_text, language);
     let spelled_candidates = crate::spellout::candidates(source_text, language)?;
-    let spelled_ranges: Vec<(usize, usize)> = spelled_candidates
+    let spelled_ranges: Vec<(usize, usize, String)> = spelled_candidates
         .iter()
-        .map(|number| (number.start, number.end))
+        .map(|number| (number.start, number.end, number.entity_type.to_string()))
         .collect();
     candidates.extend(spelled_candidates.into_iter().map(|number| {
         let text = source_text[number.start..number.end].to_string();
@@ -107,13 +127,16 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
             entity_type: Some(number.entity_type.to_string()),
         }
     }));
-    let mut scored: Vec<VisualEntity> = candidates
+    let scored: Vec<VisualEntity> = candidates
         .into_iter()
+        // The spelled-number projection owns its span: a bare token candidate
+        // over the same bytes ("duemilasette") would otherwise shadow the
+        // typed DATE with a generic VISUAL_CONCEPT.
         .filter(|candidate| {
-            !spelled_ranges.iter().any(|(start, end)| {
+            !spelled_ranges.iter().any(|(start, end, kind)| {
                 candidate.start < *end
                     && *start < candidate.end
-                    && !(candidate.start == *start && candidate.end == *end)
+                    && candidate.entity_type.as_deref() != Some(kind.as_str())
             })
         })
         // A bare number followed by a scale word ("2" in "2 Millionen") is
@@ -126,9 +149,12 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
                 .all(|c| c.is_ascii_digit() || matches!(c, '.' | ','));
             !(bare && values::scale_word_follows(source_text, candidate.end))
         })
+        .filter(|candidate| !is_heading_surface(&candidate.text))
+        .filter(|candidate| keeps_as_visual_candidate(candidate, &tokens, language))
         .filter_map(|c| validate_evidence(c, source_text, &tokens, language))
         .map(score_entity)
         .collect();
+    let mut scored = drop_name_fragments(scored, context);
     // Rank: highest score first; ties broken by earliest start offset so
     // the order is deterministic across 100/100 runs.
     scored.sort_by(|a, b| {
@@ -167,6 +193,165 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
         unique.push(entity);
     }
     Ok(reserve_numeric_slots(unique, options.top_n()))
+}
+
+/// Collects the tokens of every multi-token capitalized run in the script.
+/// Tokenization uses the same ICU rules as extraction, so no per-language
+/// list is involved; a caseless script contributes nothing because
+/// capitalization is not name evidence there.
+pub fn script_person_tokens(source_texts: &[&str], language: &str) -> ScriptContext {
+    let mut context = ScriptContext::default();
+    if !semantic_core::lexicon::lexicon()
+        .language_profiles
+        .is_cased(language)
+    {
+        return context;
+    }
+    for text in source_texts {
+        let Ok(tokens) = tokenize(text, language) else {
+            continue;
+        };
+        let mut run: Vec<&Token> = Vec::new();
+        for token in &tokens {
+            let name_like = token.text.chars().next().is_some_and(char::is_uppercase);
+            if name_like {
+                // A sentence break ends the name: "Garlasco. La mattina" is
+                // a place and a new sentence, never the place "Garlasco La".
+                if let Some(previous) = run.last() {
+                    if text.as_bytes()[previous.end..token.start]
+                        .iter()
+                        .any(|byte| location::is_phrase_breaking_byte(*byte))
+                    {
+                        flush_name_run(&mut run, &mut context, language);
+                    }
+                }
+                run.push(token);
+                continue;
+            }
+            flush_name_run(&mut run, &mut context, language);
+        }
+        flush_name_run(&mut run, &mut context, language);
+    }
+    context
+}
+
+fn flush_name_run(run: &mut Vec<&Token>, context: &mut ScriptContext, language: &str) {
+    // Two *significant* tokens make a name. "Garlasco La" is a place followed
+    // by an article, so it must not contribute "garlasco" as a person token.
+    let significant = run
+        .iter()
+        .filter(|token| !is_stop_token(token, language))
+        .count();
+    let usable = significant >= 2 && !run.iter().any(|token| is_heading_surface(&token.text));
+    if usable {
+        for token in run.iter() {
+            if !is_stop_token(token, language) {
+                context.person_name_tokens.insert(token.text.to_lowercase());
+            }
+        }
+    }
+    run.clear();
+}
+
+/// Keeps a generic phrase only when the POS model still sees a noun phrase:
+/// a clause that opens with a verb, auxiliary or pronoun ("c'è nulla") or an
+/// adverb stack ("ancora oggi") is not a visual subject. Typed candidates
+/// (objects, values, names) are not affected, and without a model every
+/// candidate is kept, so the model-free path is unchanged.
+fn keeps_as_visual_candidate(candidate: &Candidate, tokens: &[Token], language: &str) -> bool {
+    if candidate.entity_type.is_some() {
+        return true;
+    }
+    // A predicate or function word opens a clause, never a visual phrase.
+    // UDPipe tags common names as PRON ("OpenAI"), so a pronoun only counts
+    // when the orthography still marks it as a name.
+    // A name can be mistagged as a pronoun, but a pronoun cannot be talked
+    // into a name: the language pack's function inventory still rules it out,
+    // which is what keeps a sentence-initial "Ciò" or "Noi" out while
+    // "OpenAI" (absent from every inventory) stays.
+    let pronoun_is_name = |token: &Token| {
+        if !semantic_core::lexicon::lexicon()
+            .language_profiles
+            .is_cased(language)
+            || !starts_uppercase(&token.text)
+        {
+            return false;
+        }
+        let lower = token.text.to_lowercase();
+        // A capitalized surface the pack lists as a function word is still a
+        // function word: "C'è" and "Ciò" open a sentence, they do not name
+        // anything.
+        !semantic_core::language_packs::get(language)
+            .is_some_and(|pack| pack.is_function_word(&lower) || pack.is_stopword(&lower))
+    };
+    let opens_a_clause = |token: &Token| match token.upos.as_deref() {
+        Some("VERB" | "AUX" | "SCONJ" | "CCONJ" | "INTJ" | "DET" | "ADP") => true,
+        Some("PRON") => !pronoun_is_name(token),
+        _ => false,
+    };
+    let span: Vec<&Token> = tokens
+        .iter()
+        .filter(|token| token.start >= candidate.start && token.end <= candidate.end)
+        .collect();
+    if span.is_empty() || span.iter().all(|token| token.upos.is_none()) {
+        return true;
+    }
+    if opens_a_clause(span[0]) {
+        return false;
+    }
+    // A verb inside the phrase means the candidate spans a predicate
+    // ("anni sarebbe tornato"); a trailing participle is the only form that
+    // still modifies a noun ("condanna anticipata").
+    let last = span.len() - 1;
+    let predicate_inside = span
+        .iter()
+        .enumerate()
+        .any(|(index, token)| index != last && opens_a_clause(token));
+    if predicate_inside {
+        return false;
+    }
+    // An adverb or adjective stack without any noun ("ancora oggi") is not a
+    // subject either. Unknown tags (X) and adjectives are kept: UDPipe tags
+    // many proper names and brands as X or ADJ, and refusing them here would
+    // drop real identities the typers can still recognize later.
+    span.iter().any(|token| match token.upos.as_deref() {
+        Some("NOUN" | "PROPN" | "NUM" | "ADJ" | "X") => true,
+        Some("PRON") => pronoun_is_name(token),
+        _ => false,
+    })
+}
+
+/// Drops two kinds of fragment, both derived from the script's own names:
+/// a one-token place whose surface is a token of a person name stated
+/// elsewhere, and a mention fully contained in a longer PERSON mention of the
+/// same scene. The longer, better-typed mention owns the identity.
+fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> Vec<VisualEntity> {
+    let person_spans: Vec<(usize, usize)> = entities
+        .iter()
+        .filter(|entity| entity.r#type == "PERSON")
+        .map(|entity| (entity.start, entity.end))
+        .collect();
+    entities
+        .into_iter()
+        .filter(|entity| {
+            if !matches!(entity.r#type.as_str(), "LOCATION" | "PERSON") {
+                return true;
+            }
+            if entity.r#type == "LOCATION"
+                && !entity.text.contains(char::is_whitespace)
+                && context
+                    .person_name_tokens
+                    .contains(&entity.text.to_lowercase())
+            {
+                return false;
+            }
+            !person_spans.iter().any(|(start, end)| {
+                (*start, *end) != (entity.start, entity.end)
+                    && entity.start >= *start
+                    && entity.end <= *end
+            })
+        })
+        .collect()
 }
 
 /// Adds typed candidates for a small, high-precision visual-object vocabulary.
@@ -411,10 +596,20 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
     }
     // Curated names are entities even when a function word sits inside them
     // ("Will Always Love You" ends in "you"), so they are emitted verbatim
-    // before the generic phrase scan can truncate them.
+    // before the generic phrase scan can truncate them. The gazetteer decides
+    // the type here: a title that opens with a modal ("Will Always Love You")
+    // must not be read as a clause by the POS gate.
     for index in 0..tokens.len() {
         if let Some(end) = curated_name_span(tokens, bytes, index) {
-            out.push(candidate_from_tokens(tokens, source_text, index, end));
+            let mut candidate = candidate_from_tokens(tokens, source_text, index, end);
+            candidate.entity_type = Some(classify_value_type(
+                &candidate.text,
+                true,
+                false,
+                true,
+                language,
+            ));
+            out.push(candidate);
         }
     }
     let mut i = 0;
@@ -706,9 +901,35 @@ fn validate_evidence(
         None => true,
     });
     let proper_noun = start_token.is_some_and(|token| token.upos.as_deref() == Some("PROPN"));
-    let mut entity_type = c
-        .entity_type
-        .unwrap_or_else(|| classify_value_type(&c.text, gazetteer_eligible, proper_noun, language));
+    // A real name keeps its capital in the lemma ("Alberto" -> "Alberto"),
+    // while a common noun promoted by its position does not ("Udienza" ->
+    // "udienza"). The evidence is read from the first substantial word: dotted
+    // initials ("J. D. Vance") are one-letter tokens and prove nothing. A
+    // single-word surface is not judged by its lemma, because UDPipe
+    // lowercases many real names ("Lazio"); without a lemma the orthography
+    // alone decides, exactly as it did before the model.
+    let multi_word = c.text.split_whitespace().count() >= 2;
+    let name_token = tokens
+        .iter()
+        .filter(|token| token.start >= c.start && token.end <= c.end)
+        .find(|token| token.text.chars().filter(|ch| ch.is_alphabetic()).count() >= 2);
+    let name_evidence = !cased
+        || !multi_word
+        || name_token.is_none_or(|token| {
+            token
+                .lemma
+                .as_deref()
+                .is_none_or(|lemma| lemma.chars().next().is_some_and(char::is_uppercase))
+        });
+    let mut entity_type = c.entity_type.unwrap_or_else(|| {
+        classify_value_type(
+            &c.text,
+            gazetteer_eligible,
+            proper_noun,
+            name_evidence,
+            language,
+        )
+    });
     // In a language that capitalizes common nouns (German) the title-case
     // shape alone cannot prove a person, and without a UDPipe model there is
     // no PROPN tag either. A curated person title immediately before the name

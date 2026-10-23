@@ -91,11 +91,18 @@ fn multiple_entities(
     out: &mut Vec<VisualCandidate>,
 ) {
     for bullet in bullets {
+        // Only named subjects share a frame. A sentence that lists ten generic
+        // nouns ("persone", "nome", "tempo") is narration, not a composition,
+        // and each of those nouns would become a search query of its own.
         let mut indices: Vec<usize> = bullet
             .entities
             .iter()
             .copied()
-            .filter(|&i| entities.get(i).is_some_and(is_visual_entity))
+            .filter(|&i| {
+                entities
+                    .get(i)
+                    .is_some_and(|entity| is_visual_entity(entity) && is_named_subject(entity))
+            })
             .collect();
         indices.sort_unstable();
         indices.dedup();
@@ -157,8 +164,10 @@ fn charts(
             continue;
         };
         // Equal units and a shared sentence are not enough to prove that two
-        // values belong in one chart. Require an explicit comparison cue.
-        if !has_comparison_cue(&bullet.text) {
+        // values belong in one chart. Require an explicit comparison cue, read
+        // from the shared discourse vocabulary so the engine and this builder
+        // can never disagree about what a comparison is.
+        if semantic_core::discourse::comparison_cue(&bullet.text).is_none() {
             continue;
         }
         let mut indices: Vec<usize> = chart_points
@@ -183,27 +192,6 @@ fn charts(
             end: bullet.end,
         });
     }
-}
-
-fn has_comparison_cue(sentence: &str) -> bool {
-    let sentence = format!(" {} ", sentence.to_lowercase());
-    [
-        " contro ",
-        " versus ",
-        " vs ",
-        " compared to ",
-        " compared with ",
-        " against ",
-        " whereas ",
-        " mentre ",
-        " rispetto a ",
-        " par rapport à ",
-        " im vergleich ",
-        " gegenüber ",
-        " gegenueber ",
-    ]
-    .iter()
-    .any(|cue| sentence.contains(cue))
 }
 
 fn timelines(bullets: &[Bullet], temporal_facts: &[TemporalFact], out: &mut Vec<VisualCandidate>) {
@@ -269,6 +257,16 @@ pub(crate) fn is_visual_entity(entity: &VisualEntity) -> bool {
     !matches!(
         entity.r#type.as_str(),
         "NUMBER" | "PERCENT" | "MONEY" | "DATE"
+    )
+}
+
+/// A named subject a planner can picture and search: a person, place, venue,
+/// organization, brand, product or work. Generic concepts and measurements
+/// are not subjects of a co-mention grid.
+pub(crate) fn is_named_subject(entity: &VisualEntity) -> bool {
+    matches!(
+        entity.r#type.as_str(),
+        "PERSON" | "ORGANIZATION" | "ORG" | "LOCATION" | "FACILITY" | "BRAND" | "PRODUCT" | "WORK"
     )
 }
 

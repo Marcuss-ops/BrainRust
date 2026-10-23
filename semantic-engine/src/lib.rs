@@ -18,6 +18,7 @@ pub mod identity_lookup;
 pub mod legal;
 pub mod micro;
 pub mod protocol;
+pub mod story;
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
@@ -25,10 +26,10 @@ use semantic_core::grounding::{check_span, retain_grounded, Grounding};
 use semantic_core::lexicon;
 use semantic_core::{
     AssertedRelation, Candidate, CoMention, EntityFact, IdentityRegistry, RelationStatus,
-    RelationView, SceneManifest, SemanticGroup, SemanticGroupMember, SemanticManifest,
-    VisualProposal,
+    RelationView, SceneManifest, SearchFeedbackEntry, SearchQuery, SemanticGroup,
+    SemanticGroupMember, SemanticManifest, VisualProposal,
 };
-use visualner::{analyze, ExtractOptions, TemporalFact, VisualEntity};
+use visualner::{analyze_with_context, ExtractOptions, TemporalFact, VisualEntity};
 
 use groups::{is_visual_entity as is_visual_subject, VisualCandidate};
 use identity_lookup::IdentityLookup;
@@ -63,35 +64,51 @@ pub fn analyze_scene(
     safety_cap: usize,
     registry: &mut IdentityRegistry,
 ) -> SceneManifest {
+    let context = visualner::ScriptContext::default();
+    analyze_scene_with_search(scene, language, safety_cap, registry, &context).0
+}
+
+/// Same analysis, also returning the asset-search entries the script-level
+/// manifest aggregates. Retrieval never happens here: every entry is `pending`.
+fn analyze_scene_with_search(
+    scene: &SceneInput,
+    language: &str,
+    safety_cap: usize,
+    registry: &mut IdentityRegistry,
+    context: &visualner::ScriptContext,
+) -> (SceneManifest, Vec<SearchFeedbackEntry>) {
     let options = ExtractOptions {
         language: language.to_string(),
         // The extractor keeps every grounded entity up to the safety cap; the
         // editorial top-N belongs to the planner.
         entity_count: safety_cap,
     };
-    let mut analysis = match analyze(&scene.text, &options) {
+    let mut analysis = match analyze_with_context(&scene.text, &options, context) {
         Ok(analysis) => analysis,
         Err(reason) => {
-            return SceneManifest {
-                scene_id: scene.scene_id.clone(),
-                status: "rejected",
-                reason: Some(reason),
-                entities: Vec::new(),
-                identities: Vec::new(),
-                relations: RelationView::default(),
-                numeric_facts: Vec::new(),
-                temporal_facts: Vec::new(),
-                entity_facts: Vec::new(),
-                bullets: Vec::new(),
-                short_phrases: Vec::new(),
-                long_phrases: Vec::new(),
-                quotes: Vec::new(),
-                important_words: Vec::new(),
-                visual_proposals: Vec::new(),
-                semantic_groups: Vec::new(),
-                micro_summaries: Vec::new(),
-                rejected_items: 0,
-            };
+            return (
+                SceneManifest {
+                    scene_id: scene.scene_id.clone(),
+                    status: "rejected",
+                    reason: Some(reason),
+                    entities: Vec::new(),
+                    identities: Vec::new(),
+                    relations: RelationView::default(),
+                    numeric_facts: Vec::new(),
+                    temporal_facts: Vec::new(),
+                    entity_facts: Vec::new(),
+                    bullets: Vec::new(),
+                    short_phrases: Vec::new(),
+                    long_phrases: Vec::new(),
+                    quotes: Vec::new(),
+                    important_words: Vec::new(),
+                    visual_proposals: Vec::new(),
+                    semantic_groups: Vec::new(),
+                    micro_summaries: Vec::new(),
+                    rejected_items: 0,
+                },
+                Vec::new(),
+            );
         }
     };
 
@@ -192,7 +209,8 @@ pub fn analyze_scene(
         &temporal_facts,
         &identities,
     );
-    let (visual_candidates, rejected_candidates) = retain_grounded_candidates(source, candidates);
+    let (mut visual_candidates, rejected_candidates) =
+        retain_grounded_candidates(source, candidates);
     let sentence_spans = semantic_core::split_sentences(source, language, None);
     let semantic_groups = {
         let mut groups = chronological_groups(&scene.scene_id, source, language, &temporal_facts);
@@ -222,30 +240,52 @@ pub fn analyze_scene(
         groups.extend(built.groups.clone());
         groups
     };
+    // A complete dated sequence is ONE timeline: the planner can animate the
+    // whole progression, and the fragment timelines of its own sentences stop
+    // competing with it for the same facts.
+    sequence_timeline_candidates(
+        source,
+        language,
+        &semantic_groups,
+        &temporal_facts,
+        &entity_facts,
+        &mut visual_candidates,
+    );
 
-    SceneManifest {
-        scene_id: scene.scene_id.clone(),
-        status: "valid",
-        reason: None,
-        entities: entity_candidates(source, language, &entities, &identities),
-        identities: registry.identities().to_vec(),
-        relations,
-        numeric_facts: analysis.numeric_facts,
-        temporal_facts,
-        entity_facts,
-        important_words: important_word_candidates(source, language, &entities, &identities),
-        bullets,
-        short_phrases: phrase_candidates(source, language, 0, 18),
-        long_phrases: phrase_candidates(source, language, 18, usize::MAX),
-        quotes: quote_candidates(source, language),
-        visual_proposals: visual_candidates
-            .into_iter()
-            .map(|candidate| to_visual_proposal(candidate, source, &sentence_spans))
-            .collect(),
-        semantic_groups,
-        micro_summaries: built.summaries,
-        rejected_items: rejected_entities + rejected_candidates,
+    let mut visual_proposals = Vec::with_capacity(visual_candidates.len());
+    let mut search_feedback = Vec::new();
+    for (index, candidate) in visual_candidates.into_iter().enumerate() {
+        let (proposal, feedback) =
+            to_visual_proposal(candidate, source, &sentence_spans, &scene.scene_id, index);
+        visual_proposals.push(proposal);
+        if let Some(entry) = feedback {
+            search_feedback.push(entry);
+        }
     }
+
+    (
+        SceneManifest {
+            scene_id: scene.scene_id.clone(),
+            status: "valid",
+            reason: None,
+            entities: entity_candidates(source, language, &entities, &identities),
+            identities: registry.identities().to_vec(),
+            relations,
+            numeric_facts: analysis.numeric_facts,
+            temporal_facts,
+            entity_facts,
+            important_words: important_word_candidates(source, language, &entities, &identities),
+            bullets,
+            short_phrases: phrase_candidates(source, language, 0, 18),
+            long_phrases: phrase_candidates(source, language, 18, usize::MAX),
+            quotes: quote_candidates(source, language),
+            visual_proposals,
+            semantic_groups,
+            micro_summaries: built.summaries,
+            rejected_items: rejected_entities + rejected_candidates,
+        },
+        search_feedback,
+    )
 }
 
 /// Analyses every scene of a script in one call.
@@ -272,14 +312,28 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
 
     // One registry for the whole script so identity is shared across scenes.
     let mut registry = IdentityRegistry::new();
-    let mut scenes: Vec<SceneManifest> = request
+    let mut search_entries: Vec<SearchFeedbackEntry> = Vec::new();
+    let mut scenes: Vec<SceneManifest> = Vec::with_capacity(request.scenes.len());
+    // Script-wide name evidence: one tokenization pass over every scene, so a
+    // scene that says only a first name cannot turn it into a place.
+    let texts: Vec<&str> = request
         .scenes
         .iter()
-        .map(|scene| analyze_scene(scene, language, safety_cap, &mut registry))
+        .map(|scene| scene.text.as_str())
         .collect();
+    let context = visualner::script_person_tokens(&texts, language);
+    for scene in &request.scenes {
+        let (manifest, entries) =
+            analyze_scene_with_search(scene, language, safety_cap, &mut registry, &context);
+        scenes.push(manifest);
+        search_entries.extend(entries);
+    }
     add_cross_scene_comparison_groups(&request.scenes, &mut scenes);
     add_cross_scene_causal_groups(&request.scenes, &mut scenes);
     add_cross_scene_process_groups(&request.scenes, &mut scenes, language);
+
+    let story_graph = story::build_story_graph(&scenes);
+    let visual_coverage = story::build_visual_coverage(&scenes);
 
     let analyzers = analyzer_versions();
     let fingerprint = request_fingerprint(request, &analyzers);
@@ -310,6 +364,11 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         fingerprint,
         analyzers,
         scenes,
+        story_graph,
+        visual_coverage,
+        search_feedback: semantic_core::SearchFeedback {
+            entries: search_entries,
+        },
         editorial,
     })
 }
@@ -1136,6 +1195,18 @@ fn chronological_groups(
         if !is_event_sentence(sentence_text) {
             continue;
         }
+        // One sentence is one event, however many dates it carries ("nel 2009
+        // ... che nel 2011 viene confermata"): two members with the same
+        // evidence would draw the same frame twice. The earliest date of the
+        // sentence names the event.
+        if members
+            .iter()
+            .any(|(_, existing): &(String, SemanticGroupMember)| {
+                existing.sentence_index == sentence_index
+            })
+        {
+            continue;
+        }
         members.push((
             normalized.to_string(),
             SemanticGroupMember {
@@ -1148,6 +1219,7 @@ fn chronological_groups(
                 start_byte: sentence.start_byte,
                 end_byte: sentence.end_byte,
                 temporal_surface: Some(fact.surface.clone()),
+                normalized_date: fact.normalized.clone(),
             },
         ));
     }
@@ -1167,6 +1239,162 @@ fn chronological_groups(
         complete: None,
         members: members.into_iter().map(|(_, member)| member).collect(),
     }]
+}
+
+/// Turns a complete `step_sequence` group into one timeline proposal over the
+/// group's own evidence, and drops the sentence-level timelines it contains.
+/// Without this, a five-step progression is represented by two-step fragments
+/// and the last step of the sequence stays uncovered.
+fn sequence_timeline_candidates(
+    source: &str,
+    language: &str,
+    groups: &[SemanticGroup],
+    temporal_facts: &[TemporalFact],
+    entity_facts: &[EntityFact],
+    out: &mut Vec<VisualCandidate>,
+) {
+    // A complete progression wins over a mere chronology of the same evidence:
+    // the step sequence is the structure the planner is asked to animate.
+    let sequences = groups
+        .iter()
+        .filter(|group| group.group_type == "step_sequence" && group.members.len() >= 3);
+    let chronologies = groups
+        .iter()
+        .filter(|group| group.group_type == "chronological" && group.members.len() >= 2);
+    let mut emitted: Vec<(usize, usize)> = Vec::new();
+    for group in sequences.chain(chronologies) {
+        let Some(start) = group.members.iter().map(|member| member.start_byte).min() else {
+            continue;
+        };
+        let Some(end) = group.members.iter().map(|member| member.end_byte).max() else {
+            continue;
+        };
+        // The same progression must not be emitted twice (a chronology whose
+        // evidence sits inside a step sequence adds nothing).
+        if emitted
+            .iter()
+            .any(|(known_start, known_end)| start >= *known_start && end <= *known_end)
+        {
+            continue;
+        }
+        emitted.push((start, end));
+        let Some(evidence) = source.get(start..end) else {
+            continue;
+        };
+        let mut surfaces: Vec<String> = group
+            .members
+            .iter()
+            .filter_map(|member| member.normalized_date.clone())
+            .collect();
+        surfaces.dedup();
+        // The fragments of this same progression are the timelines of its own
+        // sentences; the complete sequence replaces them instead of repeating
+        // them (one timeline per scene).
+        out.retain(|candidate| {
+            candidate.kind != "timeline" || candidate.start < start || candidate.end > end
+        });
+        out.push(VisualCandidate {
+            kind: "timeline",
+            sentence_index: group.members[0].sentence_index,
+            entity_ids: Vec::new(),
+            entity_indices: Vec::new(),
+            entity_texts: Vec::new(),
+            chart_items: Vec::new(),
+            temporal_surfaces: surfaces,
+            suggested_layout: Some("timeline"),
+            requires_verified_images: false,
+            evidence: evidence.to_string(),
+            start,
+            end,
+        });
+    }
+    isolated_event_candidates(
+        source,
+        language,
+        temporal_facts,
+        entity_facts,
+        &emitted,
+        out,
+    );
+}
+
+/// A dated event that stands alone is presented on its own card, not dropped.
+/// Without it, a fact stated in one sentence has no proposal at all and the
+/// coverage report lists it as uncovered; the planner still decides whether to
+/// animate it. A sentence qualifies when it carries an explicit event predicate
+/// or when the extractor already grounded a dated fact in it, so a stray date
+/// in background prose never becomes a card.
+fn isolated_event_candidates(
+    source: &str,
+    language: &str,
+    temporal_facts: &[TemporalFact],
+    entity_facts: &[EntityFact],
+    covered: &[(usize, usize)],
+    out: &mut Vec<VisualCandidate>,
+) {
+    let sentences = semantic_core::split_sentences(source, language, None);
+    let mut emitted: Vec<(usize, usize)> = covered.to_vec();
+    for fact in temporal_facts {
+        if fact.normalized.is_none() {
+            continue;
+        }
+        if emitted
+            .iter()
+            .any(|(start, end)| *start <= fact.start_byte && fact.end_byte <= *end)
+        {
+            continue;
+        }
+        let Some((sentence_index, sentence)) =
+            sentences.iter().enumerate().find(|(_, sentence)| {
+                sentence.start_byte <= fact.start_byte && fact.end_byte <= sentence.end_byte
+            })
+        else {
+            continue;
+        };
+        let Some(text) = source.get(sentence.start_byte..sentence.end_byte) else {
+            continue;
+        };
+        if !is_event_sentence(text) && !asserts_dated_fact(entity_facts, sentence) {
+            continue;
+        }
+        // A timeline this scene already draws over the sentence (two dates in
+        // one bullet) presents the event already; a card would repeat it.
+        if out.iter().any(|candidate| {
+            candidate.kind == "timeline"
+                && candidate.start <= sentence.start_byte
+                && sentence.end_byte <= candidate.end
+        }) {
+            continue;
+        }
+        emitted.push((sentence.start_byte, sentence.end_byte));
+        out.push(VisualCandidate {
+            kind: "timeline",
+            sentence_index,
+            entity_ids: Vec::new(),
+            entity_indices: Vec::new(),
+            entity_texts: Vec::new(),
+            chart_items: Vec::new(),
+            // A date card shows the surface the script uses, verbatim.
+            temporal_surfaces: vec![fact.surface.clone()],
+            suggested_layout: Some("date_card"),
+            requires_verified_images: false,
+            evidence: text.to_string(),
+            start: sentence.start_byte,
+            end: sentence.end_byte,
+        });
+    }
+}
+
+/// True when a fact with a normalized date was grounded inside `sentence`.
+/// That is an asserted dated claim, which the event-predicate list cannot see
+/// across domains: "il GUP emise la sua decisione di assoluzione" is an event
+/// its stems (built for construction and outcomes) do not name.
+fn asserts_dated_fact(facts: &[EntityFact], sentence: &semantic_core::SentenceSpan) -> bool {
+    facts.iter().any(|fact| {
+        fact.normalized_date.is_some()
+            && sentence.start_byte <= fact.start_byte
+            && fact.end_byte <= sentence.end_byte
+    })
 }
 
 /// Require an explicit event/process predicate before dates are grouped into
@@ -1238,6 +1466,7 @@ fn process_groups(
                     start_byte: sentence.start_byte,
                     end_byte: sentence.end_byte,
                     temporal_surface: None,
+                    normalized_date: None,
                 },
                 entity.text.clone(),
             ));
@@ -1279,6 +1508,24 @@ fn process_phase(sentence: &str) -> Option<(usize, String)> {
         .map(|phase| (phase.order, phase.name.clone()))
 }
 
+/// Words a comparison may put between a subject and its cue. "il reddito di
+/// Milano rispetto a quello di Roma" keeps a pronoun between cue and subject;
+/// a whole clause does not.
+const COMPARISON_CUE_GAP: usize = 4;
+
+/// A comparison is only drawn between named subjects: two generic nouns
+/// ("colpevolezza vs diritto") are not a visual contrast, because nothing in
+/// the text says the two are comparable.
+fn is_named_comparison_subject(entity: &VisualEntity) -> bool {
+    groups::is_named_subject(entity)
+}
+
+/// Two named subjects separated by an explicit cue: the only shape the engine
+/// proposes as a comparison. The old rule took *every* entity of a sentence
+/// that contained "rispetto a", so a paragraph listing eleven nouns became an
+/// eleven-way comparison. Here the cue is located first (byte-exact, from the
+/// shared discourse vocabulary), then the nearest named subject on each side
+/// is taken, so the group always has exactly two members.
 fn comparison_groups(
     scene_id: &str,
     source: &str,
@@ -1292,39 +1539,67 @@ fn comparison_groups(
         let Some(text) = source.get(sentence.start_byte..sentence.end_byte) else {
             continue;
         };
-        if fact_status(&text.to_lowercase()) != "asserted" || !has_explicit_comparison_cue(text) {
+        if fact_status(&text.to_lowercase()) != "asserted" {
             continue;
         }
-        let mut found = BTreeMap::<String, &VisualEntity>::new();
-        for (entity_index, entity) in entities.iter().enumerate() {
-            if entity.start < sentence.start_byte
-                || entity.end > sentence.end_byte
-                || !is_visual_subject(entity)
-                || is_comparison_marker_surface(&entity.text)
-            {
-                continue;
-            }
-            found
-                .entry(identities.id_of(entity_index))
-                .or_insert(entity);
-        }
-        if found.len() < 2 {
+        let Some((cue_start, cue_end)) = semantic_core::discourse::comparison_cue(text) else {
+            continue;
+        };
+        let cue_start = sentence.start_byte + cue_start;
+        let cue_end = sentence.start_byte + cue_end;
+        let words = semantic_core::discourse::word_spans(text);
+        let in_sentence = |entity: &VisualEntity| {
+            entity.start >= sentence.start_byte
+                && entity.end <= sentence.end_byte
+                && is_named_comparison_subject(entity)
+        };
+        // Nearest named subject before the cue, and the first one after it.
+        let left = entities
+            .iter()
+            .enumerate()
+            .filter(|(_, entity)| in_sentence(entity) && entity.end <= cue_start)
+            .max_by_key(|(_, entity)| entity.end);
+        let right = entities
+            .iter()
+            .enumerate()
+            .filter(|(_, entity)| in_sentence(entity) && entity.start >= cue_end)
+            .min_by_key(|(_, entity)| entity.start);
+        let (Some((left_index, left_entity)), Some((right_index, right_entity))) = (left, right)
+        else {
+            continue;
+        };
+        if identities.id_of(left_index) == identities.id_of(right_index) {
             continue;
         }
-        let mut members = Vec::new();
-        for (identity_id, entity) in found {
-            members.push(SemanticGroupMember {
-                candidate_id: format!("comparison_{identity_id}"),
-                scene_id: scene_id.to_string(),
-                rank: None,
-                sentence_index,
-                text: entity.text.clone(),
-                evidence: entity.evidence.clone(),
-                start_byte: entity.start,
-                end_byte: entity.end,
-                temporal_surface: None,
-            });
+        let left_gap = semantic_core::discourse::words_between(
+            &words,
+            left_entity.end - sentence.start_byte,
+            cue_start - sentence.start_byte,
+        );
+        let right_gap = semantic_core::discourse::words_between(
+            &words,
+            cue_end - sentence.start_byte,
+            right_entity.start - sentence.start_byte,
+        );
+        if left_gap > COMPARISON_CUE_GAP || right_gap > COMPARISON_CUE_GAP {
+            continue;
         }
+        let members: Vec<SemanticGroupMember> =
+            [(left_index, left_entity), (right_index, right_entity)]
+                .into_iter()
+                .map(|(entity_index, entity)| SemanticGroupMember {
+                    candidate_id: format!("comparison_{}", identities.id_of(entity_index)),
+                    scene_id: scene_id.to_string(),
+                    rank: None,
+                    sentence_index,
+                    text: entity.text.clone(),
+                    evidence: entity.evidence.clone(),
+                    start_byte: entity.start,
+                    end_byte: entity.end,
+                    temporal_surface: None,
+                    normalized_date: None,
+                })
+                .collect();
         let title = format!(
             "Confronto: {}",
             members
@@ -1338,56 +1613,12 @@ fn comparison_groups(
             group_type: "comparison".to_string(),
             title,
             ranking_basis: Some("explicit_source_comparison".to_string()),
-            target_count: None,
-            complete: None,
+            target_count: Some(2),
+            complete: Some(true),
             members,
         });
     }
     groups
-}
-
-fn has_explicit_comparison_cue(sentence: &str) -> bool {
-    let folded = format!(" {} ", sentence.to_lowercase());
-    [
-        " versus ",
-        " vs ",
-        " contro ",
-        " compared to ",
-        " compared with ",
-        " rispetto a ",
-        " rispetto al ",
-        " rispetto allo ",
-        " rispetto all'",
-        " rispetto all’",
-        " rispetto alla ",
-        " rispetto ai ",
-        " rispetto agli ",
-        " rispetto alle ",
-        " gegenüber ",
-        " gegenueber ",
-        " par rapport à ",
-    ]
-    .iter()
-    .any(|cue| folded.contains(cue))
-}
-
-fn is_comparison_marker_surface(surface: &str) -> bool {
-    let normalized = surface
-        .trim_matches(|character: char| {
-            character.is_ascii_punctuation() || character.is_whitespace()
-        })
-        .to_lowercase();
-    [
-        "versus",
-        "vs",
-        "contro",
-        "compared",
-        "rispetto",
-        "gegenüber",
-        "gegenueber",
-    ]
-    .iter()
-    .any(|marker| normalized.contains(marker))
 }
 
 fn causal_groups(
@@ -1439,6 +1670,7 @@ fn causal_groups(
                 start_byte: entity.start,
                 end_byte: entity.end,
                 temporal_surface: None,
+                normalized_date: None,
             });
         }
         if members.len() != 2 || evidence.is_empty() {
@@ -1672,6 +1904,7 @@ fn add_cross_scene_process_groups(
                         start_byte: sentence.start_byte,
                         end_byte: sentence.end_byte,
                         temporal_surface: None,
+                        normalized_date: None,
                     },
                     entity.text.clone(),
                 ));
@@ -1834,6 +2067,7 @@ fn numbered_groups(scene_id: &str, source: &str, language: &str) -> Vec<Semantic
             start_byte: *start,
             end_byte: *end,
             temporal_surface: None,
+            normalized_date: None,
         });
     }
     let complete = target_count.map(|target| {
@@ -1865,7 +2099,9 @@ fn to_visual_proposal(
     candidate: VisualCandidate,
     source: &str,
     sentence_spans: &[semantic_core::sentences::SentenceSpan],
-) -> VisualProposal {
+    scene_id: &str,
+    index: usize,
+) -> (VisualProposal, Option<SearchFeedbackEntry>) {
     let score = match candidate.kind {
         "chart" => 0.9,
         "timeline" => 0.8,
@@ -1873,9 +2109,27 @@ fn to_visual_proposal(
         _ => 0.6,
     };
     let entity_query = candidate.entity_texts.join(" ");
+    // The ladder widens on purpose: the exact identity first, then a bounded
+    // source phrase, then the full sentence for an illustrative stock search.
+    // Every rung is an exact source slice, so a provider hit is traceable. A
+    // co-mention searches each name on its own, never their joined label.
     let mut visual_query_suggestions = Vec::new();
+    let mut queries: Vec<SearchQuery> = Vec::new();
     if !entity_query.is_empty() {
         visual_query_suggestions.push(entity_query.clone());
+        if candidate.entity_texts.len() == 1 {
+            queries.push(SearchQuery {
+                kind: "exact_mention".to_string(),
+                text: entity_query.clone(),
+            });
+        } else {
+            for text in &candidate.entity_texts {
+                queries.push(SearchQuery {
+                    kind: "exact_mention".to_string(),
+                    text: text.clone(),
+                });
+            }
+        }
         if candidate.kind == "entity_search" {
             let sentence = sentence_spans
                 .iter()
@@ -1886,6 +2140,10 @@ fn to_visual_proposal(
                 {
                     if context != entity_query {
                         visual_query_suggestions.push(context.to_string());
+                        queries.push(SearchQuery {
+                            kind: "context_phrase".to_string(),
+                            text: context.to_string(),
+                        });
                     }
                 }
                 let sentence = sentence.text(source);
@@ -1895,13 +2153,33 @@ fn to_visual_proposal(
                         .any(|query| query == sentence)
                 {
                     visual_query_suggestions.push(sentence.to_string());
+                    queries.push(SearchQuery {
+                        kind: "source_sentence".to_string(),
+                        text: sentence.to_string(),
+                    });
                 }
             }
         } else if candidate.evidence != entity_query {
             visual_query_suggestions.push(candidate.evidence.clone());
+            queries.push(SearchQuery {
+                kind: "source_sentence".to_string(),
+                text: candidate.evidence.clone(),
+            });
         }
     }
-    VisualProposal {
+    let proposal_id = format!("{scene_id}_visual_{:03}", index + 1);
+    let feedback = candidate
+        .requires_verified_images
+        .then(|| SearchFeedbackEntry {
+            proposal_id: proposal_id.clone(),
+            scene_id: scene_id.to_string(),
+            queries: queries.clone(),
+            status: "pending".to_string(),
+            retry: None,
+        })
+        .filter(|entry| !entry.queries.is_empty());
+    let proposal = VisualProposal {
+        id: proposal_id,
         proposal_type: candidate.kind.to_string(),
         entity_ids: candidate.entity_ids,
         visual_query_suggestions,
@@ -1916,7 +2194,8 @@ fn to_visual_proposal(
         evidence: candidate.evidence,
         start_byte: candidate.start,
         end_byte: candidate.end,
-    }
+    };
+    (proposal, feedback)
 }
 
 /// Returns a short, contiguous source phrase around an entity mention. This

@@ -234,6 +234,19 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
             }
 
             let (candidate_end, classified_type) = extend_quantity(source, end, entity_type);
+            // A spelled year with no unit is a date, exactly like a digit year
+            // ("42" is a count, "2007" is a year). Typing it as a number
+            // would let a bar chart plot it.
+            let classified_type = if classified_type == "NUMBER"
+                && !ordinal_parse
+                && suffix.is_none()
+                && value.fract() == 0.0
+                && (1000.0..=2099.0).contains(&value)
+            {
+                "DATE"
+            } else {
+                classified_type
+            };
             out.push(WordNumberCandidate {
                 start,
                 end: candidate_end,
@@ -422,6 +435,7 @@ fn quantity_suffix(source: &str, end: usize) -> Option<(&'static str, &'static s
     let suffixes = [
         ("percent", "PERCENT"),
         ("per cent", "PERCENT"),
+        ("per cento", "PERCENT"),
         ("pour cent", "PERCENT"),
         ("por cento", "PERCENT"),
         ("percento", "PERCENT"),

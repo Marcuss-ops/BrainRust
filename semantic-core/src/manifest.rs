@@ -71,6 +71,9 @@ pub struct ChartItem {
 /// *proposal* (with its evidence) and left for the planner to validate.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct VisualProposal {
+    /// Stable scene-local id the planner uses to report a search outcome in
+    /// [`SearchFeedback`]. Deterministic for a given scene and proposal order.
+    pub id: String,
     /// `multiple_entities`, `chart`, `timeline`, `entity_card`, ...
     pub proposal_type: String,
     /// Canonical ids of the identities the proposal is about.
@@ -133,6 +136,11 @@ pub struct SemanticGroupMember {
     pub end_byte: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temporal_surface: Option<String>,
+    /// ISO date backing a dated member, so a planner can order and animate the
+    /// group without re-parsing the surface. `None` when the member is not a
+    /// dated event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalized_date: Option<String>,
 }
 
 /// A source-grounded fact explicitly attached to a canonical entity.
@@ -239,6 +247,151 @@ pub struct MicroSummary {
     pub score: f32,
 }
 
+/// One rung of the asset-search ladder proposed by the engine. The text is
+/// always an exact source slice; retrieval stays in PipelineGen.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SearchQuery {
+    /// `exact_mention`, `context_phrase` or `source_sentence`, in widening
+    /// order. The exact identity is tried first; the sentence is the last
+    /// resort for an illustrative stock search.
+    pub kind: String,
+    pub text: String,
+}
+
+/// What the planner should do when a search ladder is exhausted. Only the
+/// planner can set this: the engine never sees a provider response.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SearchRetry {
+    /// `broaden` (widen the query), `drop_entity` (the mention is not
+    /// searchable) or `skip_visual` (leave the fact uncovered).
+    pub action: String,
+    pub reason: String,
+}
+
+/// One asset-search handshake entry for a proposal that needs media.
+///
+/// The engine emits the query ladder and `status = "pending"`. PipelineGen owns
+/// retrieval and rewrites `status` (`satisfied` or `failed`) and `retry`, so a
+/// failed search is reported in the same contract instead of being lost in the
+/// planner's logs.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SearchFeedbackEntry {
+    /// Proposal id this entry reports on.
+    pub proposal_id: String,
+    pub scene_id: String,
+    /// Widening query ladder, exact source slices only.
+    pub queries: Vec<SearchQuery>,
+    /// `pending` (engine), `satisfied` or `failed` (planner).
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry: Option<SearchRetry>,
+}
+
+/// Asset-search feedback for the whole script. The engine emits one `pending`
+/// entry per image-backed proposal; every later field belongs to the planner.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct SearchFeedback {
+    pub entries: Vec<SearchFeedbackEntry>,
+}
+
+/// One node of the whole-script story graph.
+///
+/// A node is either a canonical identity (`kind = "identity"`) or a grounded
+/// fact (`kind = "fact"`). Identity nodes carry every scene they are mentioned
+/// in, which is what makes a cross-scene link explicit instead of implicit.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct StoryNode {
+    pub id: String,
+    /// `identity` or `fact`.
+    pub kind: String,
+    /// Display form: the canonical surface for an identity, the value for a
+    /// fact.
+    pub label: String,
+    /// Scene where the node is grounded first (its anchor).
+    pub scene_id: String,
+    /// Every scene the node is grounded in, in request order.
+    pub scene_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalized_date: Option<String>,
+    /// Sentence of the fact evidence; absent on an identity node, whose mention
+    /// may sit in another scene.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sentence_index: Option<usize>,
+    /// Verbatim source slice at `[start_byte, end_byte)`.
+    pub evidence: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// A grounded link between two story nodes.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct StoryEdge {
+    pub id: String,
+    /// `about` (identity -> fact) or `chronological` (fact -> fact).
+    pub kind: String,
+    pub from_id: String,
+    pub to_id: String,
+    /// True when the endpoints are grounded in different scenes. This is the
+    /// flag the planner uses to find story material that spans distant scenes.
+    pub cross_scene: bool,
+    /// Verbatim source evidence for the link at `[start_byte, end_byte)`,
+    /// always taken from the target node's scene.
+    pub evidence: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// Whole-script graph over grounded identities, facts and their dates.
+///
+/// Only links the source supports are emitted: an identity is joined to its own
+/// facts, and dated facts of one identity are ordered chronologically when the
+/// identity is mentioned in at least two scenes. Relationships the text does not
+/// assert are never invented.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct StoryGraph {
+    pub nodes: Vec<StoryNode>,
+    pub edges: Vec<StoryEdge>,
+}
+
+/// One fact evaluated for visual representation.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct CoverageItem {
+    pub fact_id: String,
+    pub predicate: String,
+    pub subject_entity_id: String,
+    pub importance: f32,
+    /// `covered` when a grounded proposal in the same scene represents it.
+    pub status: String,
+    /// Proposal types that represent the fact (empty when uncovered).
+    pub proposal_types: Vec<String>,
+    pub sentence_index: usize,
+    pub evidence: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// Coverage of one scene: every grounded fact and whether something visual
+/// already represents it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SceneCoverage {
+    pub scene_id: String,
+    /// Facts ordered by importance, then source position.
+    pub facts: Vec<CoverageItem>,
+}
+
+/// Whole-script visual coverage report. PipelineGen reads this to know which
+/// facts still need an image, a card or a chart instead of guessing.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct VisualCoverage {
+    pub total_facts: usize,
+    pub covered_facts: usize,
+    pub scenes: Vec<SceneCoverage>,
+}
+
 /// Every fact and proposal extracted for one scene.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SceneManifest {
@@ -281,6 +434,12 @@ pub struct SemanticManifest {
     pub fingerprint: String,
     pub analyzers: AnalyzerVersions,
     pub scenes: Vec<SceneManifest>,
+    /// Grounded identities, facts and dates joined across scene boundaries.
+    pub story_graph: StoryGraph,
+    /// Which grounded facts a scene's proposals already represent.
+    pub visual_coverage: VisualCoverage,
+    /// Asset-search handshake: query ladders plus the planner's outcomes.
+    pub search_feedback: SearchFeedback,
     /// Optional whole-script editorial products computed in this same batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub editorial: Option<EditorialManifest>,

@@ -13,6 +13,7 @@ pub(super) fn classify_value_type(
     text: &str,
     gazetteer_eligible: bool,
     proper_noun: bool,
+    name_evidence: bool,
     language: &str,
 ) -> String {
     if text.is_empty() {
@@ -45,7 +46,30 @@ pub(super) fn classify_value_type(
         }
         return "NUMBER".to_string();
     }
-    classify_type(text, gazetteer_eligible, proper_noun, language)
+    classify_type(
+        text,
+        gazetteer_eligible,
+        proper_noun,
+        name_evidence,
+        language,
+    )
+}
+
+/// The kind of the curated institution or role cue that opens `text`, if any
+/// ("Corte di Cassazione" -> ORG, "GUP" -> ROLE). The vocabulary is the shared
+/// legal pack's, so a new court is a data entry, never a code branch.
+pub(super) fn institution_cue_kind(text: &str, language: &str) -> Option<String> {
+    let pack = semantic_core::legal_packs::get(language)?;
+    let head = text.split_whitespace().next()?.to_lowercase();
+    pack.entity_cues
+        .iter()
+        .find(|cue| {
+            cue.cue
+                .split_whitespace()
+                .next()
+                .is_some_and(|word| word.to_lowercase() == head)
+        })
+        .map(|cue| cue.kind.clone())
 }
 
 fn contains(list: &[String], value: &str) -> bool {
@@ -60,6 +84,7 @@ fn classify_type(
     text: &str,
     gazetteer_eligible: bool,
     proper_noun: bool,
+    name_evidence: bool,
     language: &str,
 ) -> String {
     let lower = text.to_lowercase();
@@ -119,6 +144,15 @@ fn classify_type(
     {
         return "PRODUCT".to_string();
     }
+    // An institution is never a person: "Corte Suprema" and "Cassazione" are
+    // offices, and the curated legal cue decides their kind.
+    if let Some(kind) = institution_cue_kind(text, language) {
+        return if kind == "ORG" {
+            "ORG".to_string()
+        } else {
+            "VISUAL_CONCEPT".to_string()
+        };
+    }
     // Capitalization is name evidence only where the orthography makes it
     // meaningful: not in Han/Arabic/Thai (no case), and not in German (every
     // noun is capitalized, so "Die Neue Halle" is not a person).
@@ -129,7 +163,11 @@ fn classify_type(
     let case_is_evidence = lexicon
         .language_profiles
         .uppercase_is_name_evidence(language);
-    if case_is_evidence && title_tokens >= 2 && text.split_whitespace().count() >= 2 {
+    if case_is_evidence
+        && name_evidence
+        && title_tokens >= 2
+        && text.split_whitespace().count() >= 2
+    {
         return "PERSON".to_string();
     }
     // In German the tagger's PROPN substitutes for the case signal that the
@@ -401,26 +439,35 @@ mod tests {
     fn capitalization_is_name_evidence_only_where_the_script_makes_it_so() {
         // Two capitalized words are a person in a cased script that keeps
         // common nouns lowercase.
-        assert_eq!(classify_type("Alice Johnson", true, false, "it"), "PERSON");
+        assert_eq!(
+            classify_type("Alice Johnson", true, false, true, "it"),
+            "PERSON"
+        );
         // Not in German: every noun is capitalized, so "Neue Halle" proves
         // nothing.
         assert_eq!(
-            classify_type("Neue Halle", true, false, "de"),
+            classify_type("Neue Halle", true, false, true, "de"),
             "VISUAL_CONCEPT"
         );
         // The tagger's PROPN restores person recall where case cannot, but a
         // single PROPN is not enough: "Deutschland" is a country.
-        assert_eq!(classify_type("Alice Johnson", true, true, "de"), "PERSON");
         assert_eq!(
-            classify_type("Deutschland", true, true, "de"),
+            classify_type("Alice Johnson", true, true, true, "de"),
+            "PERSON"
+        );
+        assert_eq!(
+            classify_type("Deutschland", true, true, true, "de"),
             "VISUAL_CONCEPT"
         );
         // A caseless script never produces the capitalization signal, and a
         // bare PROPN is not evidence of PERSON there (a country is a PROPN).
         assert_eq!(
-            classify_type("北京 大学", true, false, "zh"),
+            classify_type("北京 大学", true, false, true, "zh"),
             "VISUAL_CONCEPT"
         );
-        assert_eq!(classify_type("日本", true, true, "zh"), "VISUAL_CONCEPT");
+        assert_eq!(
+            classify_type("日本", true, true, true, "zh"),
+            "VISUAL_CONCEPT"
+        );
     }
 }
