@@ -97,7 +97,7 @@ divergono. Non sono sorgenti da copiare a mano.
 - `semantic-core/src/generated_language_packs.rs` e
   `generated_legal_packs.rs` — tabelle `include_str!`.
 - `lexicon/months.json` — tabella CLDR da `sync_cldr_months.py`.
-- Gate: `build_language_packs.py --check` e `pack_coverage.py --check`.
+- Gate: `build_language_packs.py --check`.
 
 ### Metadati e documentazione
 

@@ -34,8 +34,6 @@ pub const LEXICON_DIR_ENV: &str = "SEMANTIC_LEXICON_DIR";
 /// Candidate-exclusion vocabularies (visualner stopword fallback).
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Stopwords {
-    pub stop_words: Vec<String>,
-    pub non_ascii_stop_words: Vec<String>,
     pub stop_phrases: Vec<String>,
     pub title_words: Vec<String>,
     /// Narration boilerplate that must never become an entity
@@ -897,7 +895,6 @@ mod tests {
     #[test]
     fn embedded_tables_load_with_the_documented_shape() {
         let lexicon = Lexicon::global();
-        assert!(!lexicon.stopwords.stop_words.is_empty());
         assert!(lexicon
             .stopwords
             .generic_phrases

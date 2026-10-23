@@ -2,13 +2,8 @@
   "schema": "language_pack.v1",
   "language": "pl",
   "source": "lexicon/languages/pl",
-  "closed_class": [
-    "do",
-    "i",
-    "na",
-    "to",
-    "we"
-  ],
+  "closed_class": [],
+  "blocked": [],
   "function_words": [
     "był",
     "była",

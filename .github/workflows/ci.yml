@@ -39,9 +39,7 @@ jobs:
     # has a pack, so adding a language cannot silently produce an unpacked
     # locale at runtime.
     - name: Language packs are current
-      run: |
-        python3 lexicon/tools/build_language_packs.py --check
-        python3 lexicon/tools/pack_coverage.py --check
+      run: python3 lexicon/tools/build_language_packs.py --check
 
     # rust-toolchain.toml is the single toolchain pin; the explicit install
     # keeps the container from falling back to a distro or floating rustc.

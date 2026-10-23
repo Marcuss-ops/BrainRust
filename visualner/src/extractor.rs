@@ -409,6 +409,14 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
     for (start, end) in proper_name_runs(tokens, bytes, language) {
         out.push(candidate_from_tokens(tokens, source_text, start, end));
     }
+    // Curated names are entities even when a function word sits inside them
+    // ("Will Always Love You" ends in "you"), so they are emitted verbatim
+    // before the generic phrase scan can truncate them.
+    for index in 0..tokens.len() {
+        if let Some(end) = curated_name_span(tokens, bytes, index) {
+            out.push(candidate_from_tokens(tokens, source_text, index, end));
+        }
+    }
     let mut i = 0;
     while i < tokens.len() {
         // A single uppercase initial between periods is a tokenization
@@ -506,6 +514,39 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
         }
     }
     out
+}
+
+/// End token index of the longest curated gazetteer name (work, person,
+/// brand, product, place) that starts exactly at `tokens[index]`. Such a span
+/// is an entity even when one of its words is a function word
+/// ("Will Always Love You" ends in the pronoun "you").
+fn curated_name_span(tokens: &[Token], bytes: &[u8], index: usize) -> Option<usize> {
+    let gazetteer = &semantic_core::lexicon::lexicon().gazetteer;
+    let names = gazetteer
+        .works
+        .iter()
+        .chain(gazetteer.persons.iter())
+        .chain(gazetteer.brands.iter())
+        .chain(gazetteer.product_names.iter())
+        .chain(gazetteer.locations.iter());
+    let mut longest: Option<usize> = None;
+    for name in names {
+        let words: Vec<&str> = name.split_whitespace().collect();
+        if words.is_empty() || index + words.len() > tokens.len() {
+            continue;
+        }
+        let matches = words.iter().enumerate().all(|(offset, word)| {
+            tokens[index + offset].text.to_lowercase() == *word
+                && (offset == 0
+                    || !bytes[tokens[index + offset - 1].end..tokens[index + offset].start]
+                        .iter()
+                        .any(|byte| is_phrase_breaking_byte(*byte)))
+        });
+        if matches {
+            longest = Some(longest.map_or(index + words.len(), |end| end.max(index + words.len())));
+        }
+    }
+    longest
 }
 
 fn proper_name_runs(tokens: &[Token], bytes: &[u8], language: &str) -> Vec<(usize, usize)> {

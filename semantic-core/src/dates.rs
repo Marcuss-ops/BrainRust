@@ -735,11 +735,6 @@ fn era_of(marker: &crate::lexicon::EraMarker) -> Era {
 fn is_date_connector(word: &str, language: &str) -> bool {
     let lower = word.to_lowercase();
     crate::language_packs::get(language).is_some_and(|pack| pack.is_stopword(&lower))
-        || crate::lexicon::lexicon()
-            .stopwords
-            .stop_words
-            .iter()
-            .any(|known| known == &lower)
 }
 
 /// Start offset of a date connector immediately before `end`, if any.

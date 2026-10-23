@@ -2,9 +2,8 @@
   "schema": "language_pack.v1",
   "language": "id",
   "source": "lexicon/languages/id",
-  "closed_class": [
-    "di"
-  ],
+  "closed_class": [],
+  "blocked": [],
   "function_words": [
     "adalah",
     "bawah",

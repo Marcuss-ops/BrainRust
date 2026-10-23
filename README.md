@@ -106,11 +106,12 @@ cargo build --release
 Linguistic knowledge is data, not Rust: one directory per language under
 `lexicon/languages/`, generated into `lexicon/packs/<lang>.json` by
 `lexicon/tools/build_language_packs.py`. The filter order is POS tag (when a
-UDPipe model is installed) → generated closed class → the legacy flat table,
-which is a bridge measured by `lexicon/tools/pack_coverage.py`. Legal facts
-and micro-summary templates live in optional domain packs
-(`lexicon/legal/<lang>.json`); a language without one degrades instead of
-rendering another language's vocabulary.
+UDPipe model is installed) → the language pack (closed class + curated
+blocklist). There is no cross-language fallback table: a language without a
+pack has no word-class filter (declared degradation), and adding one is a data
+directory. Legal facts and micro-summary templates live in optional domain
+packs (`lexicon/legal/<lang>.json`); a language without one degrades instead
+of rendering another language's vocabulary.
 
 Adding a language never touches Rust code. See
 [`docs/operations/languages.md`](docs/operations/languages.md) for the tiers

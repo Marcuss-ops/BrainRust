@@ -3,6 +3,7 @@
   "language": "ru",
   "source": "lexicon/languages/ru",
   "closed_class": [],
+  "blocked": [],
   "function_words": [
     "атлантик-сити",
     "был",

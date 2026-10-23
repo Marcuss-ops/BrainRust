@@ -11,13 +11,15 @@ Sources (one directory per language, never copied into Rust code):
   lexicon/languages/<lang>/subordinate_markers.txt
   lexicon/languages/<lang>/negative_particles.txt
   lexicon/languages/<lang>/contrast_openers.txt
+  lexicon/languages/<lang>/entity_blocklist.txt
   lexicon/languages/<lang>/function_words.txt
 
-`closed_class` is the union of the closed-class files: the set the Rust
-extractor uses to break a candidate phrase. `function_words` keeps the wider
-Go sentence-start list in the pack for reference and for the Go pipeline; it is
-NOT a Rust exclusion list, because it also contains open-class adjectives
-("great") that belong inside proper names.
+`closed_class` is the union of the closed-class files and `blocked` is the
+curated class-noun/verb blocklist: together they are the set the Rust extractor
+uses to break a candidate phrase. `function_words` keeps the wider Go
+sentence-start list in the pack for reference and for the Go pipeline; it is
+NOT a Rust exclusion list, because it also contains open-class words ("great",
+"mountains") that belong inside proper names.
 
 Outputs:
   lexicon/packs/<lang>.json          one deterministic pack per language
@@ -73,38 +75,22 @@ def read_words(path: Path) -> list[str]:
     return sorted(words)
 
 
-def legacy_stop_words() -> set[str]:
-    """Words the pre-pack multi-language table already excluded.
-
-    The pack's closed class is the intersection of a language's inventories
-    with this table: language scoping removes cross-language leakage, and the
-    refactor stays behavior preserving. As each language's pack is filled in
-    from POS-certified data, the legacy table shrinks instead of being copied
-    100 times.
-    """
-    table = json.loads((ROOT / "lexicon" / "stopwords.json").read_text(encoding="utf-8"))
-    return set(table.get("stop_words", [])) | set(table.get("non_ascii_stop_words", []))
-
-
-def build_pack(language: str, legacy: set[str]) -> dict:
+def build_pack(language: str) -> dict:
     directory = LANGUAGES / language
     closed_class: set[str] = set()
     for name in CLOSED_CLASS_FILES:
         closed_class.update(read_words(directory / name))
-    function_words = read_words(directory / "function_words.txt")
-    closed_class.update(function_words)
-    # The pack may only *scope* the legacy table, never add an exclusion the
-    # extractor did not already apply: that keeps this refactor behavior
-    # preserving while languages arrive one directory at a time. Words outside
-    # the legacy table ("will", "great") stay inside names.
-    closed_class.intersection_update(legacy)
     return {
         "schema": "language_pack.v1",
         "language": language,
         "source": f"lexicon/languages/{language}",
         "closed_class": sorted(closed_class),
-        # Wider Go filter list, kept separate on purpose (see module docstring).
-        "function_words": function_words,
+        # Words that name a class, not an entity ("company", "contains"):
+        # curated per language, never borrowed from another language.
+        "blocked": read_words(directory / "entity_blocklist.txt"),
+        # Wider Go sentence-start list, kept as data only. It contains
+        # open-class words ("great", "mountains") and is NOT a filter set.
+        "function_words": read_words(directory / "function_words.txt"),
         "stopwords": read_words(directory / "stopwords.txt"),
     }
 
@@ -116,10 +102,9 @@ def build() -> tuple[list[str], dict[Path, str]]:
         if path.is_dir() and path.name != "fallback"
     )
     files: dict[Path, str] = {}
-    legacy = legacy_stop_words()
     for language in languages:
         files[PACKS / f"{language}.json"] = (
-            json.dumps(build_pack(language, legacy), ensure_ascii=False, indent=2) + "\n"
+            json.dumps(build_pack(language), ensure_ascii=False, indent=2) + "\n"
         )
     files[PACKS / "index.json"] = (
         json.dumps(

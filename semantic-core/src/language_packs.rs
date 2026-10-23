@@ -32,6 +32,8 @@ struct RawPack {
     #[serde(default)]
     closed_class: Vec<String>,
     #[serde(default)]
+    blocked: Vec<String>,
+    #[serde(default)]
     function_words: Vec<String>,
     #[serde(default)]
     stopwords: Vec<String>,
@@ -42,16 +44,19 @@ struct RawPack {
 pub struct LanguagePack {
     pub language: String,
     pub closed_class: Vec<String>,
+    pub blocked: Vec<String>,
     pub function_words: Vec<String>,
     pub stopwords: Vec<String>,
     function: HashSet<String>,
-    closed: HashSet<String>,
+    stop: HashSet<String>,
 }
 
 impl LanguagePack {
-    /// True when the lowercase surface must break a candidate phrase.
+    /// True when the lowercase surface must break a candidate phrase:
+    /// closed-class words plus the curated blocklist of class nouns/verbs
+    /// ("company", "contains").
     pub fn is_stopword(&self, lower: &str) -> bool {
-        self.closed.contains(lower)
+        self.stop.contains(lower)
     }
 
     /// True when the surface belongs to either generated inventory. Kept for
@@ -84,13 +89,8 @@ fn packs() -> &'static HashMap<String, LanguagePack> {
             let Ok(raw) = serde_json::from_str::<RawPack>(json) else {
                 continue;
             };
-            let mut closed: HashSet<String> = raw.closed_class.iter().cloned().collect();
-            // A pack generated before `closed_class` existed must still filter:
-            // fall back to the union of the two older inventories.
-            if closed.is_empty() {
-                closed.extend(raw.stopwords.iter().cloned());
-                closed.extend(raw.function_words.iter().cloned());
-            }
+            let mut stop: HashSet<String> = raw.closed_class.iter().cloned().collect();
+            stop.extend(raw.blocked.iter().cloned());
             let mut function: HashSet<String> = raw.function_words.iter().cloned().collect();
             function.extend(raw.closed_class.iter().cloned());
             out.insert(
@@ -98,10 +98,11 @@ fn packs() -> &'static HashMap<String, LanguagePack> {
                 LanguagePack {
                     language: raw.language,
                     closed_class: raw.closed_class,
+                    blocked: raw.blocked,
                     function_words: raw.function_words,
                     stopwords: raw.stopwords,
                     function,
-                    closed,
+                    stop,
                 },
             );
         }

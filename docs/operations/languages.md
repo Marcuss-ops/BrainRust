@@ -17,14 +17,11 @@ installed, `is_stop_token` uses the tag (`DET`, `ADP`, `PRON`, `CCONJ`,
 candidate). The generated pack is the deterministic fallback for hosts and
 languages without a model.
 
-The legacy table `lexicon/stopwords.json` is a **migration bridge**, consulted
-after the pack. It is one flat table, never copied per language.
-`lexicon/tools/pack_coverage.py` reports the words it still contributes that
-no pack covers, so the bridge can shrink monotonically:
-
-```sh
-python3 lexicon/tools/pack_coverage.py
-```
+There is **no cross-language fallback table**: the pack is the whole fallback.
+A language without a pack has no word-class filter (tier C below), which is a
+declared degradation, not a silent guess. Words that name a class rather than
+an entity ("company", "contains", "traditionally") live in that language's
+`entity_blocklist.txt` and are generated into the pack's `blocked` set.
 
 ## Generated vs. domain packs
 
@@ -37,9 +34,10 @@ python3 lexicon/tools/build_language_packs.py --check  # CI gate
 
 It emits, deterministically:
 
-- `lexicon/packs/<lang>.json` — `closed_class` (the filter set) and
-  `function_words` (the wider Go sentence-start list, kept separate because it
-  contains open-class words such as `great` that belong **inside** names);
+- `lexicon/packs/<lang>.json` — `closed_class` (the filter set) and `blocked`
+  (class nouns/verbs from `entity_blocklist.txt`), plus `function_words` as
+  data only: that wider Go list contains open-class words such as `great` and
+  `mountains` that belong **inside** names, so it is never a filter;
 - `lexicon/packs/index.json`;
 - `lexicon/legal/index.json`;
 - `semantic-core/src/generated_language_packs.rs`;
@@ -77,7 +75,7 @@ applies another language's markers to a text.
 2. Add the profile (`treebank`, `script`, `date_order`) to
    `lexicon/language_profiles.json`; run `lexicon/tools/sync_cldr_months.py`
    for the month table.
-3. Run the generator and the coverage check; commit the artifacts.
+3. Run the generator (`--check`) and commit the artifacts.
 
 Optional: add `lexicon/legal/<lang>.json` to enable the legal domain. Without
 it the language degrades to generic facts, by design.
@@ -86,7 +84,6 @@ it the language degrades to generic facts, by design.
 
 ```sh
 python3 lexicon/tools/build_language_packs.py --check
-python3 lexicon/tools/pack_coverage.py --check
 RUST_ICU_MAJOR_VERSION_NUMBER=$(pkg-config --modversion icu-i18n | cut -d. -f1) \
   cargo test -p semantic-core -p visualner -p semantic-engine
 ```

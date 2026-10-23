@@ -2,11 +2,8 @@
   "schema": "language_pack.v1",
   "language": "tr",
   "source": "lexicon/languages/tr",
-  "closed_class": [
-    "da",
-    "de",
-    "her"
-  ],
+  "closed_class": [],
+  "blocked": [],
   "function_words": [
     "almaya",
     "başka",

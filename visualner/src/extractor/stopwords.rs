@@ -2,30 +2,20 @@
 //! and narration boilerplate. Word data lives in the lexicon, this module owns
 //! only the matching semantics.
 //!
-//! The decision order is deliberate:
-//!   1. a generated language pack for the requested language (language-scoped),
-//!   2. the legacy multilingual table (`lexicon/stopwords.json`).
-//!
-//! Step 2 is the compatibility net kept while packs are filled in. It is not a
-//! per-language copy: it is ONE flat table, and `lexicon/tools/pack_coverage.py`
-//! reports the words it contributes that no pack yet covers, so the table can
-//! shrink monotonically instead of being duplicated 100 times.
+//! The filter is data only: a generated language pack plus the curated title
+//! nouns. There is no cross-language fallback table — a language without a
+//! pack simply has no word-class filter (tier C), and adding one is a data
+//! directory, never a Rust change.
 
 use semantic_core::lexicon::lexicon;
 
 pub(super) fn is_stop_word(word: &str, language: &str) -> bool {
     let lower = word.to_lowercase();
-    // Only the closed class may break a phrase: the pack's wider function-word
-    // list also contains open-class words ("great") that belong inside names.
     if semantic_core::language_packs::get(language).is_some_and(|pack| pack.is_stopword(&lower)) {
         return true;
     }
-    let table = &lexicon().stopwords;
-    table.stop_words.iter().any(|s| s == &lower)
-        || word
-            .chars()
-            .any(|ch| matches!(ch, 'à' | 'è' | 'é' | 'ì' | 'ò' | 'ù' | 'ü' | 'ö' | 'ä'))
-            && table.non_ascii_stop_words.iter().any(|s| s == &lower)
+    // Titles name an office, not an entity, in every language that lists them.
+    is_title_word(&lower)
 }
 
 /// Role and title nouns. UDPipe tags them as ordinary nouns, but they name
@@ -74,7 +64,7 @@ mod tests {
     }
 
     #[test]
-    fn non_ascii_stop_words_match_their_accented_forms() {
+    fn accented_stop_words_match_in_their_own_language() {
         assert!(is_stop_word("è", "it"));
         assert!(is_stop_word("président", "fr"));
         assert!(is_stop_word("präsident", "de"));
