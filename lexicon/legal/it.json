@@ -1,0 +1,291 @@
+{
+  "schema": "legal_pack.v1",
+  "language": "it",
+  "patterns": [
+    {
+      "predicate": "legal_outcome",
+      "normalized": "not_convicted",
+      "markers": [
+        "non è stato condannato",
+        "non risulta condannato",
+        "non è stata condannata"
+      ],
+      "subject": "person",
+      "value": "marker"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "acquitted",
+      "markers": [
+        "assolto",
+        "assolta",
+        "assolti",
+        "assoluzione"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "convicted",
+      "markers": [
+        "condannato",
+        "condannata",
+        "condannati",
+        "condanna"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "acquittal_confirmed",
+      "markers": [
+        "confermò l’assoluzione",
+        "confermò l'assoluzione",
+        "conferma dell’assoluzione",
+        "conferma dell'assoluzione",
+        "confermata in appello",
+        "viene confermata nel giudizio d'appello"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "conviction_confirmed",
+      "markers": [
+        "confermò la condanna",
+        "confermò la pena",
+        "conferma della condanna",
+        "confermata la condanna"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "annulled_with_remand",
+      "markers": [
+        "annullò con rinvio",
+        "annullando con rinvio",
+        "annullamento con rinvio",
+        "annullò la decisione"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_finality",
+      "normalized": "final",
+      "markers": [
+        "in via definitiva",
+        "condanna definitiva",
+        "decisione definitiva",
+        "divenne definitiva",
+        "diventa definitiva"
+      ],
+      "subject": "person_or_org",
+      "value": "date"
+    },
+    {
+      "predicate": "investigation_status",
+      "normalized": "under_investigation",
+      "markers": [
+        "indagato",
+        "indagata",
+        "indagati"
+      ],
+      "subject": "person",
+      "value": "marker"
+    },
+    {
+      "predicate": "investigation_status",
+      "normalized": "denies_accusations",
+      "markers": [
+        "respinge le accuse",
+        "respinse le accuse",
+        "respinge"
+      ],
+      "subject": "person",
+      "value": "marker"
+    },
+    {
+      "predicate": "procedural_act",
+      "normalized": "received_warrant",
+      "markers": [
+        "avviso di garanzia"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "procedural_act",
+      "normalized": "preliminary_hearing",
+      "markers": [
+        "udienza preliminare"
+      ],
+      "subject": "legal_actor",
+      "value": "date"
+    },
+    {
+      "predicate": "investigation_status",
+      "normalized": "investigation_concluded",
+      "markers": [
+        "conclusione delle indagini",
+        "concluso le indagini"
+      ],
+      "subject": "org",
+      "value": "date"
+    },
+    {
+      "predicate": "sentence_length",
+      "normalized": "years",
+      "markers": [
+        "anni di reclusione",
+        "anni di carcere"
+      ],
+      "subject": "person",
+      "value": "number"
+    },
+    {
+      "predicate": "personal_data",
+      "normalized": "age",
+      "markers": [
+        "anni"
+      ],
+      "subject": "person",
+      "value": "number"
+    },
+    {
+      "predicate": "relationship",
+      "normalized": "partner_of",
+      "markers": [
+        "fidanzato di",
+        "fidanzata di"
+      ],
+      "subject": "person",
+      "value": "entity"
+    }
+  ],
+  "age_guard_markers": [
+    "reclusion",
+    "carcere",
+    "condanna"
+  ],
+  "entity_cues": [
+    {
+      "cue": "Corte di Cassazione",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Corte d'Assise d'Appello",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Corte d’Assise d’Appello",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Corte d'Appello",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Corte d’Appello",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Tribunale di ",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Procura di ",
+      "kind": "ORG"
+    },
+    {
+      "cue": "ANSA",
+      "kind": "ORG"
+    },
+    {
+      "cue": "pubblico ministero",
+      "kind": "ROLE"
+    },
+    {
+      "cue": "pubblici ministeri",
+      "kind": "ROLE"
+    },
+    {
+      "cue": "procuratore generale",
+      "kind": "ROLE"
+    },
+    {
+      "cue": "parte civile",
+      "kind": "ROLE"
+    },
+    {
+      "cue": "GUP",
+      "kind": "ROLE"
+    }
+  ],
+  "entity_alias_cues": [
+    {
+      "cue": "Cassazione",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Procura",
+      "kind": "ORG"
+    }
+  ],
+  "finality_markers": [
+    "condanna definitiva",
+    "diventa definitiva",
+    "divenne definitiva",
+    "in via definitiva"
+  ],
+  "outcome_markers": [
+    "assoluzione",
+    "condanna",
+    "annullamento",
+    "conferma"
+  ],
+  "comparison": {
+    "conviction_cues": [
+      "condanna definitiva",
+      "condanna"
+    ],
+    "conviction_exclusions": [
+      "nessuna condanna",
+      "conferma"
+    ],
+    "investigation_cues": [
+      "indagato",
+      "respinge le accuse",
+      "nessuna condanna"
+    ],
+    "title": "Confronto: {left} vs {right}",
+    "sequence_title": "Sequenza: {count} tappe"
+  },
+  "micro": {
+    "templates": {
+      "legal_outcome|acquitted": "{name}: assoluzione{date}",
+      "legal_outcome|convicted": "{name}: condanna{date}",
+      "legal_outcome|conviction_confirmed": "{name}: conferma della condanna{date}",
+      "legal_outcome|acquittal_confirmed": "{name}: conferma dell'assoluzione{date}",
+      "legal_outcome|annulled_with_remand": "{name}: annullamento con rinvio{date}",
+      "legal_finality|final": "{name}: condanna definitiva{date}",
+      "investigation_status|under_investigation": "{name}: indagato",
+      "investigation_status|denies_accusations": "{name}: respinge le accuse",
+      "legal_outcome|not_convicted": "{name}: nessuna condanna nel procedimento descritto",
+      "procedural_act|received_warrant": "{name}: avviso di garanzia{date}",
+      "procedural_act|preliminary_hearing": "{name}: udienza preliminare{date}",
+      "investigation_status|investigation_concluded": "{name}: conclusione delle indagini{date}",
+      "sentence_length|years": "{name}: {normalized} anni di reclusione{date}",
+      "personal_data|age": "{name}: {normalized} anni",
+      "relationship|partner_of": "{name}: fidanzato di {target}"
+    },
+    "date_year": " nel {year}",
+    "date_surface": " il {surface}",
+    "year_surface": " nel {surface}"
+  }
+}

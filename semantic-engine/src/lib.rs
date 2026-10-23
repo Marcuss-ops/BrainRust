@@ -115,7 +115,10 @@ pub fn analyze_scene(
     // general tokenizer; a curated grounded span makes them usable as fact
     // subjects without inventing any fact.
     let remaining = safety_cap.saturating_sub(analysis.entities.len());
-    for legal_entity in legal::collect_entities(source).into_iter().take(remaining) {
+    for legal_entity in legal::collect_entities(source, language)
+        .into_iter()
+        .take(remaining)
+    {
         // Upgrade only the entity that starts with the legal head
         // ("Procura" -> "Procura di Pavia"). Any-overlap matching used to
         // replace a nested location ("Pavia") when the gazetteer typed it,
@@ -165,7 +168,13 @@ pub fn analyze_scene(
     for fact in &mut entity_facts {
         fact.finalize();
     }
-    let built = micro::build(&scene.scene_id, &entity_facts, &entities, &entity_ids);
+    let built = micro::build(
+        language,
+        &scene.scene_id,
+        &entity_facts,
+        &entities,
+        &entity_ids,
+    );
     let relations = build_relations(
         source,
         language,
@@ -696,6 +705,12 @@ fn important_word_candidates(
     entities: &[VisualEntity],
     identities: &IdentityLookup,
 ) -> Vec<Candidate> {
+    // Keywords must be usable as image queries, so they are a curated subset
+    // of the entities, not a copy: a single generic concept ("cosa", "nome")
+    // is not a visual subject, while "gruppi sanguigni" or "prova indiretta"
+    // is. Duplicates are removed per scene so the same name does not spend
+    // several slots of the planner's keyword budget.
+    let mut seen = HashSet::new();
     entity_candidates(source, language, entities, identities)
         .into_iter()
         .filter(|candidate| {
@@ -704,6 +719,11 @@ fn important_word_candidates(
                 "DATE" | "NUMBER" | "PERCENT" | "MONEY"
             )
         })
+        .filter(|candidate| {
+            candidate.kind != "VISUAL_CONCEPT" || candidate.text.split_whitespace().count() >= 2
+        })
+        .filter(|candidate| candidate.text.split_whitespace().count() <= 5)
+        .filter(|candidate| seen.insert(candidate.text.to_lowercase()))
         .collect()
 }
 

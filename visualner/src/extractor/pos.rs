@@ -43,7 +43,7 @@ const ALIGNMENT_WINDOW: usize = 16;
 /// adverbs, auxiliaries and unknown words (X) keep the curated stopword list,
 /// because UDPipe tags those inconsistently ("olive" in "olive oil" is ADJ,
 /// "OpenAI" is often X). Without a tag, the list decides.
-pub(super) fn is_stop_token(token: &Token) -> bool {
+pub(super) fn is_stop_token(token: &Token, language: &str) -> bool {
     if super::stopwords::is_title_word(&token.text) {
         return true;
     }
@@ -52,9 +52,9 @@ pub(super) fn is_stop_token(token: &Token) -> bool {
         // A pronoun is usually non-visual, but acronym/proper-name POS errors
         // are common (for example OpenAI can be tagged PRON). Exclude only
         // pronouns already covered by the language stopword list.
-        Some("PRON") => super::stopwords::is_stop_word(&token.text),
+        Some("PRON") => super::stopwords::is_stop_word(&token.text, language),
         Some(upos) if CONTENT_UPOS.contains(&upos) => false,
-        _ => super::stopwords::is_stop_word(&token.text),
+        _ => super::stopwords::is_stop_word(&token.text, language),
     }
 }
 
@@ -214,20 +214,20 @@ mod tests {
     #[test]
     fn pos_tag_overrides_stopword_list() {
         // "company" is in the stopword list, but a NOUN tag makes it content.
-        assert!(is_stop_token(&token("company", None)));
-        assert!(!is_stop_token(&token("company", Some("NOUN"))));
-        assert!(!is_stop_token(&token("Jordan", Some("PROPN"))));
-        assert!(is_stop_token(&token("the", Some("DET"))));
+        assert!(is_stop_token(&token("company", None), "en"));
+        assert!(!is_stop_token(&token("company", Some("NOUN")), "en"));
+        assert!(!is_stop_token(&token("Jordan", Some("PROPN")), "en"));
+        assert!(is_stop_token(&token("the", Some("DET")), "en"));
         // Verbs and adjectives defer to the stopword list.
-        assert!(is_stop_token(&token("imagine", Some("VERB"))));
-        assert!(is_stop_token(&token("si", Some("PRON"))));
-        assert!(!is_stop_token(&token("olive", Some("ADJ"))));
+        assert!(is_stop_token(&token("imagine", Some("VERB")), "en"));
+        assert!(is_stop_token(&token("si", Some("PRON")), "it"));
+        assert!(!is_stop_token(&token("olive", Some("ADJ")), "en"));
     }
 
     #[test]
     fn fallback_uses_stopword_list_without_tags() {
-        assert!(is_stop_token(&token("the", None)));
-        assert!(!is_stop_token(&token("feta", None)));
+        assert!(is_stop_token(&token("the", None), "en"));
+        assert!(!is_stop_token(&token("feta", None), "en"));
     }
 
     #[test]

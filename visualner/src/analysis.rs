@@ -8,7 +8,7 @@
 //! Entities are referenced by their index in `Analysis::entities`.
 
 use crate::extractor::{extract, numeric_value_spans};
-use crate::temporal::temporal_facts;
+use crate::temporal::{temporal_facts_with_words, SpelledNumber};
 use crate::types::{ExtractOptions, VisualEntity};
 use semantic_core::bullets::{generate_with_sentences, BulletSignal, SignalKind};
 use semantic_core::numbers::parse_unambiguous_value;
@@ -132,7 +132,21 @@ pub fn analyze(source_text: &str, options: &ExtractOptions) -> Result<Analysis, 
     // an unambiguous parse. No second scanner can disagree with the first.
     let numeric_facts = numeric_facts(source_text, &options.language);
     let chart_points = chart_points(source_text, &numeric_facts, &sentences, &entities);
-    let temporal_facts = temporal_facts(source_text, &options.language);
+    // The date parser never spells a word itself: the locale's ICU RBNF
+    // rules locate "tredici", "duemilasette" or "two thousand seven", and
+    // semantic-core only resolves the calendar around the month token.
+    let spelled_numbers: Vec<SpelledNumber> =
+        crate::spellout::candidates(source_text, &options.language)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|candidate| SpelledNumber {
+                start: candidate.start,
+                end: candidate.end,
+                value: candidate.value.round() as i64,
+            })
+            .collect();
+    let temporal_facts =
+        temporal_facts_with_words(source_text, &options.language, &spelled_numbers);
 
     Ok(Analysis {
         entities,

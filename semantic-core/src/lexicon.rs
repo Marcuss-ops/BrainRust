@@ -491,15 +491,76 @@ pub struct EntityCue {
     pub kind: String,
 }
 
-/// Legal/procedural extraction knowledge.
+/// Legal/procedural extraction knowledge for ONE language. The pack is an
+/// optional domain layer (`lexicon/legal/<lang>.json`): a language without a
+/// pack produces no legal facts instead of borrowing another language's
+/// markers. The core keeps working through the generic fact pipeline.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct LegalLexicon {
+    #[serde(default)]
+    pub language: String,
+    #[serde(default)]
     pub patterns: Vec<LegalPattern>,
     /// Markers that make the age pattern skip a number ("16 anni di
     /// reclusione" is a sentence length, not an age).
+    #[serde(default)]
     pub age_guard_markers: Vec<String>,
+    #[serde(default)]
     pub entity_cues: Vec<EntityCue>,
+    #[serde(default)]
     pub entity_alias_cues: Vec<EntityCue>,
+    /// Sentences that talk about finality, not a new conviction.
+    #[serde(default)]
+    pub finality_markers: Vec<String>,
+    /// Outcome words that qualify a dated micro summary as one step.
+    #[serde(default)]
+    pub outcome_markers: Vec<String>,
+    #[serde(default)]
+    pub comparison: LegalComparison,
+    #[serde(default)]
+    pub micro: MicroLexicon,
+}
+
+/// Cues and titles for the fact-comparison and step-sequence groups.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct LegalComparison {
+    #[serde(default)]
+    pub conviction_cues: Vec<String>,
+    #[serde(default)]
+    pub conviction_exclusions: Vec<String>,
+    #[serde(default)]
+    pub investigation_cues: Vec<String>,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub sequence_title: String,
+}
+
+/// Micro-summary rendering for one language: templates and date suffixes.
+/// A language without templates emits no micro summaries rather than Italian
+/// text under a foreign language tag.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct MicroLexicon {
+    /// `"predicate|normalized"` → template with `{name}`, `{normalized}`,
+    /// `{target}` and `{date}` placeholders.
+    #[serde(default)]
+    pub templates: BTreeMap<String, String>,
+    #[serde(default)]
+    pub date_year: String,
+    #[serde(default)]
+    pub date_surface: String,
+    #[serde(default)]
+    pub year_surface: String,
+}
+
+impl LegalLexicon {
+    /// Template for one grounded fact, if this language renders it.
+    pub fn micro_template(&self, predicate: &str, normalized: &str) -> Option<&str> {
+        self.micro
+            .templates
+            .get(&format!("{predicate}|{normalized}"))
+            .map(String::as_str)
+    }
 }
 
 /// One ordered process phase (facility lifecycle).
@@ -653,7 +714,6 @@ pub struct Lexicon {
     pub place_ambiguities: BTreeMap<String, std::collections::HashSet<String>>,
     pub scale_words: ScaleWords,
     pub location_cues: LocationCues,
-    pub legal: LegalLexicon,
     pub process_phases: ProcessPhases,
     pub facility: FacilityLexicon,
     pub discourse: DiscourseCues,
@@ -765,10 +825,6 @@ impl Lexicon {
                     "location_cues.json",
                     include_str!("../../lexicon/location_cues.json"),
                 ),
-                legal: load_table(
-                    "legal_patterns.json",
-                    include_str!("../../lexicon/legal_patterns.json"),
-                ),
                 process_phases: load_table(
                     "process_phases.json",
                     include_str!("../../lexicon/process_phases.json"),
@@ -855,7 +911,6 @@ mod tests {
             lexicon.object_terms("pt").len()
         );
         assert!(lexicon.object_terms("xx").is_empty());
-        assert_eq!(lexicon.legal.patterns.len(), 15);
         assert_eq!(lexicon.process_phases.phases.len(), 4);
         assert_eq!(lexicon.relation.relation_markers.len(), 7);
     }
@@ -1008,6 +1063,7 @@ mod tests {
         // "a causa"), so the first match carries the sharper meaning.
         let lexicon = Lexicon::global();
         assert_eq!(lexicon.discourse.causal_after[0], ["a", "causa", "di"]);
-        assert_eq!(lexicon.legal.patterns[0].normalized, "not_convicted");
+        let legal = crate::legal_packs::get("it").expect("Italian legal pack");
+        assert_eq!(legal.patterns[0].normalized, "not_convicted");
     }
 }

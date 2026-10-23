@@ -1,0 +1,40 @@
+{
+  "schema": "language_pack.v1",
+  "language": "tr",
+  "source": "lexicon/languages/tr",
+  "closed_class": [
+    "da",
+    "de",
+    "her"
+  ],
+  "function_words": [
+    "almaya",
+    "başka",
+    "bir",
+    "birçok",
+    "bu",
+    "da",
+    "daha",
+    "de",
+    "etti",
+    "geri",
+    "gibi",
+    "her",
+    "hissettim",
+    "hizmet",
+    "ile",
+    "ilk",
+    "için",
+    "karar",
+    "olan",
+    "olarak",
+    "sadece",
+    "sonra",
+    "sık",
+    "ve",
+    "önce",
+    "şey",
+    "şeye"
+  ],
+  "stopwords": []
+}

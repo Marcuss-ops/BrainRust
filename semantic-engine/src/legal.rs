@@ -18,8 +18,11 @@
 //! The output uses the existing [`EntityFact`] contract, so the manifest,
 //! grounding checks and the Go adapter do not need a second fact shape.
 
+use std::collections::BTreeSet;
+
 use semantic_core::dates::TemporalFact;
-use semantic_core::lexicon::{self, LegalPattern, SubjectKind, ValueKind};
+use semantic_core::legal_packs;
+use semantic_core::lexicon::{LegalPattern, SubjectKind, ValueKind};
 use semantic_core::numbers::NumericFact;
 use semantic_core::relations::{clause_start, clause_status, RelationStatus};
 use semantic_core::EntityFact;
@@ -27,11 +30,12 @@ use visualner::VisualEntity;
 
 use crate::contains_any;
 
-// The marker table lives in the shared lexicon (`legal_patterns.json`):
-// markers are matched case-insensitively inside one canonical sentence,
-// longer, more specific phrases before their fragments so the first match
-// carries the sharper meaning. Extend the domain by editing the data table,
-// never this module.
+// The marker table lives in the language's domain pack
+// (`lexicon/legal/<lang>.json`): markers are matched case-insensitively inside
+// one canonical sentence, longer, more specific phrases before their fragments
+// so the first match carries the sharper meaning. Extend the domain by editing
+// that data file, never this module. A language without a pack yields no legal
+// facts at all.
 
 /// Extracts legal/procedural facts for one scene.
 pub fn extract(
@@ -42,7 +46,33 @@ pub fn extract(
     temporal_facts: &[TemporalFact],
     numeric_facts: &[NumericFact],
 ) -> Vec<EntityFact> {
+    // The legal layer is an optional domain pack: no pack means no legal
+    // facts (the generic fact pipeline still runs), never another language's
+    // markers applied to this text.
+    let Some(legal) = legal_packs::get(language) else {
+        return Vec::new();
+    };
     let sentences = semantic_core::split_sentences(source, language, None);
+    // Editorial legal narration often names the person once and then reports
+    // agentless outcomes ("il giudice pronunciò una prima assoluzione"). The
+    // fallback below attributes such a sentence to the only person mentioned
+    // in the preceding window; two candidate people disable the fallback
+    // instead of guessing.
+    let persons_per_sentence: Vec<Vec<usize>> = sentences
+        .iter()
+        .map(|sentence| {
+            entities
+                .iter()
+                .enumerate()
+                .filter(|(_, entity)| {
+                    entity.r#type == "PERSON"
+                        && entity.start >= sentence.start_byte
+                        && entity.end <= sentence.end_byte
+                })
+                .map(|(index, _)| index)
+                .collect()
+        })
+        .collect();
     let mut out: Vec<EntityFact> = Vec::new();
     for (sentence_index, sentence) in sentences.iter().enumerate() {
         let Some(text) = source.get(sentence.start_byte..sentence.end_byte) else {
@@ -63,15 +93,17 @@ pub fn extract(
             })
             .map(|(index, _)| index)
             .collect();
-        if in_sentence.is_empty() {
-            continue;
-        }
-        for pattern in &lexicon::lexicon().legal.patterns {
+        let fallback_person = recent_person(&persons_per_sentence, sentence_index);
+        // "Questa condanna diventa definitiva" is a finality fact, not a new
+        // conviction. The generic "condanna" marker must not duplicate it.
+        let finality_sentence = contains_any(&lower, &legal.finality_markers);
+        for pattern in &legal.patterns {
             // "16 anni di reclusione" is a sentence length, not the person's
             // age: the age pattern must not steal the number.
-            if pattern.normalized == "age"
-                && contains_any(&lower, &lexicon::lexicon().legal.age_guard_markers)
-            {
+            if pattern.normalized == "age" && contains_any(&lower, &legal.age_guard_markers) {
+                continue;
+            }
+            if pattern.normalized == "convicted" && finality_sentence {
                 continue;
             }
             for marker in &pattern.markers {
@@ -80,9 +112,14 @@ pub fn extract(
                 };
                 let marker_start = sentence.start_byte + relative;
                 let marker_end = marker_start + marker.len();
-                let Some(subject_index) =
+                let subject_index =
                     pick_subject(entities, &in_sentence, marker_start, pattern.subject_kind())
-                else {
+                        .or_else(|| {
+                            let index = fallback_person?;
+                            subject_matches_kind(entities, index, pattern.subject_kind())
+                                .then_some(index)
+                        });
+                let Some(subject_index) = subject_index else {
                     continue;
                 };
                 let Some(resolved) = resolve_value(
@@ -110,7 +147,7 @@ pub fn extract(
                     end,
                     target,
                 } = resolved;
-                let status = status_for(text, relative, pattern.normalized.as_str());
+                let status = status_for(text, relative, pattern.normalized.as_str(), language);
                 let subject_entity_id = entity_ids[subject_index].clone();
                 if out.iter().any(|fact| {
                     fact.subject_entity_id == subject_entity_id
@@ -161,24 +198,43 @@ fn pick_subject(
     in_sentence
         .iter()
         .copied()
-        .filter(|&index| match kind {
-            SubjectKind::Person => entities[index].r#type == "PERSON",
-            SubjectKind::Org => matches!(entities[index].r#type.as_str(), "ORG" | "ORGANIZATION"),
-            SubjectKind::PersonOrOrg => {
-                matches!(
-                    entities[index].r#type.as_str(),
-                    "PERSON" | "ORG" | "ORGANIZATION"
-                )
-            }
-            SubjectKind::LegalActor => matches!(
-                entities[index].r#type.as_str(),
-                "PERSON" | "ORG" | "ORGANIZATION" | "ROLE"
-            ),
-        })
+        .filter(|&index| subject_matches_kind(entities, index, kind))
         .min_by_key(|&index| {
             let start = entities[index].start;
             marker_start.abs_diff(start)
         })
+}
+
+fn subject_matches_kind(entities: &[VisualEntity], index: usize, kind: SubjectKind) -> bool {
+    match kind {
+        SubjectKind::Person => entities[index].r#type == "PERSON",
+        SubjectKind::Org => matches!(entities[index].r#type.as_str(), "ORG" | "ORGANIZATION"),
+        SubjectKind::PersonOrOrg => matches!(
+            entities[index].r#type.as_str(),
+            "PERSON" | "ORG" | "ORGANIZATION"
+        ),
+        SubjectKind::LegalActor => matches!(
+            entities[index].r#type.as_str(),
+            "PERSON" | "ORG" | "ORGANIZATION" | "ROLE"
+        ),
+    }
+}
+
+/// The only PERSON mentioned in the six sentences before `index`, or None
+/// when the window names zero or several people. Legal narration keeps one
+/// subject across several sentences (outcome, appeal, Cassation, finality);
+/// two names make the outcome ambiguous, and a wrong attribution is worse
+/// than a missing one.
+fn recent_person(persons_per_sentence: &[Vec<usize>], index: usize) -> Option<usize> {
+    let mut people = BTreeSet::new();
+    for previous in index.saturating_sub(6)..index {
+        people.extend(persons_per_sentence.get(previous)?.iter().copied());
+    }
+    if people.len() == 1 {
+        people.into_iter().next()
+    } else {
+        None
+    }
 }
 
 /// The value side of one legal fact: the verbatim surface, its canonical
@@ -210,10 +266,25 @@ fn resolve_value(
 ) -> Option<ResolvedValue> {
     match pattern.value_kind() {
         ValueKind::Date => {
-            let fact = temporal_facts
+            let in_sentence: Vec<&TemporalFact> = temporal_facts
                 .iter()
                 .filter(|fact| fact.start_byte >= sentence_start && fact.end_byte <= sentence_end)
-                .min_by_key(|fact| marker_start.abs_diff(fact.start_byte))?;
+                .collect();
+            // A sentence can state several dates: "Nel 2014 ... una prima
+            // assoluzione, che nel 2016 viene confermata". The outcome marker
+            // belongs to the date stated before it; only a sentence with no
+            // preceding date may use a following one.
+            let before = in_sentence
+                .iter()
+                .copied()
+                .filter(|fact| fact.end_byte <= marker_start)
+                .max_by_key(|fact| fact.end_byte);
+            let after = in_sentence
+                .iter()
+                .copied()
+                .filter(|fact| fact.start_byte >= marker_end)
+                .min_by_key(|fact| fact.start_byte);
+            let fact = before.or(after)?;
             let date = fact
                 .normalized
                 .clone()
@@ -296,13 +367,14 @@ fn resolve_value(
 /// negative state directly, so they keep the `asserted` status: the text
 /// asserts that absence. Legal facts consult the Italian and English
 /// negation vocabularies regardless of scene language.
-fn status_for(sentence: &str, marker_relative: usize, normalized: &str) -> String {
+fn status_for(sentence: &str, marker_relative: usize, normalized: &str, language: &str) -> String {
     if matches!(normalized, "not_convicted" | "denies_accusations") {
         return "asserted".to_string();
     }
     let prefix = &sentence[..marker_relative];
     let clause = &sentence[clause_start(prefix)..marker_relative];
-    match clause_status(clause, &["it", "en"]) {
+    // The pack guarantees this language has legal negation vocabulary.
+    match clause_status(clause, &[language]) {
         RelationStatus::Negated => "negated".to_string(),
         RelationStatus::Uncertain => "uncertain".to_string(),
         RelationStatus::Asserted => "asserted".to_string(),
@@ -312,9 +384,11 @@ fn status_for(sentence: &str, marker_relative: usize, normalized: &str) -> Strin
 /// Curated legal actors that a general tokenizer cannot type reliably.
 /// The spans are verbatim and only the semantic type is added; no fact is
 /// inferred from the presence of an organization alone.
-pub fn collect_entities(source: &str) -> Vec<VisualEntity> {
+pub fn collect_entities(source: &str, language: &str) -> Vec<VisualEntity> {
     let mut out: Vec<VisualEntity> = Vec::new();
-    let legal = &lexicon::lexicon().legal;
+    let Some(legal) = legal_packs::get(language) else {
+        return out;
+    };
     for cue in &legal.entity_cues {
         collect_cue(source, cue.cue.as_str(), cue.kind.as_str(), &mut out);
     }
@@ -463,6 +537,59 @@ mod tests {
     }
 
     #[test]
+    fn a_second_date_in_the_sentence_does_not_override_the_outcome_date() {
+        let (facts, _) = facts(
+            "Alberto Stasi fu rinviato a giudizio. Nel 2014 il giudice pronunciò una prima assoluzione, che nel 2016 fu confermata in appello.",
+        );
+        let acquitted = facts
+            .iter()
+            .find(|fact| fact.normalized_value.as_deref() == Some("acquitted"))
+            .expect("acquittal fact");
+        assert_eq!(acquitted.normalized_date.as_deref(), Some("2014"));
+    }
+
+    #[test]
+    fn final_outcome_is_attributed_to_the_recent_person() {
+        let (facts, _) = facts(
+            "Nel 2019 Alberto Stasi fu condannato a sedici anni. Nel 2020 questa condanna diventa definitiva.",
+        );
+        let final_fact = facts
+            .iter()
+            .find(|fact| fact.predicate == "legal_finality")
+            .unwrap_or_else(|| panic!("final fact: {facts:?}"));
+        assert_eq!(final_fact.normalized_value.as_deref(), Some("final"));
+        assert_eq!(final_fact.normalized_date.as_deref(), Some("2020"));
+    }
+
+    #[test]
+    fn agentless_outcome_uses_the_only_recent_person() {
+        let (facts, ids) = facts(
+            "Nel 2009 Alberto Stasi fu assolto. Nel 2014 il giudice pronunciò una prima condanna.",
+        );
+        let person = ids
+            .iter()
+            .find(|id| id.contains("Alberto Stasi"))
+            .expect("person id");
+        let convicted = facts
+            .iter()
+            .find(|fact| fact.normalized_value.as_deref() == Some("convicted"))
+            .unwrap_or_else(|| panic!("convicted fact: {facts:?}"));
+        assert_eq!(&convicted.subject_entity_id, person);
+        assert_eq!(convicted.normalized_date.as_deref(), Some("2014"));
+    }
+
+    #[test]
+    fn two_recent_people_disable_the_agentless_fallback() {
+        let (facts, _) = facts(
+            "Alberto Stasi e Andrea Sempio furono assolti nel 2009. Nel 2014 il giudice pronunciò una condanna.",
+        );
+        assert!(!facts.iter().any(|fact| {
+            fact.normalized_value.as_deref() == Some("convicted")
+                && fact.normalized_date.as_deref() == Some("2014")
+        }));
+    }
+
+    #[test]
     fn negation_never_flips_into_the_opposite_claim() {
         let (facts, _) = facts("Alberto Stasi non fu assolto il 17 dicembre 2009.");
         let fact = facts
@@ -483,6 +610,37 @@ mod tests {
             .collect();
         assert!(statuses.contains(&("under_investigation", "asserted")));
         assert!(statuses.contains(&("denies_accusations", "asserted")));
+    }
+
+    #[test]
+    fn a_language_without_a_legal_pack_degrades_instead_of_borrowing_markers() {
+        let text = "Il 17 dicembre 2009 Alberto Stasi fu assolto.";
+        let analysis = visualner::analyze(
+            text,
+            &ExtractOptions {
+                language: "de".to_string(),
+                entity_count: 100,
+            },
+        )
+        .expect("analysis");
+        let ids: Vec<String> = analysis
+            .entities
+            .iter()
+            .enumerate()
+            .map(|(index, entity)| format!("e{}:{}", index, entity.text))
+            .collect();
+        let facts = extract(
+            text,
+            "de",
+            &analysis.entities,
+            &ids,
+            &analysis.temporal_facts,
+            &analysis.numeric_facts,
+        );
+        assert!(
+            facts.is_empty(),
+            "German has no legal pack, so Italian markers must not fire: {facts:?}"
+        );
     }
 
     #[test]

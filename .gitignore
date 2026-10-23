@@ -1,3 +1,6 @@
 /target/
 # Benchmark reports (see README.md, phrase impact).
 **/.cache/
+
+# Python caches from the lexicon generators/coverage tools.
+lexicon/tools/__pycache__/

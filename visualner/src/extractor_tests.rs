@@ -1276,3 +1276,41 @@ fn articulated_prepositions_do_not_glue_onto_visual_keywords() {
         "no fragment may keep an articulated preposition: {entities:?}"
     );
 }
+
+#[test]
+fn spellout_composes_spelled_years_without_a_language_table() {
+    for (language, source, value) in [
+        ("it", "duemilasette", 2007),
+        ("it", "duemilaventicinque", 2025),
+        ("it", "due mila sette", 2007),
+        ("en", "two thousand seven", 2007),
+    ] {
+        let candidates = crate::spellout::candidates(source, language).unwrap();
+        assert!(
+            candidates
+                .iter()
+                .any(|candidate| candidate.start == 0 && candidate.value == value as f64),
+            "{source:?} must compose to {value}: {candidates:?}"
+        );
+    }
+}
+
+#[test]
+fn spelled_italian_date_reaches_temporal_facts() {
+    let analysis = crate::analyze(
+        "Il tredici agosto duemilasette è una data che segna l'inizio.",
+        &crate::ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 20,
+        },
+    )
+    .expect("analysis");
+    assert!(
+        analysis
+            .temporal_facts
+            .iter()
+            .any(|fact| fact.normalized.as_deref() == Some("2007-08-13")),
+        "spelled date missing: {:?}",
+        analysis.temporal_facts
+    );
+}

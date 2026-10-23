@@ -406,14 +406,14 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
     // Named people/organizations are bounded to the contiguous title-case run.
     // This prevents lower-case lead-ins such as "figures like Phil Jackson"
     // from becoming a PERSON entity; the grounded candidate is "Phil Jackson".
-    for (start, end) in proper_name_runs(tokens, bytes) {
+    for (start, end) in proper_name_runs(tokens, bytes, language) {
         out.push(candidate_from_tokens(tokens, source_text, start, end));
     }
     let mut i = 0;
     while i < tokens.len() {
         // A single uppercase initial between periods is a tokenization
         // artifact of dotted initialisms (e.g. U.S.), not an entity span.
-        if is_stop_token(&tokens[i])
+        if is_stop_token(&tokens[i], language)
             || (tokens[i].text.len() == 1 && tokens[i].text.as_bytes()[0].is_ascii_uppercase())
         {
             i += 1;
@@ -441,7 +441,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
                 j += 1;
             }
         } else {
-            while j < tokens.len() && !is_stop_token(&tokens[j]) {
+            while j < tokens.len() && !is_stop_token(&tokens[j], language) {
                 if j > phrase_start {
                     let gap = &bytes[tokens[j - 1].end..tokens[j].start];
                     if gap.iter().any(|b| is_phrase_breaking_byte(*b))
@@ -472,7 +472,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
         // The run decomposition depends only on the phrase, so it is computed
         // ONCE here instead of twice (the previous form called
         // proper_name_runs twice, each allocating a fresh Vec).
-        let phrase_runs = proper_name_runs(&tokens[phrase_start..phrase_end], bytes);
+        let phrase_runs = proper_name_runs(&tokens[phrase_start..phrase_end], bytes, language);
         let has_inner_run = phrase_runs.iter().any(|(run_start, _)| *run_start > 0);
         let is_full_run = phrase_runs
             .iter()
@@ -488,6 +488,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
         // ("La guarda del castello") stay extractable.
         if !is_stop_phrase(&normalized)
             && !is_generic_phrase(&normalized)
+            && !is_heading_surface(&text)
             && !verb::is_verbal_predicate(tokens, phrase_start, phrase_end, language)
         {
             out.push(Candidate {
@@ -507,7 +508,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
     out
 }
 
-fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
+fn proper_name_runs(tokens: &[Token], bytes: &[u8], language: &str) -> Vec<(usize, usize)> {
     let mut runs = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
@@ -527,7 +528,7 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
             if final_index > i
                 && !is_uppercase_initial(&tokens[final_index].text)
                 && starts_uppercase(&tokens[final_index].text)
-                && !is_stop_token(&tokens[final_index])
+                && !is_stop_token(&tokens[final_index], language)
             {
                 runs.push((i, final_index + 1));
                 i = final_index + 1;
@@ -536,7 +537,7 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
             i += 1;
             continue;
         }
-        if is_stop_token(&tokens[i]) || !starts_uppercase(&tokens[i].text) {
+        if is_stop_token(&tokens[i], language) || !starts_uppercase(&tokens[i].text) {
             i += 1;
             continue;
         }
@@ -544,7 +545,7 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
         let mut end = i + 1;
         while end < tokens.len()
             && starts_uppercase(&tokens[end].text)
-            && !is_stop_token(&tokens[end])
+            && !is_stop_token(&tokens[end], language)
             && !(tokens[end].text.len() == 1 && tokens[end].text.as_bytes()[0].is_ascii_uppercase())
             && !bytes[tokens[end - 1].end..tokens[end].start]
                 .iter()
@@ -552,12 +553,52 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8]) -> Vec<(usize, usize)> {
         {
             end += 1;
         }
-        if end - start >= 2 {
+        // An all-caps run is a heading ("NOME CHE TORNA"), not a person.
+        // Keeping it out of the proper-name set stops the heading from
+        // becoming a PERSON and from seeding image queries.
+        let heading = tokens[start..end]
+            .iter()
+            .filter(|token| token.text.chars().filter(|ch| ch.is_alphabetic()).count() >= 2)
+            .all(|token| is_all_caps_word(&token.text));
+        if end - start >= 2 && !heading {
             runs.push((start, end));
         }
         i = end;
     }
     runs
+}
+
+/// True for a token spelled entirely in capitals, ignoring punctuation and
+/// digits. Single letters are excluded so initials stay name fragments.
+fn is_all_caps_word(text: &str) -> bool {
+    let letters: Vec<char> = text.chars().filter(|ch| ch.is_alphabetic()).collect();
+    letters.len() >= 2 && letters.iter().all(|ch| ch.is_uppercase())
+}
+
+/// True for editorial headings: a multi-word all-caps run, or a long single
+/// all-caps word. Short all-caps tokens (DNA, GUP, ANSA, USA) stay ordinary
+/// candidates; headings such as "NOME CHE TORNA" or "RITROVAMENTO" do not.
+fn is_heading_surface(text: &str) -> bool {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    if words.is_empty() {
+        return false;
+    }
+    // Single-letter function words inside a heading ("LE INDAGINI E I PRIMI
+    // PASSAGGI") do not make it a name, so the all-caps test ignores them.
+    let substantial: Vec<&str> = words
+        .iter()
+        .copied()
+        .filter(|word| word.chars().filter(|ch| ch.is_alphabetic()).count() >= 2)
+        .collect();
+    if substantial.is_empty() || !substantial.iter().all(|word| is_all_caps_word(word)) {
+        return false;
+    }
+    words.len() >= 2
+        || substantial[0]
+            .chars()
+            .filter(|ch| ch.is_alphabetic())
+            .count()
+            >= 6
 }
 
 fn candidate_from_tokens(
@@ -624,11 +665,31 @@ fn validate_evidence(
         None => true,
     });
     let proper_noun = start_token.is_some_and(|token| token.upos.as_deref() == Some("PROPN"));
+    let mut entity_type = c
+        .entity_type
+        .unwrap_or_else(|| classify_value_type(&c.text, gazetteer_eligible, proper_noun, language));
+    // In a language that capitalizes common nouns (German) the title-case
+    // shape alone cannot prove a person, and without a UDPipe model there is
+    // no PROPN tag either. A curated person title immediately before the name
+    // ("Präsident Emmanuel Macron") restores that evidence in every language,
+    // without turning "Neue Halle" into a person.
+    if entity_type == "VISUAL_CONCEPT"
+        && c.text.split_whitespace().count() >= 2
+        && start_token
+            .and_then(|token| {
+                tokens
+                    .iter()
+                    .position(|candidate| candidate.start == token.start)
+            })
+            .and_then(|index| index.checked_sub(1))
+            .and_then(|index| tokens.get(index))
+            .is_some_and(|previous| is_title_word(&previous.text))
+    {
+        entity_type = "PERSON".to_string();
+    }
     Some(VisualEntity {
         text: c.text.clone(),
-        r#type: c.entity_type.unwrap_or_else(|| {
-            classify_value_type(&c.text, gazetteer_eligible, proper_noun, language)
-        }),
+        r#type: entity_type,
         score: 0.0,
         start: c.start,
         end: c.end,

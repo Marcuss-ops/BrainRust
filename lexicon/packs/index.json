@@ -1,0 +1,15 @@
+{
+  "schema": "language_packs.v1",
+  "languages": [
+    "de",
+    "en",
+    "es",
+    "fr",
+    "id",
+    "it",
+    "pl",
+    "pt",
+    "ru",
+    "tr"
+  ]
+}

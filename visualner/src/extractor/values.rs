@@ -91,7 +91,13 @@ fn classify_type(
     // (ADV) and "Corte" (PROPN with a lowercase lemma) also exist as place
     // aliases, but they are not places in this text. Without a POS model (no
     // tag) the capitalization guard inside `is_place` still applies.
-    if gazetteer_eligible && lexicon.is_place(text, language) {
+    // An acronym is not a place just because a GeoNames alias matches it
+    // case-insensitively ("DNA" is a biological trace, not a town). Place
+    // lookup stays available for ordinary title-case names.
+    let acronym_letters: Vec<char> = text.chars().filter(|ch| ch.is_alphabetic()).collect();
+    let acronym = (2..=5).contains(&acronym_letters.len())
+        && acronym_letters.iter().all(|ch| ch.is_uppercase());
+    if gazetteer_eligible && !acronym && lexicon.is_place(text, language) {
         return "LOCATION".to_string();
     }
     // Deterministic work/title exceptions prevent song and programme names

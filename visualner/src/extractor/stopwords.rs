@@ -1,12 +1,25 @@
 //! Candidate-exclusion vocabularies: stopwords, stop phrases, title roles
-//! and narration boilerplate. Every word lives in the shared lexicon
-//! (`stopwords.json`); this module owns only the matching semantics, so a
-//! vocabulary change is a data change and never a code change.
+//! and narration boilerplate. Word data lives in the lexicon, this module owns
+//! only the matching semantics.
+//!
+//! The decision order is deliberate:
+//!   1. a generated language pack for the requested language (language-scoped),
+//!   2. the legacy multilingual table (`lexicon/stopwords.json`).
+//!
+//! Step 2 is the compatibility net kept while packs are filled in. It is not a
+//! per-language copy: it is ONE flat table, and `lexicon/tools/pack_coverage.py`
+//! reports the words it contributes that no pack yet covers, so the table can
+//! shrink monotonically instead of being duplicated 100 times.
 
 use semantic_core::lexicon::lexicon;
 
-pub(super) fn is_stop_word(word: &str) -> bool {
+pub(super) fn is_stop_word(word: &str, language: &str) -> bool {
     let lower = word.to_lowercase();
+    // Only the closed class may break a phrase: the pack's wider function-word
+    // list also contains open-class words ("great") that belong inside names.
+    if semantic_core::language_packs::get(language).is_some_and(|pack| pack.is_stopword(&lower)) {
+        return true;
+    }
     let table = &lexicon().stopwords;
     table.stop_words.iter().any(|s| s == &lower)
         || word
@@ -52,19 +65,19 @@ mod tests {
 
     #[test]
     fn english_and_italian_stop_words_are_excluded() {
-        assert!(is_stop_word("the"));
-        assert!(is_stop_word("The"));
-        assert!(is_stop_word("della"));
-        assert!(is_stop_word("dopo"));
-        assert!(!is_stop_word("tifosi"));
-        assert!(!is_stop_word("feta"));
+        assert!(is_stop_word("the", "en"));
+        assert!(is_stop_word("The", "en"));
+        assert!(is_stop_word("della", "it"));
+        assert!(is_stop_word("dopo", "it"));
+        assert!(!is_stop_word("tifosi", "it"));
+        assert!(!is_stop_word("feta", "en"));
     }
 
     #[test]
     fn non_ascii_stop_words_match_their_accented_forms() {
-        assert!(is_stop_word("è"));
-        assert!(is_stop_word("président"));
-        assert!(is_stop_word("präsident"));
+        assert!(is_stop_word("è", "it"));
+        assert!(is_stop_word("président", "fr"));
+        assert!(is_stop_word("präsident", "de"));
     }
 
     #[test]

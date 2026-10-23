@@ -34,6 +34,15 @@ jobs:
         fi
         echo "RUST_ICU_MAJOR_VERSION_NUMBER=$got" >> "$GITHUB_ENV"
 
+    # The language packs are generated data: a lexicon edit must regenerate
+    # them in the same change. `--check` also proves every language directory
+    # has a pack, so adding a language cannot silently produce an unpacked
+    # locale at runtime.
+    - name: Language packs are current
+      run: |
+        python3 lexicon/tools/build_language_packs.py --check
+        python3 lexicon/tools/pack_coverage.py --check
+
     # rust-toolchain.toml is the single toolchain pin; the explicit install
     # keeps the container from falling back to a distro or floating rustc.
     - name: Install pinned Rust toolchain

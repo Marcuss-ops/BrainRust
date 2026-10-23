@@ -1,0 +1,200 @@
+{
+  "schema": "legal_pack.v1",
+  "language": "en",
+  "patterns": [
+    {
+      "predicate": "legal_outcome",
+      "normalized": "not_convicted",
+      "markers": [
+        "not convicted"
+      ],
+      "subject": "person",
+      "value": "marker"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "acquitted",
+      "markers": [
+        "acquitted"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "convicted",
+      "markers": [
+        "convicted"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "acquittal_confirmed",
+      "markers": [
+        "confirmed the acquittal"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "conviction_confirmed",
+      "markers": [
+        "confirmed the conviction"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_outcome",
+      "normalized": "annulled_with_remand",
+      "markers": [
+        "annulled with remand",
+        "remanded"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "legal_finality",
+      "normalized": "final",
+      "markers": [
+        "became final"
+      ],
+      "subject": "person_or_org",
+      "value": "date"
+    },
+    {
+      "predicate": "investigation_status",
+      "normalized": "under_investigation",
+      "markers": [
+        "under investigation"
+      ],
+      "subject": "person",
+      "value": "marker"
+    },
+    {
+      "predicate": "investigation_status",
+      "normalized": "denies_accusations",
+      "markers": [
+        "denies the accusations",
+        "denied the accusations"
+      ],
+      "subject": "person",
+      "value": "marker"
+    },
+    {
+      "predicate": "procedural_act",
+      "normalized": "received_warrant",
+      "markers": [
+        "warrant"
+      ],
+      "subject": "person",
+      "value": "date"
+    },
+    {
+      "predicate": "procedural_act",
+      "normalized": "preliminary_hearing",
+      "markers": [
+        "preliminary hearing"
+      ],
+      "subject": "legal_actor",
+      "value": "date"
+    },
+    {
+      "predicate": "investigation_status",
+      "normalized": "investigation_concluded",
+      "markers": [
+        "concluded the investigation"
+      ],
+      "subject": "org",
+      "value": "date"
+    },
+    {
+      "predicate": "sentence_length",
+      "normalized": "years",
+      "markers": [
+        "years in prison",
+        "years of imprisonment"
+      ],
+      "subject": "person",
+      "value": "number"
+    },
+    {
+      "predicate": "personal_data",
+      "normalized": "age",
+      "markers": [
+        "years old"
+      ],
+      "subject": "person",
+      "value": "number"
+    },
+    {
+      "predicate": "relationship",
+      "normalized": "partner_of",
+      "markers": [
+        "partner of"
+      ],
+      "subject": "person",
+      "value": "entity"
+    }
+  ],
+  "age_guard_markers": [
+    "reclusion",
+    "prison"
+  ],
+  "entity_cues": [],
+  "entity_alias_cues": [],
+  "finality_markers": [
+    "became final",
+    "becomes final",
+    "final conviction"
+  ],
+  "outcome_markers": [
+    "acquittal",
+    "conviction",
+    "annulment",
+    "upheld"
+  ],
+  "comparison": {
+    "conviction_cues": [
+      "final conviction",
+      "conviction"
+    ],
+    "conviction_exclusions": [
+      "no conviction",
+      "upheld"
+    ],
+    "investigation_cues": [
+      "under investigation",
+      "denies the accusations",
+      "no conviction"
+    ],
+    "title": "Comparison: {left} vs {right}",
+    "sequence_title": "Sequence: {count} steps"
+  },
+  "micro": {
+    "templates": {
+      "legal_outcome|acquitted": "{name}: acquitted{date}",
+      "legal_outcome|convicted": "{name}: convicted{date}",
+      "legal_outcome|conviction_confirmed": "{name}: conviction upheld{date}",
+      "legal_outcome|acquittal_confirmed": "{name}: acquittal upheld{date}",
+      "legal_outcome|annulled_with_remand": "{name}: annulled with remand{date}",
+      "legal_finality|final": "{name}: final conviction{date}",
+      "investigation_status|under_investigation": "{name}: under investigation",
+      "investigation_status|denies_accusations": "{name}: denies the accusations",
+      "legal_outcome|not_convicted": "{name}: no conviction in the described proceeding",
+      "procedural_act|received_warrant": "{name}: warrant received{date}",
+      "procedural_act|preliminary_hearing": "{name}: preliminary hearing{date}",
+      "investigation_status|investigation_concluded": "{name}: investigation concluded{date}",
+      "sentence_length|years": "{name}: {normalized} years in prison{date}",
+      "personal_data|age": "{name}: {normalized} years old",
+      "relationship|partner_of": "{name}: partner of {target}"
+    },
+    "date_year": " in {year}",
+    "date_surface": " on {surface}",
+    "year_surface": " in {surface}"
+  }
+}

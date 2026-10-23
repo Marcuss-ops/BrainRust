@@ -24,12 +24,13 @@ pub(super) fn mark_contextual_locations(
         if cased {
             starts_uppercase(text)
         } else {
-            !super::stopwords::is_stop_word(text) && !is_month_name(text)
+            !super::stopwords::is_stop_word(text, language) && !is_month_name(text)
         }
     };
     for index in 0..tokens.len() {
         if !name_evidence(&tokens[index].text)
             || is_month_name(&tokens[index].text)
+            || is_acronym(&tokens[index].text)
             || !has_location_context(tokens, bytes, index)
         {
             continue;
@@ -38,7 +39,7 @@ pub(super) fn mark_contextual_locations(
         while end < tokens.len() && name_evidence(&tokens[end].text) {
             if bytes[tokens[end - 1].end..tokens[end].start]
                 .iter()
-                .any(|byte| !byte.is_ascii_whitespace())
+                .any(|byte| is_phrase_breaking_byte(*byte))
             {
                 break;
             }
@@ -53,7 +54,10 @@ pub(super) fn mark_contextual_locations(
     }
 
     for candidate in candidates.iter_mut() {
-        if candidate.entity_type.is_some() || !name_evidence(&candidate.text) {
+        if candidate.entity_type.is_some()
+            || !name_evidence(&candidate.text)
+            || is_acronym(&candidate.text)
+        {
             continue;
         }
         let Some(token_index) = tokens
@@ -79,6 +83,13 @@ pub(super) fn mark_contextual_locations(
     }
 }
 
+/// Short all-caps surfaces are acronyms (DNA, GUP, ANSA), never place names
+/// reached through a geographic cue such as "del" or "in".
+fn is_acronym(text: &str) -> bool {
+    let letters: Vec<char> = text.chars().filter(|ch| ch.is_alphabetic()).collect();
+    (2..=5).contains(&letters.len()) && letters.iter().all(|ch| ch.is_uppercase())
+}
+
 /// True when the token before `tokens[token_index]` is a geographic cue and
 /// the two tokens are adjacent ("em Fortaleza"), or the cue chain is
 /// genitive + container noun ("cidade de", "city of").
@@ -88,7 +99,7 @@ pub(super) fn has_location_context(tokens: &[Token], bytes: &[u8], token_index: 
     };
     if bytes[previous.end..tokens[token_index].start]
         .iter()
-        .any(|byte| !byte.is_ascii_whitespace())
+        .any(|byte| is_phrase_breaking_byte(*byte))
     {
         return false;
     }
@@ -155,10 +166,12 @@ pub(super) fn gap_has_period(gap: &[u8]) -> bool {
 }
 
 /// is_phrase_breaking_byte reports whether a byte in the gap between two
-/// tokens should break a noun phrase. Whitespace (space, tab, newline)
-/// does NOT break; any other non-word byte (comma, period, semicolon,
-/// colon, dash outside a word, parens) DOES break. This is what keeps
+/// tokens should break a noun phrase. Horizontal whitespace (space, tab)
+/// does NOT break; a newline DOES, because an all-caps heading followed by a
+/// blank line and a capitalized sentence ("IL NOME CHE TORNA\n\nIn una
+/// storia") is not one name. Any other non-word byte (comma, period,
+/// semicolon, colon, dash outside a word, parens) also breaks. This keeps
 /// "feta cheese" together while splitting "tomatoes, feta".
 pub(super) fn is_phrase_breaking_byte(b: u8) -> bool {
-    !b.is_ascii_whitespace()
+    b == b'\n' || b == b'\r' || !b.is_ascii_whitespace()
 }

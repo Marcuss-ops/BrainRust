@@ -88,9 +88,29 @@ pub struct TemporalFact {
 /// forms are still reported as `unresolved` (the surface survives; no ISO
 /// value is invented).
 pub fn temporal_facts(source_text: &str, language: &str) -> Vec<TemporalFact> {
+    temporal_facts_with_words(source_text, language, &[])
+}
+
+/// One number written in words, located by the locale's ICU spellout rules.
+/// The date parser receives these spans instead of a per-language word table,
+/// so every locale with CLDR RBNF rules can spell days and years.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpelledNumber {
+    pub start: usize,
+    pub end: usize,
+    pub value: i64,
+}
+
+/// Same as [`temporal_facts`] with the caller's spelled-number spans.
+pub fn temporal_facts_with_words(
+    source_text: &str,
+    language: &str,
+    words: &[SpelledNumber],
+) -> Vec<TemporalFact> {
     let language = language.trim().to_lowercase();
     let mut raw: Vec<RawFact> = collect_numeric_facts(source_text, &language);
-    raw.extend(collect_month_word_facts(source_text));
+    raw.extend(collect_month_word_facts(source_text, &language, words));
+    raw.extend(collect_spelled_year_facts(source_text, words));
     raw.extend(collect_era_years(source_text));
     resolve(source_text, raw)
 }
@@ -307,7 +327,7 @@ fn try_order_numeric(
 
 //–––––––––––––––––– Month-word facts (12 marzo 2001) ––––––––––––––––––––––
 
-fn collect_month_word_facts(source: &str) -> Vec<RawFact> {
+fn collect_month_word_facts(source: &str, language: &str, words: &[SpelledNumber]) -> Vec<RawFact> {
     let view = FoldedSource::build(source);
     let mut out = Vec::new();
     let mut folded_cursor = 0;
@@ -316,7 +336,7 @@ fn collect_month_word_facts(source: &str) -> Vec<RawFact> {
         if month_token_bounded(&view.text, folded_start, folded_width) {
             if let Some((start, end)) = view.to_source(folded_start, folded_start + folded_width) {
                 let width = end - start;
-                if let Some(fact) = month_word_fact(source, start, month, width) {
+                if let Some(fact) = month_word_fact(source, language, start, month, width, words) {
                     out.push(fact);
                 }
             }
@@ -452,12 +472,19 @@ fn month_token_bounded(text: &str, position: usize, width: usize) -> bool {
 /// (`March 12, 2001`) and the prepositional day (`12 de março de 2001`).
 /// Without the year the fact is unresolved: a stated day+month names no
 /// year, so no ISO value is invented.
-fn month_word_fact(text: &str, month_start: usize, month: u8, width: usize) -> Option<RawFact> {
+fn month_word_fact(
+    text: &str,
+    language: &str,
+    month_start: usize,
+    month: u8,
+    width: usize,
+    words: &[SpelledNumber],
+) -> Option<RawFact> {
     let month_end = month_start + width;
-    let day_before = day_before(text, month_start);
-    let day_after = day_after(text, month_end);
+    let day_before = day_before(text, language, month_start, words);
+    let day_after = day_after(text, language, month_end, words);
     let year_from = day_after.map_or(month_end, |(_, day_end)| day_end);
-    let year = year_after(text, year_from);
+    let year = year_after(text, language, year_from, words);
     let day_value = day_after
         .map(|(value, _)| value)
         .or(day_before.map(|(value, _)| value));
@@ -702,51 +729,154 @@ fn era_of(marker: &crate::lexicon::EraMarker) -> Era {
     }
 }
 
-/// Prepositions that may sit between a month and its year ("marzo del 2008").
-const MONTH_YEAR_CONNECTORS: &[&str] = &[
-    "de", "del", "do", "da", "di", "des", "von", "anno", "año", "anio", "yıl",
-];
+/// True for a word that can sit between the parts of a written date
+/// ("12 de março", "marzo del 2008"). It must be a closed-class word of the
+/// document language, so no per-language connector table lives here.
+fn is_date_connector(word: &str, language: &str) -> bool {
+    let lower = word.to_lowercase();
+    crate::language_packs::get(language).is_some_and(|pack| pack.is_stopword(&lower))
+        || crate::lexicon::lexicon()
+            .stopwords
+            .stop_words
+            .iter()
+            .any(|known| known == &lower)
+}
+
+/// Start offset of a date connector immediately before `end`, if any.
+fn connector_before(source: &str, end: usize, language: &str) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut word_end = end;
+    while word_end > 0 && bytes[word_end - 1].is_ascii_whitespace() {
+        word_end -= 1;
+    }
+    let mut word_start = word_end;
+    while word_start > 0
+        && (bytes[word_start - 1].is_ascii_alphabetic() || bytes[word_start - 1] == b'\'')
+    {
+        word_start -= 1;
+    }
+    if word_start == word_end || !is_date_connector(&source[word_start..word_end], language) {
+        return None;
+    }
+    bytes
+        .get(word_start.wrapping_sub(1))
+        .is_some_and(|byte| byte.is_ascii_whitespace())
+        .then_some(word_start)
+}
+
+/// Cursor after at most two date connectors starting at `cursor`.
+fn skip_connectors_after(source: &str, position: usize, language: &str) -> usize {
+    let bytes = source.as_bytes();
+    let mut position = position;
+    for _ in 0..2 {
+        let mut start = position;
+        while start < bytes.len() && bytes[start].is_ascii_whitespace() {
+            start += 1;
+        }
+        let mut end = start;
+        while end < bytes.len() && (bytes[end].is_ascii_alphabetic() || bytes[end] == b'\'') {
+            end += 1;
+        }
+        if end == start || !is_date_connector(&source[start..end], language) {
+            break;
+        }
+        position = end;
+    }
+    position
+}
 
 /// `(day_value, day_start)` for a 1–2 digit day immediately before the
 /// month token, separated by whitespace or one preposition connector
 /// (`12 de março`).
-fn day_before(source: &str, month_start: usize) -> Option<(u32, usize)> {
+fn day_before(
+    source: &str,
+    language: &str,
+    month_start: usize,
+    words: &[SpelledNumber],
+) -> Option<(u32, usize)> {
     if let Some(fact) = day_digits_before(source, month_start) {
         return Some(fact);
     }
+    if let Some(fact) = spelled_number_before(source, words, month_start, 1, 31) {
+        return Some(fact);
+    }
     // Connector form: whitespace + day + whitespace + connective + month.
-    let bytes = source.as_bytes();
-    let mut cursor = month_start;
-    while cursor > 0 && bytes[cursor - 1].is_ascii_whitespace() {
-        cursor -= 1;
+    let connector_start = connector_before(source, month_start, language)?;
+    if let Some(fact) = day_digits_before(source, connector_start) {
+        return Some(fact);
     }
-    for connector in MONTH_YEAR_CONNECTORS {
-        let Some(connector_start) = cursor.checked_sub(connector.len()) else {
-            continue;
-        };
-        let Some(tail) = source.get(connector_start..cursor) else {
-            continue;
-        };
-        if !tail.eq_ignore_ascii_case(connector) {
-            continue;
-        }
-        if !bytes
-            .get(connector_start.wrapping_sub(1))
-            .is_some_and(|&byte| byte.is_ascii_whitespace())
-        {
-            continue;
-        }
-        if let Some(fact) = day_digits_before(source, connector_start) {
-            return Some(fact);
-        }
+    spelled_number_before(source, words, connector_start, 1, 31)
+}
+
+/// `(value, start)` for a spelled number immediately before `position`,
+/// skipping whitespace. The spans come from the locale's ICU spellout rules,
+/// so no language table lives in this module.
+fn spelled_number_before(
+    source: &str,
+    words: &[SpelledNumber],
+    position: usize,
+    min: i64,
+    max: i64,
+) -> Option<(u32, usize)> {
+    let word = words
+        .iter()
+        .filter(|word| word.end <= position && (min..=max).contains(&word.value))
+        .max_by_key(|word| word.end)?;
+    if !gap_is_whitespace(source, word.end, position) {
+        return None;
     }
-    None
+    Some((word.value as u32, word.start))
+}
+
+/// `(value, end)` for a spelled number immediately after `position`.
+fn spelled_number_after(
+    source: &str,
+    words: &[SpelledNumber],
+    position: usize,
+    min: i64,
+    max: i64,
+) -> Option<(i64, usize)> {
+    let word = words
+        .iter()
+        .filter(|word| word.start >= position && (min..=max).contains(&word.value))
+        .min_by_key(|word| word.start)?;
+    if !gap_is_whitespace(source, position, word.start) {
+        return None;
+    }
+    Some((word.value, word.end))
+}
+
+fn gap_is_whitespace(source: &str, start: usize, end: usize) -> bool {
+    source
+        .get(start..end)
+        .is_some_and(|gap| gap.chars().all(char::is_whitespace))
+}
+
+/// Standalone spelled years ("duemilaventicinque", "due mila sette") not
+/// attached to a month. Nested year spans are dropped by `resolve` when a
+/// wider day-month-year fact covers them.
+fn collect_spelled_year_facts(source: &str, words: &[SpelledNumber]) -> Vec<RawFact> {
+    words
+        .iter()
+        .filter(|word| (1000..=2099).contains(&word.value))
+        .filter(|word| {
+            source
+                .get(word.start..word.end)
+                .is_some_and(|surface| !surface.is_empty())
+        })
+        .map(|word| RawFact::bare(word.start, word.end, word.value as i32, Ce))
+        .collect()
 }
 
 fn day_digits_before(source: &str, month_start: usize) -> Option<(u32, usize)> {
     let bytes = source.as_bytes();
     let mut cursor = month_start;
     while cursor > 0 && bytes[cursor - 1].is_ascii_whitespace() {
+        cursor -= 1;
+    }
+    // German ordinal days carry a dot ("12. März"); it belongs to the date but
+    // not to the day digits. Only a dot directly after the digits is consumed.
+    if cursor > 1 && bytes[cursor - 1] == b'.' && bytes[cursor - 2].is_ascii_digit() {
         cursor -= 1;
     }
     if cursor == 0 || !bytes[cursor - 1].is_ascii_digit() {
@@ -774,29 +904,45 @@ fn day_digits_before(source: &str, month_start: usize) -> Option<(u32, usize)> {
 /// `(day_value, end_offset)` for a 1–2 digit day immediately after the
 /// month token (`March 12, 2001`). Longer digit runs (`marzo 2001`) are
 /// years, not days, and are left to `year_after`.
-fn day_after(source: &str, month_end: usize) -> Option<(u32, usize)> {
+fn day_after(
+    source: &str,
+    _language: &str,
+    month_end: usize,
+    words: &[SpelledNumber],
+) -> Option<(u32, usize)> {
     let bytes = source.as_bytes();
     let mut cursor = month_end;
     while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
         cursor += 1;
     }
-    let digit_start = cursor;
-    let digit_len = digits_at(bytes, cursor).filter(|&len| (1..=2).contains(&len))?;
-    cursor += digit_len;
-    if bytes.get(cursor).is_some_and(|&byte| byte.is_ascii_digit()) {
-        return None; // The run was longer: not a plain day.
+    if let Some(digit_len) = digits_at(bytes, cursor).filter(|&len| (1..=2).contains(&len)) {
+        let digit_start = cursor;
+        let digits_end = cursor + digit_len;
+        if bytes
+            .get(digits_end)
+            .is_some_and(|&byte| byte.is_ascii_digit())
+        {
+            return None; // The run was longer: not a plain day.
+        }
+        let value: u32 = source[digit_start..digits_end].parse().ok()?;
+        if !(1..=31).contains(&value) {
+            return None;
+        }
+        return Some((value, digits_end));
     }
-    let value: u32 = source[digit_start..cursor].parse().ok()?;
-    if !(1..=31).contains(&value) {
-        return None;
-    }
-    Some((value, cursor))
+    let (value, end) = spelled_number_after(source, words, cursor, 1, 31)?;
+    Some((value as u32, end))
 }
 
 /// Locates the stated year after a month token across at most one connector
 /// word; an attached era marker stays inside the span. Returns
 /// `(year, era, end_offset)`.
-fn year_after(source: &str, month_end: usize) -> Option<(i32, Era, usize)> {
+fn year_after(
+    source: &str,
+    language: &str,
+    month_end: usize,
+    words: &[SpelledNumber],
+) -> Option<(i32, Era, usize)> {
     let bytes = source.as_bytes();
     let mut cursor = month_end;
     while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
@@ -809,32 +955,29 @@ fn year_after(source: &str, month_end: usize) -> Option<(i32, Era, usize)> {
             cursor += 1;
         }
     }
-    for connector in MONTH_YEAR_CONNECTORS {
-        let Some(tail) = source.get(cursor..cursor + connector.len()) else {
-            continue;
-        };
-        let next_is_space = bytes
-            .get(cursor + connector.len())
-            .is_some_and(|&byte| byte.is_ascii_whitespace());
-        if next_is_space && tail.eq_ignore_ascii_case(connector) {
-            cursor += connector.len();
-            while bytes
-                .get(cursor)
-                .is_some_and(|&byte| byte.is_ascii_whitespace())
-            {
-                cursor += 1;
-            }
-            break;
-        }
+    cursor = skip_connectors_after(source, cursor, language);
+    while bytes
+        .get(cursor)
+        .is_some_and(|&byte| byte.is_ascii_whitespace())
+    {
+        cursor += 1;
     }
-    let digit_len = digits_at(bytes, cursor).filter(|&len| (3..=4).contains(&len))?;
-    let year: i32 = source[cursor..cursor + digit_len].parse().ok()?;
+    let (year, digits_end, spelled) =
+        match digits_at(bytes, cursor).filter(|&len| (3..=4).contains(&len)) {
+            Some(digit_len) => {
+                let year: i32 = source[cursor..cursor + digit_len].parse().ok()?;
+                (year, cursor + digit_len, false)
+            }
+            None => {
+                let (value, end) = spelled_number_after(source, words, cursor, 1000, 2099)?;
+                (value as i32, end, true)
+            }
+        };
     if year <= 0 {
         return None;
     }
-    let digits_end = cursor + digit_len;
     let mut end = digits_end;
-    let era = if digits_end < bytes.len() && bytes[digits_end].is_ascii_whitespace() {
+    let era = if !spelled && digits_end < bytes.len() && bytes[digits_end].is_ascii_whitespace() {
         let tail = source[digits_end..].trim_start();
         match era_markers()
             .iter()
@@ -898,6 +1041,79 @@ mod tests {
             }
             previous = Some(fact);
         }
+    }
+
+    fn spelled(text: &str, surface: &str, value: i64) -> SpelledNumber {
+        let start = text.find(surface).expect("fixture surface");
+        SpelledNumber {
+            start,
+            end: start + surface.len(),
+            value,
+        }
+    }
+
+    #[test]
+    fn spelled_italian_day_month_year_normalizes_to_iso() {
+        let text = "Il tredici agosto duemilasette è il punto di partenza.";
+        let words = [
+            spelled(text, "tredici", 13),
+            spelled(text, "duemilasette", 2007),
+        ];
+        let all = temporal_facts_with_words(text, "it", &words);
+        assert_grounded(text, &all);
+        let fact = all
+            .iter()
+            .find(|fact| fact.normalized.as_deref() == Some("2007-08-13"))
+            .unwrap_or_else(|| panic!("spelled date must normalize: {all:?}"));
+        assert_eq!(fact.precision, "day");
+        assert_eq!(fact.surface, "tredici agosto duemilasette");
+    }
+
+    #[test]
+    fn spelled_italian_year_only_and_spaced_year() {
+        let year_text = "Nel duemilaventicinque il nome torna.";
+        let year = temporal_facts_with_words(
+            year_text,
+            "it",
+            &[spelled(year_text, "duemilaventicinque", 2025)],
+        );
+        assert!(year
+            .iter()
+            .any(|fact| fact.normalized.as_deref() == Some("2025")));
+        let spaced_text = "La svolta arrivò nel due mila sette.";
+        let spaced = temporal_facts_with_words(
+            spaced_text,
+            "it",
+            &[spelled(spaced_text, "due mila sette", 2007)],
+        );
+        assert!(spaced
+            .iter()
+            .any(|fact| fact.normalized.as_deref() == Some("2007")));
+        let spring_text = "Il ventiquattro maggio del duemilaventicinque si chiude.";
+        let spring = temporal_facts_with_words(
+            spring_text,
+            "it",
+            &[
+                spelled(spring_text, "ventiquattro", 24),
+                spelled(spring_text, "duemilaventicinque", 2025),
+            ],
+        );
+        assert!(spring
+            .iter()
+            .any(|fact| fact.normalized.as_deref() == Some("2025-05-24")));
+    }
+
+    #[test]
+    fn a_spelled_date_does_not_emit_a_nested_year_fact() {
+        let text = "Il tredici agosto duemilasette è il punto di partenza.";
+        let words = [
+            spelled(text, "tredici", 13),
+            spelled(text, "duemilasette", 2007),
+        ];
+        let all = temporal_facts_with_words(text, "it", &words);
+        assert_eq!(all.len(), 1, "one date, one fact: {all:#?}");
+        assert_eq!(all[0].normalized.as_deref(), Some("2007-08-13"));
+        assert_eq!(all[0].precision, "day");
     }
 
     #[test]
@@ -1154,6 +1370,37 @@ e il 7 settembre 2019 completò la storia.";
         assert!(all
             .iter()
             .any(|fact| fact.normalized.as_deref() == Some("2001-03-12")));
+    }
+
+    #[test]
+    fn date_connectors_come_from_the_language_pack_not_a_table() {
+        // "del" is a closed-class Italian word from the pack; the same text
+        // under English must not treat it as a connector.
+        let text = "Il fatto avvenne il 12 marzo del 2001.";
+        let all = facts(text, "it");
+        assert_grounded(text, &all);
+        assert!(all
+            .iter()
+            .any(|fact| fact.normalized.as_deref() == Some("2001-03-12")));
+    }
+
+    #[test]
+    fn months_resolve_without_any_spelled_day_table() {
+        // Turkish and Russian have CLDR months but no curated spellout table:
+        // the numeric day and the pack-only connector path must still work.
+        for (language, text, expected) in [
+            ("tr", "12 Mart 2001 tarihinde oldu.", "2001-03-12"),
+            ("ru", "12 марта 2001 года.", "2001-03-12"),
+            ("de", "Am 12. März 2001 geschah es.", "2001-03-12"),
+        ] {
+            let all = facts(text, language);
+            assert_grounded(text, &all);
+            assert!(
+                all.iter()
+                    .any(|fact| fact.normalized.as_deref() == Some(expected)),
+                "{language}: {text:?} did not resolve to {expected}: {all:?}"
+            );
+        }
     }
 
     #[test]

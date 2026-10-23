@@ -25,8 +25,12 @@
 
 pub mod bullets;
 pub mod dates;
+mod generated_language_packs;
+mod generated_legal_packs;
 pub mod grounding;
 pub mod identity;
+pub mod language_packs;
+pub mod legal_packs;
 pub mod lexicon;
 pub mod manifest;
 pub mod numbers;

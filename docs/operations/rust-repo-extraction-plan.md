@@ -86,6 +86,19 @@ sopravvivere nel monorepo senza un motivo esplicito.
 - `internal/platform/config/types_external.go:25,36` — default `bin/*`.
 - `internal/platform/media/rustexec/` — 61 file, ~12k righe: consumer del protocollo.
 
+### Dati generati da ricreare nel nuovo repo
+
+Questi file sono artefatti deterministici: vanno rigenerati con
+`python3 lexicon/tools/build_language_packs.py` e il CI deve fallire se
+divergono. Non sono sorgenti da copiare a mano.
+
+- `lexicon/packs/*.json` — un pack per lingua da `lexicon/languages/<lang>/`.
+- `lexicon/legal/*.json` — pack di dominio opzionali (legale, micro-summary).
+- `semantic-core/src/generated_language_packs.rs` e
+  `generated_legal_packs.rs` — tabelle `include_str!`.
+- `lexicon/months.json` — tabella CLDR da `sync_cldr_months.py`.
+- Gate: `build_language_packs.py --check` e `pack_coverage.py --check`.
+
 ### Metadati e documentazione
 
 - `config/verify-components.json:464-483` — componente `rust-muscles`

@@ -101,6 +101,22 @@ RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" cargo run -p visualner -- --locale-co
 cargo build --release
 ```
 
+## Languages
+
+Linguistic knowledge is data, not Rust: one directory per language under
+`lexicon/languages/`, generated into `lexicon/packs/<lang>.json` by
+`lexicon/tools/build_language_packs.py`. The filter order is POS tag (when a
+UDPipe model is installed) → generated closed class → the legacy flat table,
+which is a bridge measured by `lexicon/tools/pack_coverage.py`. Legal facts
+and micro-summary templates live in optional domain packs
+(`lexicon/legal/<lang>.json`); a language without one degrades instead of
+rendering another language's vocabulary.
+
+Adding a language never touches Rust code. See
+[`docs/operations/languages.md`](docs/operations/languages.md) for the tiers
+(model + pack, pack only, CLDR only), the generator commands and the CI gate
+(`--check` fails when a committed pack is stale).
+
 ## Contract
 
 `contract/mediaexec.v1/` owns the request/response JSON Schemas and the shared

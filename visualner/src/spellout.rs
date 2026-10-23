@@ -16,6 +16,7 @@ use rust_icu_unum::UNumberFormat;
 pub(crate) struct WordNumberCandidate {
     pub start: usize,
     pub end: usize,
+    pub value: f64,
     pub entity_type: &'static str,
 }
 
@@ -198,7 +199,23 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
                 ordinal_parse = kind == "ORDINAL";
                 break;
             }
-            let Some(value) = parsed else { continue };
+            let value = match parsed {
+                Some(value) => value,
+                None => {
+                    // CLDR's RBNF parser rejects compound thousands in some
+                    // locales (Italian "duemilaventicinque" parses only as a
+                    // prefix). Rebuild the number from the locale's own
+                    // formatted thousands word, then parse the remainder with
+                    // the same rules. No language table is involved.
+                    let Some(formatter) = formatters.spellout.as_ref() else {
+                        continue;
+                    };
+                    let Some(value) = compose_thousands(surface, formatter) else {
+                        continue;
+                    };
+                    value
+                }
+            };
 
             // Common words for 0/1 are ambiguous in prose. Require a unit
             // for those, and do not treat duration phrases such as "one day"
@@ -220,6 +237,7 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
             out.push(WordNumberCandidate {
                 start,
                 end: candidate_end,
+                value,
                 entity_type: classified_type,
             });
             // Prefer a suffix-extended quantity; otherwise continue so the
@@ -251,6 +269,62 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
         filtered.push(candidate);
     }
     Ok(filtered)
+}
+
+/// Rebuilds a thousands compound from the locale's own RBNF output:
+/// "duemilaventicinque" = format(2000) + parse("venticinque"),
+/// "two thousand seven" = format(2000) + parse("seven"). This is what keeps
+/// spelled years working without a per-language word table.
+fn compose_thousands(surface: &str, formatter: &UNumberFormat) -> Option<f64> {
+    let normalized = normalize_spellout(surface);
+    for thousands in 1..=99i64 {
+        let amount = thousands * 1000;
+        let Ok(formatted) = formatter.format_i64(amount) else {
+            continue;
+        };
+        let prefix = normalize_spellout(&formatted);
+        if prefix.is_empty() || !normalized.starts_with(&prefix) {
+            continue;
+        }
+        let remainder = &normalized[prefix.len()..];
+        if remainder.is_empty() {
+            return Some(amount as f64);
+        }
+        let Some(rest) = parse_complete(remainder, formatter) else {
+            continue;
+        };
+        if (0.0..1000.0).contains(&rest) {
+            return Some(amount as f64 + rest);
+        }
+    }
+    None
+}
+
+/// Complete parse with the same canonical round-trip rule used by the main
+/// loop, including the compound-prefix recovery for "venticinque" (20 + 5).
+fn parse_complete(surface: &str, formatter: &UNumberFormat) -> Option<f64> {
+    let value = formatter.parse_to_formattable(surface, Some(0)).ok()?;
+    let number = value.get_double().ok()?;
+    if !number.is_finite() {
+        return None;
+    }
+    let normalized = normalize_spellout(surface);
+    if number.fract() == 0.0
+        && number >= i64::MIN as f64
+        && number <= i64::MAX as f64
+        && formatter
+            .format_i64(number as i64)
+            .ok()
+            .is_some_and(|canonical| normalize_spellout(&canonical) == normalized)
+    {
+        return Some(number);
+    }
+    let lower = (number as i64).saturating_sub(100).max(0);
+    let upper = (number as i64).saturating_add(100).min(999);
+    (lower..=upper).find_map(|candidate| {
+        let formatted = formatter.format_i64(candidate).ok()?;
+        (normalize_spellout(&formatted) == normalized).then_some(candidate as f64)
+    })
 }
 
 fn word_tokens(source: &str) -> Vec<WordToken> {
