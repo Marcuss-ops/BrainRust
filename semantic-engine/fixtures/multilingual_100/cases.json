@@ -1,0 +1,2802 @@
+[
+  {
+    "id": "it-01-transport",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "transport",
+    "path": "it/it-01-transport.txt",
+    "word_count": 2056,
+    "byte_count": 14077,
+    "expected_source_anchors": {
+      "person": "Sofia Rinaldi",
+      "secondary_person": "Marta Greco",
+      "city": "Padova",
+      "organization": "Fondazione Prisma",
+      "object": "tram elettrico",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "it-02-stadium",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "stadium",
+    "path": "it/it-02-stadium.txt",
+    "word_count": 2043,
+    "byte_count": 13820,
+    "expected_source_anchors": {
+      "person": "Luca Ferri",
+      "secondary_person": "Sara Bianchi",
+      "city": "Verona",
+      "organization": "Comitato Stella",
+      "object": "tornello",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "it-03-hospital",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "hospital",
+    "path": "it/it-03-hospital.txt",
+    "word_count": 2068,
+    "byte_count": 14013,
+    "expected_source_anchors": {
+      "person": "Elena Moretti",
+      "secondary_person": "Paolo Ricci",
+      "city": "Milano",
+      "organization": "Centro Aurora",
+      "object": "ecografo",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "it-04-energy",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "energy",
+    "path": "it/it-04-energy.txt",
+    "word_count": 2059,
+    "byte_count": 14053,
+    "expected_source_anchors": {
+      "person": "Marco Bellini",
+      "secondary_person": "Andrea Sala",
+      "city": "Torino",
+      "organization": "Consorzio Lumen",
+      "object": "pannello solare",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "it-05-school",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "school",
+    "path": "it/it-05-school.txt",
+    "word_count": 2052,
+    "byte_count": 14011,
+    "expected_source_anchors": {
+      "person": "Giulia Conti",
+      "secondary_person": "Davide Rossi",
+      "city": "Bologna",
+      "organization": "Istituto Orizzonte",
+      "object": "tablet didattico",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "it-06-museum",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "museum",
+    "path": "it/it-06-museum.txt",
+    "word_count": 2037,
+    "byte_count": 13995,
+    "expected_source_anchors": {
+      "person": "Sofia Rinaldi",
+      "secondary_person": "Marta Greco",
+      "city": "Padova",
+      "organization": "Fondazione Prisma",
+      "object": "manoscritto",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "it-07-flood",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "flood",
+    "path": "it/it-07-flood.txt",
+    "word_count": 2071,
+    "byte_count": 14085,
+    "expected_source_anchors": {
+      "person": "Luca Ferri",
+      "secondary_person": "Sara Bianchi",
+      "city": "Verona",
+      "organization": "Comitato Stella",
+      "object": "sensore idrometrico",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "it-08-agriculture",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "agriculture",
+    "path": "it/it-08-agriculture.txt",
+    "word_count": 2043,
+    "byte_count": 13986,
+    "expected_source_anchors": {
+      "person": "Elena Moretti",
+      "secondary_person": "Paolo Ricci",
+      "city": "Milano",
+      "organization": "Centro Aurora",
+      "object": "trattore",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "it-09-budget",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "budget",
+    "path": "it/it-09-budget.txt",
+    "word_count": 2074,
+    "byte_count": 14126,
+    "expected_source_anchors": {
+      "person": "Marco Bellini",
+      "secondary_person": "Andrea Sala",
+      "city": "Torino",
+      "organization": "Consorzio Lumen",
+      "object": "registro contabile",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "it-10-digital",
+    "lang": "it",
+    "language_name": "Italiano",
+    "topic": "digital",
+    "path": "it/it-10-digital.txt",
+    "word_count": 2053,
+    "byte_count": 14121,
+    "expected_source_anchors": {
+      "person": "Giulia Conti",
+      "secondary_person": "Davide Rossi",
+      "city": "Bologna",
+      "organization": "Istituto Orizzonte",
+      "object": "server",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "en-01-transport",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "transport",
+    "path": "en/en-01-transport.txt",
+    "word_count": 2063,
+    "byte_count": 13895,
+    "expected_source_anchors": {
+      "person": "Maya Collins",
+      "secondary_person": "Grace Miller",
+      "city": "Oxford",
+      "organization": "Prism Laboratory",
+      "object": "electric tram",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "en-02-stadium",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "stadium",
+    "path": "en/en-02-stadium.txt",
+    "word_count": 2045,
+    "byte_count": 13695,
+    "expected_source_anchors": {
+      "person": "Oliver Reed",
+      "secondary_person": "Noah Harris",
+      "city": "York",
+      "organization": "Stella Council",
+      "object": "turnstile",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "en-03-hospital",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "hospital",
+    "path": "en/en-03-hospital.txt",
+    "word_count": 2065,
+    "byte_count": 14042,
+    "expected_source_anchors": {
+      "person": "Hannah Brooks",
+      "secondary_person": "Lucy Turner",
+      "city": "Manchester",
+      "organization": "Aurora Institute",
+      "object": "ultrasound scanner",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "en-04-energy",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "energy",
+    "path": "en/en-04-energy.txt",
+    "word_count": 2055,
+    "byte_count": 13873,
+    "expected_source_anchors": {
+      "person": "Daniel Carter",
+      "secondary_person": "James Ellis",
+      "city": "Bristol",
+      "organization": "Lumen Cooperative",
+      "object": "solar panel",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "en-05-school",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "school",
+    "path": "en/en-05-school.txt",
+    "word_count": 2061,
+    "byte_count": 13919,
+    "expected_source_anchors": {
+      "person": "Amelia Hughes",
+      "secondary_person": "Thomas Blake",
+      "city": "Leeds",
+      "organization": "Horizon Foundation",
+      "object": "school tablet",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "en-06-museum",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "museum",
+    "path": "en/en-06-museum.txt",
+    "word_count": 2049,
+    "byte_count": 13978,
+    "expected_source_anchors": {
+      "person": "Maya Collins",
+      "secondary_person": "Grace Miller",
+      "city": "Oxford",
+      "organization": "Prism Laboratory",
+      "object": "historical manuscript",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "en-07-flood",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "flood",
+    "path": "en/en-07-flood.txt",
+    "word_count": 2063,
+    "byte_count": 13819,
+    "expected_source_anchors": {
+      "person": "Oliver Reed",
+      "secondary_person": "Noah Harris",
+      "city": "York",
+      "organization": "Stella Council",
+      "object": "water-level sensor",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "en-08-agriculture",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "agriculture",
+    "path": "en/en-08-agriculture.txt",
+    "word_count": 2045,
+    "byte_count": 13979,
+    "expected_source_anchors": {
+      "person": "Hannah Brooks",
+      "secondary_person": "Lucy Turner",
+      "city": "Manchester",
+      "organization": "Aurora Institute",
+      "object": "tractor",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "en-09-budget",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "budget",
+    "path": "en/en-09-budget.txt",
+    "word_count": 2065,
+    "byte_count": 14037,
+    "expected_source_anchors": {
+      "person": "Daniel Carter",
+      "secondary_person": "James Ellis",
+      "city": "Bristol",
+      "organization": "Lumen Cooperative",
+      "object": "accounting ledger",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "en-10-digital",
+    "lang": "en",
+    "language_name": "English",
+    "topic": "digital",
+    "path": "en/en-10-digital.txt",
+    "word_count": 2049,
+    "byte_count": 13952,
+    "expected_source_anchors": {
+      "person": "Amelia Hughes",
+      "secondary_person": "Thomas Blake",
+      "city": "Leeds",
+      "organization": "Horizon Foundation",
+      "object": "server",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "es-01-transport",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "transport",
+    "path": "es/es-01-transport.txt",
+    "word_count": 2072,
+    "byte_count": 14280,
+    "expected_source_anchors": {
+      "person": "Lucía Navarro",
+      "secondary_person": "Ana Castillo",
+      "city": "Granada",
+      "organization": "Laboratorio Prisma",
+      "object": "tranvía eléctrico",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "es-02-stadium",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "stadium",
+    "path": "es/es-02-stadium.txt",
+    "word_count": 2050,
+    "byte_count": 13906,
+    "expected_source_anchors": {
+      "person": "Mateo Ruiz",
+      "secondary_person": "Javier Soto",
+      "city": "Bilbao",
+      "organization": "Consejo Estrella",
+      "object": "torniquete",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "es-03-hospital",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "hospital",
+    "path": "es/es-03-hospital.txt",
+    "word_count": 2066,
+    "byte_count": 14070,
+    "expected_source_anchors": {
+      "person": "Elena Torres",
+      "secondary_person": "Irene Vega",
+      "city": "Zaragoza",
+      "organization": "Instituto Aurora",
+      "object": "ecógrafo",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "es-04-energy",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "energy",
+    "path": "es/es-04-energy.txt",
+    "word_count": 2056,
+    "byte_count": 14072,
+    "expected_source_anchors": {
+      "person": "Pablo Romero",
+      "secondary_person": "Marcos León",
+      "city": "Valencia",
+      "organization": "Cooperativa Lumen",
+      "object": "panel solar",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "es-05-school",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "school",
+    "path": "es/es-05-school.txt",
+    "word_count": 2072,
+    "byte_count": 14198,
+    "expected_source_anchors": {
+      "person": "Carmen Vidal",
+      "secondary_person": "Diego Morales",
+      "city": "Sevilla",
+      "organization": "Fundación Horizonte",
+      "object": "tableta escolar",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "es-06-museum",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "museum",
+    "path": "es/es-06-museum.txt",
+    "word_count": 2073,
+    "byte_count": 14288,
+    "expected_source_anchors": {
+      "person": "Lucía Navarro",
+      "secondary_person": "Ana Castillo",
+      "city": "Granada",
+      "organization": "Laboratorio Prisma",
+      "object": "manuscrito histórico",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "es-07-flood",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "flood",
+    "path": "es/es-07-flood.txt",
+    "word_count": 1987,
+    "byte_count": 13467,
+    "expected_source_anchors": {
+      "person": "Mateo Ruiz",
+      "secondary_person": "Javier Soto",
+      "city": "Bilbao",
+      "organization": "Consejo Estrella",
+      "object": "sensor de agua",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "es-08-agriculture",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "agriculture",
+    "path": "es/es-08-agriculture.txt",
+    "word_count": 2050,
+    "byte_count": 14054,
+    "expected_source_anchors": {
+      "person": "Elena Torres",
+      "secondary_person": "Irene Vega",
+      "city": "Zaragoza",
+      "organization": "Instituto Aurora",
+      "object": "tractor",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "es-09-budget",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "budget",
+    "path": "es/es-09-budget.txt",
+    "word_count": 2072,
+    "byte_count": 14247,
+    "expected_source_anchors": {
+      "person": "Pablo Romero",
+      "secondary_person": "Marcos León",
+      "city": "Valencia",
+      "organization": "Cooperativa Lumen",
+      "object": "libro contable",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "es-10-digital",
+    "lang": "es",
+    "language_name": "Español",
+    "topic": "digital",
+    "path": "es/es-10-digital.txt",
+    "word_count": 2050,
+    "byte_count": 14203,
+    "expected_source_anchors": {
+      "person": "Carmen Vidal",
+      "secondary_person": "Diego Morales",
+      "city": "Sevilla",
+      "organization": "Fundación Horizonte",
+      "object": "servidor",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pt-01-transport",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "transport",
+    "path": "pt/pt-01-transport.txt",
+    "word_count": 2031,
+    "byte_count": 14246,
+    "expected_source_anchors": {
+      "person": "Clara Almeida",
+      "secondary_person": "Ana Ferreira",
+      "city": "Braga",
+      "organization": "Laboratório Prisma",
+      "object": "elétrico moderno",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pt-02-stadium",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "stadium",
+    "path": "pt/pt-02-stadium.txt",
+    "word_count": 2009,
+    "byte_count": 14045,
+    "expected_source_anchors": {
+      "person": "Miguel Costa",
+      "secondary_person": "João Ribeiro",
+      "city": "Coimbra",
+      "organization": "Conselho Estrela",
+      "object": "torniquete",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pt-03-hospital",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "hospital",
+    "path": "pt/pt-03-hospital.txt",
+    "word_count": 2025,
+    "byte_count": 14040,
+    "expected_source_anchors": {
+      "person": "Inês Silva",
+      "secondary_person": "Mariana Sousa",
+      "city": "Aveiro",
+      "organization": "Instituto Aurora",
+      "object": "ecógrafo",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pt-04-energy",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "energy",
+    "path": "pt/pt-04-energy.txt",
+    "word_count": 2015,
+    "byte_count": 14200,
+    "expected_source_anchors": {
+      "person": "Rafael Oliveira",
+      "secondary_person": "Pedro Carvalho",
+      "city": "Porto",
+      "organization": "Cooperativa Lumen",
+      "object": "painel solar",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pt-05-school",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "school",
+    "path": "pt/pt-05-school.txt",
+    "word_count": 2031,
+    "byte_count": 14269,
+    "expected_source_anchors": {
+      "person": "Beatriz Santos",
+      "secondary_person": "Tiago Martins",
+      "city": "Lisboa",
+      "organization": "Fundação Horizonte",
+      "object": "tablet escolar",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pt-06-museum",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "museum",
+    "path": "pt/pt-06-museum.txt",
+    "word_count": 2032,
+    "byte_count": 14211,
+    "expected_source_anchors": {
+      "person": "Clara Almeida",
+      "secondary_person": "Ana Ferreira",
+      "city": "Braga",
+      "organization": "Laboratório Prisma",
+      "object": "manuscrito antigo",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pt-07-flood",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "flood",
+    "path": "pt/pt-07-flood.txt",
+    "word_count": 2054,
+    "byte_count": 14280,
+    "expected_source_anchors": {
+      "person": "Miguel Costa",
+      "secondary_person": "João Ribeiro",
+      "city": "Coimbra",
+      "organization": "Conselho Estrela",
+      "object": "sensor de água",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pt-08-agriculture",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "agriculture",
+    "path": "pt/pt-08-agriculture.txt",
+    "word_count": 2009,
+    "byte_count": 14072,
+    "expected_source_anchors": {
+      "person": "Inês Silva",
+      "secondary_person": "Mariana Sousa",
+      "city": "Aveiro",
+      "organization": "Instituto Aurora",
+      "object": "trator",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pt-09-budget",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "budget",
+    "path": "pt/pt-09-budget.txt",
+    "word_count": 2037,
+    "byte_count": 14321,
+    "expected_source_anchors": {
+      "person": "Rafael Oliveira",
+      "secondary_person": "Pedro Carvalho",
+      "city": "Porto",
+      "organization": "Cooperativa Lumen",
+      "object": "livro de contas",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pt-10-digital",
+    "lang": "pt",
+    "language_name": "Português",
+    "topic": "digital",
+    "path": "pt/pt-10-digital.txt",
+    "word_count": 2009,
+    "byte_count": 14232,
+    "expected_source_anchors": {
+      "person": "Beatriz Santos",
+      "secondary_person": "Tiago Martins",
+      "city": "Lisboa",
+      "organization": "Fundação Horizonte",
+      "object": "servidor",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "fr-01-transport",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "transport",
+    "path": "fr/fr-01-transport.txt",
+    "word_count": 2026,
+    "byte_count": 13584,
+    "expected_source_anchors": {
+      "person": "Camille Laurent",
+      "secondary_person": "Sarah Lefèvre",
+      "city": "Lille",
+      "organization": "Laboratoire Prisma",
+      "object": "tramway électrique",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "fr-02-stadium",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "stadium",
+    "path": "fr/fr-02-stadium.txt",
+    "word_count": 2000,
+    "byte_count": 13299,
+    "expected_source_anchors": {
+      "person": "Julien Moreau",
+      "secondary_person": "Hugo Garnier",
+      "city": "Grenoble",
+      "organization": "Conseil Stella",
+      "object": "tourniquet",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "fr-03-hospital",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "hospital",
+    "path": "fr/fr-03-hospital.txt",
+    "word_count": 2026,
+    "byte_count": 13475,
+    "expected_source_anchors": {
+      "person": "Élise Bernard",
+      "secondary_person": "Manon Rousseau",
+      "city": "Toulouse",
+      "organization": "Institut Aurora",
+      "object": "échographe",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "fr-04-energy",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "energy",
+    "path": "fr/fr-04-energy.txt",
+    "word_count": 2014,
+    "byte_count": 13442,
+    "expected_source_anchors": {
+      "person": "Thomas Petit",
+      "secondary_person": "Paul Girard",
+      "city": "Lyon",
+      "organization": "Coopérative Lumen",
+      "object": "panneau solaire",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "fr-05-school",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "school",
+    "path": "fr/fr-05-school.txt",
+    "word_count": 2022,
+    "byte_count": 13480,
+    "expected_source_anchors": {
+      "person": "Chloé Dubois",
+      "secondary_person": "Louis Martin",
+      "city": "Nantes",
+      "organization": "Fondation Horizon",
+      "object": "tablette scolaire",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "fr-06-museum",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "museum",
+    "path": "fr/fr-06-museum.txt",
+    "word_count": 2023,
+    "byte_count": 13635,
+    "expected_source_anchors": {
+      "person": "Camille Laurent",
+      "secondary_person": "Sarah Lefèvre",
+      "city": "Lille",
+      "organization": "Laboratoire Prisma",
+      "object": "manuscrit ancien",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "fr-07-flood",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "flood",
+    "path": "fr/fr-07-flood.txt",
+    "word_count": 2068,
+    "byte_count": 13725,
+    "expected_source_anchors": {
+      "person": "Julien Moreau",
+      "secondary_person": "Hugo Garnier",
+      "city": "Grenoble",
+      "organization": "Conseil Stella",
+      "object": "capteur de niveau d'eau",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "fr-08-agriculture",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "agriculture",
+    "path": "fr/fr-08-agriculture.txt",
+    "word_count": 2000,
+    "byte_count": 13449,
+    "expected_source_anchors": {
+      "person": "Élise Bernard",
+      "secondary_person": "Manon Rousseau",
+      "city": "Toulouse",
+      "organization": "Institut Aurora",
+      "object": "tracteur",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "fr-09-budget",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "budget",
+    "path": "fr/fr-09-budget.txt",
+    "word_count": 2032,
+    "byte_count": 13395,
+    "expected_source_anchors": {
+      "person": "Thomas Petit",
+      "secondary_person": "Paul Girard",
+      "city": "Lyon",
+      "organization": "Coopérative Lumen",
+      "object": "registre comptable",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "fr-10-digital",
+    "lang": "fr",
+    "language_name": "Français",
+    "topic": "digital",
+    "path": "fr/fr-10-digital.txt",
+    "word_count": 2008,
+    "byte_count": 13529,
+    "expected_source_anchors": {
+      "person": "Chloé Dubois",
+      "secondary_person": "Louis Martin",
+      "city": "Nantes",
+      "organization": "Fondation Horizon",
+      "object": "serveur",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "de-01-transport",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "transport",
+    "path": "de/de-01-transport.txt",
+    "word_count": 2026,
+    "byte_count": 15219,
+    "expected_source_anchors": {
+      "person": "Lena Weber",
+      "secondary_person": "Laura Hoffmann",
+      "city": "Dresden",
+      "organization": "Prisma-Labor",
+      "object": "elektrische Straßenbahn",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "de-02-stadium",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "stadium",
+    "path": "de/de-02-stadium.txt",
+    "word_count": 2005,
+    "byte_count": 14865,
+    "expected_source_anchors": {
+      "person": "Jonas Richter",
+      "secondary_person": "Tim Wagner",
+      "city": "Bonn",
+      "organization": "Stella-Rat",
+      "object": "Drehkreuz",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "de-03-hospital",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "hospital",
+    "path": "de/de-03-hospital.txt",
+    "word_count": 2001,
+    "byte_count": 15089,
+    "expected_source_anchors": {
+      "person": "Anna Müller",
+      "secondary_person": "Nina Braun",
+      "city": "Hamburg",
+      "organization": "Aurora-Institut",
+      "object": "Ultraschallgerät",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "de-04-energy",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "energy",
+    "path": "de/de-04-energy.txt",
+    "word_count": 2007,
+    "byte_count": 15272,
+    "expected_source_anchors": {
+      "person": "Felix Schneider",
+      "secondary_person": "David Schulz",
+      "city": "Berlin",
+      "organization": "Lumen-Genossenschaft",
+      "object": "Solarmodul",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "de-05-school",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "school",
+    "path": "de/de-05-school.txt",
+    "word_count": 1999,
+    "byte_count": 15217,
+    "expected_source_anchors": {
+      "person": "Marie Fischer",
+      "secondary_person": "Paul Becker",
+      "city": "Leipzig",
+      "organization": "Horizont-Stiftung",
+      "object": "Schultablet",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "de-06-museum",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "museum",
+    "path": "de/de-06-museum.txt",
+    "word_count": 1995,
+    "byte_count": 14997,
+    "expected_source_anchors": {
+      "person": "Lena Weber",
+      "secondary_person": "Laura Hoffmann",
+      "city": "Dresden",
+      "organization": "Prisma-Labor",
+      "object": "historisches Manuskript",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "de-07-flood",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "flood",
+    "path": "de/de-07-flood.txt",
+    "word_count": 2001,
+    "byte_count": 15002,
+    "expected_source_anchors": {
+      "person": "Jonas Richter",
+      "secondary_person": "Tim Wagner",
+      "city": "Bonn",
+      "organization": "Stella-Rat",
+      "object": "Wasserstandssensor",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "de-08-agriculture",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "agriculture",
+    "path": "de/de-08-agriculture.txt",
+    "word_count": 2005,
+    "byte_count": 15125,
+    "expected_source_anchors": {
+      "person": "Anna Müller",
+      "secondary_person": "Nina Braun",
+      "city": "Hamburg",
+      "organization": "Aurora-Institut",
+      "object": "Traktor",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "de-09-budget",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "budget",
+    "path": "de/de-09-budget.txt",
+    "word_count": 2020,
+    "byte_count": 15334,
+    "expected_source_anchors": {
+      "person": "Felix Schneider",
+      "secondary_person": "David Schulz",
+      "city": "Berlin",
+      "organization": "Lumen-Genossenschaft",
+      "object": "Kassenbuch",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "de-10-digital",
+    "lang": "de",
+    "language_name": "Deutsch",
+    "topic": "digital",
+    "path": "de/de-10-digital.txt",
+    "word_count": 2007,
+    "byte_count": 15168,
+    "expected_source_anchors": {
+      "person": "Marie Fischer",
+      "secondary_person": "Paul Becker",
+      "city": "Leipzig",
+      "organization": "Horizont-Stiftung",
+      "object": "Server",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "nl-01-transport",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "transport",
+    "path": "nl/nl-01-transport.txt",
+    "word_count": 2063,
+    "byte_count": 14469,
+    "expected_source_anchors": {
+      "person": "Emma de Vries",
+      "secondary_person": "Lotte Meijer",
+      "city": "Rotterdam",
+      "organization": "Prisma Laboratorium",
+      "object": "elektrische tram",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "nl-02-stadium",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "stadium",
+    "path": "nl/nl-02-stadium.txt",
+    "word_count": 2016,
+    "byte_count": 14022,
+    "expected_source_anchors": {
+      "person": "Bram Jansen",
+      "secondary_person": "Sara Bos",
+      "city": "Groningen",
+      "organization": "Stella Raad",
+      "object": "toegangspoort",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "nl-03-hospital",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "hospital",
+    "path": "nl/nl-03-hospital.txt",
+    "word_count": 2042,
+    "byte_count": 14299,
+    "expected_source_anchors": {
+      "person": "Noor Bakker",
+      "secondary_person": "Finn de Boer",
+      "city": "Haarlem",
+      "organization": "Aurora Instituut",
+      "object": "echoapparaat",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "nl-04-energy",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "energy",
+    "path": "nl/nl-04-energy.txt",
+    "word_count": 2017,
+    "byte_count": 14105,
+    "expected_source_anchors": {
+      "person": "Daan Visser",
+      "secondary_person": "Eva Peters",
+      "city": "Utrecht",
+      "organization": "Lumen Coöperatie",
+      "object": "zonnepaneel",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "nl-05-school",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "school",
+    "path": "nl/nl-05-school.txt",
+    "word_count": 2024,
+    "byte_count": 14249,
+    "expected_source_anchors": {
+      "person": "Sophie Smit",
+      "secondary_person": "Milan van Dijk",
+      "city": "Leiden",
+      "organization": "Horizon Stichting",
+      "object": "schooltablet",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "nl-06-museum",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "museum",
+    "path": "nl/nl-06-museum.txt",
+    "word_count": 2040,
+    "byte_count": 14356,
+    "expected_source_anchors": {
+      "person": "Emma de Vries",
+      "secondary_person": "Lotte Meijer",
+      "city": "Rotterdam",
+      "organization": "Prisma Laboratorium",
+      "object": "oud manuscript",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "nl-07-flood",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "flood",
+    "path": "nl/nl-07-flood.txt",
+    "word_count": 2010,
+    "byte_count": 14065,
+    "expected_source_anchors": {
+      "person": "Bram Jansen",
+      "secondary_person": "Sara Bos",
+      "city": "Groningen",
+      "organization": "Stella Raad",
+      "object": "waterstandsensor",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "nl-08-agriculture",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "agriculture",
+    "path": "nl/nl-08-agriculture.txt",
+    "word_count": 2039,
+    "byte_count": 14100,
+    "expected_source_anchors": {
+      "person": "Noor Bakker",
+      "secondary_person": "Finn de Boer",
+      "city": "Haarlem",
+      "organization": "Aurora Instituut",
+      "object": "tractor",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "nl-09-budget",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "budget",
+    "path": "nl/nl-09-budget.txt",
+    "word_count": 2004,
+    "byte_count": 14182,
+    "expected_source_anchors": {
+      "person": "Daan Visser",
+      "secondary_person": "Eva Peters",
+      "city": "Utrecht",
+      "organization": "Lumen Coöperatie",
+      "object": "boekhoudregister",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "nl-10-digital",
+    "lang": "nl",
+    "language_name": "Nederlands",
+    "topic": "digital",
+    "path": "nl/nl-10-digital.txt",
+    "word_count": 2040,
+    "byte_count": 14275,
+    "expected_source_anchors": {
+      "person": "Sophie Smit",
+      "secondary_person": "Milan van Dijk",
+      "city": "Leiden",
+      "organization": "Horizon Stichting",
+      "object": "server",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pl-01-transport",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "transport",
+    "path": "pl/pl-01-transport.txt",
+    "word_count": 1990,
+    "byte_count": 15996,
+    "expected_source_anchors": {
+      "person": "Anna Kowalska",
+      "secondary_person": "Ewa Kaczmarek",
+      "city": "Wrocław",
+      "organization": "Laboratorium Prisma",
+      "object": "tramwaj elektryczny",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pl-02-stadium",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "stadium",
+    "path": "pl/pl-02-stadium.txt",
+    "word_count": 1985,
+    "byte_count": 15677,
+    "expected_source_anchors": {
+      "person": "Piotr Nowak",
+      "secondary_person": "Adam Lewandowski",
+      "city": "Poznań",
+      "organization": "Rada Stella",
+      "object": "bramka wejściowa",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pl-03-hospital",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "hospital",
+    "path": "pl/pl-03-hospital.txt",
+    "word_count": 1995,
+    "byte_count": 15944,
+    "expected_source_anchors": {
+      "person": "Maria Zielińska",
+      "secondary_person": "Ola Kamińska",
+      "city": "Lublin",
+      "organization": "Instytut Aurora",
+      "object": "ultrasonograf",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pl-04-energy",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "energy",
+    "path": "pl/pl-04-energy.txt",
+    "word_count": 1981,
+    "byte_count": 16070,
+    "expected_source_anchors": {
+      "person": "Tomasz Wiśniewski",
+      "secondary_person": "Jan Dąbrowski",
+      "city": "Kraków",
+      "organization": "Spółdzielnia Lumen",
+      "object": "panel słoneczny",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pl-05-school",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "school",
+    "path": "pl/pl-05-school.txt",
+    "word_count": 1988,
+    "byte_count": 15796,
+    "expected_source_anchors": {
+      "person": "Julia Mazur",
+      "secondary_person": "Paweł Wójcik",
+      "city": "Gdańsk",
+      "organization": "Fundacja Horyzont",
+      "object": "tablet szkolny",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pl-06-museum",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "museum",
+    "path": "pl/pl-06-museum.txt",
+    "word_count": 2044,
+    "byte_count": 16269,
+    "expected_source_anchors": {
+      "person": "Anna Kowalska",
+      "secondary_person": "Ewa Kaczmarek",
+      "city": "Wrocław",
+      "organization": "Laboratorium Prisma",
+      "object": "stary rękopis",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pl-07-flood",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "flood",
+    "path": "pl/pl-07-flood.txt",
+    "word_count": 1997,
+    "byte_count": 15959,
+    "expected_source_anchors": {
+      "person": "Piotr Nowak",
+      "secondary_person": "Adam Lewandowski",
+      "city": "Poznań",
+      "organization": "Rada Stella",
+      "object": "czujnik poziomu wody",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pl-08-agriculture",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "agriculture",
+    "path": "pl/pl-08-agriculture.txt",
+    "word_count": 1977,
+    "byte_count": 15970,
+    "expected_source_anchors": {
+      "person": "Maria Zielińska",
+      "secondary_person": "Ola Kamińska",
+      "city": "Lublin",
+      "organization": "Instytut Aurora",
+      "object": "ciągnik",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "pl-09-budget",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "budget",
+    "path": "pl/pl-09-budget.txt",
+    "word_count": 2003,
+    "byte_count": 16198,
+    "expected_source_anchors": {
+      "person": "Tomasz Wiśniewski",
+      "secondary_person": "Jan Dąbrowski",
+      "city": "Kraków",
+      "organization": "Spółdzielnia Lumen",
+      "object": "księga rachunkowa",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "pl-10-digital",
+    "lang": "pl",
+    "language_name": "Polski",
+    "topic": "digital",
+    "path": "pl/pl-10-digital.txt",
+    "word_count": 2056,
+    "byte_count": 16468,
+    "expected_source_anchors": {
+      "person": "Julia Mazur",
+      "secondary_person": "Paweł Wójcik",
+      "city": "Gdańsk",
+      "organization": "Fundacja Horyzont",
+      "object": "serwer",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "ru-01-transport",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "transport",
+    "path": "ru/ru-01-transport.txt",
+    "word_count": 2035,
+    "byte_count": 29170,
+    "expected_source_anchors": {
+      "person": "Анна Орлова",
+      "secondary_person": "Ольга Кузнецова",
+      "city": "Самара",
+      "organization": "Лаборатория Призма",
+      "object": "электрический трамвай",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "ru-02-stadium",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "stadium",
+    "path": "ru/ru-02-stadium.txt",
+    "word_count": 2020,
+    "byte_count": 28322,
+    "expected_source_anchors": {
+      "person": "Иван Петров",
+      "secondary_person": "Павел Фёдоров",
+      "city": "Томск",
+      "organization": "Совет Стелла",
+      "object": "турникет",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "ru-03-hospital",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "hospital",
+    "path": "ru/ru-03-hospital.txt",
+    "word_count": 2045,
+    "byte_count": 29560,
+    "expected_source_anchors": {
+      "person": "Мария Соколова",
+      "secondary_person": "Наталья Белова",
+      "city": "Пермь",
+      "organization": "Институт Аврора",
+      "object": "аппарат ультразвука",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "ru-04-energy",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "energy",
+    "path": "ru/ru-04-energy.txt",
+    "word_count": 2027,
+    "byte_count": 29293,
+    "expected_source_anchors": {
+      "person": "Дмитрий Волков",
+      "secondary_person": "Сергей Михайлов",
+      "city": "Казань",
+      "organization": "Кооператив Люмен",
+      "object": "солнечная панель",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "ru-05-school",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "school",
+    "path": "ru/ru-05-school.txt",
+    "word_count": 2033,
+    "byte_count": 29047,
+    "expected_source_anchors": {
+      "person": "Елена Морозова",
+      "secondary_person": "Алексей Смирнов",
+      "city": "Москва",
+      "organization": "Фонд Горизонт",
+      "object": "школьный планшет",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "ru-06-museum",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "museum",
+    "path": "ru/ru-06-museum.txt",
+    "word_count": 2019,
+    "byte_count": 28970,
+    "expected_source_anchors": {
+      "person": "Анна Орлова",
+      "secondary_person": "Ольга Кузнецова",
+      "city": "Самара",
+      "organization": "Лаборатория Призма",
+      "object": "старинная рукопись",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "ru-07-flood",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "flood",
+    "path": "ru/ru-07-flood.txt",
+    "word_count": 1976,
+    "byte_count": 27489,
+    "expected_source_anchors": {
+      "person": "Иван Петров",
+      "secondary_person": "Павел Фёдоров",
+      "city": "Томск",
+      "organization": "Совет Стелла",
+      "object": "датчик уровня воды",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "ru-08-agriculture",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "agriculture",
+    "path": "ru/ru-08-agriculture.txt",
+    "word_count": 2041,
+    "byte_count": 29193,
+    "expected_source_anchors": {
+      "person": "Мария Соколова",
+      "secondary_person": "Наталья Белова",
+      "city": "Пермь",
+      "organization": "Институт Аврора",
+      "object": "трактор",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "ru-09-budget",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "budget",
+    "path": "ru/ru-09-budget.txt",
+    "word_count": 2045,
+    "byte_count": 29172,
+    "expected_source_anchors": {
+      "person": "Дмитрий Волков",
+      "secondary_person": "Сергей Михайлов",
+      "city": "Казань",
+      "organization": "Кооператив Люмен",
+      "object": "бухгалтерская книга",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "ru-10-digital",
+    "lang": "ru",
+    "language_name": "Русский",
+    "topic": "digital",
+    "path": "ru/ru-10-digital.txt",
+    "word_count": 2019,
+    "byte_count": 28913,
+    "expected_source_anchors": {
+      "person": "Елена Морозова",
+      "secondary_person": "Алексей Смирнов",
+      "city": "Москва",
+      "organization": "Фонд Горизонт",
+      "object": "сервер",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "id-01-transport",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "transport",
+    "path": "id/id-01-transport.txt",
+    "word_count": 2054,
+    "byte_count": 15760,
+    "expected_source_anchors": {
+      "person": "Ayu Pratama",
+      "secondary_person": "Rina Kartika",
+      "city": "Surabaya",
+      "organization": "Laboratorium Prisma",
+      "object": "trem listrik",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        15
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "id-02-stadium",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "stadium",
+    "path": "id/id-02-stadium.txt",
+    "word_count": 2048,
+    "byte_count": 15508,
+    "expected_source_anchors": {
+      "person": "Budi Santoso",
+      "secondary_person": "Fajar Hidayat",
+      "city": "Yogyakarta",
+      "organization": "Dewan Stella",
+      "object": "gerbang elektronik",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        16
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "id-03-hospital",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "hospital",
+    "path": "id/id-03-hospital.txt",
+    "word_count": 2053,
+    "byte_count": 15690,
+    "expected_source_anchors": {
+      "person": "Siti Rahma",
+      "secondary_person": "Nadia Permata",
+      "city": "Semarang",
+      "organization": "Institut Aurora",
+      "object": "alat ultrasonografi",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        43,
+        17
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "id-04-energy",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "energy",
+    "path": "id/id-04-energy.txt",
+    "word_count": 2043,
+    "byte_count": 15490,
+    "expected_source_anchors": {
+      "person": "Rizky Wijaya",
+      "secondary_person": "Andi Saputra",
+      "city": "Jakarta",
+      "organization": "Koperasi Lumen",
+      "object": "panel surya",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        44,
+        18
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "id-05-school",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "school",
+    "path": "id/id-05-school.txt",
+    "word_count": 2049,
+    "byte_count": 15562,
+    "expected_source_anchors": {
+      "person": "Dewi Lestari",
+      "secondary_person": "Dimas Putra",
+      "city": "Bandung",
+      "organization": "Yayasan Horizon",
+      "object": "tablet sekolah",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        45,
+        19
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "id-06-museum",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "museum",
+    "path": "id/id-06-museum.txt",
+    "word_count": 2044,
+    "byte_count": 15612,
+    "expected_source_anchors": {
+      "person": "Ayu Pratama",
+      "secondary_person": "Rina Kartika",
+      "city": "Surabaya",
+      "organization": "Laboratorium Prisma",
+      "object": "naskah lama",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        46,
+        20
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "id-07-flood",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "flood",
+    "path": "id/id-07-flood.txt",
+    "word_count": 2061,
+    "byte_count": 15707,
+    "expected_source_anchors": {
+      "person": "Budi Santoso",
+      "secondary_person": "Fajar Hidayat",
+      "city": "Yogyakarta",
+      "organization": "Dewan Stella",
+      "object": "sensor ketinggian air",
+      "years": [
+        "2012",
+        "2014",
+        "2017",
+        "2020",
+        "2024"
+      ],
+      "percentages": [
+        47,
+        21
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "id-08-agriculture",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "agriculture",
+    "path": "id/id-08-agriculture.txt",
+    "word_count": 2041,
+    "byte_count": 15628,
+    "expected_source_anchors": {
+      "person": "Siti Rahma",
+      "secondary_person": "Nadia Permata",
+      "city": "Semarang",
+      "organization": "Institut Aurora",
+      "object": "traktor",
+      "years": [
+        "2013",
+        "2015",
+        "2018",
+        "2021",
+        "2025"
+      ],
+      "percentages": [
+        48,
+        15
+      ],
+      "numbered_list_count": 6
+    }
+  },
+  {
+    "id": "id-09-budget",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "budget",
+    "path": "id/id-09-budget.txt",
+    "word_count": 2053,
+    "byte_count": 15463,
+    "expected_source_anchors": {
+      "person": "Rizky Wijaya",
+      "secondary_person": "Andi Saputra",
+      "city": "Jakarta",
+      "organization": "Koperasi Lumen",
+      "object": "buku kas",
+      "years": [
+        "2010",
+        "2012",
+        "2015",
+        "2018",
+        "2022"
+      ],
+      "percentages": [
+        41,
+        16
+      ],
+      "numbered_list_count": 10
+    }
+  },
+  {
+    "id": "id-10-digital",
+    "lang": "id",
+    "language_name": "Bahasa Indonesia",
+    "topic": "digital",
+    "path": "id/id-10-digital.txt",
+    "word_count": 2036,
+    "byte_count": 15538,
+    "expected_source_anchors": {
+      "person": "Dewi Lestari",
+      "secondary_person": "Dimas Putra",
+      "city": "Bandung",
+      "organization": "Yayasan Horizon",
+      "object": "server",
+      "years": [
+        "2011",
+        "2013",
+        "2016",
+        "2019",
+        "2023"
+      ],
+      "percentages": [
+        42,
+        17
+      ],
+      "numbered_list_count": 6
+    }
+  }
+]
