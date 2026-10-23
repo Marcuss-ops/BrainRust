@@ -1,0 +1,797 @@
+{
+  "version": 1,
+  "domains": [
+    "transport",
+    "stadium",
+    "hospital",
+    "energy",
+    "school",
+    "museum",
+    "flood",
+    "agriculture",
+    "budget",
+    "digital"
+  ],
+  "profiles": {
+    "it": {
+      "name": "Italiano",
+      "persons": [
+        "Sofia Rinaldi",
+        "Luca Ferri",
+        "Elena Moretti",
+        "Marco Bellini",
+        "Giulia Conti"
+      ],
+      "others": [
+        "Davide Rossi",
+        "Marta Greco",
+        "Sara Bianchi",
+        "Paolo Ricci",
+        "Andrea Sala"
+      ],
+      "cities": [
+        "Torino",
+        "Bologna",
+        "Padova",
+        "Verona",
+        "Milano"
+      ],
+      "orgs": [
+        "Centro Aurora",
+        "Consorzio Lumen",
+        "Istituto Orizzonte",
+        "Fondazione Prisma",
+        "Comitato Stella"
+      ],
+      "topics": [
+        "mobilità urbana",
+        "stadio comunale",
+        "sanità pubblica",
+        "energia rinnovabile",
+        "scuole",
+        "restauro museale",
+        "difesa dalle alluvioni",
+        "agricoltura sostenibile",
+        "bilancio comunale",
+        "infrastrutture digitali"
+      ],
+      "objects": [
+        "tram elettrico",
+        "tornello",
+        "ecografo",
+        "pannello solare",
+        "tablet didattico",
+        "manoscritto",
+        "sensore idrometrico",
+        "trattore",
+        "registro contabile",
+        "server"
+      ],
+      "segments": [
+        "Nel progetto di {topic} a {city}, {a} e {b} hanno raccolto documenti, interviste e fotografie. Prima di scegliere una spiegazione, il gruppo di {org} ha separato i fatti osservati dalle ipotesi, indicando quali dettagli erano ancora incerti. Questo passaggio diventa particolarmente importante quando una storia lunga viene trasformata in un video breve.",
+        "Durante il sopralluogo, {a} ha esaminato il {obj} e ha confrontato la scheda tecnica con le annotazioni del personale. La presenza di un oggetto non dimostra da sola chi lo abbia utilizzato e neppure quando sia stato spostato. Una fotografia generica può aiutare a illustrare il contesto, ma non deve essere presentata come prova del singolo evento.",
+        "Secondo {org}, un progetto di {topic} va misurato nel tempo e non giudicato con una sola impressione. {b} ha registrato le obiezioni dei residenti, mentre {a} ha verificato le cifre e conservato la versione iniziale del rapporto. Nel montaggio, queste informazioni possono diventare un elenco, una mappa o una sequenza cronologica, purché il significato resti invariato.",
+        "Il dossier di {city} contiene una mappa, due fotografie, un preventivo e una tabella di misurazioni. Sono materiali diversi: la mappa indica il luogo, le fotografie mostrano dettagli visibili, la tabella permette confronti soltanto fra grandezze omogenee. {a} ha ricordato che un anno non può essere confrontato graficamente con una percentuale senza spiegare il rapporto.",
+        "In una riunione pubblica, {b} ha presentato tre alternative e ha chiesto a {org} di motivare ogni scelta. Alcune proposte richiedevano più controlli, altre introducevano rischi inattesi. Non era corretto trasformare un'ipotesi in una certezza solo perché due persone erano nominate nella stessa frase. Anche i sottotitoli avrebbero dovuto mantenere questa distinzione.",
+        "Il controllo successivo ha mostrato quanto sia facile perdere contesto quando si estraggono soltanto parole chiave. Espressioni come tempo trascorso, nuovo capitolo o secondo piano possono avere significati diversi a seconda della frase. {a} ha quindi proposto di cercare prima il soggetto, poi l'azione, il luogo e infine il materiale visivo appropriato."
+      ],
+      "chart": "Nel confronto fra i due gruppi, il risultato di Aurora è {p1}% contro {p2}% del gruppo Lumen. Entrambi i valori misurano lo stesso indicatore nello stesso periodo.",
+      "timeline": "La sequenza documentata indica che nel {y1} {a} avvia la raccolta, nel {y2} {b} verifica i documenti, nel {y3} {org} presenta una relazione, nel {y4} termina la revisione e nel {y5} si pubblica il rapporto conclusivo.",
+      "quote": "«Un'ipotesi non è una prova», ha dichiarato {a}. {b} ha aggiunto che un dettaglio vero attribuito alla persona sbagliata produce comunque un racconto scorretto.",
+      "items": [
+        "documenti originali",
+        "rilievi sul campo",
+        "confronto dei gruppi",
+        "verifica dei costi",
+        "cronologia",
+        "pareri dei residenti",
+        "qualità delle immagini",
+        "limiti dei dati",
+        "controllo indipendente",
+        "pubblicazione dei risultati"
+      ]
+    },
+    "en": {
+      "name": "English",
+      "persons": [
+        "Maya Collins",
+        "Oliver Reed",
+        "Hannah Brooks",
+        "Daniel Carter",
+        "Amelia Hughes"
+      ],
+      "others": [
+        "Thomas Blake",
+        "Grace Miller",
+        "Noah Harris",
+        "Lucy Turner",
+        "James Ellis"
+      ],
+      "cities": [
+        "Bristol",
+        "Leeds",
+        "Oxford",
+        "York",
+        "Manchester"
+      ],
+      "orgs": [
+        "Aurora Institute",
+        "Lumen Cooperative",
+        "Horizon Foundation",
+        "Prism Laboratory",
+        "Stella Council"
+      ],
+      "topics": [
+        "urban transport",
+        "community stadium",
+        "public healthcare",
+        "renewable energy",
+        "school improvement",
+        "museum conservation",
+        "flood protection",
+        "sustainable agriculture",
+        "municipal budgeting",
+        "digital infrastructure"
+      ],
+      "objects": [
+        "electric tram",
+        "turnstile",
+        "ultrasound scanner",
+        "solar panel",
+        "school tablet",
+        "historical manuscript",
+        "water-level sensor",
+        "tractor",
+        "accounting ledger",
+        "server"
+      ],
+      "segments": [
+        "In {city}, {a} and {b} began the {topic} project by collecting records, interviews and photographs. The specialists at {org} separated observed facts from untested hypotheses before recommending any explanation. This distinction matters particularly when a lengthy account is shortened into captions for a documentary or presented as a concise public summary.",
+        "During the site visit, {a} inspected the {obj} and compared its technical specification with the staff's written notes. The existence of an object does not prove who used it or when it was moved. Generic footage may illustrate the setting, but must never be presented as a photograph of that exact incident.",
+        "According to {org}, a {topic} initiative needs repeated measurements rather than a decision based on one impression. {b} recorded concerns from local residents while {a} checked the figures and preserved the first version of the report. These details may support a list, map or timeline if their meaning remains unchanged.",
+        "The {city} dossier contains a map, two pictures, a financial estimate and a table of measurements. Each source has a distinct purpose: maps identify places, pictures document visible details and tables support comparisons only between compatible quantities. {a} warned that treating a calendar year like a percentage would create a meaningless chart.",
+        "At a public meeting, {b} described three alternatives and asked {org} to justify every decision. Some options required additional checks while others carried risks that had not been understood. Mentioning two people in the same sentence cannot establish a factual relationship, and even a short animated caption must preserve that caution.",
+        "The follow-up review showed how easily context disappears when a system extracts isolated keywords. Expressions such as the next chapter, second level and time remaining may refer to different ideas in different sentences. {a} therefore suggested linking each candidate to a subject, action and location before searching for appropriate images."
+      ],
+      "chart": "In the direct comparison, Aurora recorded {p1}% versus {p2}% for the Lumen group. Both percentages measure the same outcome over the same interval.",
+      "timeline": "The documented sequence states that in {y1} {a} starts collecting evidence, in {y2} {b} reviews the records, in {y3} {org} publishes an assessment, in {y4} the audit concludes, and in {y5} the final report is released.",
+      "quote": "“A hypothesis is not proof,” said {a}. {b} added that a true detail assigned to the wrong person can still create a misleading story.",
+      "items": [
+        "original records",
+        "site measurements",
+        "group comparison",
+        "cost review",
+        "verified chronology",
+        "resident opinions",
+        "image quality",
+        "data limitations",
+        "independent evaluation",
+        "publication of results"
+      ]
+    },
+    "es": {
+      "name": "Español",
+      "persons": [
+        "Lucía Navarro",
+        "Mateo Ruiz",
+        "Elena Torres",
+        "Pablo Romero",
+        "Carmen Vidal"
+      ],
+      "others": [
+        "Diego Morales",
+        "Ana Castillo",
+        "Javier Soto",
+        "Irene Vega",
+        "Marcos León"
+      ],
+      "cities": [
+        "Valencia",
+        "Sevilla",
+        "Granada",
+        "Bilbao",
+        "Zaragoza"
+      ],
+      "orgs": [
+        "Instituto Aurora",
+        "Cooperativa Lumen",
+        "Fundación Horizonte",
+        "Laboratorio Prisma",
+        "Consejo Estrella"
+      ],
+      "topics": [
+        "transporte urbano",
+        "estadio municipal",
+        "sanidad pública",
+        "energía renovable",
+        "mejora escolar",
+        "conservación de museos",
+        "prevención de inundaciones",
+        "agricultura sostenible",
+        "presupuesto municipal",
+        "infraestructura digital"
+      ],
+      "objects": [
+        "tranvía eléctrico",
+        "torniquete",
+        "ecógrafo",
+        "panel solar",
+        "tableta escolar",
+        "manuscrito histórico",
+        "sensor de agua",
+        "tractor",
+        "libro contable",
+        "servidor"
+      ],
+      "segments": [
+        "En {city}, {a} y {b} comenzaron el proyecto de {topic} reuniendo documentos, entrevistas y fotografías. Los especialistas de {org} separaron los hechos observados de las hipótesis pendientes antes de proponer explicaciones. Esa distinción es esencial cuando una historia extensa se convierte en un resumen de pocas frases para el público.",
+        "Durante la inspección, {a} examinó el {obj} y comparó su ficha técnica con las notas de los empleados. Encontrar un objeto no demuestra quién lo utilizó ni cuándo cambió de posición. Un vídeo genérico puede ilustrar el contexto, pero no debe presentarse como prueba visual del acontecimiento exacto.",
+        "Según {org}, una iniciativa de {topic} necesita mediciones repetidas y no una conclusión basada en impresiones. {b} registró las preguntas de los vecinos mientras {a} verificaba las cifras y conservaba el primer informe. Estos datos pueden convertirse en una lista, un mapa o una cronología sin cambiar su significado.",
+        "El expediente de {city} contiene un mapa, dos fotografías, un presupuesto y una tabla de mediciones. Cada fuente tiene una función distinta: los mapas identifican lugares, las fotos muestran lo visible y las tablas permiten comparar cantidades compatibles. {a} recordó que un año no debe dibujarse como si fuera un porcentaje.",
+        "En una reunión pública, {b} presentó tres alternativas y pidió a {org} una justificación para cada una. Algunas exigían nuevas comprobaciones y otras tenían riesgos difíciles de medir. Nombrar a dos personas juntas no significa que exista una relación demostrada entre ellas; tampoco debe insinuarlo una animación.",
+        "La revisión posterior mostró cuánto contexto se pierde al extraer palabras aisladas. Expresiones como capítulo siguiente, segundo plano o tiempo restante pueden referirse a cosas muy diferentes. {a} propuso conectar cada palabra con su sujeto, la acción y el lugar antes de buscar imágenes adecuadas."
+      ],
+      "chart": "En una comparación directa, Aurora consiguió {p1}% frente al {p2}% de Lumen. Los dos porcentajes corresponden a la misma medida durante el mismo período.",
+      "timeline": "La secuencia documentada indica que en {y1} {a} recoge datos, en {y2} {b} revisa archivos, en {y3} {org} publica la primera evaluación, en {y4} termina la revisión y en {y5} se presenta el informe final.",
+      "quote": "«Una hipótesis no es una prueba», declaró {a}. {b} añadió que un detalle verdadero atribuido a otra persona también produce una historia engañosa.",
+      "items": [
+        "documentos originales",
+        "mediciones de campo",
+        "comparación de grupos",
+        "control de gastos",
+        "cronología",
+        "opiniones vecinales",
+        "calidad de imágenes",
+        "limitaciones de datos",
+        "evaluación independiente",
+        "publicación de resultados"
+      ]
+    },
+    "pt": {
+      "name": "Português",
+      "persons": [
+        "Clara Almeida",
+        "Miguel Costa",
+        "Inês Silva",
+        "Rafael Oliveira",
+        "Beatriz Santos"
+      ],
+      "others": [
+        "Tiago Martins",
+        "Ana Ferreira",
+        "João Ribeiro",
+        "Mariana Sousa",
+        "Pedro Carvalho"
+      ],
+      "cities": [
+        "Porto",
+        "Lisboa",
+        "Braga",
+        "Coimbra",
+        "Aveiro"
+      ],
+      "orgs": [
+        "Instituto Aurora",
+        "Cooperativa Lumen",
+        "Fundação Horizonte",
+        "Laboratório Prisma",
+        "Conselho Estrela"
+      ],
+      "topics": [
+        "transportes urbanos",
+        "estádio municipal",
+        "saúde pública",
+        "energias renováveis",
+        "melhoria escolar",
+        "conservação de museus",
+        "proteção contra cheias",
+        "agricultura sustentável",
+        "orçamento municipal",
+        "infraestrutura digital"
+      ],
+      "objects": [
+        "elétrico moderno",
+        "torniquete",
+        "ecógrafo",
+        "painel solar",
+        "tablet escolar",
+        "manuscrito antigo",
+        "sensor de água",
+        "trator",
+        "livro de contas",
+        "servidor"
+      ],
+      "segments": [
+        "Na cidade de {city}, {a} e {b} começaram o projeto de {topic} recolhendo documentos, entrevistas e fotografias. Os especialistas de {org} separaram os factos observados das hipóteses não confirmadas antes de recomendar qualquer interpretação. Essa diferença é essencial quando um relato longo é transformado numa apresentação curta para o público.",
+        "Durante a inspeção, {a} examinou o {obj} e comparou a ficha técnica com as notas dos funcionários. A existência de um objeto não prova quem o utilizou nem quando foi deslocado. Imagens genéricas podem ilustrar o ambiente, mas nunca devem ser apresentadas como registo do acontecimento específico.",
+        "Segundo {org}, um projeto de {topic} precisa de várias medições e não de conclusões baseadas numa única impressão. {b} recolheu dúvidas dos moradores enquanto {a} verificava números e guardava a versão original do relatório. Essas informações podem formar uma lista, um mapa ou uma sequência cronológica coerente.",
+        "O processo de {city} inclui um mapa, duas fotografias, um orçamento e uma tabela de medições. Cada material tem uma função própria: os mapas identificam locais, as fotografias mostram detalhes visíveis e as tabelas permitem comparar grandezas compatíveis. {a} avisou que um ano não pode ser tratado como uma percentagem.",
+        "Numa reunião pública, {b} apresentou três alternativas e pediu a {org} uma justificação para cada escolha. Algumas exigiam novas verificações e outras apresentavam riscos ainda desconhecidos. Mencionar duas pessoas na mesma frase não demonstra uma relação entre elas, e uma animação também não pode sugerir isso.",
+        "A revisão seguinte mostrou como é fácil perder o contexto ao recolher palavras isoladas. Expressões como próximo capítulo, segundo plano e tempo restante podem ter sentidos diferentes. {a} sugeriu ligar cada termo ao sujeito, à ação e ao local antes de procurar imagens relevantes."
+      ],
+      "chart": "Na comparação direta, Aurora apresentou {p1}% contra {p2}% do grupo Lumen. Ambas as percentagens representam o mesmo indicador no mesmo período.",
+      "timeline": "A sequência documentada mostra que em {y1} {a} recolhe dados, em {y2} {b} verifica documentos, em {y3} {org} publica a avaliação, em {y4} termina a revisão e em {y5} surge o relatório final.",
+      "quote": "«Uma hipótese não é uma prova», afirmou {a}. {b} acrescentou que atribuir um detalhe verdadeiro à pessoa errada pode produzir um relato enganador.",
+      "items": [
+        "documentação original",
+        "medições no terreno",
+        "comparação de grupos",
+        "revisão de custos",
+        "cronologia",
+        "opiniões dos moradores",
+        "qualidade das imagens",
+        "limites dos dados",
+        "avaliação independente",
+        "publicação dos resultados"
+      ]
+    },
+    "fr": {
+      "name": "Français",
+      "persons": [
+        "Camille Laurent",
+        "Julien Moreau",
+        "Élise Bernard",
+        "Thomas Petit",
+        "Chloé Dubois"
+      ],
+      "others": [
+        "Louis Martin",
+        "Sarah Lefèvre",
+        "Hugo Garnier",
+        "Manon Rousseau",
+        "Paul Girard"
+      ],
+      "cities": [
+        "Lyon",
+        "Nantes",
+        "Lille",
+        "Grenoble",
+        "Toulouse"
+      ],
+      "orgs": [
+        "Institut Aurora",
+        "Coopérative Lumen",
+        "Fondation Horizon",
+        "Laboratoire Prisma",
+        "Conseil Stella"
+      ],
+      "topics": [
+        "mobilité urbaine",
+        "stade municipal",
+        "santé publique",
+        "énergie renouvelable",
+        "amélioration scolaire",
+        "conservation des musées",
+        "protection contre les inondations",
+        "agriculture durable",
+        "budget municipal",
+        "infrastructure numérique"
+      ],
+      "objects": [
+        "tramway électrique",
+        "tourniquet",
+        "échographe",
+        "panneau solaire",
+        "tablette scolaire",
+        "manuscrit ancien",
+        "capteur de niveau d'eau",
+        "tracteur",
+        "registre comptable",
+        "serveur"
+      ],
+      "segments": [
+        "À {city}, {a} et {b} ont commencé le projet de {topic} en réunissant dossiers, entretiens et photographies. Les spécialistes de {org} ont séparé les faits observés des hypothèses non confirmées avant de proposer une explication. Cette distinction est essentielle lorsque le public reçoit un résumé très court d'une histoire complexe.",
+        "Pendant la visite, {a} a examiné le {obj} et comparé sa notice technique avec les notes du personnel. Trouver un objet ne prouve ni qui l'a utilisé ni quand il a été déplacé. Une image générique peut illustrer le contexte, mais ne doit pas devenir une prétendue preuve de cet événement particulier.",
+        "Selon {org}, une initiative de {topic} nécessite des mesures répétées et non une conclusion fondée sur une seule impression. {b} a noté les questions des habitants tandis que {a} vérifiait les chiffres et conservait le premier rapport. Ces données peuvent alimenter une liste, une carte ou une chronologie.",
+        "Le dossier de {city} contient une carte, deux photos, un devis et un tableau de mesures. Chaque source remplit une fonction différente: la carte indique un lieu, la photo montre ce qui était visible et le tableau permet seulement de comparer des quantités homogènes. {a} refuse de traiter une année comme un pourcentage.",
+        "Lors d'une réunion publique, {b} a proposé trois solutions et demandé à {org} de justifier chaque choix. Certaines options nécessitaient des vérifications supplémentaires et d'autres présentaient des risques encore mal compris. La présence de deux noms dans la même phrase ne démontre aucune relation certaine entre eux.",
+        "La révision suivante a montré combien une recherche de mots isolés peut perdre le contexte. Des expressions comme chapitre suivant, second plan et temps restant peuvent désigner plusieurs choses. {a} a proposé de relier chaque terme à un sujet, une action et un lieu avant de chercher une image."
+      ],
+      "chart": "Dans la comparaison directe, Aurora obtient {p1}% contre {p2}% pour Lumen. Les deux pourcentages décrivent la même mesure pendant la même période.",
+      "timeline": "La chronologie indique qu'en {y1} {a} rassemble des données, qu'en {y2} {b} contrôle les documents, qu'en {y3} {org} publie une première évaluation, qu'en {y4} la révision s'achève et qu'en {y5} le rapport final paraît.",
+      "quote": "«Une hypothèse n'est pas une preuve», a déclaré {a}. {b} a ajouté qu'un détail exact attribué à la mauvaise personne produit encore un récit trompeur.",
+      "items": [
+        "documents originaux",
+        "mesures de terrain",
+        "comparaison des groupes",
+        "contrôle des coûts",
+        "chronologie",
+        "témoignages des habitants",
+        "qualité des images",
+        "limites des données",
+        "évaluation indépendante",
+        "publication des résultats"
+      ]
+    },
+    "de": {
+      "name": "Deutsch",
+      "persons": [
+        "Lena Weber",
+        "Jonas Richter",
+        "Anna Müller",
+        "Felix Schneider",
+        "Marie Fischer"
+      ],
+      "others": [
+        "Paul Becker",
+        "Laura Hoffmann",
+        "Tim Wagner",
+        "Nina Braun",
+        "David Schulz"
+      ],
+      "cities": [
+        "Berlin",
+        "Leipzig",
+        "Dresden",
+        "Bonn",
+        "Hamburg"
+      ],
+      "orgs": [
+        "Aurora-Institut",
+        "Lumen-Genossenschaft",
+        "Horizont-Stiftung",
+        "Prisma-Labor",
+        "Stella-Rat"
+      ],
+      "topics": [
+        "städtischer Verkehr",
+        "kommunales Stadion",
+        "Gesundheitswesen",
+        "erneuerbare Energie",
+        "Schulmodernisierung",
+        "Museumserhaltung",
+        "Hochwasserschutz",
+        "nachhaltige Landwirtschaft",
+        "kommunaler Haushalt",
+        "digitale Infrastruktur"
+      ],
+      "objects": [
+        "elektrische Straßenbahn",
+        "Drehkreuz",
+        "Ultraschallgerät",
+        "Solarmodul",
+        "Schultablet",
+        "historisches Manuskript",
+        "Wasserstandssensor",
+        "Traktor",
+        "Kassenbuch",
+        "Server"
+      ],
+      "segments": [
+        "In {city} begannen {a} und {b} das Projekt zum Thema {topic} mit der Sammlung von Dokumenten, Interviews und Fotos. Die Fachleute des {org} trennten Beobachtungen von unbewiesenen Vermutungen, bevor sie eine Erklärung vorschlugen. Gerade bei kurzen Videotexten muss diese Unterscheidung für Zuschauer verständlich bleiben.",
+        "Während der Inspektion untersuchte {a} das {obj} und verglich die technischen Angaben mit den schriftlichen Notizen der Mitarbeiter. Der Fund eines Gegenstands beweist nicht, wer ihn benutzt hat oder wann er bewegt wurde. Allgemeines Bildmaterial darf den Zusammenhang erläutern, aber keinen konkreten Vorgang vortäuschen.",
+        "Nach Ansicht des {org} braucht ein Vorhaben zum Thema {topic} wiederholte Messungen statt einer Entscheidung nach dem ersten Eindruck. {b} sammelte Fragen der Anwohner und {a} prüfte die Zahlen und bewahrte die alte Fassung des Berichts. Eine Liste, Karte oder Zeitleiste kann diese Informationen darstellen.",
+        "Die Akte aus {city} enthält eine Karte, zwei Fotos, einen Kostenvoranschlag und eine Tabelle mit Messwerten. Jede Quelle erfüllt einen eigenen Zweck: Die Karte bezeichnet den Ort, ein Foto zeigt nur Sichtbares und die Tabelle erlaubt Vergleiche zwischen passenden Größen. Ein Kalenderjahr ist kein Prozentwert.",
+        "Bei einer öffentlichen Sitzung stellte {b} drei Möglichkeiten vor und verlangte eine Begründung vom {org}. Einige Lösungen erforderten zusätzliche Kontrollen, andere bargen unbekannte Risiken. Die Erwähnung zweier Personen im selben Satz beweist noch keine Beziehung zwischen ihnen, auch nicht in einer animierten Übersicht.",
+        "Eine weitere Prüfung zeigte, wie viel Bedeutung verloren geht, wenn nur einzelne Schlagwörter ausgewählt werden. Ausdrücke wie nächstes Kapitel, zweite Ebene oder verbleibende Zeit sind ohne Kontext mehrdeutig. {a} schlug deshalb vor, Begriffe zuerst mit Akteur, Handlung und Ort zu verbinden."
+      ],
+      "chart": "Im direkten Vergleich erreicht Aurora {p1}% gegenüber {p2}% bei Lumen. Die beiden Prozentzahlen betreffen dieselbe Messgröße im selben Zeitraum.",
+      "timeline": "Die Zeitfolge lautet: {y1} beginnt {a} die Sammlung, {y2} prüft {b} die Akten, {y3} veröffentlicht {org} eine Bewertung, {y4} endet die Revision und {y5} erscheint der Schlussbericht.",
+      "quote": "„Eine Hypothese ist kein Beweis“, erklärte {a}. {b} ergänzte, dass eine wahre Einzelheit durch die Zuordnung zur falschen Person irreführend werden kann.",
+      "items": [
+        "Originaldokumente",
+        "Feldmessungen",
+        "Gruppenvergleich",
+        "Kostenprüfung",
+        "Chronologie",
+        "Meinungen der Anwohner",
+        "Bildqualität",
+        "Datengrenzen",
+        "unabhängige Prüfung",
+        "Veröffentlichung der Ergebnisse"
+      ]
+    },
+    "nl": {
+      "name": "Nederlands",
+      "persons": [
+        "Emma de Vries",
+        "Bram Jansen",
+        "Noor Bakker",
+        "Daan Visser",
+        "Sophie Smit"
+      ],
+      "others": [
+        "Milan van Dijk",
+        "Lotte Meijer",
+        "Sara Bos",
+        "Finn de Boer",
+        "Eva Peters"
+      ],
+      "cities": [
+        "Utrecht",
+        "Leiden",
+        "Rotterdam",
+        "Groningen",
+        "Haarlem"
+      ],
+      "orgs": [
+        "Aurora Instituut",
+        "Lumen Coöperatie",
+        "Horizon Stichting",
+        "Prisma Laboratorium",
+        "Stella Raad"
+      ],
+      "topics": [
+        "stedelijke mobiliteit",
+        "gemeentelijk stadion",
+        "openbare gezondheidszorg",
+        "duurzame energie",
+        "schoolverbetering",
+        "museumconservering",
+        "waterveiligheid",
+        "duurzame landbouw",
+        "gemeentebegroting",
+        "digitale infrastructuur"
+      ],
+      "objects": [
+        "elektrische tram",
+        "toegangspoort",
+        "echoapparaat",
+        "zonnepaneel",
+        "schooltablet",
+        "oud manuscript",
+        "waterstandsensor",
+        "tractor",
+        "boekhoudregister",
+        "server"
+      ],
+      "segments": [
+        "In {city} begonnen {a} en {b} het project over {topic} met het verzamelen van documenten, interviews en foto's. De deskundigen van {org} maakten eerst onderscheid tussen waargenomen feiten en onbewezen aannames. Dat onderscheid blijft van belang wanneer een lang verslag wordt samengevat in enkele regels voor een video.",
+        "Tijdens het terreinbezoek onderzocht {a} de {obj} en vergeleek de technische beschrijving met aantekeningen van medewerkers. De aanwezigheid van een voorwerp bewijst niet wie het gebruikte of wanneer het werd verplaatst. Algemene beelden mogen de omgeving illustreren, maar niet voor bewijs van een specifiek incident doorgaan.",
+        "Volgens {org} vraagt een initiatief over {topic} om herhaalde metingen in plaats van een oordeel op basis van één indruk. {b} noteerde vragen van bewoners en {a} controleerde de cijfers en bewaarde de oorspronkelijke versie van het verslag. Deze gegevens zijn geschikt voor een lijst of tijdlijn.",
+        "Het dossier van {city} bevat een kaart, twee foto's, een kostenraming en een tabel met metingen. Elke bron heeft een andere functie: een kaart identificeert een locatie, een foto toont zichtbare details en een tabel vergelijkt alleen passende grootheden. Een kalenderjaar mag niet zomaar een procentuele staaf worden.",
+        "Bij een openbare bijeenkomst presenteerde {b} drie opties en vroeg {org} om elke beslissing te onderbouwen. Sommige mogelijkheden moesten nader worden onderzocht en andere hadden onbekende risico's. Twee mensen die in dezelfde zin worden genoemd, hebben niet automatisch een aantoonbare relatie met elkaar.",
+        "De volgende controle liet zien hoeveel betekenis verloren gaat wanneer alleen losse trefwoorden worden verzameld. Begrippen als volgend hoofdstuk, tweede niveau en resterende tijd kunnen verschillende dingen betekenen. {a} wilde daarom elk begrip eerst koppelen aan persoon, handeling en plaats."
+      ],
+      "chart": "Bij de directe vergelijking behaalde Aurora {p1}% tegenover {p2}% voor Lumen. Beide percentages meten hetzelfde resultaat in dezelfde periode.",
+      "timeline": "De tijdlijn vermeldt dat in {y1} {a} gegevens verzamelt, in {y2} {b} documenten controleert, in {y3} {org} een beoordeling publiceert, in {y4} de herziening eindigt en in {y5} het eindrapport verschijnt.",
+      "quote": "'Een hypothese is geen bewijs', zei {a}. {b} voegde toe dat een juist detail toch misleidend kan zijn wanneer het aan de verkeerde persoon wordt gekoppeld.",
+      "items": [
+        "originele documenten",
+        "metingen ter plaatse",
+        "groepsvergelijking",
+        "kostencontrole",
+        "chronologie",
+        "meningen van bewoners",
+        "beeldkwaliteit",
+        "databeperkingen",
+        "onafhankelijk onderzoek",
+        "publicatie van resultaten"
+      ]
+    },
+    "pl": {
+      "name": "Polski",
+      "persons": [
+        "Anna Kowalska",
+        "Piotr Nowak",
+        "Maria Zielińska",
+        "Tomasz Wiśniewski",
+        "Julia Mazur"
+      ],
+      "others": [
+        "Paweł Wójcik",
+        "Ewa Kaczmarek",
+        "Adam Lewandowski",
+        "Ola Kamińska",
+        "Jan Dąbrowski"
+      ],
+      "cities": [
+        "Kraków",
+        "Gdańsk",
+        "Wrocław",
+        "Poznań",
+        "Lublin"
+      ],
+      "orgs": [
+        "Instytut Aurora",
+        "Spółdzielnia Lumen",
+        "Fundacja Horyzont",
+        "Laboratorium Prisma",
+        "Rada Stella"
+      ],
+      "topics": [
+        "transport miejski",
+        "stadion miejski",
+        "opieka zdrowotna",
+        "energia odnawialna",
+        "modernizacja szkół",
+        "muzea",
+        "ochrona przeciwpowodziowa",
+        "rolnictwo zrównoważone",
+        "budżet miejski",
+        "infrastruktura cyfrowa"
+      ],
+      "objects": [
+        "tramwaj elektryczny",
+        "bramka wejściowa",
+        "ultrasonograf",
+        "panel słoneczny",
+        "tablet szkolny",
+        "stary rękopis",
+        "czujnik poziomu wody",
+        "ciągnik",
+        "księga rachunkowa",
+        "serwer"
+      ],
+      "segments": [
+        "W mieście {city} {a} i {b} rozpoczęli projekt dotyczący {topic} od zebrania dokumentów, wywiadów i fotografii. Specjaliści z {org} oddzielili zaobserwowane fakty od niepotwierdzonych hipotez, zanim sformułowali wyjaśnienie. To rozróżnienie jest szczególnie ważne podczas tworzenia krótkiego filmu na podstawie długiego raportu.",
+        "Podczas oględzin {a} sprawdziła {obj} i porównała dokumentację techniczną z notatkami pracowników. Sam fakt znalezienia przedmiotu nie dowodzi, kto go używał ani kiedy został przeniesiony. Ogólne zdjęcie może ilustrować otoczenie, ale nie jest dowodem konkretnego wydarzenia.",
+        "Według {org} projekt związany z {topic} wymaga wielu pomiarów, a nie oceny opartej na pierwszym wrażeniu. {b} zapisał pytania mieszkańców, a {a} sprawdziła liczby i zachowała pierwotną wersję sprawozdania. Te informacje można zestawić w wykazie, na mapie lub na osi czasu.",
+        "Akta z {city} zawierają mapę, dwie fotografie, kosztorys oraz tabelę pomiarów. Każde źródło pełni inną rolę: mapa wskazuje miejsce, zdjęcie pokazuje widoczne szczegóły, a tabela pozwala porównywać zgodne jednostki. Roku kalendarzowego nie wolno przedstawiać jako wartości procentowej.",
+        "Na publicznym spotkaniu {b} zaproponował trzy warianty i poprosił {org} o uzasadnienie wyboru. Niektóre propozycje wymagały dodatkowych kontroli, inne niosły nieznane ryzyka. Wymienienie dwóch osób w jednym zdaniu nie wystarcza do udowodnienia faktycznej relacji między nimi.",
+        "Późniejsza kontrola pokazała, że słowa wybrane bez kontekstu łatwo wprowadzają w błąd. Zwroty takie jak następny rozdział, drugi plan i pozostały czas mają wiele znaczeń. {a} zaproponowała więc łączenie terminów z osobami, działaniami i miejscami przed wyszukiwaniem obrazów."
+      ],
+      "chart": "W bezpośrednim porównaniu Aurora uzyskała {p1}% wobec {p2}% grupy Lumen. Obie wartości opisują ten sam wskaźnik w tym samym okresie.",
+      "timeline": "Chronologia wskazuje, że w {y1} {a} zbiera dane, w {y2} {b} sprawdza dokumenty, w {y3} {org} publikuje ocenę, w {y4} kończy się kontrola, a w {y5} pojawia się raport końcowy.",
+      "quote": "„Hipoteza nie jest dowodem”, powiedziała {a}. {b} dodał, że prawdziwy szczegół przypisany innej osobie może prowadzić do mylących wniosków.",
+      "items": [
+        "oryginalne dokumenty",
+        "pomiary terenowe",
+        "porównanie grup",
+        "kontrola kosztów",
+        "chronologia",
+        "opinie mieszkańców",
+        "jakość zdjęć",
+        "ograniczenia danych",
+        "niezależna ocena",
+        "publikacja wyników"
+      ]
+    },
+    "ru": {
+      "name": "Русский",
+      "persons": [
+        "Анна Орлова",
+        "Иван Петров",
+        "Мария Соколова",
+        "Дмитрий Волков",
+        "Елена Морозова"
+      ],
+      "others": [
+        "Алексей Смирнов",
+        "Ольга Кузнецова",
+        "Павел Фёдоров",
+        "Наталья Белова",
+        "Сергей Михайлов"
+      ],
+      "cities": [
+        "Казань",
+        "Москва",
+        "Самара",
+        "Томск",
+        "Пермь"
+      ],
+      "orgs": [
+        "Институт Аврора",
+        "Кооператив Люмен",
+        "Фонд Горизонт",
+        "Лаборатория Призма",
+        "Совет Стелла"
+      ],
+      "topics": [
+        "городской транспорт",
+        "городской стадион",
+        "общественное здравоохранение",
+        "возобновляемая энергетика",
+        "школьное образование",
+        "музейная реставрация",
+        "защита от наводнений",
+        "устойчивое сельское хозяйство",
+        "городской бюджет",
+        "цифровая инфраструктура"
+      ],
+      "objects": [
+        "электрический трамвай",
+        "турникет",
+        "аппарат ультразвука",
+        "солнечная панель",
+        "школьный планшет",
+        "старинная рукопись",
+        "датчик уровня воды",
+        "трактор",
+        "бухгалтерская книга",
+        "сервер"
+      ],
+      "segments": [
+        "В городе {city} {a} и {b} начали проект по теме {topic} со сбора документов, интервью и фотографий. Специалисты организации {org} сначала отделили наблюдаемые факты от неподтверждённых версий. Такое различие особенно важно, когда длинный отчёт превращается в несколько коротких предложений для зрителей.",
+        "Во время осмотра {a} изучила {obj} и сравнила техническую документацию с заметками сотрудников. Само наличие предмета не доказывает, кто им пользовался и когда его перемещали. Общие кадры могут иллюстрировать обстановку, но их нельзя выдавать за прямое доказательство конкретного события.",
+        "По мнению организации {org}, работа по теме {topic} требует повторных измерений, а не выводов на основе одного впечатления. {b} записал вопросы жителей, а {a} проверила цифры и сохранила первоначальную версию отчёта. Эти сведения можно представить списком, картой или хронологической схемой.",
+        "Досье города {city} содержит карту, две фотографии, смету и таблицу измерений. Каждый источник решает свою задачу: карта указывает место, фотография показывает видимые детали, а таблица позволяет сравнивать только совместимые величины. Нельзя превращать календарный год в процентный столбец без объяснения.",
+        "На общественном собрании {b} предложил три варианта и попросил организацию {org} обосновать каждый выбор. Некоторые решения требовали дополнительных проверок, другие содержали неизвестные риски. Упоминание двух людей в одном предложении само по себе не доказывает существования отношения между ними.",
+        "Позднейшая проверка показала, сколько смысла теряется при извлечении отдельных ключевых слов. Выражения следующая глава, второй уровень и оставшееся время могут обозначать разные понятия. {a} предложила сначала связывать термин с человеком, действием и местом, а уже потом подбирать изображение."
+      ],
+      "chart": "При прямом сравнении группа Аврора получила {p1}% против {p2}% у группы Люмен. Оба процента относятся к одинаковому показателю за один период.",
+      "timeline": "Хронология указывает, что в {y1} {a} собирает данные, в {y2} {b} проверяет документы, в {y3} {org} публикует оценку, в {y4} завершается проверка, а в {y5} выходит итоговый отчёт.",
+      "quote": "«Гипотеза не является доказательством», сказала {a}. {b} добавил, что правдивая деталь, приписанная другому человеку, всё равно может вводить в заблуждение.",
+      "items": [
+        "исходные документы",
+        "полевые измерения",
+        "сравнение групп",
+        "проверка затрат",
+        "хронология",
+        "мнения жителей",
+        "качество изображений",
+        "ограничения данных",
+        "независимая оценка",
+        "публикация результатов"
+      ]
+    },
+    "id": {
+      "name": "Bahasa Indonesia",
+      "persons": [
+        "Ayu Pratama",
+        "Budi Santoso",
+        "Siti Rahma",
+        "Rizky Wijaya",
+        "Dewi Lestari"
+      ],
+      "others": [
+        "Dimas Putra",
+        "Rina Kartika",
+        "Fajar Hidayat",
+        "Nadia Permata",
+        "Andi Saputra"
+      ],
+      "cities": [
+        "Jakarta",
+        "Bandung",
+        "Surabaya",
+        "Yogyakarta",
+        "Semarang"
+      ],
+      "orgs": [
+        "Institut Aurora",
+        "Koperasi Lumen",
+        "Yayasan Horizon",
+        "Laboratorium Prisma",
+        "Dewan Stella"
+      ],
+      "topics": [
+        "transportasi perkotaan",
+        "stadion kota",
+        "kesehatan masyarakat",
+        "energi terbarukan",
+        "pendidikan sekolah",
+        "pelestarian museum",
+        "perlindungan banjir",
+        "pertanian berkelanjutan",
+        "anggaran kota",
+        "infrastruktur digital"
+      ],
+      "objects": [
+        "trem listrik",
+        "gerbang elektronik",
+        "alat ultrasonografi",
+        "panel surya",
+        "tablet sekolah",
+        "naskah lama",
+        "sensor ketinggian air",
+        "traktor",
+        "buku kas",
+        "server"
+      ],
+      "segments": [
+        "Di kota {city}, {a} dan {b} memulai proyek {topic} dengan mengumpulkan dokumen, wawancara, dan foto. Para ahli dari {org} memisahkan fakta yang benar-benar diamati dari dugaan yang belum terbukti. Perbedaan itu sangat penting ketika laporan panjang diringkas menjadi beberapa kalimat pendek dalam sebuah video.",
+        "Selama pemeriksaan, {a} meninjau {obj} dan membandingkan penjelasan teknis dengan catatan petugas. Keberadaan benda tidak langsung membuktikan siapa yang menggunakannya atau kapan benda itu dipindahkan. Rekaman umum boleh menggambarkan suasana, tetapi tidak boleh dianggap sebagai bukti visual peristiwa yang spesifik.",
+        "Menurut {org}, proyek {topic} membutuhkan pengukuran berulang, bukan kesimpulan dari satu kesan. {b} mencatat pertanyaan warga, sementara {a} memeriksa angka dan menyimpan versi awal laporan. Informasi tersebut dapat disajikan sebagai daftar, peta, atau urutan waktu jika konteksnya tetap terjaga.",
+        "Berkas dari {city} memuat peta, dua foto, anggaran, dan tabel pengukuran. Setiap sumber memiliki tugas berbeda: peta menunjukkan tempat, foto merekam rincian yang tampak, dan tabel hanya membandingkan besaran yang sejenis. Tahun kalender tidak boleh dijadikan batang persentase tanpa hubungan yang jelas.",
+        "Dalam pertemuan warga, {b} memaparkan tiga pilihan dan meminta {org} menjelaskan dasar setiap keputusan. Beberapa pilihan memerlukan pengujian lebih lanjut, sedangkan pilihan lain memiliki risiko yang belum diketahui. Dua nama yang muncul dalam satu kalimat tidak otomatis membuktikan hubungan nyata antara mereka.",
+        "Pemeriksaan berikutnya menunjukkan betapa mudahnya makna hilang ketika sistem hanya mengambil kata kunci yang terpisah. Ungkapan bab berikutnya, tingkat kedua, dan waktu tersisa dapat memiliki arti berbeda. {a} mengusulkan untuk menghubungkan setiap istilah dengan pelaku, tindakan, serta lokasi sebelum mencari gambar."
+      ],
+      "chart": "Dalam perbandingan langsung, Aurora mencatat {p1}% dibandingkan dengan {p2}% pada kelompok Lumen. Kedua persentase mengukur hasil yang sama selama periode yang sama.",
+      "timeline": "Garis waktu menunjukkan bahwa pada {y1} {a} mengumpulkan data, pada {y2} {b} memeriksa catatan, pada {y3} {org} menerbitkan evaluasi, pada {y4} peninjauan selesai, dan pada {y5} laporan akhir diterbitkan.",
+      "quote": "'Hipotesis bukanlah bukti,' kata {a}. {b} menambahkan bahwa informasi benar pun bisa menyesatkan jika dikaitkan dengan orang yang salah.",
+      "items": [
+        "dokumen asli",
+        "pengukuran lapangan",
+        "perbandingan kelompok",
+        "pemeriksaan biaya",
+        "urutan waktu",
+        "pendapat warga",
+        "kualitas gambar",
+        "keterbatasan data",
+        "penilaian independen",
+        "penerbitan hasil"
+      ]
+    }
+  }
+}
