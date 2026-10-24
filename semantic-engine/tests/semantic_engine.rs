@@ -300,6 +300,28 @@ fn r09_two_percentages_yield_a_chart_with_both_values() {
 }
 
 #[test]
+fn visual_query_suggestions_are_always_verbatim_source_slices() {
+    // A co-mention and a chart used to suggest their joined labels
+    // ("Alberto Stasi Andrea Sempio", "42% 18%"), which never occur in the
+    // source. Every rung of the ladder is a provider query, so every rung
+    // must be traceable to the text.
+    let text = "Alberto Stasi e Andrea Sempio hanno incontrato il 42% dei tecnici, contro il 18% del gruppo di controllo.";
+    let value = manifest_value(vec![scene("query-grounding", text)]);
+    let scene = &value["scenes"][0];
+    assert!(!proposals_of(scene, "multiple_entities").is_empty());
+    assert!(!proposals_of(scene, "chart").is_empty());
+    for proposal in scene["visual_proposals"].as_array().unwrap() {
+        for query in proposal["visual_query_suggestions"].as_array().unwrap() {
+            let query = query.as_str().unwrap();
+            assert!(
+                text.contains(query),
+                "query {query:?} is not a source slice: {proposal}"
+            );
+        }
+    }
+}
+
+#[test]
 fn single_number_never_becomes_a_chart() {
     let text = "Il 42% dei tecnici ha segnalato il problema durante la prova.";
     let value = manifest_value(vec![scene("singolo", text)]);

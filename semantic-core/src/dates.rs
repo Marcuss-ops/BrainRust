@@ -432,7 +432,7 @@ fn find_month(view: &FoldedSource, cursor: usize) -> Option<(usize, u8, usize)> 
             // once: advance by one CHARACTER, never one byte, because month
             // names are not ASCII ("марта", "březen", "şubat") and a byte
             // step would land inside a code point.
-            offset += found + next_char_width(&hay[found..]);
+            offset += found + next_char_width(&hay[offset + found..]);
         }
     }
     best
@@ -1191,6 +1191,16 @@ mod tests {
                 .any(|fact| fact.normalized.as_deref() == Some("2008-04-03")),
             "3 апреля 2008 must normalize: {all:?}"
         );
+    }
+
+    #[test]
+    fn unbounded_month_inside_a_word_never_bisects_the_following_code_point() {
+        // Regression: two "février" occurrences inside longer words made the
+        // scan advance by the width read at the wrong base offset, landing the
+        // next slice inside the 'é' of the second occurrence.
+        let text = "xfévrierxéfévrierx";
+        let all = facts(text, "fr");
+        assert_grounded(text, &all);
     }
 
     #[test]

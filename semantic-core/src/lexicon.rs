@@ -94,6 +94,11 @@ pub struct LanguageProfile {
     /// alone is never enough to overrule a noun with a nominal lemma.
     #[serde(default)]
     pub infinitive_suffixes: Vec<String>,
+    /// The UDPipe model lowercases proper-noun lemmas as a convention
+    /// (Spanish `Lucía` -> `lucía`, Portuguese -> `_`). A lowercase lemma then
+    /// says nothing about the surface, so PROPN alone is name evidence.
+    #[serde(default)]
+    pub lowercase_propn_lemmas: bool,
 }
 
 /// One writing system's case behavior. Scripts without letter case (Han,
@@ -160,6 +165,12 @@ impl LanguageProfiles {
     pub fn capitalized_nouns(&self, language: &str) -> bool {
         self.entry(language)
             .is_some_and(|profile| profile.capitalized_nouns)
+    }
+
+    /// True when the certified model lowercases proper-noun lemmas.
+    pub fn lowercase_propn_lemmas(&self, language: &str) -> bool {
+        self.entry(language)
+            .is_some_and(|profile| profile.lowercase_propn_lemmas)
     }
 
     /// The pivot: does an uppercase initial prove a proper name? Only in a
@@ -337,6 +348,11 @@ pub struct Place {
 /// plus capitals, CC BY 4.0). The typing mechanism is the same for both.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct EntityGazetteer {
+    /// Surname particles per language ("de Vries", "van Dijk"): a lowercase
+    /// connector that stays inside a person name when a capitalized token
+    /// follows it.
+    #[serde(default)]
+    pub name_particles: BTreeMap<String, Vec<String>>,
     pub object_words: Vec<String>,
     /// Nouns that stay VISUAL_CONCEPT explicitly ("company").
     pub generic_visual_nouns: Vec<String>,
@@ -708,6 +724,10 @@ pub struct Lexicon {
     pub gazetteer: EntityGazetteer,
     /// Lowercased `gazetteer.locations` and place names/aliases, built once.
     pub place_index: std::collections::HashSet<String>,
+    /// Lowercased alias-only names of places below the minor threshold. They
+    /// stay out of LOCATION typing: a village alias is not stronger evidence
+    /// than the capitalized-token name rule ("João Ribeiro" is a person).
+    pub minor_place_aliases: std::collections::HashSet<String>,
     /// Lowercased ambiguous aliases per language, built once.
     pub place_ambiguities: BTreeMap<String, std::collections::HashSet<String>>,
     pub scale_words: ScaleWords,
@@ -763,21 +783,46 @@ fn build_place_ambiguities(
 /// Builds the O(1) place lookup from the curated seeds and the GeoNames
 /// index. Aliases are already lowercased by the generator; the extra
 /// conversion keeps a hand-written override safe.
-fn build_place_index(gazetteer: &EntityGazetteer) -> std::collections::HashSet<String> {
+/// Places below this population are only recognized through their primary
+/// name or the curated seed, never through a bare alias: small-town aliases
+/// collide with person names ("João Ribeiro").
+const MINOR_PLACE_ALIAS_POPULATION: u64 = 50_000;
+
+fn build_place_index(
+    gazetteer: &EntityGazetteer,
+) -> (
+    std::collections::HashSet<String>,
+    std::collections::HashSet<String>,
+) {
     let mut index = std::collections::HashSet::with_capacity(
         gazetteer.locations.len() + gazetteer.places.len() * 6,
     );
-    index.extend(
-        gazetteer
-            .locations
-            .iter()
-            .map(|location| location.to_lowercase()),
-    );
-    for place in &gazetteer.places {
-        index.insert(place.name.to_lowercase());
-        index.extend(place.aliases.iter().map(|alias| alias.to_lowercase()));
+    let mut primary = std::collections::HashSet::new();
+    let mut major_aliases = std::collections::HashSet::new();
+    let mut minor_aliases = std::collections::HashSet::new();
+    for location in &gazetteer.locations {
+        let lower = location.to_lowercase();
+        index.insert(lower.clone());
+        primary.insert(lower);
     }
-    index
+    for place in &gazetteer.places {
+        let name = place.name.to_lowercase();
+        index.insert(name.clone());
+        primary.insert(name);
+        for alias in &place.aliases {
+            let alias = alias.to_lowercase();
+            index.insert(alias.clone());
+            if place.population < MINOR_PLACE_ALIAS_POPULATION {
+                minor_aliases.insert(alias);
+            } else {
+                major_aliases.insert(alias);
+            }
+        }
+    }
+    // A name that any place uses as its primary name, or an alias shared with
+    // a major place, is not a minor-only alias.
+    minor_aliases.retain(|alias| !primary.contains(alias) && !major_aliases.contains(alias));
+    (index, minor_aliases)
 }
 
 impl Lexicon {
@@ -789,7 +834,7 @@ impl Lexicon {
                 "entity_gazetteer.json",
                 include_str!("../../lexicon/entity_gazetteer.json"),
             );
-            let place_index = build_place_index(&gazetteer);
+            let (place_index, minor_place_aliases) = build_place_index(&gazetteer);
             let place_ambiguities = build_place_ambiguities(&gazetteer);
             let months: Months =
                 load_table("months.json", include_str!("../../lexicon/months.json"));
@@ -814,6 +859,7 @@ impl Lexicon {
                 ),
                 gazetteer,
                 place_index,
+                minor_place_aliases,
                 place_ambiguities,
                 scale_words: load_table(
                     "scale_words.json",
@@ -867,6 +913,9 @@ impl Lexicon {
             .get(key)
             .is_some_and(|ambiguous| ambiguous.contains(&lower))
         {
+            return false;
+        }
+        if self.minor_place_aliases.contains(&lower) {
             return false;
         }
         self.place_index.contains(&lower)
@@ -991,6 +1040,21 @@ mod tests {
         assert!(!profiles.uppercase_is_name_evidence("de"));
         assert!(profiles.uppercase_is_name_evidence("it"));
         assert!(!profiles.uppercase_is_name_evidence("zh"));
+        // The certified Spanish and Portuguese models lowercase PROPN lemmas.
+        assert!(profiles.lowercase_propn_lemmas("es"));
+        assert!(profiles.lowercase_propn_lemmas("pt"));
+        assert!(!profiles.lowercase_propn_lemmas("it"));
+    }
+
+    #[test]
+    fn minor_place_aliases_do_not_override_person_names() {
+        let lexicon = Lexicon::global();
+        // "João Ribeiro" is an alias of a 14k-population town.
+        assert!(!lexicon.is_place("João Ribeiro", "pt"));
+        // A primary name, a seed city and a Cyrillic seed city stay places.
+        assert!(lexicon.is_place("Coimbra", "pt"));
+        assert!(lexicon.is_place("New York", "en"));
+        assert!(lexicon.is_place("Пермь", "ru"));
     }
 
     #[test]

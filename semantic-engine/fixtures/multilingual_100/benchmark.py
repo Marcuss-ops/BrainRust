@@ -12,11 +12,11 @@ def make_scenes(text, budget):
             continue
         words = len(block.split())
         if current and n + words > budget:
-            scenes.append(" ".join(current))
+            scenes.append("\n\n".join(current))
             current, n = [], 0
         current.append(block)
         n += words
-    if current: scenes.append(" ".join(current))
+    if current: scenes.append("\n\n".join(current))
     return [{"scene_id": "s%02d" % (i+1), "text": part} for i,part in enumerate(scenes)]
 
 class NDJSONWorker:

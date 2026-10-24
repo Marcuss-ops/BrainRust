@@ -2108,27 +2108,25 @@ fn to_visual_proposal(
         "multiple_entities" => 0.7,
         _ => 0.6,
     };
-    let entity_query = candidate.entity_texts.join(" ");
     // The ladder widens on purpose: the exact identity first, then a bounded
     // source phrase, then the full sentence for an illustrative stock search.
     // Every rung is an exact source slice, so a provider hit is traceable. A
-    // co-mention searches each name on its own, never their joined label.
-    let mut visual_query_suggestions = Vec::new();
+    // co-mention searches each name on its own, never their joined label: a
+    // label such as "Sofia Rinaldi Marta Greco" does not occur in the source.
+    let mut visual_query_suggestions: Vec<String> = Vec::new();
     let mut queries: Vec<SearchQuery> = Vec::new();
-    if !entity_query.is_empty() {
-        visual_query_suggestions.push(entity_query.clone());
-        if candidate.entity_texts.len() == 1 {
+    if !candidate.entity_texts.is_empty() {
+        for text in &candidate.entity_texts {
+            if text.is_empty() {
+                continue;
+            }
+            if !visual_query_suggestions.iter().any(|query| query == text) {
+                visual_query_suggestions.push(text.clone());
+            }
             queries.push(SearchQuery {
                 kind: "exact_mention".to_string(),
-                text: entity_query.clone(),
+                text: text.clone(),
             });
-        } else {
-            for text in &candidate.entity_texts {
-                queries.push(SearchQuery {
-                    kind: "exact_mention".to_string(),
-                    text: text.clone(),
-                });
-            }
         }
         if candidate.kind == "entity_search" {
             let sentence = sentence_spans
@@ -2138,7 +2136,10 @@ fn to_visual_proposal(
                 if let Some(context) =
                     contextual_visual_query(source, sentence, candidate.start, candidate.end)
                 {
-                    if context != entity_query {
+                    if !visual_query_suggestions
+                        .iter()
+                        .any(|query| query == context)
+                    {
                         visual_query_suggestions.push(context.to_string());
                         queries.push(SearchQuery {
                             kind: "context_phrase".to_string(),
@@ -2147,10 +2148,9 @@ fn to_visual_proposal(
                     }
                 }
                 let sentence = sentence.text(source);
-                if sentence != entity_query
-                    && !visual_query_suggestions
-                        .iter()
-                        .any(|query| query == sentence)
+                if !visual_query_suggestions
+                    .iter()
+                    .any(|query| query == sentence)
                 {
                     visual_query_suggestions.push(sentence.to_string());
                     queries.push(SearchQuery {
@@ -2159,7 +2159,10 @@ fn to_visual_proposal(
                     });
                 }
             }
-        } else if candidate.evidence != entity_query {
+        } else if !visual_query_suggestions
+            .iter()
+            .any(|query| query == &candidate.evidence)
+        {
             visual_query_suggestions.push(candidate.evidence.clone());
             queries.push(SearchQuery {
                 kind: "source_sentence".to_string(),

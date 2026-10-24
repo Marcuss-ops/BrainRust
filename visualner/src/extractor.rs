@@ -212,9 +212,18 @@ pub fn script_person_tokens(source_texts: &[&str], language: &str) -> ScriptCont
             continue;
         };
         let mut run: Vec<&Token> = Vec::new();
-        for token in &tokens {
+        for (index, token) in tokens.iter().enumerate() {
             let name_like = token.text.chars().next().is_some_and(char::is_uppercase);
-            if name_like {
+            let particle = !run.is_empty()
+                && is_name_particle(&token.text, language)
+                && tokens.get(index + 1).is_some_and(|next| {
+                    starts_uppercase(&next.text)
+                        && !is_stop_token(next, language)
+                        && !text.as_bytes()[token.end..next.start]
+                            .iter()
+                            .any(|byte| location::is_phrase_breaking_byte(*byte))
+                });
+            if name_like || particle {
                 // A sentence break ends the name: "Garlasco. La mattina" is
                 // a place and a new sentence, never the place "Garlasco La".
                 if let Some(previous) = run.last() {
@@ -223,6 +232,10 @@ pub fn script_person_tokens(source_texts: &[&str], language: &str) -> ScriptCont
                         .any(|byte| location::is_phrase_breaking_byte(*byte))
                     {
                         flush_name_run(&mut run, &mut context, language);
+                        if particle {
+                            // A particle cannot open a name run.
+                            continue;
+                        }
                     }
                 }
                 run.push(token);
@@ -244,7 +257,13 @@ fn flush_name_run(run: &mut Vec<&Token>, context: &mut ScriptContext, language: 
         .count();
     let usable = significant >= 2 && !run.iter().any(|token| is_heading_surface(&token.text));
     if usable {
-        for token in run.iter() {
+        // A leading known place is a city, not a person token: the run
+        // "Пермь Мария Соколова" must not make "пермь" look like a name
+        // fragment that can suppress the LOCATION candidate later.
+        let skip_leading_place = run.len() >= 3
+            && is_known_place(&run[0].text, language)
+            && !is_name_particle(&run[1].text, language);
+        for token in run.iter().skip(usize::from(skip_leading_place)) {
             if !is_stop_token(token, language) {
                 context.person_name_tokens.insert(token.text.to_lowercase());
             }
@@ -777,16 +796,9 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8], language: &str) -> Vec<(usiz
             i += 1;
             continue;
         }
-        let start = i;
+        let mut start = i;
         let mut end = i + 1;
-        while end < tokens.len()
-            && starts_uppercase(&tokens[end].text)
-            && !is_stop_token(&tokens[end], language)
-            && !(tokens[end].text.len() == 1 && tokens[end].text.as_bytes()[0].is_ascii_uppercase())
-            && !bytes[tokens[end - 1].end..tokens[end].start]
-                .iter()
-                .any(|b| is_phrase_breaking_byte(*b))
-        {
+        while end < tokens.len() && name_run_continues(tokens, bytes, end, language) {
             end += 1;
         }
         // An all-caps run is a heading ("NOME CHE TORNA"), not a person.
@@ -796,12 +808,66 @@ fn proper_name_runs(tokens: &[Token], bytes: &[u8], language: &str) -> Vec<(usiz
             .iter()
             .filter(|token| token.text.chars().filter(|ch| ch.is_alphabetic()).count() >= 2)
             .all(|token| is_all_caps_word(&token.text));
+        // "Пермь Мария Соколова" is a city followed by a person, not a
+        // three-token person name. A known place stays out of the run so its
+        // own gazetteer candidate survives instead of being dropped as a
+        // fragment of the person.
+        if end - start >= 3
+            && is_known_place(&tokens[start].text, language)
+            && !is_name_particle(&tokens[start + 1].text, language)
+        {
+            start += 1;
+        }
         if end - start >= 2 && !heading {
             runs.push((start, end));
         }
         i = end;
     }
     runs
+}
+
+/// Whether the token at `index` extends the name run that starts before it.
+/// A lowercase surname particle is allowed only between name tokens, so
+/// "Emma de Vries" is one name while a trailing "de" stays out.
+fn name_run_continues(tokens: &[Token], bytes: &[u8], index: usize, language: &str) -> bool {
+    let gap_breaks = |left: usize, right: usize| {
+        bytes[tokens[left].end..tokens[right].start]
+            .iter()
+            .any(|b| is_phrase_breaking_byte(*b))
+    };
+    let token = &tokens[index];
+    if starts_uppercase(&token.text)
+        && !is_stop_token(token, language)
+        && !(token.text.len() == 1 && token.text.as_bytes()[0].is_ascii_uppercase())
+        && !gap_breaks(index - 1, index)
+    {
+        return true;
+    }
+    is_name_particle(&token.text, language)
+        && index + 1 < tokens.len()
+        && starts_uppercase(&tokens[index + 1].text)
+        && !is_stop_token(&tokens[index + 1], language)
+        && !gap_breaks(index - 1, index)
+        && !gap_breaks(index, index + 1)
+}
+
+/// True when the gazetteer or place index recognizes `text` as a place.
+fn is_known_place(text: &str, language: &str) -> bool {
+    semantic_core::lexicon::lexicon().is_place(text, language)
+}
+
+/// True when `text` is a surname particle declared for the language.
+fn is_name_particle(text: &str, language: &str) -> bool {
+    let key = language.split(['-', '_']).next().unwrap_or("");
+    semantic_core::lexicon::lexicon()
+        .gazetteer
+        .name_particles
+        .get(key)
+        .is_some_and(|particles| {
+            particles
+                .iter()
+                .any(|particle| particle.eq_ignore_ascii_case(text))
+        })
 }
 
 /// True for a token spelled entirely in capitals, ignoring punctuation and
@@ -886,16 +952,22 @@ fn validate_evidence(
     let cased = semantic_core::lexicon::lexicon()
         .language_profiles
         .is_cased(language);
+    let lexicon = semantic_core::lexicon::lexicon();
+    let lowercase_propn_lemmas = lexicon.language_profiles.lowercase_propn_lemmas(language);
     let start_token = tokens.iter().find(|token| token.start == c.start);
     let gazetteer_eligible = start_token.is_none_or(|token| match token.upos.as_deref() {
         // In an uncased script the tag is the only signal: there is no
-        // capitalized lemma to confirm it against.
+        // capitalized lemma to confirm it against. A tagger that lowercases
+        // proper-noun lemmas (Spanish, Portuguese) must not veto a place the
+        // index recognizes: `is_place` still enforces capitalization and the
+        // per-language ambiguity list.
         Some("PROPN") => {
             !cased
                 || token
                     .lemma
                     .as_deref()
                     .is_none_or(|lemma| lemma.chars().next().is_some_and(char::is_uppercase))
+                || (lowercase_propn_lemmas && lexicon.is_place(&c.text, language))
         }
         Some(_) => false,
         None => true,
@@ -916,10 +988,15 @@ fn validate_evidence(
     let name_evidence = !cased
         || !multi_word
         || name_token.is_none_or(|token| {
-            token
-                .lemma
-                .as_deref()
-                .is_none_or(|lemma| lemma.chars().next().is_some_and(char::is_uppercase))
+            // A PROPN tag is name evidence even when the model lowercases its
+            // lemma (Spanish "Lucía" -> "lucía", Portuguese -> "_"). The
+            // multi-word, two-capitalized-token rule still has to pass, so a
+            // common noun promoted by sentence position cannot become a name.
+            (lowercase_propn_lemmas && token.upos.as_deref() == Some("PROPN"))
+                || token
+                    .lemma
+                    .as_deref()
+                    .is_none_or(|lemma| lemma.chars().next().is_some_and(char::is_uppercase))
         });
     let mut entity_type = c.entity_type.unwrap_or_else(|| {
         classify_value_type(

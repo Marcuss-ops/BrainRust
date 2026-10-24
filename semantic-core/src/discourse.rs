@@ -141,6 +141,26 @@ mod tests {
     }
 
     #[test]
+    fn multilingual_comparison_cues_are_recognized() {
+        for (text, expected) in [
+            ("Aurora consiguió 41% frente al 15% de Lumen.", "frente al"),
+            ("Aurora apresentou 41% contra 15% do grupo Lumen.", "contra"),
+            ("Aurora obtient 41% contre 15% pour Lumen.", "contre"),
+            ("Aurora behaalde 41% tegenover 15% voor Lumen.", "tegenover"),
+            ("Aurora uzyskała 41% wobec 15% grupy Lumen.", "wobec"),
+            ("Аврора получила 41% против 15% у группы Люмен.", "против"),
+            (
+                "Aurora mencatat 41% dibandingkan dengan 15% pada kelompok Lumen.",
+                "dibandingkan dengan",
+            ),
+        ] {
+            let (start, end) =
+                comparison_cue(text).unwrap_or_else(|| panic!("missing cue in {text}"));
+            assert_eq!(&text[start..end], expected);
+        }
+    }
+
+    #[test]
     fn multi_word_cue_keeps_its_whole_span() {
         let text = "Sales compared with last year rose.";
         let (start, end) = comparison_cue(text).expect("compared with is a comparison cue");

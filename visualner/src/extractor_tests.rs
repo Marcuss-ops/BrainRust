@@ -48,6 +48,141 @@ fn pos_tags_are_applied_when_model_is_installed() {
 }
 
 #[test]
+fn spanish_propn_with_lowercase_lemma_is_a_person_and_a_place() {
+    // The Spanish model lowercases every PROPN lemma ("Lucía" -> "lucía").
+    // The lemma's case must not erase the person or the city.
+    let source = "En Granada, Lucía Navarro y Ana Castillo comenzaron el proyecto.";
+    let tokens = tokenize(source, "es").expect("es");
+    if tokens.iter().all(|token| token.upos.is_none()) {
+        eprintln!("UDPipe Spanish model not installed; PROPN assertions skipped");
+        return;
+    }
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "es".to_string(),
+            entity_count: 50,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Lucía Navarro" && entity.r#type == "PERSON"),
+        "Spanish name missing: {entities:?}"
+    );
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Granada" && entity.r#type == "LOCATION"),
+        "Spanish city missing: {entities:?}"
+    );
+}
+
+#[test]
+fn a_known_city_before_two_names_stays_a_location() {
+    let source = "В городе Пермь Мария Соколова и Наталья Белова начали проект.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "ru".to_string(),
+            entity_count: 50,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Мария Соколова" && entity.r#type == "PERSON"),
+        "person missing after the city: {entities:?}"
+    );
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Пермь" && entity.r#type == "LOCATION"),
+        "city missing or absorbed: {entities:?}"
+    );
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| entity.text == "Пермь Мария Соколова"),
+        "city must not open a person run: {entities:?}"
+    );
+}
+
+#[test]
+fn dutch_surname_particle_stays_inside_the_person_name() {
+    let source = "In Rotterdam begonnen Emma de Vries en Lotte Meijer het project.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "nl".to_string(),
+            entity_count: 50,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Emma de Vries" && entity.r#type == "PERSON"),
+        "Dutch particle name missing: {entities:?}"
+    );
+}
+
+#[test]
+fn a_place_word_as_a_given_name_stays_in_the_person() {
+    // "Milan" is also a city, but here it opens "Milan van Dijk": the
+    // surname particle rules out the city-plus-two-names split.
+    let source = "In Leiden begonnen Sophie Smit en Milan van Dijk het project.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "nl".to_string(),
+            entity_count: 50,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Milan van Dijk" && entity.r#type == "PERSON"),
+        "given name colliding with a city missing: {entities:?}"
+    );
+}
+
+#[test]
+fn portuguese_propn_with_underscore_lemma_is_a_person_and_a_place() {
+    // The Portuguese model returns "_" as the lemma; only the PROPN tag and
+    // the surface survive.
+    let source = "Em Braga, Clara Almeida e Ana Ferreira começaram o projeto.";
+    let tokens = tokenize(source, "pt").expect("pt");
+    if tokens.iter().all(|token| token.upos.is_none()) {
+        eprintln!("UDPipe Portuguese model not installed; PROPN assertions skipped");
+        return;
+    }
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "pt".to_string(),
+            entity_count: 50,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Clara Almeida" && entity.r#type == "PERSON"),
+        "Portuguese name missing: {entities:?}"
+    );
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Braga" && entity.r#type == "LOCATION"),
+        "Portuguese city missing: {entities:?}"
+    );
+}
+
+#[test]
 fn italian_contraction_is_tagged_and_never_leaks_into_entities() {
     // "dell'arte" is one ICU token but several UDPipe words ("di" + "l'" + "arte").
     // It must receive a function-word tag, so it cannot join the noun phrases around it.
