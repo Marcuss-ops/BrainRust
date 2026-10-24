@@ -1,7 +1,7 @@
 # BrainRust — benchmark multilingue 100/100
 
 Data: 23 ottobre 2026
-Repository: BrainRust, commit `8ec5cf9` + modifiche locali non committate
+Repository: BrainRust, commit `8ec5cf9` + correzioni multilingui del 2026-10-23
 Ambiente: Linux, ICU 70 (`RUST_ICU_MAJOR_VERSION_NUMBER=70`), 13 modelli UDPipe 2.5 (250 MB)
 
 ## Obiettivo e criterio di accettazione
@@ -122,8 +122,8 @@ da 4+4+2 casi per lo stesso limite di tempo, senza modificare i check.
 4. **Alias di località minori**. Gli alias di località sotto 50k abitanti non vengono
    tipati LOCATION; i nomi primari e il seed restano. È una scelta di precisione, non un
    limite del corpus.
-5. **Nessun commit/push**. Le modifiche sono nel working tree; il report è stato scritto
-   qui ma non committato.
+5. **Evidenza pre-commit**. Il 100/100 è stato misurato sul working tree; la suite non è
+   stata rieseguita su un checkout pulito del commit che accompagna questo report.
 
 ## Riproduzione
 
