@@ -271,11 +271,17 @@ fn read_tail<R: Read>(
 fn process_command(program: &str, args: &[String]) -> Command {
     #[cfg(unix)]
     {
-        // `setsid` execs the requested program as a new process group leader.
-        // Using the system utility keeps this crate safe-code-only while still
-        // allowing cancellation of the complete FFmpeg descendant tree.
-        let mut command = Command::new("setsid");
-        command.arg(program).args(args);
+        use std::os::unix::process::CommandExt;
+
+        // Put the supervised program in its own process group so the timeout
+        // path can cancel the complete FFmpeg descendant tree. `process_group`
+        // is the safe std equivalent of `setsid`, but it never forks: the pid
+        // returned by `spawn` is always the group id that `kill_process_tree`
+        // signals. A forking `setsid` would leave the real worker in a group
+        // the runner never learns about.
+        let mut command = Command::new(program);
+        command.args(args);
+        command.process_group(0);
         command
     }
     #[cfg(not(unix))]
@@ -289,10 +295,11 @@ fn process_command(program: &str, args: &[String]) -> Command {
 fn kill_process_tree(pid: u32) {
     #[cfg(unix)]
     {
-        // `setsid` makes the supervised program the leader of a new process
-        // group. Signal the negative PGID so FFmpeg and every other descendant
-        // are terminated together; killing only the direct child leaves the
-        // actual worker alive behind the Rust executor.
+        // The supervised program was spawned as the leader of its own process
+        // group (`process_group(0)`), so its pid is the PGID. Signal the
+        // negative PGID so FFmpeg and every other descendant are terminated
+        // together; killing only the direct child leaves the actual worker
+        // alive behind the Rust executor.
         let group = format!("-{pid}");
         let group_killed = Command::new("kill")
             .args(["-KILL", "--", &group])
