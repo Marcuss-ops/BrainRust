@@ -323,8 +323,36 @@ fn kill_process_tree(pid: u32) {
 }
 
 #[cfg(test)]
+fn process_is_running(pid: &str) -> bool {
+    let status = std::process::Command::new("kill")
+        .args(["-0", pid])
+        .status()
+        .expect("probe child process");
+    if !status.success() {
+        return false;
+    }
+    // A killed descendant can outlive its killer as a zombie when PID 1 does
+    // not reap it (the GitHub Actions container does exactly that). `kill -0`
+    // still succeeds for zombies, so consult the state `ps` reports: a `Z`
+    // process has already terminated and cannot run again.
+    let ps = std::process::Command::new("ps")
+        .args(["-o", "stat=", "-p", pid])
+        .output();
+    match ps {
+        Ok(output) => {
+            let state = String::from_utf8_lossy(&output.stdout);
+            let state = state.trim();
+            !state.is_empty() && !state.starts_with('Z')
+        }
+        // Without `ps`, keep the kill -0 verdict rather than failing the test
+        // on a missing probe tool.
+        Err(_) => true,
+    }
+}
+
+#[cfg(test)]
 mod tests {
-    use super::RustProcessRunner;
+    use super::{process_is_running, RustProcessRunner};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{Duration, Instant};
@@ -372,11 +400,7 @@ mod tests {
         while Instant::now() < deadline {
             if let Ok(pid) = fs::read_to_string(&pid_file) {
                 if let Ok(pid) = pid.trim().parse::<i32>() {
-                    let status = std::process::Command::new("kill")
-                        .args(["-0", &pid.to_string()])
-                        .status()
-                        .expect("probe child process");
-                    if !status.success() {
+                    if !process_is_running(&pid.to_string()) {
                         child_gone = true;
                         break;
                     }
