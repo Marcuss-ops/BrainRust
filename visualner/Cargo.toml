@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "visualner"
 path = "src/main.rs"
 
+[[bench]]
+name = "extract"
+harness = false
+
 [dependencies]
 # ICU4C is the SINGLE spellout backend (see README.md, "Decision: ICU is
 # the single spellout backend"): deliberately NOT behind an optional feature,

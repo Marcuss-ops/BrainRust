@@ -59,7 +59,24 @@ impl IdentityRegistry {
         start_byte: usize,
         end_byte: usize,
     ) -> String {
-        let key = identity_key(kind, surface);
+        self.register_mention(kind, surface, surface, scene_id, start_byte, end_byte)
+    }
+
+    /// Registers one mention whose `surface` is an alias of the canonical
+    /// `canonical_surface` ("Stasi" for "Alberto Stasi"). The identity is keyed
+    /// and displayed by the canonical surface, while the mention keeps the
+    /// text that is actually in the scene, so evidence stays grounded and a
+    /// surname never becomes a second person.
+    pub fn register_mention(
+        &mut self,
+        kind: &str,
+        canonical_surface: &str,
+        surface: &str,
+        scene_id: &str,
+        start_byte: usize,
+        end_byte: usize,
+    ) -> String {
+        let key = identity_key(kind, canonical_surface);
         let index = match self.by_key.get(&key) {
             Some(index) => *index,
             None => {
@@ -68,7 +85,7 @@ impl IdentityRegistry {
                 let prefix = id_prefix(kind);
                 self.identities.push(CanonicalIdentity {
                     id: format!("{prefix}_{:02}", index + 1),
-                    canonical_surface: surface.to_string(),
+                    canonical_surface: canonical_surface.to_string(),
                     kind: kind.to_string(),
                     mentions: Vec::new(),
                 });

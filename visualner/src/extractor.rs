@@ -30,7 +30,8 @@ use location::*;
 use pos::{is_stop_token, tag_tokens};
 use stopwords::*;
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::sync::OnceLock;
 
 use crate::types::{ExtractOptions, VisualEntity};
 
@@ -85,6 +86,13 @@ pub fn extract(source_text: &str, options: &ExtractOptions) -> Result<Vec<Visual
 #[derive(Debug, Default, Clone)]
 pub struct ScriptContext {
     pub person_name_tokens: BTreeSet<String>,
+    /// Surname -> full name for the two-word person names the script states
+    /// ("Alberto Stasi" -> "stasi" -> "Alberto Stasi"). A later bare "Stasi"
+    /// is that person, not a visual concept and not a second identity. Only
+    /// unambiguous two-token runs qualify: a longer run ("Hall of Fame"), an
+    /// institution ("Corte d'Assise") or a surname shared by two people
+    /// contributes nothing, so a common phrase never becomes a person.
+    pub person_surnames: BTreeMap<String, String>,
 }
 
 /// `extract` with script-wide context. The engine builds the context once per
@@ -99,8 +107,14 @@ pub fn extract_with_context(
         return Err("VisualNER language is required".to_string());
     }
     let tokens = tokenize(source_text, language)?;
-    let mut candidates = noun_phrase_candidates(&tokens, source_text, language);
-    for object in object_lexicon_candidates(&tokens, source_text, language) {
+    // One case-folded copy per token, shared by the curated-name matcher and
+    // the object lexicon instead of re-folding every token per probe.
+    let token_lower: Vec<String> = tokens
+        .iter()
+        .map(|token| token.text.to_lowercase())
+        .collect();
+    let mut candidates = noun_phrase_candidates(&tokens, &token_lower, source_text, language);
+    for object in object_lexicon_candidates(&tokens, &token_lower, source_text, language) {
         if let Some(existing) = candidates
             .iter_mut()
             .find(|candidate| candidate.start == object.start && candidate.end == object.end)
@@ -201,6 +215,7 @@ pub fn extract_with_context(
 /// capitalization is not name evidence there.
 pub fn script_person_tokens(source_texts: &[&str], language: &str) -> ScriptContext {
     let mut context = ScriptContext::default();
+    let mut surnames: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     if !semantic_core::lexicon::lexicon()
         .language_profiles
         .is_cased(language)
@@ -231,7 +246,7 @@ pub fn script_person_tokens(source_texts: &[&str], language: &str) -> ScriptCont
                         .iter()
                         .any(|byte| location::is_phrase_breaking_byte(*byte))
                     {
-                        flush_name_run(&mut run, &mut context, language);
+                        flush_name_run(&mut run, &mut context, &mut surnames, language);
                         if particle {
                             // A particle cannot open a name run.
                             continue;
@@ -241,14 +256,28 @@ pub fn script_person_tokens(source_texts: &[&str], language: &str) -> ScriptCont
                 run.push(token);
                 continue;
             }
-            flush_name_run(&mut run, &mut context, language);
+            flush_name_run(&mut run, &mut context, &mut surnames, language);
         }
-        flush_name_run(&mut run, &mut context, language);
+        flush_name_run(&mut run, &mut context, &mut surnames, language);
+    }
+    // Only a surname that resolves to exactly one full name is an alias; two
+    // people sharing it stay two people.
+    for (surname, names) in surnames {
+        if names.len() == 1 {
+            if let Some(name) = names.into_iter().next() {
+                context.person_surnames.insert(surname, name);
+            }
+        }
     }
     context
 }
 
-fn flush_name_run(run: &mut Vec<&Token>, context: &mut ScriptContext, language: &str) {
+fn flush_name_run(
+    run: &mut Vec<&Token>,
+    context: &mut ScriptContext,
+    surnames: &mut BTreeMap<String, BTreeSet<String>>,
+    language: &str,
+) {
     // Two *significant* tokens make a name. "Garlasco La" is a place followed
     // by an article, so it must not contribute "garlasco" as a person token.
     let significant = run
@@ -266,6 +295,31 @@ fn flush_name_run(run: &mut Vec<&Token>, context: &mut ScriptContext, language: 
         for token in run.iter().skip(usize::from(skip_leading_place)) {
             if !is_stop_token(token, language) {
                 context.person_name_tokens.insert(token.text.to_lowercase());
+            }
+        }
+        // A surname is only claimed from an unambiguous two-word name that is
+        // neither a place nor a curated institution. "Chiara Poggi" yields
+        // "poggi"; "Corte d'Assise" and "Hall of Fame" yield nothing.
+        let significant_tokens: Vec<&&Token> = run
+            .iter()
+            .filter(|token| !is_stop_token(token, language))
+            .collect();
+        if significant_tokens.len() == 2 {
+            let first = significant_tokens[0].text.as_str();
+            let last = significant_tokens[1].text.as_str();
+            let surface = run
+                .iter()
+                .map(|token| token.text.as_str())
+                .collect::<Vec<&str>>()
+                .join(" ");
+            if !is_known_place(first, language)
+                && !is_known_place(last, language)
+                && values::institution_cue_kind(&surface, language).is_none()
+            {
+                surnames
+                    .entry(last.to_lowercase())
+                    .or_default()
+                    .insert(surface);
             }
         }
     }
@@ -380,6 +434,7 @@ fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> 
 /// from corpus evidence rather than guessing that every noun is an object.
 fn object_lexicon_candidates(
     tokens: &[Token],
+    token_lower: &[String],
     source_text: &str,
     language: &str,
 ) -> Vec<Candidate> {
@@ -387,6 +442,9 @@ fn object_lexicon_candidates(
     if terms.is_empty() {
         return Vec::new();
     }
+    // One membership set per call instead of a linear scan of the whole
+    // vocabulary for every 1–3 gram.
+    let term_set: std::collections::HashSet<&str> = terms.iter().map(String::as_str).collect();
     let mut candidates = Vec::new();
     for start_index in 0..tokens.len() {
         let mut normalized = String::new();
@@ -399,8 +457,8 @@ fn object_lexicon_candidates(
                 }
                 normalized.push(' ');
             }
-            normalized.push_str(&tokens[end_index].text.to_lowercase());
-            if !terms.iter().any(|term| term == &normalized) {
+            normalized.push_str(&token_lower[end_index]);
+            if !term_set.contains(normalized.as_str()) {
                 continue;
             }
             let start = tokens[start_index].start;
@@ -604,7 +662,12 @@ fn elided_clitic_split(source_text: &str, token: &Token) -> Option<(usize, usize
 /// hard phrase boundary). Multi-word phrases ("feta cheese",
 /// "olive oil") score higher than singletons, which is what makes concrete
 /// multi-word objects win over generic singletons.
-fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -> Vec<Candidate> {
+fn noun_phrase_candidates(
+    tokens: &[Token],
+    token_lower: &[String],
+    source_text: &str,
+    language: &str,
+) -> Vec<Candidate> {
     let bytes = source_text.as_bytes();
     let mut out = Vec::new();
     // Named people/organizations are bounded to the contiguous title-case run.
@@ -619,7 +682,7 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
     // the type here: a title that opens with a modal ("Will Always Love You")
     // must not be read as a clause by the POS gate.
     for index in 0..tokens.len() {
-        if let Some(end) = curated_name_span(tokens, bytes, index) {
+        if let Some(end) = curated_name_span(token_lower, tokens, bytes, index) {
             let mut candidate = candidate_from_tokens(tokens, source_text, index, end);
             candidate.entity_type = Some(classify_value_type(
                 &candidate.text,
@@ -730,27 +793,58 @@ fn noun_phrase_candidates(tokens: &[Token], source_text: &str, language: &str) -
     out
 }
 
+/// First word → whitespace-split curated names, built once per process from
+/// the immutable `'static` gazetteer. The matcher then examines only the
+/// names whose first word equals the current token (a name can only match at
+/// `index` when its first word matches there, so this is the same match set
+/// as scanning every name), and every name is split exactly once instead of
+/// once per token position.
+static CURATED_NAME_INDEX: OnceLock<BTreeMap<String, Vec<Vec<String>>>> = OnceLock::new();
+
+fn curated_name_index() -> &'static BTreeMap<String, Vec<Vec<String>>> {
+    CURATED_NAME_INDEX.get_or_init(|| {
+        let gazetteer = &semantic_core::lexicon::lexicon().gazetteer;
+        let names = gazetteer
+            .works
+            .iter()
+            .chain(gazetteer.persons.iter())
+            .chain(gazetteer.brands.iter())
+            .chain(gazetteer.product_names.iter())
+            .chain(gazetteer.locations.iter());
+        let mut index: BTreeMap<String, Vec<Vec<String>>> = BTreeMap::new();
+        for name in names {
+            let words: Vec<String> = name.split_whitespace().map(str::to_string).collect();
+            let Some(first) = words.first().cloned() else {
+                continue;
+            };
+            index.entry(first).or_default().push(words);
+        }
+        index
+    })
+}
+
 /// End token index of the longest curated gazetteer name (work, person,
 /// brand, product, place) that starts exactly at `tokens[index]`. Such a span
 /// is an entity even when one of its words is a function word
 /// ("Will Always Love You" ends in the pronoun "you").
-fn curated_name_span(tokens: &[Token], bytes: &[u8], index: usize) -> Option<usize> {
-    let gazetteer = &semantic_core::lexicon::lexicon().gazetteer;
-    let names = gazetteer
-        .works
-        .iter()
-        .chain(gazetteer.persons.iter())
-        .chain(gazetteer.brands.iter())
-        .chain(gazetteer.product_names.iter())
-        .chain(gazetteer.locations.iter());
+///
+/// `token_lower` is the per-token case fold computed once per extraction;
+/// name words compare against it exactly like the historical
+/// `token.text.to_lowercase() == word` probe, without re-folding per name.
+fn curated_name_span(
+    token_lower: &[String],
+    tokens: &[Token],
+    bytes: &[u8],
+    index: usize,
+) -> Option<usize> {
+    let name_words = curated_name_index().get(token_lower[index].as_str())?;
     let mut longest: Option<usize> = None;
-    for name in names {
-        let words: Vec<&str> = name.split_whitespace().collect();
-        if words.is_empty() || index + words.len() > tokens.len() {
+    for words in name_words {
+        if index + words.len() > tokens.len() {
             continue;
         }
         let matches = words.iter().enumerate().all(|(offset, word)| {
-            tokens[index + offset].text.to_lowercase() == *word
+            token_lower[index + offset] == *word
                 && (offset == 0
                     || !bytes[tokens[index + offset - 1].end..tokens[index + offset].start]
                         .iter()
@@ -985,8 +1079,43 @@ fn validate_evidence(
         .iter()
         .filter(|token| token.start >= c.start && token.end <= c.end)
         .find(|token| token.text.chars().filter(|ch| ch.is_alphabetic()).count() >= 2);
+    // A sentence-initial name is lemmatized as its lowercase homograph by the
+    // tagger ("Chiara Poggi" -> lemma "chiaro" at the start of a sentence,
+    // "Chiara" mid-sentence). The tag survives that: when every significant
+    // token of the surface is a PROPN, the surface is a proper name regardless
+    // of where the sentence begins. Particles ("d'", "de", "van") are allowed
+    // between the names; any other non-PROPN token vetoes the rule, so
+    // "Hall of Fame" or "Udienza Preliminare" stay visual concepts.
+    let span_tokens: Vec<&Token> = tokens
+        .iter()
+        .filter(|token| token.start >= c.start && token.end <= c.end)
+        .collect();
+    let significant_tokens: Vec<&&Token> = span_tokens
+        .iter()
+        .filter(|token| token.text.chars().filter(|ch| ch.is_alphabetic()).count() >= 2)
+        .collect();
+    let all_propn_names = multi_word
+        && significant_tokens.len() >= 2
+        && span_tokens.iter().all(|token| {
+            token.text.chars().filter(|ch| ch.is_alphabetic()).count() < 2
+                || token.upos.as_deref() == Some("PROPN")
+                || is_name_particle(&token.text, language)
+        })
+        && significant_tokens
+            .iter()
+            .all(|token| token.upos.as_deref() == Some("PROPN"))
+        // A procedural phrase ("Udienza Preliminare") is tagged PROPN on every
+        // token too, but the tagger lowercases both lemmas. At least one real
+        // name keeps its capital in the lemma, and that is the difference.
+        && significant_tokens.iter().any(|token| {
+            token
+                .lemma
+                .as_deref()
+                .is_some_and(|lemma| lemma.chars().next().is_some_and(char::is_uppercase))
+        });
     let name_evidence = !cased
         || !multi_word
+        || all_propn_names
         || name_token.is_none_or(|token| {
             // A PROPN tag is name evidence even when the model lowercases its
             // lemma (Spanish "Lucía" -> "lucía", Portuguese -> "_"). The

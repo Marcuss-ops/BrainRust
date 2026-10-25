@@ -337,6 +337,25 @@ fn collect_month_word_facts(source: &str, language: &str, words: &[SpelledNumber
             if let Some((start, end)) = view.to_source(folded_start, folded_start + folded_width) {
                 let width = end - start;
                 if let Some(fact) = month_word_fact(source, language, start, month, width, words) {
+                    // "19, 20 e 26 settembre 2007" shares one month and year
+                    // across a coordinated day list. The last day keeps the
+                    // full month/year span; the earlier days keep their own
+                    // digit span but inherit the shared month and year.
+                    let days = coordinated_days_before(source, start);
+                    if days.len() > 1 && fact.month.is_some() && fact.year > 0 && !fact.unresolved {
+                        for (day, day_start, day_end) in &days[..days.len() - 1] {
+                            out.push(RawFact {
+                                start: *day_start,
+                                end: *day_end,
+                                year: fact.year,
+                                era: fact.era,
+                                month: fact.month,
+                                day: Some(*day),
+                                ambiguous: false,
+                                unresolved: false,
+                            });
+                        }
+                    }
                     out.push(fact);
                 }
             }
@@ -863,6 +882,84 @@ fn collect_spelled_year_facts(source: &str, words: &[SpelledNumber]) -> Vec<RawF
         .collect()
 }
 
+/// Reads a 1–2 digit day immediately before `position`, without crossing a
+/// comma or a connector. Used by the coordinated-list scanner.
+fn day_token_before(source: &str, position: usize) -> Option<(u8, usize, usize)> {
+    let bytes = source.as_bytes();
+    let mut end = position;
+    while end > 0 && bytes[end - 1].is_ascii_whitespace() {
+        end -= 1;
+    }
+    if end == 0 || !bytes[end - 1].is_ascii_digit() {
+        return None;
+    }
+    let digit_end = end;
+    let mut start = digit_end;
+    while start > 0 && bytes[start - 1].is_ascii_digit() && digit_end - start < 2 {
+        start -= 1;
+    }
+    if start == digit_end || (start > 0 && bytes[start - 1].is_ascii_digit()) {
+        return None;
+    }
+    if start > 0 && bytes[start - 1].is_ascii_alphabetic() {
+        return None;
+    }
+    let value: u8 = source[start..digit_end].parse().ok()?;
+    (1..=31)
+        .contains(&value)
+        .then_some((value, start, digit_end))
+}
+
+/// Days in a coordinated list ending at `month_start`, in source order:
+/// `19, 20 e 26` → `[19, 20, 26]`. A comma or a conjunction is required
+/// between members; a bare sequence such as `19 20 26` is not a list.
+fn coordinated_days_before(source: &str, month_start: usize) -> Vec<(u8, usize, usize)> {
+    let mut days = Vec::new();
+    let mut cursor = month_start;
+    while let Some((day, start, end)) = day_token_before(source, cursor) {
+        days.push((day, start, end));
+        cursor = start;
+        let bytes = source.as_bytes();
+        let mut separator_end = cursor;
+        while separator_end > 0 && bytes[separator_end - 1].is_ascii_whitespace() {
+            separator_end -= 1;
+        }
+        if separator_end == 0 {
+            break;
+        }
+        if bytes[separator_end - 1] == b',' {
+            cursor = separator_end - 1;
+            continue;
+        }
+        let mut word_start = separator_end;
+        while word_start > 0
+            && (bytes[word_start - 1].is_ascii_alphabetic() || bytes[word_start - 1] == b'\'')
+        {
+            word_start -= 1;
+        }
+        if word_start == separator_end {
+            break;
+        }
+        let word = source[word_start..separator_end].to_lowercase();
+        if !is_list_connector(&word) {
+            break;
+        }
+        cursor = word_start;
+        if days.len() >= 8 {
+            break;
+        }
+    }
+    days.reverse();
+    days
+}
+
+fn is_list_connector(word: &str) -> bool {
+    matches!(
+        word,
+        "e" | "ed" | "and" | "y" | "et" | "en" | "und" | "ve" | "si" | "și"
+    )
+}
+
 fn day_digits_before(source: &str, month_start: usize) -> Option<(u32, usize)> {
     let bytes = source.as_bytes();
     let mut cursor = month_start;
@@ -1109,6 +1206,18 @@ mod tests {
         assert_eq!(all.len(), 1, "one date, one fact: {all:#?}");
         assert_eq!(all[0].normalized.as_deref(), Some("2007-08-13"));
         assert_eq!(all[0].precision, "day");
+    }
+
+    #[test]
+    fn coordinated_days_share_the_month_and_year() {
+        let text = "Gli atti riportano i giorni 19, 20 e 26 settembre 2007.";
+        let all = facts(text, "it");
+        assert_grounded(text, &all);
+        let dates: Vec<&str> = all
+            .iter()
+            .filter_map(|fact| fact.normalized.as_deref())
+            .collect();
+        assert_eq!(dates, vec!["2007-09-19", "2007-09-20", "2007-09-26"]);
     }
 
     #[test]

@@ -1497,3 +1497,55 @@ fn institutions_are_orgs_and_never_places_or_people() {
         "a real place after the same kind of cue stays a place: {entities:?}"
     );
 }
+
+#[test]
+fn a_sentence_initial_name_is_still_a_person() {
+    // UDPipe lemmatizes "Chiara" as the adjective "chiaro" when the name opens
+    // the sentence; the PROPN tag on both tokens is the evidence that survives.
+    let text = "Chiara Poggi aveva ventisei anni. Il 13 agosto 2007, Chiara Poggi fu uccisa.";
+    let entities = extract(
+        text,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 64,
+        },
+    )
+    .expect("italian extraction");
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Chiara Poggi" && entity.r#type == "PERSON"),
+        "sentence-initial name typed as a visual concept: {entities:?}"
+    );
+}
+
+#[test]
+fn a_surname_alias_points_at_its_full_name() {
+    let context = script_person_tokens(
+        &[
+            "Alberto Stasi ha testimoniato. Il 12 dicembre 2015 la condanna divenne definitiva.",
+            "La posizione di Stasi resta distinta da quella di Andrea Sempio.",
+            "Andrea Sempio respinge le accuse.",
+        ],
+        "it",
+    );
+    assert_eq!(
+        context.person_surnames.get("stasi").map(String::as_str),
+        Some("Alberto Stasi"),
+        "surname map: {:?}",
+        context.person_surnames
+    );
+    assert_eq!(
+        context.person_surnames.get("sempio").map(String::as_str),
+        Some("Andrea Sempio"),
+        "surname map: {:?}",
+        context.person_surnames
+    );
+    // A shared surname stays ambiguous and is never aliased.
+    let shared = script_person_tokens(&["Marco Rossi ha parlato. Luca Rossi ha risposto."], "it");
+    assert!(
+        !shared.person_surnames.contains_key("rossi"),
+        "a shared surname must stay ambiguous: {:?}",
+        shared.person_surnames
+    );
+}

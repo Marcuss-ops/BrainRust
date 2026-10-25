@@ -96,7 +96,11 @@ fn main() {
         println!("{}", supported_spellout_language_count());
         return;
     }
-    if let Err(error) = ndjson_stdio::run_stdio(process_line) {
+    // The persistent worker serves independent requests from a bounded
+    // thread pool; responses stay in input order and byte-identical to the
+    // serial loop. `VISUALNER_WORKERS=1` restores serial processing.
+    let workers = ndjson_stdio::workers_from_env("VISUALNER_WORKERS");
+    if let Err(error) = ndjson_stdio::run_stdio_parallel(process_line, workers) {
         eprintln!("visualner read: {error}");
         std::process::exit(1);
     }

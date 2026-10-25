@@ -19,13 +19,14 @@ pub struct EntityRelation {
 /// yields no relation. The marker vocabulary lives in the shared lexicon
 /// (`discourse_cues.json`).
 pub fn extract_relations(sentence: &Sentence, entities: &[String]) -> Vec<EntityRelation> {
-    let toks = tokens(&sentence.text);
+    let index = sentence.token_index();
+    let toks = index.tokens();
     let entity_lc: Vec<String> = entities.iter().map(|e| e.to_lowercase()).collect();
+    // One case-folded sentence copy per call, not one per entity.
+    let lower_text = sentence.text.to_lowercase();
     let present: Vec<String> = entity_lc
         .iter()
-        .filter(|e| {
-            toks.iter().any(|t| t == *e) || sentence.text.to_lowercase().contains(e.as_str())
-        })
+        .filter(|e| index.contains(e.as_str()) || lower_text.contains(e.as_str()))
         .cloned()
         .collect();
     if present.len() < 2 {
@@ -37,11 +38,11 @@ pub fn extract_relations(sentence: &Sentence, entities: &[String]) -> Vec<Entity
         .entity_relation_markers
     {
         for m in &group.markers {
-            if let Some(pos) = toks.iter().position(|t| t == m) {
+            if let Some(pos) = index.position(m.as_str()) {
                 // Negated markers ("non possiede più") yield NO positive
                 // relation: negation and time are preserved by silence +
                 // the separate temporal signal, never by an inverted edge.
-                if is_negated(&toks, pos) {
+                if is_negated(toks, pos) {
                     break 'markers;
                 }
                 out.push(EntityRelation {

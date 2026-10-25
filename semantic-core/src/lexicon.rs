@@ -950,7 +950,7 @@ mod tests {
             .iter()
             .any(|p| p == "imagine"));
         assert_eq!(lexicon.object_terms("en").len(), 24);
-        assert_eq!(lexicon.object_terms("it").len(), 20);
+        assert_eq!(lexicon.object_terms("it").len(), 30);
         // BCP-47 subtags resolve to the base language.
         assert_eq!(
             lexicon.object_terms("pt-BR").len(),

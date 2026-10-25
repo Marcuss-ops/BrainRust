@@ -232,31 +232,78 @@ fn numeric_facts(
     out
 }
 
+/// Safety bounds for co-mention generation. A normal editorial sentence names
+/// a handful of subjects; an unpunctuated ASR passage can make thousands of
+/// entity mentions one "sentence", and the pairwise projection would then
+/// allocate O(n²) relations, each carrying the whole sentence as evidence. The
+/// bounds keep that case finite without changing any ordinary scene.
+const MAX_CO_MENTION_SUBJECTS_PER_SENTENCE: usize = 32;
+
 fn relations(
     source_text: &str,
     entities: &[VisualEntity],
     sentences: &[SentenceSpan],
     entity_sentence: &[Option<usize>],
 ) -> Vec<EntityRelation> {
-    let mut out = Vec::new();
-    for source in 0..entities.len() {
-        for target in source + 1..entities.len() {
-            let (Some(a), Some(b)) = (entity_sentence[source], entity_sentence[target]) else {
-                continue;
-            };
-            if a != b || same_surface(&entities[source], &entities[target]) {
-                continue;
+    // Group by sentence first: pairing inside one sentence is the definition of
+    // a co-mention, and it lets the subject bound apply per sentence.
+    let mut per_sentence: Vec<Vec<usize>> = vec![Vec::new(); sentences.len()];
+    for (index, sentence) in entity_sentence.iter().enumerate() {
+        if let Some(sentence) = sentence {
+            if *sentence < per_sentence.len() {
+                per_sentence[*sentence].push(index);
             }
-            let sentence = sentences[a];
-            out.push(EntityRelation {
-                source,
-                target,
-                sentence_index: a,
-                evidence: source_text[sentence.start_byte..sentence.end_byte].to_string(),
-            });
+        }
+    }
+    let mut out = Vec::new();
+    for (sentence_index, indices) in per_sentence.iter().enumerate() {
+        let sentence = sentences[sentence_index];
+        // Co-mentions describe subjects the planner can frame together, not
+        // every generic phrase: a sentence full of "tempo"/"modo" nouns must
+        // not produce a relation per pair.
+        let subjects: Vec<usize> = indices
+            .iter()
+            .copied()
+            .filter(|&index| is_co_mention_subject(&entities[index]))
+            .take(MAX_CO_MENTION_SUBJECTS_PER_SENTENCE)
+            .collect();
+        if subjects.len() < 2 {
+            continue;
+        }
+        let evidence = source_text[sentence.start_byte..sentence.end_byte].to_string();
+        for (position, source) in subjects.iter().enumerate() {
+            for target in subjects.iter().skip(position + 1) {
+                if same_surface(&entities[*source], &entities[*target]) {
+                    continue;
+                }
+                out.push(EntityRelation {
+                    source: *source,
+                    target: *target,
+                    sentence_index,
+                    evidence: evidence.clone(),
+                });
+            }
         }
     }
     out
+}
+
+/// The types that can share an editorial frame. Measurements are values, not
+/// subjects, and a generic visual concept is a phrase, not a name.
+fn is_co_mention_subject(entity: &VisualEntity) -> bool {
+    matches!(
+        entity.r#type.as_str(),
+        "PERSON"
+            | "ORGANIZATION"
+            | "ORG"
+            | "LOCATION"
+            | "FACILITY"
+            | "BRAND"
+            | "PRODUCT"
+            | "WORK"
+            | "OBJECT"
+            | "EVENT"
+    )
 }
 
 /// Projects the shared bullet candidates (one generation and one scoring
@@ -578,6 +625,49 @@ mod tests {
         assert_eq!(
             &"Pi is 3.14. Done"[sentences[0].start_byte..sentences[0].end_byte],
             "Pi is 3.14."
+        );
+    }
+
+    #[test]
+    fn co_mentions_stay_bounded_on_one_huge_sentence() {
+        use crate::types::VisualEntity;
+
+        let sentence = "word ".repeat(4000);
+        let sentences = vec![SentenceSpan {
+            start_byte: 0,
+            end_byte: sentence.len(),
+        }];
+        let mut entities = Vec::new();
+        for index in 0..400 {
+            let text = format!("Persona{index:03} Cognome");
+            entities.push(VisualEntity {
+                text: text.clone(),
+                r#type: "PERSON".to_string(),
+                score: 1.0,
+                start: index * 10,
+                end: index * 10 + text.len(),
+                evidence: text,
+            });
+        }
+        let member_of: Vec<Option<usize>> = (0..entities.len()).map(|_| Some(0)).collect();
+        let pairs = relations(&sentence, &entities, &sentences, &member_of);
+        assert!(
+            pairs.len()
+                <= MAX_CO_MENTION_SUBJECTS_PER_SENTENCE
+                    * (MAX_CO_MENTION_SUBJECTS_PER_SENTENCE - 1)
+                    / 2,
+            "one sentence produced {} relations",
+            pairs.len()
+        );
+        // A generic phrase is not a co-mention partner.
+        let mut generic = entities.clone();
+        generic[0].r#type = "VISUAL_CONCEPT".to_string();
+        let pairs = relations(&sentence, &generic, &sentences, &member_of);
+        assert!(
+            pairs
+                .iter()
+                .all(|relation| relation.source != 0 && relation.target != 0),
+            "a VISUAL_CONCEPT entered a co-mention"
         );
     }
 }

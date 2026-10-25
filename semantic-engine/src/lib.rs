@@ -13,6 +13,7 @@
 #![deny(unsafe_code)]
 
 pub mod cache;
+pub mod consolidate;
 pub mod groups;
 pub mod identity_lookup;
 pub mod legal;
@@ -159,10 +160,11 @@ fn analyze_scene_with_search(
             analysis.entities.push(legal_entity);
         }
     }
+    promote_known_surnames(&mut analysis.entities, context, language);
     let (entities, rejected_entities) = retain_grounded_entities(source, analysis.entities);
     let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
 
-    let identities = IdentityLookup::build(registry, &scene.scene_id, &entities);
+    let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context);
     let mut entity_facts = extract_entity_facts(
         source,
         language,
@@ -334,6 +336,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
 
     let story_graph = story::build_story_graph(&scenes);
     let visual_coverage = story::build_visual_coverage(&scenes);
+    let visual_consolidation = consolidate::build(&request.scenes, &scenes, &search_entries);
 
     let analyzers = analyzer_versions();
     let fingerprint = request_fingerprint(request, &analyzers);
@@ -366,6 +369,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         scenes,
         story_graph,
         visual_coverage,
+        visual_consolidation,
         search_feedback: semantic_core::SearchFeedback {
             entries: search_entries,
         },
@@ -1146,19 +1150,66 @@ fn location_cue_precedes(source: &str, sentence_start: usize, target_start: usiz
         .contains(&word.to_lowercase())
 }
 
+/// A bare surname the script already introduced belongs to that person.
+///
+/// Identity stays surface-based: this only fixes the *type* of the mention, so
+/// "Stasi" is a PERSON rather than an untitled visual concept. It is limited to
+/// the exact surname token of an unambiguous two-word name the script states
+/// and never overrides a place, an institution or a typed entity.
+pub(crate) fn promote_known_surnames(
+    entities: &mut [visualner::VisualEntity],
+    context: &visualner::ScriptContext,
+    language: &str,
+) {
+    if context.person_surnames.is_empty() {
+        return;
+    }
+    let lexicon = semantic_core::lexicon::lexicon();
+    for entity in entities.iter_mut() {
+        if entity.r#type != "VISUAL_CONCEPT" {
+            continue;
+        }
+        let lower = entity.text.to_lowercase();
+        if lower.split_whitespace().count() != 1
+            || lower.chars().filter(|ch| ch.is_alphabetic()).count() < 4
+            || !context.person_surnames.contains_key(&lower)
+        {
+            continue;
+        }
+        if lexicon.is_place(&entity.text, language)
+            || lexicon
+                .gazetteer
+                .generic_visual_nouns
+                .iter()
+                .any(|noun| noun == &lower)
+        {
+            continue;
+        }
+        entity.r#type = "PERSON".to_string();
+        entity.score = entity.score.max(0.9);
+    }
+}
+
 /// Substring marker check shared by every fact extractor in this crate.
 pub(crate) fn contains_any<S: AsRef<str>>(text: &str, markers: &[S]) -> bool {
     markers.iter().any(|marker| text.contains(marker.as_ref()))
 }
 
 fn fact_status(sentence: &str) -> String {
+    fact_status_lower(sentence).to_string()
+}
+
+/// Same classification, borrowing the status instead of allocating a `String`
+/// for every fact. The caller supplies the already case-folded sentence, so a
+/// loop that visits several facts in one sentence folds and classifies it once.
+fn fact_status_lower(sentence: &str) -> &'static str {
     let facility = &lexicon::lexicon().facility;
     if contains_any(sentence, &facility.status_uncertainty_cues) {
-        "uncertain".to_string()
+        "uncertain"
     } else if contains_any(sentence, &facility.status_negation_substrings) {
-        "negated".to_string()
+        "negated"
     } else {
-        "asserted".to_string()
+        "asserted"
     }
 }
 
@@ -1192,7 +1243,7 @@ fn chronological_groups(
         let Some(sentence_text) = source.get(sentence.start_byte..sentence.end_byte) else {
             continue;
         };
-        if !is_event_sentence(sentence_text) {
+        if !is_event_sentence(&sentence_text.to_lowercase()) {
             continue;
         }
         // One sentence is one event, however many dates it carries ("nel 2009
@@ -1354,7 +1405,7 @@ fn isolated_event_candidates(
         let Some(text) = source.get(sentence.start_byte..sentence.end_byte) else {
             continue;
         };
-        if !is_event_sentence(text) && !asserts_dated_fact(entity_facts, sentence) {
+        if !is_event_sentence(&text.to_lowercase()) && !asserts_dated_fact(entity_facts, sentence) {
             continue;
         }
         // A timeline this scene already draws over the sentence (two dates in
@@ -1399,13 +1450,12 @@ fn asserts_dated_fact(facts: &[EntityFact], sentence: &semantic_core::SentenceSp
 
 /// Require an explicit event/process predicate before dates are grouped into
 /// a visual timeline. Merely placing unrelated dates in a scene is not enough.
-fn is_event_sentence(sentence: &str) -> bool {
-    let sentence = sentence.to_lowercase();
+fn is_event_sentence(sentence_lower: &str) -> bool {
     lexicon::lexicon()
         .process_phases
         .event_predicate_markers
         .iter()
-        .any(|marker| sentence.contains(marker.as_str()))
+        .any(|marker| sentence_lower.contains(marker.as_str()))
 }
 
 /// Links explicit phases only when the same grounded entity is named in each
@@ -1427,10 +1477,11 @@ fn process_groups(
         let Some(text) = source.get(sentence.start_byte..sentence.end_byte) else {
             continue;
         };
-        if fact_status(&text.to_lowercase()) != "asserted" {
+        let lower = text.to_lowercase();
+        if fact_status_lower(&lower) != "asserted" {
             continue;
         }
-        let Some((phase, phase_id)) = process_phase(text) else {
+        let Some((phase, phase_id)) = process_phase(&lower) else {
             continue;
         };
         for (entity_index, entity) in entities.iter().enumerate() {
@@ -1493,8 +1544,7 @@ fn process_groups(
         .collect()
 }
 
-fn process_phase(sentence: &str) -> Option<(usize, String)> {
-    let sentence = sentence.to_lowercase();
+fn process_phase(sentence_lower: &str) -> Option<(usize, String)> {
     lexicon::lexicon()
         .process_phases
         .phases
@@ -1503,7 +1553,7 @@ fn process_phase(sentence: &str) -> Option<(usize, String)> {
             phase
                 .markers
                 .iter()
-                .any(|marker| sentence.contains(marker.as_str()))
+                .any(|marker| sentence_lower.contains(marker.as_str()))
         })
         .map(|phase| (phase.order, phase.name.clone()))
 }
@@ -1539,7 +1589,7 @@ fn comparison_groups(
         let Some(text) = source.get(sentence.start_byte..sentence.end_byte) else {
             continue;
         };
-        if fact_status(&text.to_lowercase()) != "asserted" {
+        if fact_status_lower(&text.to_lowercase()) != "asserted" {
             continue;
         }
         let Some((cue_start, cue_end)) = semantic_core::discourse::comparison_cue(text) else {
@@ -1863,10 +1913,11 @@ fn add_cross_scene_process_groups(
             let Some(text) = input.text.get(sentence.start_byte..sentence.end_byte) else {
                 continue;
             };
-            if fact_status(&text.to_lowercase()) != "asserted" {
+            let lower = text.to_lowercase();
+            if fact_status_lower(&lower) != "asserted" {
                 continue;
             }
-            let Some((phase, phase_id)) = process_phase(text) else {
+            let Some((phase, phase_id)) = process_phase(&lower) else {
                 continue;
             };
             for entity in manifest.entities.iter().filter(|entity| {

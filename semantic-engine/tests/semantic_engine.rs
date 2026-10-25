@@ -1512,3 +1512,80 @@ fn a_complete_dated_sequence_is_one_timeline_and_closes_coverage() {
         "every fact of a complete timeline is covered: {coverage}"
     );
 }
+
+#[test]
+fn a_bare_surname_is_the_same_person_and_the_same_identity() {
+    let value = manifest_value(vec![
+        scene(
+            "s01",
+            "Alberto Stasi aveva ventisei anni. Il 12 dicembre 2015 la condanna divenne definitiva in Cassazione.",
+        ),
+        scene(
+            "s02",
+            "La posizione di Stasi resta distinta da quella di Andrea Sempio.",
+        ),
+    ]);
+    let first = &value["scenes"][0];
+    let second = &value["scenes"][1];
+    let person = first["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entity| entity["text"] == "Alberto Stasi")
+        .expect("full name");
+    assert_eq!(person["type"], "PERSON");
+    let surname = second["entities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entity| entity["text"] == "Stasi")
+        .expect("surname mention");
+    assert_eq!(
+        surname["type"], "PERSON",
+        "a known surname must stay a person: {surname:?}"
+    );
+    let full_identity = first["identities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|identity| identity["canonical_surface"] == "Alberto Stasi")
+        .expect("canonical identity");
+    let surname_identities: Vec<&Value> = second["identities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|identity| {
+            identity["mentions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|mention| mention["scene_id"] == "s02" && mention["surface"] == "Stasi")
+        })
+        .collect();
+    assert_eq!(
+        surname_identities.len(),
+        1,
+        "the surname created its own identity: {surname_identities:?}"
+    );
+    assert_eq!(
+        surname_identities[0]["id"], full_identity["id"],
+        "the surname must resolve to the full name's identity"
+    );
+    // The finality sentence names the court after the marker; the fact still
+    // belongs to the convicted person, not to Cassazione.
+    let final_fact = first["micro_summaries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|summary| {
+            summary["text"]
+                .as_str()
+                .unwrap_or("")
+                .contains("definitiva")
+        })
+        .expect("final micro summary");
+    assert!(
+        final_fact["text"].as_str().unwrap_or("").contains("Stasi"),
+        "finality attributed to the court: {final_fact:?}"
+    );
+}

@@ -106,7 +106,7 @@ pub fn extract_temporal_with_anchor(
             });
             narration_order += 1;
         }
-        if let Some((off, rel_start, rel_end)) = relative_offset_span(&s.text) {
+        if let Some((off, rel_start, rel_end)) = relative_offset_span(s.token_index(), &s.text) {
             let resolved = anchor_year.map(|a| a + off);
             let occurrence_id = next_occurrence(&mut occurrence);
             let (sb, eb) = absolute_surface_span(sentence_text_base, rel_start, rel_end);
@@ -214,15 +214,19 @@ pub(super) fn number_word(t: &str) -> Option<i32> {
 /// Offset in years for relative expressions WITH the in-sentence byte span
 /// of the matched marker ("tre anni dopo" → (+3, span)). None when no
 /// relative expression.
-pub(super) fn relative_offset_span(text: &str) -> Option<(i32, usize, usize)> {
-    let toks = tokens(text);
+pub(super) fn relative_offset_span(index: &TokenIndex, text: &str) -> Option<(i32, usize, usize)> {
+    let toks = index.tokens();
     let cues = &semantic_core::lexicon::lexicon().discourse;
     let rel_plural = &cues.relative_plural;
-    let rel_single = &cues.relative_single;
+    // One membership index per call: these cue tables are set questions.
+    let rel_single: std::collections::HashSet<&str> =
+        cues.relative_single.iter().map(String::as_str).collect();
+    let year_units: std::collections::HashSet<&str> =
+        cues.year_units.iter().map(String::as_str).collect();
     // Token→char boundary approximation: tokens are lowercase words built
     // over the same text, so reconstruct the span by searching the surface.
+    let lower = text.to_lowercase();
     let span_of = |toks: &[String], from: usize, to: usize| -> (usize, usize) {
-        let lower = text.to_lowercase();
         let joined = toks[from..to.min(toks.len())].join(" ");
         lower
             .find(&joined)
@@ -237,27 +241,27 @@ pub(super) fn relative_offset_span(text: &str) -> Option<(i32, usize, usize)> {
                 if i > 0 {
                     offset = number_word(&toks[i - 1]);
                 }
-                let span = span_of(&toks, i, i + pat.len());
+                let span = span_of(toks, i, i + pat.len());
                 return Some((offset.unwrap_or(1), span.0, span.1));
             }
         }
     }
     if let Some(win) = toks
         .windows(2)
-        .position(|w| cues.year_units.contains(&w[0]) && rel_single.iter().any(|s| s == &w[1]))
+        .position(|w| year_units.contains(w[0].as_str()) && rel_single.contains(w[1].as_str()))
     {
-        let span = span_of(&toks, win, win + 2);
+        let span = span_of(toks, win, win + 2);
         return Some((1, span.0, span.1));
     }
     for pattern in &cues.relative_fixed {
-        if !contains_phrase(&toks, pattern) {
+        if !index.contains_phrase(pattern) {
             continue;
         }
         if let Some(pos) = toks
             .windows(pattern.len())
             .position(|w| w.iter().zip(pattern.iter()).all(|(a, b)| a == b))
         {
-            let span = span_of(&toks, pos, pos + pattern.len());
+            let span = span_of(toks, pos, pos + pattern.len());
             return Some((3, span.0, span.1));
         }
         return Some((3, 0, text.len()));

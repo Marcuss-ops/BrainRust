@@ -84,9 +84,15 @@ impl Worker {
         }
     }
 
-    /// Serves requests from stdin until end of input.
+    /// Serves requests from stdin until end of input. Independent requests run
+    /// on a bounded pool; the shared cache stays behind its mutex and the
+    /// response lines keep input order. `SEMANTIC_ENGINE_WORKERS=1` restores
+    /// serial processing.
     pub fn run_stdio(&self) -> io::Result<()> {
-        ndjson_stdio::run_stdio(|line| self.handle_line(line))
+        ndjson_stdio::run_stdio_parallel(
+            |line| self.handle_line(line),
+            ndjson_stdio::workers_from_env("SEMANTIC_ENGINE_WORKERS"),
+        )
     }
 }
 

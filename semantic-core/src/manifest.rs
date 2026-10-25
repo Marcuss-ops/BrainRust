@@ -392,6 +392,250 @@ pub struct VisualCoverage {
     pub scenes: Vec<SceneCoverage>,
 }
 
+/// Wire version of the semantic consolidation projection carried by the same
+/// manifest. It is additive: `semantic_manifest.v2` raw collections remain the
+/// complete inventory, and this section is the compiler's selective production
+/// view over them.
+pub const VISUAL_CONSOLIDATION_SCHEMA: &str = "visual_consolidation.v1";
+
+/// Raw inventory of one script before any production selection. These counts
+/// are measured, never estimated: they come from the scene manifests the same
+/// worker returns.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct ConsolidationInventory {
+    pub entity_mentions: usize,
+    pub unique_identities: usize,
+    pub named_identities: usize,
+    pub facts: usize,
+    pub canonical_facts: usize,
+    pub proposals: usize,
+    pub search_entries: usize,
+    /// Query rungs inside `search_feedback` entries. Suggestions carried by
+    /// `visual_proposals` are counted under `proposals`; `raw_queries` in the
+    /// metrics uses this same definition, so production and raw compare
+    /// like-for-like.
+    pub queries: usize,
+    pub temporal_facts: usize,
+    pub canonical_dates: usize,
+    pub micro_summaries: usize,
+    pub canonical_micro_summaries: usize,
+    pub groups: usize,
+    pub timelines: usize,
+}
+
+/// One canonical fact after duplicate mentions are merged. Every raw fact id is
+/// retained so the inventory stays auditable, while the production view sees a
+/// single claim with one representation decision.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ConsolidatedFact {
+    /// Deterministic canonical id (`cf_0001`, ...).
+    pub id: String,
+    /// Stable deduplication key (`subject|predicate|value|date|status`).
+    pub fact_key: String,
+    /// Every raw fact id merged into this canonical fact.
+    pub fact_ids: Vec<String>,
+    pub subject_entity_id: String,
+    pub predicate: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalized_value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalized_date: Option<String>,
+    pub status: String,
+    pub importance: f32,
+    pub scene_ids: Vec<String>,
+    /// Sentence index of the first raw mention, used to bind a timeline member
+    /// to the fact without re-parsing the source.
+    pub sentence_index: usize,
+    /// Verbatim evidence of the first raw mention.
+    pub evidence: String,
+    /// Exact value span of the first raw mention.
+    pub start_byte: usize,
+    pub end_byte: usize,
+    /// Sentence span that grounds the first raw mention; this is the span a
+    /// fact card uses as its verbatim evidence.
+    pub evidence_start_byte: usize,
+    pub evidence_end_byte: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub representation: Option<FactRepresentation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uncovered_reason: Option<String>,
+}
+
+/// Which production candidate represents a canonical fact.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FactRepresentation {
+    pub candidate_id: String,
+    /// `timeline`, `chart`, `fact_card`, ...
+    pub recipe: String,
+}
+
+/// One canonical date: the normalized value plus every source surface and span
+/// that produced it. Duplicate partial dates are not discarded; they are
+/// collapsed into one reference while preserving the original evidence.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ConsolidatedDate {
+    pub normalized_date: String,
+    pub count: usize,
+    pub surfaces: Vec<String>,
+    pub spans: Vec<ConsolidatedDateSpan>,
+}
+
+/// One source occurrence of a canonical date.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConsolidatedDateSpan {
+    pub scene_id: String,
+    pub surface: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// A numeric surface the source explicitly frames as a reference, not a
+/// quantity ("l'impronta numero 33"). It is kept in the inventory and excluded
+/// from quantitative chart candidates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReferenceNumber {
+    pub scene_id: String,
+    pub surface: String,
+    pub reason: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// A grounded event-to-event ordering link derived from one timeline group.
+/// The engine only states precedence the source already orders.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConsolidatedEventLink {
+    pub id: String,
+    pub group_id: String,
+    pub scene_id: String,
+    pub from_candidate_id: String,
+    pub to_candidate_id: String,
+    /// `precedes` only: the next member is later in the source order.
+    pub kind: String,
+    pub evidence: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// One selective production candidate: the unit a planner may turn into a
+/// composition. The raw candidate pool remains in the scene manifests; this
+/// list is deduplicated, ranked and budget-aware.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ProductionCandidate {
+    /// Deterministic id (`vc_0001`, ...).
+    pub id: String,
+    /// `entity_search`, `entity_card`, `multiple_entities`, `timeline`,
+    /// `fact_card` or `chart`.
+    pub recipe: String,
+    /// 1-based priority after deterministic ranking (1 is most important).
+    pub rank: usize,
+    /// Deterministic relevance in `[0, 1]`, used for ordering only.
+    pub priority: f32,
+    /// Scene that anchors the verbatim evidence span.
+    pub scene_id: String,
+    /// Every scene the candidate is grounded in.
+    pub scene_ids: Vec<String>,
+    pub entity_ids: Vec<String>,
+    pub fact_ids: Vec<String>,
+    pub group_ids: Vec<String>,
+    pub title: String,
+    /// Verbatim source evidence at `[start_byte, end_byte)` inside `scene_id`.
+    pub evidence: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    /// Layout hint for the planner (`search_asset`, `entity_card`, `timeline`,
+    /// `bar_comparison`, ...). The engine describes, it does not select.
+    pub suggested_visual: String,
+    /// Numeric values backing a chart candidate (empty otherwise).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub chart_items: Vec<ChartItem>,
+    /// Date surfaces backing a timeline candidate (empty otherwise).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub temporal_surfaces: Vec<String>,
+    /// Assets with the same key can be retrieved once and reused. Cards and
+    /// multi-entity compositions deliberately share their entity's asset.
+    pub asset_key: String,
+    /// Deterministic query ladder. Empty when the recipe renders text/data
+    /// and needs no external media search.
+    pub queries: Vec<SearchQuery>,
+    pub requires_media: bool,
+    /// Stable key proving the candidate is unique (`entity:person_01:search`).
+    pub dedup_key: String,
+    /// Canonical facts represented by this candidate.
+    pub covered_fact_ids: Vec<String>,
+    /// Why this candidate exists and why it is ranked here.
+    pub rationale: Vec<String>,
+}
+
+/// Measured before/after volume for the same manifest. Every field is an
+/// arithmetic count, not a provider measurement.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct ConsolidationMetrics {
+    pub raw_proposals: usize,
+    pub production_candidates: usize,
+    pub raw_search_entries: usize,
+    pub production_search_candidates: usize,
+    pub raw_queries: usize,
+    pub production_queries: usize,
+    pub duplicate_entity_mentions_collapsed: usize,
+    pub duplicate_facts_merged: usize,
+    pub duplicate_queries_removed: usize,
+    pub duplicate_proposals_removed: usize,
+    pub estimated_search_jobs: usize,
+    pub shared_asset_reuses: usize,
+    pub canonical_facts: usize,
+    pub covered_facts: usize,
+    pub uncovered_facts: usize,
+    pub reference_numbers: usize,
+}
+
+/// Per-scene volume and coverage, so a planner can see where consolidation
+/// removed work instead of only reading a script total.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConsolidationSceneStats {
+    pub scene_id: String,
+    pub raw_proposals: usize,
+    pub production_candidates: usize,
+    pub raw_queries: usize,
+    pub canonical_facts: usize,
+    pub covered_facts: usize,
+    pub timeline_candidates: usize,
+}
+
+/// Selective visual production view over the complete semantic inventory.
+///
+/// This is the Semantic Consolidation v1 output: the raw manifest answers
+/// "what does the text contain?"; this section answers "which compositions are
+/// worth producing, and what is still uncovered?".
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct VisualConsolidation {
+    pub schema: String,
+    pub inventory: ConsolidationInventory,
+    pub production_candidates: Vec<ProductionCandidate>,
+    pub facts: Vec<ConsolidatedFact>,
+    pub dates: Vec<ConsolidatedDate>,
+    pub reference_numbers: Vec<ReferenceNumber>,
+    pub event_links: Vec<ConsolidatedEventLink>,
+    pub scenes: Vec<ConsolidationSceneStats>,
+    pub metrics: ConsolidationMetrics,
+}
+
+impl Default for VisualConsolidation {
+    fn default() -> Self {
+        Self {
+            schema: VISUAL_CONSOLIDATION_SCHEMA.to_string(),
+            inventory: ConsolidationInventory::default(),
+            production_candidates: Vec::new(),
+            facts: Vec::new(),
+            dates: Vec::new(),
+            reference_numbers: Vec::new(),
+            event_links: Vec::new(),
+            scenes: Vec::new(),
+            metrics: ConsolidationMetrics::default(),
+        }
+    }
+}
+
 /// Every fact and proposal extracted for one scene.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SceneManifest {
@@ -438,6 +682,9 @@ pub struct SemanticManifest {
     pub story_graph: StoryGraph,
     /// Which grounded facts a scene's proposals already represent.
     pub visual_coverage: VisualCoverage,
+    /// Selective production view: canonical facts, deduplicated candidates,
+    /// query budgets and explicit coverage reasons.
+    pub visual_consolidation: VisualConsolidation,
     /// Asset-search handshake: query ladders plus the planner's outcomes.
     pub search_feedback: SearchFeedback,
     /// Optional whole-script editorial products computed in this same batch.

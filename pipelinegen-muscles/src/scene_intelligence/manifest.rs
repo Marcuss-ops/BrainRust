@@ -46,9 +46,9 @@ pub fn analyze(
         let sents = ctx.sentences_for_scene(&scene.scene_id);
         let density = analyze_density(&scene.scene_id, &sents, entities, &prior_concepts);
         for s in &sents {
-            for t in tokens(&s.text) {
+            for t in s.token_index().tokens() {
                 if t.chars().count() >= 5 {
-                    prior_concepts.insert(t);
+                    prior_concepts.insert(t.clone());
                 }
             }
         }

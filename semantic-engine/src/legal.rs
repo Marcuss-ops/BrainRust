@@ -93,10 +93,15 @@ pub fn extract(
             })
             .map(|(index, _)| index)
             .collect();
-        let fallback_person = recent_person(&persons_per_sentence, sentence_index);
+        let fallback_person = recent_person(&persons_per_sentence, sentence_index, entities);
         // "Questa condanna diventa definitiva" is a finality fact, not a new
         // conviction. The generic "condanna" marker must not duplicate it.
         let finality_sentence = contains_any(&lower, &legal.finality_markers);
+        // "Confermò l'assoluzione" is a confirmation, not a second acquittal.
+        // The generic marker ("assoluzione") sits inside the specific one, so
+        // only that nested occurrence yields; a separate 2014 acquittal in the
+        // same sentence as a 2016 confirmation must survive.
+        let confirmation_spans = confirmation_spans(&lower, &legal.patterns);
         for pattern in &legal.patterns {
             // "16 anni di reclusione" is a sentence length, not the person's
             // age: the age pattern must not steal the number.
@@ -110,15 +115,28 @@ pub fn extract(
                 let Some(relative) = lower.find(marker.as_str()) else {
                     continue;
                 };
+                if matches!(pattern.normalized.as_str(), "acquitted" | "convicted")
+                    && confirmation_spans
+                        .iter()
+                        .any(|&(start, end)| relative >= start && relative + marker.len() <= end)
+                {
+                    continue;
+                }
                 let marker_start = sentence.start_byte + relative;
                 let marker_end = marker_start + marker.len();
-                let subject_index =
+                let subject_index = if pattern.normalized == "final" {
+                    // The conviction becomes final for the person who was
+                    // convicted, not for the court named after the marker
+                    // ("la condanna divenne definitiva in Cassazione").
+                    finality_subject(entities, &in_sentence, marker_start, fallback_person)
+                } else {
                     pick_subject(entities, &in_sentence, marker_start, pattern.subject_kind())
                         .or_else(|| {
                             let index = fallback_person?;
                             subject_matches_kind(entities, index, pattern.subject_kind())
                                 .then_some(index)
-                        });
+                        })
+                };
                 let Some(subject_index) = subject_index else {
                     continue;
                 };
@@ -189,6 +207,52 @@ pub fn extract(
     out
 }
 
+/// Byte spans of confirmation markers in the lowercased sentence. A generic
+/// `assoluzione`/`condanna` nested inside one of these spans is the same event
+/// restated, not a second outcome.
+fn confirmation_spans(sentence: &str, patterns: &[LegalPattern]) -> Vec<(usize, usize)> {
+    patterns
+        .iter()
+        .filter(|pattern| {
+            matches!(
+                pattern.normalized.as_str(),
+                "acquittal_confirmed" | "conviction_confirmed"
+            )
+        })
+        .flat_map(|pattern| pattern.markers.iter())
+        .filter_map(|marker| {
+            sentence
+                .find(marker.as_str())
+                .map(|start| (start, start + marker.len()))
+        })
+        .collect()
+}
+
+/// Finality belongs to the convicted person, even when the sentence names the
+/// court after the marker. Prefer a person in this sentence, then the only
+/// recent person; an org is the last resort, not the first match by distance.
+fn finality_subject(
+    entities: &[VisualEntity],
+    in_sentence: &[usize],
+    marker_start: usize,
+    fallback_person: Option<usize>,
+) -> Option<usize> {
+    if let Some(person) = pick_subject(entities, in_sentence, marker_start, SubjectKind::Person) {
+        return Some(person);
+    }
+    if let Some(person) = fallback_person {
+        if subject_matches_kind(entities, person, SubjectKind::Person) {
+            return Some(person);
+        }
+    }
+    pick_subject(
+        entities,
+        in_sentence,
+        marker_start,
+        SubjectKind::PersonOrOrg,
+    )
+}
+
 fn pick_subject(
     entities: &[VisualEntity],
     in_sentence: &[usize],
@@ -225,16 +289,46 @@ fn subject_matches_kind(entities: &[VisualEntity], index: usize, kind: SubjectKi
 /// subject across several sentences (outcome, appeal, Cassation, finality);
 /// two names make the outcome ambiguous, and a wrong attribution is worse
 /// than a missing one.
-fn recent_person(persons_per_sentence: &[Vec<usize>], index: usize) -> Option<usize> {
+fn recent_person(
+    persons_per_sentence: &[Vec<usize>],
+    index: usize,
+    entities: &[VisualEntity],
+) -> Option<usize> {
     let mut people = BTreeSet::new();
     for previous in index.saturating_sub(6)..index {
         people.extend(persons_per_sentence.get(previous)?.iter().copied());
     }
-    if people.len() == 1 {
-        people.into_iter().next()
-    } else {
-        None
+    // "Alberto Stasi" and a later bare "Stasi" are the same person, so the
+    // window must not read them as two candidates. Surfaces that share every
+    // token collapse into one; the longest surface wins so the fact is
+    // attributed to the canonical full name.
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for candidate in people {
+        let text = entities[candidate].text.to_lowercase();
+        let tokens: BTreeSet<&str> = text.split_whitespace().collect();
+        let merged = groups.iter_mut().find(|group| {
+            group.iter().any(|member| {
+                let other = entities[*member].text.to_lowercase();
+                let other_tokens: BTreeSet<&str> = other.split_whitespace().collect();
+                tokens.is_subset(&other_tokens) || other_tokens.is_subset(&tokens)
+            })
+        });
+        match merged {
+            Some(group) => group.push(candidate),
+            None => groups.push(vec![candidate]),
+        }
     }
+    if groups.len() != 1 {
+        return None;
+    }
+    groups.pop().and_then(|group| {
+        group.into_iter().max_by_key(|index| {
+            (
+                entities[*index].text.len(),
+                std::cmp::Reverse(entities[*index].start),
+            )
+        })
+    })
 }
 
 /// The value side of one legal fact: the verbatim surface, its canonical
@@ -546,6 +640,44 @@ mod tests {
             .find(|fact| fact.normalized_value.as_deref() == Some("acquitted"))
             .expect("acquittal fact");
         assert_eq!(acquitted.normalized_date.as_deref(), Some("2014"));
+    }
+
+    #[test]
+    fn finality_prefers_the_convicted_person_over_the_court_after_the_marker() {
+        let (facts, ids) = facts(
+            "Il 17 dicembre 2014 la Corte d'Assise d'Appello di Milano pronunciò una condanna a sedici anni per Alberto Stasi. Il 12 dicembre 2015 la condanna divenne definitiva in Cassazione.",
+        );
+        let person = ids
+            .iter()
+            .find(|id| id.contains("Alberto Stasi"))
+            .expect("person id");
+        let final_fact = facts
+            .iter()
+            .find(|fact| fact.normalized_value.as_deref() == Some("final"))
+            .unwrap_or_else(|| panic!("final fact: {facts:?}"));
+        assert_eq!(&final_fact.subject_entity_id, person);
+        assert_eq!(final_fact.normalized_date.as_deref(), Some("2015-12-12"));
+    }
+
+    #[test]
+    fn confirmed_acquittal_does_not_also_emit_a_plain_acquittal() {
+        let (facts, _) = facts(
+            "Nel 2009 Alberto Stasi fu assolto. Il 6 dicembre 2011 la Corte d'Appello di Milano confermò l'assoluzione.",
+        );
+        assert!(
+            facts.iter().any(|fact| {
+                fact.normalized_value.as_deref() == Some("acquittal_confirmed")
+                    && fact.normalized_date.as_deref() == Some("2011-12-06")
+            }),
+            "confirmation fact: {facts:?}"
+        );
+        assert!(
+            !facts.iter().any(|fact| {
+                fact.normalized_value.as_deref() == Some("acquitted")
+                    && fact.normalized_date.as_deref() == Some("2011-12-06")
+            }),
+            "the generic marker duplicated the confirmation: {facts:?}"
+        );
     }
 
     #[test]

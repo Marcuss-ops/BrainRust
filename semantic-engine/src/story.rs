@@ -53,6 +53,7 @@ pub fn build_story_graph(scenes: &[SceneManifest]) -> StoryGraph {
                     mention.scene_id.clone(),
                     mention.start_byte,
                     mention.end_byte,
+                    mention.surface.clone(),
                 ));
             }
         }
@@ -65,7 +66,7 @@ pub fn build_story_graph(scenes: &[SceneManifest]) -> StoryGraph {
     for (identity_id, node) in &mut identities {
         node.mentions.sort();
         node.mentions.dedup();
-        let Some((_, scene_id, start, end)) = node.mentions.first().cloned() else {
+        let Some((_, scene_id, start, end, _)) = node.mentions.first().cloned() else {
             continue;
         };
         anchors.insert(
@@ -126,7 +127,7 @@ pub fn build_story_graph(scenes: &[SceneManifest]) -> StoryGraph {
         .collect();
     for (identity_id, node) in &identities {
         let mut scene_ids: Vec<String> = Vec::new();
-        for (_, mention_scene, _, _) in &node.mentions {
+        for (_, mention_scene, _, _, _) in &node.mentions {
             if !scene_ids.iter().any(|known| known == mention_scene) {
                 scene_ids.push(mention_scene.clone());
             }
@@ -134,7 +135,7 @@ pub fn build_story_graph(scenes: &[SceneManifest]) -> StoryGraph {
         if !linked.contains(identity_id) && scene_ids.len() < 2 {
             continue;
         }
-        let Some((_, scene_id, start, end)) = node.mentions.first().cloned() else {
+        let Some((_, scene_id, start, end, surface)) = node.mentions.first().cloned() else {
             continue;
         };
         nodes.push(StoryNode {
@@ -147,7 +148,10 @@ pub fn build_story_graph(scenes: &[SceneManifest]) -> StoryGraph {
             fact_id: None,
             normalized_date: None,
             sentence_index: None,
-            evidence: node.label.clone(),
+            // The anchor span belongs to one concrete mention; the canonical
+            // label may be longer ("Alberto Stasi" vs a "Stasi" mention), so
+            // the node carries the mention surface, never the label.
+            evidence: surface,
             start_byte: start,
             end_byte: end,
         });
@@ -160,8 +164,10 @@ pub fn build_story_graph(scenes: &[SceneManifest]) -> StoryGraph {
 #[derive(Default)]
 struct IdentityNode {
     label: String,
-    /// `(scene order, scene id, start, end)` for every grounded mention.
-    mentions: Vec<(usize, String, usize, usize)>,
+    /// `(scene order, scene id, start, end, surface)` for every grounded
+    /// mention. The surface is the text actually in that scene, so an alias
+    /// mention ("Stasi") still grounds its own node span.
+    mentions: Vec<(usize, String, usize, usize, String)>,
 }
 
 /// Identity -> fact links and their chronological projection. A chronology is

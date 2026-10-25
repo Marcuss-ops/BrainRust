@@ -59,28 +59,34 @@ pub fn process(request: Request) -> Response {
 }
 
 pub fn run_stdio() -> io::Result<()> {
-    ndjson_stdio::run_stdio(|line| {
-        let response = match serde_json::from_str::<Request>(line) {
-            Ok(request) => process(request),
-            Err(error) => Response {
-                ok: false,
-                operation: "invalid".to_string(),
-                source_path: None,
-                items: Vec::new(),
-                metadata: None,
-                error: Some(format!("invalid request: {error}")),
-            },
-        };
-        match serde_json::to_string(&response) {
-            Ok(line) => line,
-            Err(error) => serde_json::json!({
-                "ok": false,
-                "operation": "invalid",
-                "error": format!("dispatcher encode: {error}"),
-            })
-            .to_string(),
-        }
-    })
+    // Requests are independent, so the persistent worker serves them from a
+    // bounded thread pool. Responses stay in input order and byte-identical
+    // to the serial loop; `PIPELINE_MUSCLES_WORKERS=1` restores serial.
+    ndjson_stdio::run_stdio_parallel(
+        |line| {
+            let response = match serde_json::from_str::<Request>(line) {
+                Ok(request) => process(request),
+                Err(error) => Response {
+                    ok: false,
+                    operation: "invalid".to_string(),
+                    source_path: None,
+                    items: Vec::new(),
+                    metadata: None,
+                    error: Some(format!("invalid request: {error}")),
+                },
+            };
+            match serde_json::to_string(&response) {
+                Ok(line) => line,
+                Err(error) => serde_json::json!({
+                    "ok": false,
+                    "operation": "invalid",
+                    "error": format!("dispatcher encode: {error}"),
+                })
+                .to_string(),
+            }
+        },
+        ndjson_stdio::workers_from_env("PIPELINE_MUSCLES_WORKERS"),
+    )
 }
 
 #[cfg(test)]

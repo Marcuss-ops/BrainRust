@@ -55,29 +55,31 @@ pub fn detect_comparison(
 ) -> Option<Comparison> {
     let cues = &semantic_core::lexicon::lexicon().discourse;
     let entity_lc: Vec<String> = entities.iter().map(|e| e.to_lowercase()).collect();
+    // One membership index per call (not per sentence): the adjective table
+    // is a set question, not a scan question.
+    let comparative_adj: std::collections::HashSet<&str> =
+        cues.comparative_adj.iter().map(String::as_str).collect();
     for s in sentences {
-        let toks = tokens(&s.text);
+        let index = s.token_index();
+        let toks = index.tokens();
         let explicit = cues
             .comparison_signals
             .iter()
-            .any(|p| contains_phrase(&toks, p));
-        let verb_contrast = cues
-            .contrast_verbs
-            .iter()
-            .any(|v| contains_token(&toks, v.as_str()));
+            .any(|p| index.contains_phrase(p));
+        let verb_contrast = index.contains_any(&cues.contrast_verbs);
         let adj_pos = toks
             .iter()
-            .position(|t| cues.comparative_adj.iter().any(|adj| adj == t));
+            .position(|t| comparative_adj.contains(t.as_str()));
         let has_signal = explicit
             || (verb_contrast && capitalized_terms(&s.text).len() >= 2)
             || adj_pos.is_some();
         if !has_signal {
             continue;
         }
-        let negated = adj_pos.map(|p| is_negated(&toks, p)).unwrap_or(false);
+        let negated = adj_pos.map(|p| is_negated(toks, p)).unwrap_or(false);
         let subjects = ground_subjects(&s.text, &entity_lc);
         if subjects.len() >= 2 {
-            let dimension = guess_dimension(&toks);
+            let dimension = guess_dimension(index);
             let values = parse_values(&s.text);
             let quantitative = !values.is_empty();
             return Some(Comparison {
@@ -190,14 +192,11 @@ pub(super) fn ground_subjects(sentence: &str, entities: &[String]) -> Vec<String
 }
 
 /// Comparison dimension from the shared cue table ("investment", "cost",
-/// "growth", "strategy"); `general` when no key matches.
-pub(super) fn guess_dimension(toks: &[String]) -> String {
+/// "growth", "strategy"); `general` when no key matches. O(1) per marker
+/// via the shared [`TokenIndex`].
+pub(super) fn guess_dimension(index: &TokenIndex) -> String {
     for dimension in &semantic_core::lexicon::lexicon().discourse.dimensions {
-        if dimension
-            .markers
-            .iter()
-            .any(|k| contains_token(toks, k.as_str()))
-        {
+        if index.contains_any(&dimension.markers) {
             return format!("{}_strategy", dimension.name);
         }
     }

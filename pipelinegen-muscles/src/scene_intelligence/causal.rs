@@ -90,13 +90,14 @@ pub(super) fn split_at_marker(
 /// never conflated. Attributed/conditional claims keep their attribution
 /// and hypothetical flag with lowered confidence.
 pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
-    let toks = tokens(&sentence.text);
+    let index = sentence.token_index();
+    let toks = index.tokens();
     let cues = &semantic_core::lexicon::lexicon().discourse;
-    if let Some((cause_after, mlen, pos)) = find_causal_marker(&toks) {
-        if is_negated(&toks, pos) {
+    if let Some((cause_after, mlen, pos)) = find_causal_marker(toks) {
+        if is_negated(toks, pos) {
             return None;
         }
-        let (before, after) = split_at_marker(&sentence.text, &toks, pos, mlen);
+        let (before, after) = split_at_marker(&sentence.text, toks, pos, mlen);
         let (cause, effect) = if cause_after {
             (after, before)
         } else {
@@ -105,7 +106,7 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
         if cause.is_empty() || effect.is_empty() {
             return None;
         }
-        let hypothetical = is_hypothetical(&toks);
+        let hypothetical = is_hypothetical(index);
         let attribution = extract_attribution(&sentence.text);
         return Some(CausalRelation {
             kind: "causal_relation".to_string(),
@@ -129,20 +130,20 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
         .map(|(i, _)| i)
         .next()
     {
-        if is_negated(&toks, pos) {
+        if is_negated(toks, pos) {
             return None;
         }
         let mlen = cues
             .contribute
             .iter()
-            .find(|p| window_eq(&toks, pos, p))
+            .find(|p| window_eq(toks, pos, p))
             .map(|p| p.len())
             .unwrap_or(2);
-        let (before, after) = split_at_marker(&sentence.text, &toks, pos, mlen);
+        let (before, after) = split_at_marker(&sentence.text, toks, pos, mlen);
         if before.is_empty() || after.is_empty() {
             return None;
         }
-        let hypothetical = is_hypothetical(&toks);
+        let hypothetical = is_hypothetical(index);
         let attribution = extract_attribution(&sentence.text);
         return Some(CausalRelation {
             kind: "causal_relation".to_string(),
@@ -155,11 +156,7 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
             hypothetical,
         });
     }
-    if cues
-        .sequence
-        .iter()
-        .any(|m| contains_token(&toks, m.as_str()))
-    {
+    if index.contains_any(&cues.sequence) {
         let (cause, effect) = split_around(&sentence.text);
         return Some(CausalRelation {
             kind: "causal_relation".to_string(),
@@ -176,13 +173,10 @@ pub fn extract_causal(sentence: &Sentence) -> Option<CausalRelation> {
 }
 
 /// Conditional auxiliaries ("avrebbe", "would", ...) mark hypothetical
-/// causation; the vocabulary lives in the lexicon.
-pub(super) fn is_hypothetical(toks: &[String]) -> bool {
-    semantic_core::lexicon::lexicon()
-        .discourse
-        .hypothetical
-        .iter()
-        .any(|m| contains_token(toks, m.as_str()))
+/// causation; the vocabulary lives in the lexicon. O(1) per marker via the
+/// shared [`TokenIndex`].
+pub(super) fn is_hypothetical(index: &TokenIndex) -> bool {
+    index.contains_any(&semantic_core::lexicon::lexicon().discourse.hypothetical)
 }
 
 /// Verbatim attribution prefix ("Secondo gli analisti, ..." →
