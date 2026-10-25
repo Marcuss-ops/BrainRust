@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Scorer for the multilingual gold set.
 
-Drives the release worker (`release/semantic-worker`, mode `analyze_script`)
-over the 20 annotated scripts and scores the manifest against `gold.json`:
+Drives the release worker (`target/release/semantic-engine`, operation
+`analyze_script`) over the 20 annotated scripts and scores the manifest
+against `gold.json`:
 
   * recall      - gold entities found by an extracted entity of the same type
                   (case-folded token-set containment, so a head span such as
@@ -17,7 +18,7 @@ A gold entity the engine misses is reported as a MISS; the scorer never
 rewrites the gold.
 
 Usage:
-    python3 score_gold.py [--report /tmp/gold_score_report.json] [script_id ...]
+    python3 score_gold.py [--worker PATH] [--report /tmp/gold_score_report.json] [script_id ...]
 
 Exit code 0 when every threshold in `gold.json` is met, 1 otherwise.
 """
@@ -26,15 +27,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import select
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 ROOT = BASE.parents[2]
-WORKER = ROOT / "release" / "semantic-worker"
+DEFAULT_WORKER = ROOT / "target" / "release" / "semantic-engine"
 
 NAMED_TYPES = {"PERSON", "LOCATION", "ORG", "ORGANIZATION", "WORK", "BRAND", "PRODUCT"}
 TYPE_ALIAS = {"ORGANIZATION": "ORG"}
@@ -76,36 +80,50 @@ def matches_any_type(ex_text: str, gold_text: str) -> bool:
     return contains(a, b) or contains(b, a)
 
 
-def run_worker(script_text: str, language: str) -> dict:
-    with tempfile.TemporaryDirectory(prefix="gold_score_") as tmp:
-        tmp_path = Path(tmp)
-        out = tmp_path / "manifest.json"
-        job = {
-            "job": "gold_multilingual",
-            "job_schema": "worker.v1",
-            "output": str(out),
-            "mode": "analyze_script",
-            "extension": "txt",
-            "pipeline": "human",
-            "language": language,
-            "source_url": "gold://multilingual",
-            "vendor": "human",
-            "model": "human",
-            "codec": "json",
-        }
-        job_path = tmp_path / "job.json"
-        job_path.write_text(json.dumps(job), encoding="utf-8")
-        payload = json.dumps({"path": "gold.txt", "text": script_text})
-        proc = subprocess.run(
-            [str(WORKER), "--job", str(job_path)],
-            input=payload,
-            capture_output=True,
-            text=True,
-            timeout=120,
+class NDJSONWorker:
+    """Persistent worker on stdin/stdout (the same protocol as benchmark.py)."""
+
+    def __init__(self, filename: Path):
+        self.errlog = tempfile.TemporaryFile()
+        self.p = subprocess.Popen(
+            [str(filename)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=self.errlog,
         )
-        if proc.returncode != 0:
-            raise RuntimeError(f"worker failed: {proc.stderr[-2000:]}")
-        return json.loads(out.read_text(encoding="utf-8"))
+        self.buffer = b""
+
+    def request(self, payload: dict, timeout: float = 120.0) -> dict:
+        self.p.stdin.write(
+            (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+        )
+        self.p.stdin.flush()
+        deadline = time.monotonic() + timeout
+        while True:
+            i = self.buffer.find(b"\n")
+            if i >= 0:
+                result = self.buffer[:i]
+                self.buffer = self.buffer[i + 1 :]
+                return json.loads(result)
+            rem = deadline - time.monotonic()
+            if rem <= 0 or self.p.poll() is not None:
+                raise RuntimeError("worker exited or request deadline exceeded")
+            ready, _, _ = select.select([self.p.stdout], [], [], rem)
+            if not ready:
+                raise TimeoutError("worker request timeout")
+            chunk = os.read(self.p.stdout.fileno(), 1048576)
+            if not chunk:
+                raise RuntimeError("worker output EOF")
+            self.buffer += chunk
+
+    def close(self):
+        try:
+            self.p.stdin.close()
+            self.p.wait(timeout=3)
+        except Exception:
+            self.p.kill()
+            self.p.wait()
+        self.errlog.close()
 
 
 def collect_queries(manifest: dict) -> list[str]:
@@ -122,10 +140,19 @@ def collect_queries(manifest: dict) -> list[str]:
     return [q for q in queries if q]
 
 
-def score_script(script_id: str, spec: dict, gold: dict) -> dict:
+def score_script(worker: NDJSONWorker, script_id: str, spec: dict) -> dict:
     language = spec["language"]
     script_text = (BASE / spec["file"]).read_text(encoding="utf-8").strip()
-    manifest = run_worker(script_text, language)
+    response = worker.request(
+        {
+            "operation": "analyze_script",
+            "language": language,
+            "scenes": [{"scene_id": "s01", "text": script_text}],
+        }
+    )
+    if not response.get("ok"):
+        raise RuntimeError(f"worker refused {script_id}: {response.get('error')}")
+    manifest = response["manifest"]
 
     extracted: list[tuple[str, str]] = []
     seen = set()
@@ -198,19 +225,31 @@ def score_script(script_id: str, spec: dict, gold: dict) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--worker", default=str(DEFAULT_WORKER))
     parser.add_argument("--report", default="/tmp/gold_score_report.json")
     parser.add_argument("scripts", nargs="*")
     args = parser.parse_args()
 
-    if not WORKER.exists():
-        print(f"missing {WORKER}; build with: cargo build --release -p semantic-worker", file=sys.stderr)
+    worker_path = Path(args.worker)
+    if not worker_path.exists():
+        print(
+            f"missing {worker_path}; build with: cargo build --release -p semantic-engine",
+            file=sys.stderr,
+        )
         return 2
 
     gold = json.loads((BASE / "gold.json").read_text(encoding="utf-8"))
     specs = gold["scripts"]
     ids = args.scripts or sorted(specs)
 
-    results = [score_script(i, specs[i], gold) for i in ids]
+    worker = NDJSONWorker(worker_path)
+    try:
+        health = worker.request({"operation": "health"}, 30.0)
+        if not health.get("ok"):
+            raise RuntimeError(f"worker health failed: {health}")
+        results = [score_script(worker, i, specs[i]) for i in ids]
+    finally:
+        worker.close()
 
     thresholds = gold["annotation"]["scoring"]["thresholds"]
     total_gold = sum(r["gold"] for r in results)

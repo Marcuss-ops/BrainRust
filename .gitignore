@@ -7,3 +7,6 @@ lexicon/tools/__pycache__/
 
 # Local UDPipe models and benchmark scratch (see MULTILINGUAL_100_REPORT_2026-10-23.md).
 /.tmp/
+
+# Python bytecode from the gold-set scorer and any other helper scripts.
+__pycache__/
