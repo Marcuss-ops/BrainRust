@@ -3,7 +3,16 @@
   "language": "pl",
   "source": "lexicon/languages/pl",
   "closed_class": [],
-  "blocked": [],
+  "blocked": [
+    "odkryj",
+    "odkrywaj",
+    "odwiedzaj",
+    "odwiedź",
+    "poznaj",
+    "zobacz",
+    "zwiedzaj",
+    "zwiedź"
+  ],
   "function_words": [
     "był",
     "była",

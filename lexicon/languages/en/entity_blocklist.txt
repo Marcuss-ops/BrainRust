@@ -170,9 +170,22 @@ as
 journey
 tracing
 continuing
-journey
-tracing
-continuing
 company
 contains
 traditionally
+
+# Tight class: sentence-initial imperative/narration verbs that fuse with a
+# following place name ("Visit London today."). Structural evidence (POS tag,
+# lemma case, gazetteer) decides first; this list is the fallback where the
+# tagger destroys that evidence and for the untyped script-wide name pass.
+visit
+visits
+visiting
+discover
+discovered
+explore
+explored
+imagine
+imagined
+travel
+watch

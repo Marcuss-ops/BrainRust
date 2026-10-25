@@ -46,7 +46,19 @@
     "vosotros",
     "y"
   ],
-  "blocked": [],
+  "blocked": [
+    "conoce",
+    "conoced",
+    "descubre",
+    "descubrid",
+    "explora",
+    "explorad",
+    "recorre",
+    "recorred",
+    "visita",
+    "visitar",
+    "visitas"
+  ],
   "function_words": [
     "a",
     "al",

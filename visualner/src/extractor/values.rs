@@ -2,8 +2,6 @@
 #[derive(Debug, Clone)]
 pub(super) struct Candidate {
     pub(super) text: String,
-    #[allow(dead_code)]
-    pub(super) normalized: String,
     pub(super) start: usize,
     pub(super) end: usize,
     pub(super) entity_type: Option<String>,
@@ -145,13 +143,21 @@ fn classify_type(
         return "PRODUCT".to_string();
     }
     // An institution is never a person: "Corte Suprema" and "Cassazione" are
-    // offices, and the curated legal cue decides their kind.
+    // offices, and the curated legal cue decides their kind. The head keeps
+    // its capital when it names the office ("Il Tribunale", "Procura di
+    // Pavia"); a bare lowercase head ("tribunale") is a common noun and stays
+    // a visual concept instead of becoming a fake organization.
     if let Some(kind) = institution_cue_kind(text, language) {
-        return if kind == "ORG" {
-            "ORG".to_string()
-        } else {
-            "VISUAL_CONCEPT".to_string()
-        };
+        let head_capitalized = text.chars().next().is_some_and(char::is_uppercase);
+        if kind == "ORG"
+            && (head_capitalized
+                || !lexicon
+                    .language_profiles
+                    .uppercase_is_name_evidence(language))
+        {
+            return "ORG".to_string();
+        }
+        return "VISUAL_CONCEPT".to_string();
     }
     // Capitalization is name evidence only where the orthography makes it
     // meaningful: not in Han/Arabic/Thai (no case), and not in German (every
@@ -211,7 +217,6 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
         if let Some((start, end)) = numeric_date_span(source_text, i) {
             let text = source_text[start..end].to_string();
             out.push(Candidate {
-                normalized: text.to_lowercase(),
                 text,
                 start,
                 end,
@@ -332,7 +337,6 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
         }
         let text = source_text[start..end].to_string();
         out.push(Candidate {
-            normalized: text.to_lowercase(),
             text,
             start,
             end,
@@ -433,6 +437,23 @@ mod tests {
             candidate.text == "giugno 1988"
                 && source.get(candidate.start..candidate.end) == Some("giugno 1988")
         }));
+    }
+
+    #[test]
+    fn a_bare_lowercase_institution_word_is_a_common_noun_not_an_organization() {
+        // The cue head names the office only when the surface keeps its
+        // capital: "tribunale" is the common noun, "Tribunale di Torino" and
+        // "La Procura" are the offices.
+        assert_eq!(
+            classify_type("tribunale", true, false, true, "it"),
+            "VISUAL_CONCEPT"
+        );
+        assert_eq!(classify_type("Tribunale", true, false, true, "it"), "ORG");
+        assert_eq!(
+            classify_type("Tribunale di Torino", true, false, true, "it"),
+            "ORG"
+        );
+        assert_eq!(classify_type("Procura", true, false, true, "it"), "ORG");
     }
 
     #[test]

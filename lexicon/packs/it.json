@@ -178,7 +178,19 @@
     "vuole",
     "è"
   ],
-  "blocked": [],
+  "blocked": [
+    "conoscete",
+    "conosci",
+    "esplora",
+    "esplorate",
+    "immagina",
+    "immaginate",
+    "scopri",
+    "scoprite",
+    "visita",
+    "visitate",
+    "visite"
+  ],
   "function_words": [
     "abbastanza",
     "agli",

@@ -28,8 +28,6 @@ pub mod error;
 mod golden;
 mod gpu;
 pub mod overlay_fingerprint;
-pub mod phrase_impact;
-pub mod phrase_impact_worker;
 pub mod preflight;
 mod probe;
 mod process;
@@ -37,8 +35,6 @@ mod protocol;
 mod render_audio;
 mod render_clip;
 mod render_stock;
-pub mod scene_intelligence;
-pub mod scene_intelligence_worker;
 mod transform;
 
 pub use dispatcher::{process, run_stdio};

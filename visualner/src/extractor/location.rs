@@ -1,4 +1,6 @@
-use super::*;
+use super::names::candidate_from_tokens;
+use super::tokenizer::Token;
+use super::values::Candidate;
 
 use semantic_core::lexicon::lexicon;
 

@@ -60,7 +60,16 @@
     "uma",
     "é"
   ],
-  "blocked": [],
+  "blocked": [
+    "conheça",
+    "descubra",
+    "explora",
+    "percorra",
+    "veja",
+    "visitar",
+    "visitas",
+    "visite"
+  ],
   "function_words": [
     "ao",
     "cada",

@@ -75,7 +75,16 @@
     "vous",
     "à"
   ],
-  "blocked": [],
+  "blocked": [
+    "découvre",
+    "découvrez",
+    "explorez",
+    "parcourez",
+    "visite",
+    "visiter",
+    "visites",
+    "visitez"
+  ],
   "function_words": [
     "a",
     "au",

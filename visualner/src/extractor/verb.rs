@@ -20,7 +20,7 @@
 
 use semantic_core::lexicon::lexicon;
 
-use super::Token;
+use super::tokenizer::Token;
 
 /// is_verbal_predicate reports whether the candidate phrase spanning
 /// `tokens[phrase_start..phrase_end]` is a verbal predicate in context and
@@ -36,7 +36,7 @@ pub(super) fn is_verbal_predicate(
     }
     // Proper names are never dropped by the predicate rule: "E Milano" is a
     // conjunct name, not the verb reading of the same surface.
-    if super::starts_uppercase(&tokens[phrase_start].text) {
+    if super::location::starts_uppercase(&tokens[phrase_start].text) {
         return false;
     }
     // A clitic plus its verb ("si trova") is one predicate; the model supplies
@@ -56,7 +56,7 @@ pub(super) fn is_verbal_continuation(tokens: &[Token], index: usize, language: &
     let Some(token) = tokens.get(index) else {
         return false;
     };
-    !super::starts_uppercase(&token.text) && is_verb_token(token, language)
+    !super::location::starts_uppercase(&token.text) && is_verb_token(token, language)
 }
 
 /// is_verb_token reads the model evidence. A `VERB`/`AUX` tag is decisive; a

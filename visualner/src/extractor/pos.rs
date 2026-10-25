@@ -12,16 +12,34 @@
 //! Model directory: `$VISUALNER_MODEL_DIR`, or `$HOME/.local/share/visualner/models`.
 //! Models are not bundled; download them from the UDPipe model page.
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex, OnceLock};
 
-use super::Token;
+use super::tokenizer::Token;
 
-thread_local! {
-    static MODELS: RefCell<HashMap<String, Option<Rc<udpipe_rs::Model>>>> =
-        RefCell::new(HashMap::new());
+/// One process-wide, single-flight slot per language. The UDPipe model is big
+/// (10-24 MB) and loading it dominates the first request for a language; a
+/// thread-local cache only amortized that cost within the same worker thread.
+/// `OnceLock` keeps the exact once-per-language contract for the whole process
+/// while `Model`'s documented Send + Sync lets every worker share the loaded
+/// bytes.
+type ModelSlots = HashMap<String, Arc<OnceLock<Option<Arc<udpipe_rs::Model>>>>>;
+
+static MODELS: OnceLock<Mutex<ModelSlots>> = OnceLock::new();
+
+fn model_slot(language: &str) -> Arc<OnceLock<Option<Arc<udpipe_rs::Model>>>> {
+    let slots = MODELS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = match slots.lock() {
+        Ok(guard) => guard,
+        // A panicked loader must not take the cache down for every later
+        // request: the slot itself has no invariant that a panic can break.
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard
+        .entry(language.to_string())
+        .or_insert_with(|| Arc::new(OnceLock::new()))
+        .clone()
 }
 
 /// Universal POS tags that are phrase material (nouns, proper nouns, numbers).
@@ -181,33 +199,28 @@ fn token_tail_matches(surface: &str, form: &str) -> bool {
         .is_some_and(|(_, tail)| !tail.is_empty() && tail == form)
 }
 
-fn load_model(language: &str) -> Option<Rc<udpipe_rs::Model>> {
+fn load_model(language: &str) -> Option<Arc<udpipe_rs::Model>> {
     let key = language.trim().to_lowercase();
-    MODELS.with(|cache| {
-        if let Some(entry) = cache.borrow().get(&key) {
-            return entry.clone();
-        }
-        let loaded = match model_path(&key) {
-            Some(path) => match udpipe_rs::Model::load(&path) {
-                Ok(model) => Some(Rc::new(model)),
-                Err(error) => {
-                    eprintln!(
-                        "visualner: UDPipe model {} failed to load for {key}: {error}; continuing with the model-free fallback",
-                        path.display()
-                    );
-                    None
-                }
-            },
-            None => {
+    let slot = model_slot(&key);
+    slot.get_or_init(|| match model_path(&key) {
+        Some(path) => match udpipe_rs::Model::load(&path) {
+            Ok(model) => Some(Arc::new(model)),
+            Err(error) => {
                 eprintln!(
-                    "visualner: no UDPipe model installed for {key}; POS evidence and verb filtering are disabled for this language"
+                    "visualner: UDPipe model {} failed to load for {key}: {error}; continuing with the model-free fallback",
+                    path.display()
                 );
                 None
             }
-        };
-        cache.borrow_mut().insert(key, loaded.clone());
-        loaded
+        },
+        None => {
+            eprintln!(
+                "visualner: no UDPipe model installed for {key}; POS evidence and verb filtering are disabled for this language"
+            );
+            None
+        }
     })
+    .clone()
 }
 
 /// model_path resolves the UDPipe file for a language tag inside the model
@@ -260,6 +273,22 @@ mod tests {
         assert!(!is_stop_token(&token("feta", None), "en"));
     }
 
+    /// The cache key is normalized: case and padding of the language tag must
+    /// not trigger a second load.
+    #[test]
+    fn model_cache_key_normalizes_the_language_tag() {
+        if super::model_path("it").is_none() {
+            eprintln!("UDPipe Italian model not installed; cache key assertions skipped");
+            return;
+        }
+        let plain = load_model("it").expect("model installed");
+        let padded = load_model("  IT ").expect("model installed");
+        assert!(
+            Arc::ptr_eq(&plain, &padded),
+            "'  IT ' must resolve to the same cached model as 'it'"
+        );
+    }
+
     #[test]
     fn contraction_parts_match_inside_one_icu_token() {
         assert!(word_matches_token("dell'arte", "l'"));
@@ -270,5 +299,24 @@ mod tests {
         assert!(!word_matches_token("casa", "a"));
         assert!(word_matches_token("a", "a"));
         assert!(!word_matches_token("corte", ""));
+    }
+
+    #[test]
+    fn udpipe_models_are_shared_across_threads() {
+        // Models are optional in a source checkout. When the English model is
+        // installed, two worker threads must receive the same loaded instance:
+        // the cache is process-wide, not thread-local.
+        let Some(first) = load_model("en") else {
+            eprintln!("UDPipe English model not installed; shared-cache assertion skipped");
+            return;
+        };
+        let second = std::thread::spawn(|| load_model("en"))
+            .join()
+            .expect("loader thread must not panic")
+            .expect("the second load must reuse the first model");
+        assert!(
+            Arc::ptr_eq(&first, &second),
+            "the process-wide cache must return one loaded model per language"
+        );
     }
 }

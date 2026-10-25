@@ -3,7 +3,14 @@
   "language": "tr",
   "source": "lexicon/languages/tr",
   "closed_class": [],
-  "blocked": [],
+  "blocked": [
+    "gez",
+    "gezin",
+    "görün",
+    "keşfedin",
+    "keşfet",
+    "ziyaret"
+  ],
   "function_words": [
     "almaya",
     "başka",

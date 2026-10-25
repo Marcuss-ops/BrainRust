@@ -107,7 +107,9 @@ fn fixture(language: &str, target_words: usize) -> String {
     while words < target_words {
         text.push_str(sentences[index % sentences.len()]);
         text.push(' ');
-        words += sentences[index % sentences.len()].split_whitespace().count();
+        words += sentences[index % sentences.len()]
+            .split_whitespace()
+            .count();
         index += 1;
     }
     text
@@ -176,21 +178,31 @@ fn steady_state() {
         );
     }
     for _ in 0..WARMUP_RUNS {
-        black_box(analyze(&fixture("it", 3000), &ExtractOptions {
-            language: "it".to_string(),
-            entity_count: 32,
-        })
-        .expect("analyze warmup"));
+        black_box(
+            analyze(
+                &fixture("it", 3000),
+                &ExtractOptions {
+                    language: "it".to_string(),
+                    entity_count: 32,
+                },
+            )
+            .expect("analyze warmup"),
+        );
     }
     let text = fixture("it", 3000);
     let mut runs = Vec::with_capacity(MEASURED_RUNS);
     for _ in 0..MEASURED_RUNS {
         let started = Instant::now();
-        black_box(analyze(&text, &ExtractOptions {
-            language: "it".to_string(),
-            entity_count: 32,
-        })
-        .expect("analyze"));
+        black_box(
+            analyze(
+                &text,
+                &ExtractOptions {
+                    language: "it".to_string(),
+                    entity_count: 32,
+                },
+            )
+            .expect("analyze"),
+        );
         runs.push(started.elapsed().as_secs_f64() * 1000.0);
     }
     let p = percentiles(runs);
@@ -202,9 +214,14 @@ fn steady_state() {
 
 fn main() {
     cold_burst();
+    // `EXTRACT_BENCH_COLD_ONLY=1` skips the steady-state section so the
+    // cold-burst measurement can be sampled repeatedly (before/after model
+    // cache changes) without paying for the multi-minute steady matrix. The
+    // default (unset) runs everything, unchanged.
+    if std::env::var_os("EXTRACT_BENCH_COLD_ONLY").is_some() {
+        println!("final_peak_rss_mb={:.1}", peak_rss_mb().unwrap_or(0.0));
+        return;
+    }
     steady_state();
-    println!(
-        "final_peak_rss_mb={:.1}",
-        peak_rss_mb().unwrap_or(0.0)
-    );
+    println!("final_peak_rss_mb={:.1}", peak_rss_mb().unwrap_or(0.0));
 }

@@ -79,7 +79,17 @@
     "zwischen",
     "über"
   ],
-  "blocked": [],
+  "blocked": [
+    "besichtige",
+    "besichtigt",
+    "besuche",
+    "besuchen",
+    "besucht",
+    "entdecke",
+    "entdeckt",
+    "erkunde",
+    "erkundet"
+  ],
   "function_words": [
     "als",
     "andere",

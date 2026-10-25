@@ -5,8 +5,8 @@
 //! language, requires complete-input parsing, and returns original UTF-8 byte
 //! spans rather than normalized text.
 
-use std::collections::BTreeSet;
-use std::sync::OnceLock;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use rust_icu_sys::{ULocDataLocaleType, UNumberFormatAttribute, UNumberFormatStyle};
 use rust_icu_uloc::ULoc;
@@ -30,6 +30,100 @@ struct LocaleFormatters {
     locale: ULoc,
     spellout: Option<UNumberFormat>,
     ordinal: Option<UNumberFormat>,
+}
+
+/// Every normalized spelling the locale's own formatters can produce for a
+/// small, representative number set: 0..=1000, the spoken thousands, the
+/// powers of ten and the ordinals a script may use. ICU RBNF parsing is the
+/// only correct oracle, but calling it for every 1..=8-token window of prose
+/// costs seconds per long scene. This vocabulary is a cheap *prefilter*: a
+/// window is parsed only when it contains one of these words (or starts with
+/// a spoken thousands prefix such as `duemila`). The parser still decides the
+/// value and the exact span, so the prefilter can only skip windows that
+/// cannot possibly be numbers.
+struct NumberVocabulary {
+    words: BTreeSet<String>,
+    thousands: Vec<String>,
+}
+
+fn number_vocabulary(language: &str) -> Result<Arc<NumberVocabulary>, String> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Arc<NumberVocabulary>>>> = OnceLock::new();
+    let key = language.trim().to_ascii_lowercase();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(vocabulary) = cache
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(&key)
+    {
+        return Ok(vocabulary.clone());
+    }
+    let formatters = formatters(language)?;
+    let mut words = BTreeSet::new();
+    let mut thousands = Vec::new();
+    if let Some(formatter) = &formatters.spellout {
+        for value in 0..=1000i64 {
+            if let Ok(spelled) = formatter.format_i64(value) {
+                words.insert(normalize_spellout(&spelled));
+            }
+        }
+        for multiplier in 1..=99i64 {
+            if let Ok(spelled) = formatter.format_i64(multiplier * 1000) {
+                let normalized = normalize_spellout(&spelled);
+                thousands.push(normalized.clone());
+                words.insert(normalized);
+            }
+        }
+        // Scale words and their small multiples ("one million", "due milioni").
+        for exponent in 6..=12u32 {
+            let Some(base) = 10i64.checked_pow(exponent) else {
+                break;
+            };
+            for multiplier in 1..=9i64 {
+                if let Ok(spelled) = formatter.format_i64(base * multiplier) {
+                    words.insert(normalize_spellout(&spelled));
+                }
+            }
+        }
+    }
+    if let Some(formatter) = &formatters.ordinal {
+        for value in 0..=100i64 {
+            if let Ok(spelled) = formatter.format_i64(value) {
+                words.insert(normalize_spellout(&spelled));
+            }
+        }
+    }
+    let vocabulary = Arc::new(NumberVocabulary { words, thousands });
+    cache
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(key, vocabulary.clone());
+    Ok(vocabulary)
+}
+
+/// A window is worth an RBNF parse only when a plausible number word opens
+/// near it. The parser may legitimately start a phrase with a determiner
+/// ("a hundred"), so the first three tokens are inspected.
+fn plausible_number_start(
+    source: &str,
+    tokens: &[WordToken],
+    start_index: usize,
+    vocabulary: &NumberVocabulary,
+) -> bool {
+    let end = (start_index + 3).min(tokens.len());
+    tokens[start_index..end].iter().any(|token| {
+        let Some(surface) = source.get(token.start..token.end) else {
+            return false;
+        };
+        if surface.chars().any(|character| character.is_ascii_digit()) {
+            return false;
+        }
+        let normalized = normalize_spellout(surface);
+        vocabulary.words.contains(&normalized)
+            || vocabulary
+                .thousands
+                .iter()
+                .any(|prefix| normalized.starts_with(prefix.as_str()))
+    })
 }
 
 fn available_languages() -> &'static BTreeSet<String> {
@@ -111,9 +205,16 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
         ));
     }
     let tokens = word_tokens(source);
+    let vocabulary = number_vocabulary(language)?;
     let mut out = Vec::new();
 
     for start_index in 0..tokens.len() {
+        // ICU RBNF parsing is the expensive part of this scan. Run it only
+        // when a spelled-number word is near the window start; ordinary prose
+        // windows cannot produce a number and must not pay for the parse.
+        if !plausible_number_start(source, &tokens, start_index, &vocabulary) {
+            continue;
+        }
         // Generate candidates from each token boundary. The overlap pass below
         // keeps the widest complete number phrase; suppressing a start based
         // on ICU parsing the preceding prose token can discard a valid number.

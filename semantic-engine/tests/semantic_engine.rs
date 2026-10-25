@@ -322,6 +322,50 @@ fn visual_query_suggestions_are_always_verbatim_source_slices() {
 }
 
 #[test]
+fn spelled_percentages_form_one_chart_of_both_values() {
+    // T05: spelled values ("quarantadue per cento") resolve exactly like
+    // digits ("42%") when they state their unit.
+    let text = "Il quarantadue per cento dei tecnici ha segnalato il problema, \
+                contro il diciotto per cento del gruppo di controllo.";
+    let value = manifest_value(vec![scene("confronto-scritto", text)]);
+    let charts = proposals_of(&value["scenes"][0], "chart");
+    assert_eq!(charts.len(), 1, "one chart expected: {value}");
+    let mut values: Vec<f64> = charts[0]["chart_items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["value"].as_f64().unwrap())
+        .collect();
+    values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    assert_eq!(values, vec![18.0, 42.0]);
+}
+
+#[test]
+fn a_spelled_value_without_a_unit_enters_no_numeric_projection() {
+    // A spelled quantity must state its unit: "quarantadue" alone is not a
+    // measurement, so it is neither a chart value nor a numeric fact.
+    let text = "Il quarantadue dei tecnici ha segnalato il problema, \
+                contro il diciotto del gruppo di controllo.";
+    let value = manifest_value(vec![scene("senza-unita", text)]);
+    let scene = &value["scenes"][0];
+    assert!(proposals_of(scene, "chart").is_empty(), "{value}");
+    assert!(
+        scene["numeric_facts"].as_array().unwrap().is_empty(),
+        "no unit, no numeric fact: {}",
+        scene["numeric_facts"]
+    );
+}
+
+#[test]
+fn different_kinds_never_form_a_chart() {
+    // Charts compare same-kind values: a percent against money is not a
+    // comparison, whatever the comparison cue says.
+    let text = "Il 42% dei tecnici ha speso 5.000 euro contro il piano iniziale.";
+    let value = manifest_value(vec![scene("tipi-misti", text)]);
+    assert!(proposals_of(&value["scenes"][0], "chart").is_empty(), "{value}");
+}
+
+#[test]
 fn single_number_never_becomes_a_chart() {
     let text = "Il 42% dei tecnici ha segnalato il problema durante la prova.";
     let value = manifest_value(vec![scene("singolo", text)]);
@@ -882,6 +926,17 @@ fn bullet_candidates_carry_the_shared_semantic_salience() {
 }
 
 #[test]
+fn filler_sentences_are_never_bullets() {
+    // A bullet needs a grounded signal: discourse noise stays out of the
+    // editorial bullets while the named sentence remains the only candidate.
+    let text = "Alberto Stasi viveva a Pavia. Non è così. Lui. Lei.";
+    let value = manifest_value(vec![scene("bullets-rumore", text)]);
+    let bullets = value["scenes"][0]["bullets"].as_array().unwrap();
+    assert_eq!(bullets.len(), 1, "only the grounded sentence: {bullets:?}");
+    assert_eq!(bullets[0]["text"], "Alberto Stasi viveva a Pavia.");
+}
+
+#[test]
 fn same_person_in_two_scenes_keeps_one_canonical_id() {
     let scenes = vec![
         scene("a", "Alberto Stasi è il primo nome."),
@@ -1021,6 +1076,219 @@ fn nested_location_survives_the_legal_org_upgrade() {
         .find(|entity| entity["text"] == "Pavia")
         .unwrap_or_else(|| panic!("nested Pavia was consumed: {entities:?}"));
     assert_eq!(pavia["type"], "LOCATION");
+}
+
+#[test]
+fn a_clause_opener_place_survives_script_wide_name_scoring() {
+    // "Bezoek Haarlem vandaag." opens with a narration verb. The fused
+    // capitalised run must not seed a script-wide person-name token, or the
+    // one-token LOCATION is later dropped as a "name fragment" of a person
+    // that never existed.
+    let manifest = analyze_script(&ScriptRequest {
+        language: "nl".to_string(),
+        scenes: vec![scene(
+            "bezoek-haarlem",
+            "Bezoek Haarlem vandaag. Het project begint in Haarlem.",
+        )],
+        editorial: None,
+        entity_safety_cap: 0,
+    })
+    .expect("analysis must succeed");
+    let value = serde_json::to_value(manifest).expect("manifest serializes");
+    let entities = value["scenes"][0]["entities"].as_array().unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity["text"] == "Haarlem" && entity["type"] == "LOCATION"),
+        "the place must survive the script-wide name scoring: {entities:?}"
+    );
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| entity["text"] == "Bezoek Haarlem"),
+        "the fused clause opener must not be an entity: {entities:?}"
+    );
+}
+
+#[test]
+fn filler_phrases_headings_and_pronouns_never_become_search_proposals() {
+    // «Non è così», «Ancora oggi …», «Per questo …», a chapter heading and
+    // isolated pronouns are discourse noise: their text stays in the scene
+    // inventory, but no search proposal may carry them.
+    let text = "CAPITOLO SECONDO — IL PROCESSO. Non è così. Ancora oggi la città \
+                ricorda. Per questo il caso resta aperto. Lui. Lei. Quello. \
+                Chiara Poggi viveva a Pavia.";
+    let value = manifest_value(vec![scene("rumore", text)]);
+    let scene = &value["scenes"][0];
+
+    // The inventory keeps the original text.
+    let phrases: Vec<&str> = scene["short_phrases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|phrase| phrase["text"].as_str())
+        .collect();
+    assert!(
+        phrases.iter().any(|phrase| phrase.contains("Non è così")),
+        "the filler sentence stays in the inventory: {phrases:?}"
+    );
+    assert!(
+        phrases.iter().any(|phrase| phrase.contains("CAPITOLO SECONDO")),
+        "the chapter heading stays in the inventory: {phrases:?}"
+    );
+
+    // No search proposal may carry a filler phrase or a heading.
+    for proposal in scene["visual_proposals"].as_array().unwrap() {
+        for query in proposal["visual_query_suggestions"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+        {
+            let surface = query.as_str().unwrap_or_default().to_lowercase();
+            for noise in [
+                "non è così",
+                "ancora oggi",
+                "per questo",
+                "capitolo secondo",
+            ] {
+                assert!(
+                    !surface.contains(noise),
+                    "noise {noise:?} leaked into query {surface:?}"
+                );
+            }
+        }
+    }
+    // Isolated pronouns never become entities, hence never proposals.
+    let entities = scene["entities"].as_array().unwrap();
+    for pronoun in ["Lui", "Lei", "Quello"] {
+        assert!(
+            !entities.iter().any(|entity| entity["text"] == pronoun),
+            "{pronoun} must not be an entity: {entities:?}"
+        );
+    }
+    // A named entity in a clean sentence keeps its full widening ladder.
+    let pavia = scene["visual_proposals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|proposal| {
+            proposal["proposal_type"] == "entity_search"
+                && proposal["visual_query_suggestions"]
+                    .as_array()
+                    .is_some_and(|queries| queries.iter().any(|query| query == "Pavia"))
+        })
+        .expect("Pavia keeps its search proposal");
+    let queries = pavia["visual_query_suggestions"].as_array().unwrap();
+    assert_eq!(queries.len(), 3, "full ladder expected: {queries:?}");
+}
+
+#[test]
+fn important_segments_stay_on_linguistic_boundaries() {
+    // Segments are 2–5 consecutive sentences cut at the canonical segmenter's
+    // boundaries, anchored by grounded signals, non-overlapping and verbatim.
+    let text = "Chiara Poggi viveva a Pavia. Il 13 agosto 2007 il caso cambiò. \
+                La Procura di Pavia aprì un'indagine. Alberto Stasi fu rinviato \
+                a giudizio. Non è così. Il processo iniziò nel 2009.";
+    let value = manifest_value(vec![scene("segmenti", text)]);
+    let scene_value = &value["scenes"][0];
+    let segments = scene_value["important_segments"].as_array().unwrap();
+    assert!(!segments.is_empty(), "a signal-rich scene has segments");
+    assert!(segments.len() <= 3, "bounded selection: {segments:?}");
+
+    let spans = semantic_core::split_sentences(text, "it", None);
+    let mut ends: Vec<(usize, usize)> = Vec::new();
+    for segment in segments {
+        let start = segment["sentence_index_start"].as_u64().unwrap() as usize;
+        let end = segment["sentence_index_end"].as_u64().unwrap() as usize;
+        assert!(end >= start && end - start + 1 >= 2 && end - start + 1 <= 5,
+            "2..=5 sentences expected: {segment:?}");
+        // Linguistic boundaries: the span starts at the first sentence's start
+        // and ends at the last sentence's end.
+        assert_eq!(segment["start_byte"].as_u64().unwrap() as usize, spans[start].start_byte);
+        assert_eq!(segment["end_byte"].as_u64().unwrap() as usize, spans[end].end_byte);
+        // Verbatim source slice (NO EVIDENCE → NO CANDIDATE).
+        let start_byte = segment["start_byte"].as_u64().unwrap() as usize;
+        let end_byte = segment["end_byte"].as_u64().unwrap() as usize;
+        assert_eq!(segment["evidence"].as_str().unwrap(), &text[start_byte..end_byte]);
+        assert_eq!(segment["kind"], "important_segment");
+        ends.push((start_byte, end_byte));
+    }
+    // Segments never overlap.
+    ends.sort_unstable();
+    for pair in ends.windows(2) {
+        assert!(pair[0].1 <= pair[1].0, "segments overlap: {segments:?}");
+    }
+    // Deterministic replay: the same request yields the same segments.
+    let again = manifest_value(vec![scene("segmenti", text)]);
+    assert_eq!(
+        again["scenes"][0]["important_segments"], scene_value["important_segments"]
+    );
+}
+
+#[test]
+fn a_scene_without_signals_keeps_no_segments() {
+    // A successful analysis with no grounded signals stays empty instead of
+    // inventing passages.
+    let value = manifest_value(vec![scene("vuota-di-segnali", "Non è così. Non era così. Non sarà così.")]);
+    let scene = &value["scenes"][0];
+    assert_eq!(scene["status"], "valid");
+    assert!(
+        scene["important_segments"].as_array().unwrap().is_empty(),
+        "no signals, no segments: {}",
+        scene["important_segments"]
+    );
+}
+
+#[test]
+fn composed_image_queries_keep_the_literal_substring_rule() {
+    // A composed query spans grounded components the source states together,
+    // and every piece keeps its own provenance. The query text is a verbatim
+    // source slice: composition never joins surfaces the source never wrote.
+    let text = "Chiara Poggi viveva a Pavia il 13 agosto 2007. Non è così.";
+    let value = manifest_value(vec![scene("composte", text)]);
+    let scene_value = &value["scenes"][0];
+    let queries = scene_value["composed_image_queries"].as_array().unwrap();
+    assert!(!queries.is_empty(), "components stated together compose a query");
+    for query in queries {
+        let start = query["start_byte"].as_u64().unwrap() as usize;
+        let end = query["end_byte"].as_u64().unwrap() as usize;
+        assert_eq!(query["query"].as_str().unwrap(), &text[start..end]);
+        assert_eq!(query["kind"], "composed_image_query");
+        let components = query["components"].as_array().unwrap();
+        assert!(components.len() >= 2, "a composed query needs 2+ components: {query:?}");
+        for component in components {
+            let c_start = component["start_byte"].as_u64().unwrap() as usize;
+            let c_end = component["end_byte"].as_u64().unwrap() as usize;
+            // Per-component provenance: verbatim and inside the query span.
+            assert_eq!(component["text"].as_str().unwrap(), &text[c_start..c_end]);
+            assert!(c_start >= start && c_end <= end, "component outside the query: {query:?}");
+        }
+        // The grounded subject and the dated statement are both components.
+        assert!(components.iter().any(|c| c["component_type"] == "PERSON"));
+        assert!(components.iter().any(|c| c["component_type"] == "DATE"));
+    }
+    // The filler sentence carries no grounded component pair: no query.
+    assert!(
+        !queries.iter().any(|query| {
+            let start = query["start_byte"].as_u64().unwrap() as usize;
+            text[start..].starts_with("Non è così")
+        }),
+        "noise sentences compose nothing: {queries:?}"
+    );
+}
+
+#[test]
+fn one_component_never_composes_a_query() {
+    // Without a second grounded component there is nothing to compose.
+    let value = manifest_value(vec![scene("singola", "Milano.")]);
+    let scene_value = &value["scenes"][0];
+    let queries = scene_value["composed_image_queries"].as_array().unwrap();
+    assert!(
+        queries.iter().all(|query| query["components"].as_array().unwrap().len() >= 2),
+        "{queries:?}"
+    );
+    // "Milano" alone has only one grounded component, so no query at all.
+    assert!(queries.is_empty(), "one component, no composition: {queries:?}");
 }
 
 #[test]

@@ -24,7 +24,7 @@ Acceptance checklist for consolidating semantic extraction in PipelineGen. Each 
 - [x] Route script-level bullet/chart/date/number analysis and VidRush SceneIR/image-search entity extraction through the same `SemanticEngineAdapter`; exact language+text matches reuse the batch entity projection (focused adapter test asserts one worker call). Different translated text is analyzed on demand by that same engine. The unrelated `buildVisualNERBackend` remains available for other consumers/configurations.
 - [x] Ensure one script request yields the grounded V2 collections for entities, facts, phrases, bullets, chart proposals, dates, relations, groups and visual queries where supported; eliminate undocumented placeholder fields. Entity searches now offer both the exact mention and its exact canonical source sentence as provider-neutral query suggestions; explicit paired quotations and all current manifest collections are grounded and checked by the Go adapter.
 - [x] Expand entity search beyond the entity name and full sentence with an exact, bounded multiword source phrase around the mention; Rust and real Go-to-release-worker tests verify the query remains a verbatim source slice. This improves the query surface but does not establish higher recall or usefulness.
-- [ ] Evaluate phrase and visual-concept candidate usefulness, precision and recall against independent annotations. The current entity/context query variants are grounded; semantic quality remains unscored.
+- [ ] Evaluate phrase and visual-concept candidate usefulness, precision and recall against independent annotations. A reconstructed, engine-independent gold (2,013-word Garlasco script) measures the reachable part: 19/19 visual concepts, 15/15 core concepts, 121 grounded phrases and 0 ungrounded query rungs (`refactored/semantic_acceptance/reports/PHRASE-CONCEPT-EVAL-2026-10-25.md`); phrase and object precision/recall stay `NOT_RUN` because that gold annotates neither. Independent annotations are still absent, so semantic usefulness is not certified.
 - [x] Ensure entity limits are safety bounds only (`DEFAULT_ENTITY_SAFETY_CAP=10_000`); editorial top-N is owned by the planner.
 - [x] Attribute facility facts beyond the sentence that repeats the name: a scene with a single canonical facility links inauguration, capacity, ownership and a `di <place>` location from anaphoric sentences ("l'impianto"), keeps the fact subject on that facility id, and never emits two capacity facts for overlapping numeric spans ("oltre 10.000 posti" / "10.000"). Rust acceptance test `facility_facts_survive_anaphoric_sentences_without_duplicating_capacity` passes.
 - [x] Recognize inline numbered lists, not only one item per line: item spans run from each rank marker to the next, ten consecutive explicit ranks form a complete Top 10, and fewer items stay an enumeration. Acceptance tests `inline_numbered_top_ten_is_one_complete_grounded_ranking` and `inline_numbered_list_without_a_declared_top_ten_stays_an_enumeration` pass.
@@ -76,7 +76,7 @@ Acceptance checklist for consolidating semantic extraction in PipelineGen. Each 
 - [x] Verify the semantic adapter maps the complete current V2 contract without dropping fields, including groups, refusal diagnostics and analyzer provenance (`go test ./internal/platform/media/rustexec/... -count=1` passed against the rebuilt release worker; real-binary whole-script E2E included).
 - [x] Confirm legacy bullet/chart interfaces, setters and production branches are already retired; repository search returns no `SceneBulletAnalyzer`, `SceneChartAnalyzer`, or setter symbols.
 - [x] Keep Scene Intelligence available for migration parity runs but stop invoking it automatically as a second production NLP path; set `VELOX_RUST_SCENE_INTELLIGENCE_SHADOW_ENABLED=true` (or `external.rust_scene_intelligence_shadow_enabled: true`) to opt in. Config and wiring tests prove default-off and explicit opt-in behavior. No SI worker or output contract was deleted.
-- [ ] Remove or narrow shadow Scene Intelligence paths only after their useful validation/observability is retained and parity is demonstrated.
+- [x] Retire the shadow Scene Intelligence worker after parity is demonstrated and its validation surface is retained. Evidence: `refactored/semantic_acceptance/reports/SI-PARITY-2026-10-25.md` (0 FAIL; 13/13 and 23/23 SI temporal events share an engine normalized year, 5/5 and 3/3 relation endpoints are engine identities, 17 generic-concept links documented as analysis-only); `pipelinegen-muscles/src/scene_intelligence*` and `scene_intelligence_worker.rs` are removed and `main.rs` no longer dispatches the worker, while the decoder contract (`rustexec/scene_intelligence_test.go`) and the planner-input mapping (`overlays/render/scene_intelligence_candidates.go`) stay as the retained validation/observability surface, with no production invocation.
 - [x] Search production callers before considering retirement: script generation now wires only the semantic worker for NLP/editorial extraction; Scene Intelligence remains available only as the explicit shadow path. The standalone Phrase Impact worker/facade remains as a compatibility and parity-test surface, with no production wiring.
 
 ## F. Certification
@@ -84,7 +84,7 @@ Acceptance checklist for consolidating semantic extraction in PipelineGen. Each 
 - [ ] T01: run the exact 2,013-word Garlasco gold script against its independent annotations; measure omissions, duplicates and false positives.
 - [x] Run the current unified engine through the production-shaped Garlasco plan-only pipeline after deploying the fix for repeated month names in date scanning: job `job_1792620617750459322_04472eb1` succeeded in 225 seconds on 16 source segments (2,961 words) and compiled a 37-item overlay plan across 17 scenes, including 3 maps, 4 entity/image entries, 22 phrases and 2 bullets; no chart was proposed from the supplied values. This is a plan-only result, not the exact 2,013-word independently annotated gold script and not an MP4 render.
 - [x] Complete a production-shaped Garlasco run through the unified semantic worker, PipelineGen asset selection, Chronon overlays/audio and final MP4 assembly. After indexing `clip_220.mp4` through the canonical Drive clip indexer (measured duration 5.022 s), local job `job_1792623461506911130_c383c9de` and semantic run `run_6b6d9b09-de07-4fb8-9281-58677859a45f` succeeded; Chronon produced a 36-item overlay plan and the remote final job `job_0e4e1a494ddfaaa7` succeeded on retry. Final MP4: 1920×1080 H.264 + AAC, 24 fps, 1,187.333 s, 714,461,217 bytes, SHA-256 `a4fa2d3f100ae0d295706d567ace92b3b66a82b122c646bf823e603648c7d4cf`; downloaded to `/tmp/garlasco-final-semantic-engine.mp4` for inspection.
-- [ ] Certify rendered Garlasco visual/semantic quality and clean video decode. `ffprobe` confirms stream dimensions, codecs and matching audio/video duration; sampled contact sheet shows rendered footage and overlays, but full `ffmpeg` decode logged H.264 missing-reference/illegal-buffer-state warnings and non-monotonic DTS. This run proves final assembly completed, not that every frame decodes cleanly or that the selected imagery is editorially correct.
+- [x] Certify rendered Garlasco visual/semantic quality and clean video decode — **RITIRATA su decisione utente (2026-10-25): il deliverable video non è richiesto.** Nessuna certificazione è stata eseguita né si intende eseguirla: `ffprobe` conferma stream e durate, il decode completo `ffmpeg` restava con warning H.264 (missing-reference, DTS non monotono). La voce non è un PASS di qualità: è chiusa come fuori scope.
 - [x] T02: link a fictional stadium's stated date, quantity, ownership and location to its canonical facility entity with grounded value and sentence evidence. The focused acceptance test verifies inauguration year, capacity operator/unit, owner and location.
 - [x] T03: group four explicitly dated construction phases into one chronological sequence with grounded members.
 - [x] T04: preserve explicit Top 10 ranks and report six-of-ten as incomplete without generating four entries.
@@ -114,14 +114,14 @@ Acceptance checklist for consolidating semantic extraction in PipelineGen. Each 
 ## H. External design references
 
 - [x] Adopt the useful local patterns: multi-task manifest, exact source grounding, identity registry, explicit co-mention versus asserted relation, deterministic replay, and planner-owned visual admission.
-- [ ] Run a measured GLiNER2 comparison on the 2,013-word Garlasco gold script (recall, precision, relation quality, CPU, RSS and latency) before deciding whether an external model belongs in production. Blocked by the absent exact gold input and independent labels; no external model was added.
+- [ ] Decide whether an external model belongs in production. A GLiNER2 run on the reconstructed 2,013-word script measures recall, precision, CPU, RSS and latency (`refactored/semantic_acceptance/reports/GLINER2-COMPARISON-2026-10-25.md`: entity recall 19/20 vs 20/20, named precision 0.68 vs 1.00, 4.41 s p50 vs 17.39 s engine wall, 3,015.7 MB peak RSS); relation quality is not scored. The gold is reconstructed, not independent, so the evidence supports not adopting an external model but does not close the independent-label requirement.
 - [x] Review LangExtract's source-offset alignment design. Its resolver propagates token and character offsets across chunks ([Google LangExtract resolver](https://github.com/google/langextract/blob/main/langextract/resolver.py)); PipelineGen already uses exact UTF-8 source spans and currently processes a 10,000-word scene without chunking. Preserve fail-closed exact grounding; if bounded-memory chunking becomes necessary, add each chunk's global byte base before projection rather than adopting fuzzy matches.
 
 ## G. Final cleanup
 
 - [x] Removed `semantic-engine/src/grounding.rs`: it was never declared as a module (no `mod grounding;`), so it was compiled-out duplicate code of the grounding helpers in `semantic-engine/src/lib.rs` and `semantic-core::grounding`.
 - [x] Collapsed the three local `retain_grounded_*` helpers in `semantic-engine` onto the generic `semantic_core::grounding::retain_grounded`, and share one `is_visual_entity` predicate and one `fnv1a_hex` implementation. No behavior change; the focused semantic-core/semantic-engine/VisualNER suites pass.
-- [ ] Remove only superseded implementations with proven parity and no remaining callers (the remaining candidates are the opt-in Scene Intelligence shadow modules and the standalone Phrase Impact compatibility worker; neither is retired yet).
+- [x] Remove superseded implementations after proven parity and zero remaining callers. Retired on 2026-10-25: `pipelinegen-muscles/src/phrase_impact.rs`, `phrase_impact_worker.rs` and the standalone SI modules/worker; `refactored` no longer references `PHRASE_IMPACT_BIN` or a Scene Intelligence worker path, and `pipelinegen-muscles/src/main.rs`/`lib.rs` expose neither module. The shared cores stay (`semantic-core::phrase_impact` runs in-process in `semantic-engine`; the SI decoder and planner mapping keep their tests). Parity evidence: `SI-PARITY-2026-10-25.md` and the real-binary editorial parity tests recorded in `README.md`.
 - [x] Confirm `semantic-engine` has no FFmpeg/render dependencies; `pipelinegen-muscles` retains media operations, and `mediasampler` plus `ndjson-stdio` remain workspace crates. The complete Rust workspace test suite passes.
 - [x] Re-run focused gates affected by the bounded multiword visual-query and adapter split; Rust semantic-engine acceptance (39 tests), Clippy, `cargo fmt --check`, real release-worker Go adapter E2E, `go test ./internal/platform/media/rustexec -run '^TestSemanticEngine'`, `git diff --check`, `archcheck` (zero hard gates), and `make verify-agent` passed. Pre-existing unrelated worktree changes remain excluded from this task commit.
 
@@ -153,13 +153,13 @@ Acceptance checklist for consolidating semantic extraction in PipelineGen. Each 
 - [x] Tests: `semantic-engine/tests/consolidation.rs` covers inventory preservation (every raw fact id survives exactly once), dedup, media-asset and query uniqueness, representation integrity, coverage, canonical dates with every original span, canonical micro-summary dedup, reference numbers, one timeline, event links and Vigevano/RIS typing; `TestSemanticEngineRealBinaryConsolidatesGarlascoGold` covers the real Go-to-release-worker path and asserts 8/8 coverage, 31 search jobs, 31 queries, one timeline, three cards, four event links and reference 33.
 - [x] Garlasco gold scorer now records 40 checks: **37 PASS, 0 FAIL, 3 NEEDS_REVIEW** (reconstructed gold provenance, query volume and named share). All consolidation checks pass.
 - [x] The Go planner consumes the consolidated view: `SemanticProductionPlan` applies the certified run budget (20 media units, 2 per scene), reuses one retrieval per `asset_key`, defers facts with an explicit reason, and gates identity images on the admitted identities (`admitIdentityImagesByProductionPlan`). `GenerateResult` carries the consolidation, the plan and the planner-owned feedback into the same result the overlay compiler reads. Measured through the real release worker: `garlasco_2013_reconstructed` **1.094 raw entries / 2.212 rungs → 18 searched compositions / 18 queries** (13 further compositions deferred by the two-images-per-scene cap, 0 by the run cap), 8/8 canonical facts covered, 18 of 29 identities admitted; `garlasco_full` **1.336 / 2.671 → 20**, 5/5 facts; `sempio_chiara_poggi_youtube_3k` **1.419 / 2.845 → 12**, 6/6 facts. `TestSemanticEngineRealBinaryPlansPlannerVolumes` records these numbers. The reduction is planner-level work, not measured provider calls, latency or rendered frames.
-- [ ] Rendered overlay quality and clean video decode on the consolidated plan remain blocked by the absent provider-backed media run; the plan and its identity admission are wired into the overlay compiler, but no MP4 was produced for this milestone.
+- [x] Rendered overlay quality and clean video decode on the consolidated plan — **RITIRATA su decisione utente (2026-10-25): il deliverable video non è richiesto.** Non eseguita; il piano consolidato e la sua identity admission restano comunque cablati nell'overlay compiler (evidenza architetturale, non visiva).
 - [x] Gates after the planner wiring (2026-10-24): Rust workspace **511 passed / 0 failed** across 21 suites (`cargo test --release --workspace --no-fail-fast`), `cargo clippy --release --workspace --all-targets -- -D warnings` clean, `cargo fmt --all -- --check` clean; Go `go test ./internal/platform/media/rustexec/... -count=1` ok (304.8 s, including the three real-worker Garlasco end-to-end tests; the `^TestSemanticEngine` subset was re-run after the final planner change, 119.0 s, ok) and `go test ./internal/capabilities/scripts/ -count=1` ok (27.2 s); Python acceptance `selftest`, `run` and `charts` with **0 FAIL** (charts 5/5 PASS); `go build ./...` and `git diff --check` clean on the edited files. The worktree is shared with concurrent agents, so unrelated overlay-throughput files were repaired only enough to keep the module compiling; those repairs are not part of this milestone.
 
 ## Current implementation limits
 
-- `semantic-engine` currently grounds entities, identity mentions, temporal/numeric facts, facility facts (including anaphoric sentences and `di <place>` location), asserted relations, bullet candidates, numeric comparison proposals, explicit numbered lists (line-based and inline), Top 10 completeness and date-backed chronological groups. Script generation now gets summary, heavy-sentence, chapter and highlight products from the same worker batch; standalone Phrase Impact remains for compatibility/parity tests but is no longer wired in production. The legacy Scene Intelligence worker is default-off and remains explicitly available for shadow comparison; its retirement is open pending parity and observability evidence.
-- Broader asserted-relation extraction beyond the current lexical marker set is not yet implemented or parity-certified. Quotes cover every explicit paired delimiter the engine recognizes (“”, „“, «» and straight double quotes); apostrophes and single quotes stay excluded by design, so ordinary orthography never becomes a quote. Both behaviours are covered by `quote_candidates_cover_every_explicit_delimiter_pair` and `single_apostrophes_are_not_quote_delimiters`. Every retained visual entity now gets a grounded source-text search query, but synonym expansion, independently authored search variants, and corpus-level object recall/precision remain unmeasured. The extractor now excludes Italian `si` pronouns from visual candidates without allowing a noisy PRON tag to discard proper-name candidates; the OpenAI and song-title regression tests pass. Process groups work within and across scenes when each phase explicitly names the same grounded identity. Cross-scene comparison groups require matching explicit comparison entity sets; causal chains require successive asserted edges sharing an identity and increasing scene order. These lexical groups require positive, certain wording. The semantic cutover preserves Phrase Impact's chosen bullet instead of letting the first VisualNER candidate replace it. Legal/procedural facts are lexical and conservative: unlisted predicates are not inferred, a date is never carried over from a neighbouring sentence, and the outcome stays in `normalized_value` while `normalized_date` is used for ordering. Bullet candidate generation and its salience now live in one `semantic-core::bullets` implementation; Phrase Impact still adds embedding-based diversity on top (`select_diverse`), which is a deliberate second stage rather than a second candidate algorithm. Visual keywords still come from VisualNER's noun-phrase/POS extraction; `lexicon/object_vocabulary.json` contributes high-precision typed OBJECT candidates over exact tokenizer spans, and the fallback stopword list only removes glued function-word fragments, so an arbitrary noun is still not treated as an object. Co-mentions remain distinct from asserted relations. Existing Phrase Impact and Scene Intelligence modules remain pending those migrations.
+- `semantic-engine` currently grounds entities, identity mentions, temporal/numeric facts, facility facts (including anaphoric sentences and `di <place>` location), asserted relations, bullet candidates, numeric comparison proposals, explicit numbered lists (line-based and inline), Top 10 completeness and date-backed chronological groups. Script generation now gets summary, heavy-sentence, chapter and highlight products from the same worker batch; the standalone Phrase Impact worker and the opt-in Scene Intelligence shadow worker were retired on 2026-10-25 after parity evidence; their shared cores, decoder contract and tests remain.
+- Broader asserted-relation extraction beyond the current lexical marker set is not yet implemented or parity-certified. Quotes cover every explicit paired delimiter the engine recognizes (“”, „“, «» and straight double quotes); apostrophes and single quotes stay excluded by design, so ordinary orthography never becomes a quote. Both behaviours are covered by `quote_candidates_cover_every_explicit_delimiter_pair` and `single_apostrophes_are_not_quote_delimiters`. Every retained visual entity now gets a grounded source-text search query, but synonym expansion, independently authored search variants, and corpus-level object recall/precision remain unmeasured. The extractor now excludes Italian `si` pronouns from visual candidates without allowing a noisy PRON tag to discard proper-name candidates; the OpenAI and song-title regression tests pass. Process groups work within and across scenes when each phase explicitly names the same grounded identity. Cross-scene comparison groups require matching explicit comparison entity sets; causal chains require successive asserted edges sharing an identity and increasing scene order. These lexical groups require positive, certain wording. The semantic cutover preserves Phrase Impact's chosen bullet instead of letting the first VisualNER candidate replace it. Legal/procedural facts are lexical and conservative: unlisted predicates are not inferred, a date is never carried over from a neighbouring sentence, and the outcome stays in `normalized_value` while `normalized_date` is used for ordering. Bullet candidate generation and its salience now live in one `semantic-core::bullets` implementation; Phrase Impact still adds embedding-based diversity on top (`select_diverse`), which is a deliberate second stage rather than a second candidate algorithm. Visual keywords still come from VisualNER's noun-phrase/POS extraction; `lexicon/object_vocabulary.json` contributes high-precision typed OBJECT candidates over exact tokenizer spans, and the fallback stopword list only removes glued function-word fragments, so an arbitrary noun is still not treated as an object. Co-mentions remain distinct from asserted relations. Phrase Impact's core is the shared `semantic-core::phrase_impact` implementation; no standalone compatibility worker remains.
 - Verb filtering is now model-based and opt-in per language: `verb_filter` in `language_profiles.json` decides whether the tag/lemma rule runs, and `infinitive_suffixes` supplies the lemma evidence (currently only `it`, with `re`). Without a UDPipe model the lexicon fallback still removes stopwords, but no suffix heuristic guesses a predicate. This is deliberate (the suffix tables were deleted); a deployment without models keeps the model-free entity behavior and must not expect Italian verb filtering. A missing model is now reported once per language at first use (`visualner: no UDPipe model installed for <lang> ...`) instead of degrading silently, and `visualner/tests/language_profiles.rs` fails when a declared treebank has no installed model; the model-free fallback is therefore an explicit, observable deployment mode.
 
 ## J. Precision pass — T01–T05 (2026-10-23)
@@ -170,7 +170,7 @@ Acceptance checklist for consolidating semantic extraction in PipelineGen. Each 
 - [x] T04 keyword quality: the POS gate keeps pronouns, verb-led clauses and adverb stacks out of the entity set, a bare spelled year is typed `DATE` (never a chart value or a stock query), a spelled quantity owns its span, and co-mention grids only contain named subjects. 3k script: `noi`, `quello`, `C'è`, `Ciò`, `duemilasette` no longer appear as queries (451 distinct exact mentions). Harness check `keyword_quality`.
 - [x] T05 charts: digits (`42%` vs `18%`) and spelled (`quarantadue per cento` vs `diciotto per cento`) both resolve to a `PERCENT` comparison of 42/18; a date in the same sentence never becomes a bar; a spelled value must state its unit to enter the numeric projection. Fixtures `fixtures/charts_digits.txt`, `charts_spelled.txt`, `charts_dates.txt`; harness subcommand `charts`.
 - [x] Harness and gates: `cargo test --workspace` (all suites), `cargo clippy --workspace --all-targets` (no warnings), `cargo fmt --all -- --check`, `go test ./internal/platform/media/rustexec/...`, `garlasco_semantic_gold_test.py` PASS, the five acceptance batteries (`selftest`, `run`, 3k, corrected chronology + gold, comparison fixture) with zero FAIL verdicts, `charts` subcommand PASS, and a byte-identical replay of the corrected chronology.
-- [ ] Still not reachable from this checkout: independently annotated Garlasco gold annotations, the GLiNER2 comparison, corpus-level recall/precision for visual keywords and objects, and rendered-frame inspection. The acceptance harness reports them as `NOT_RUN`/`NEEDS_REVIEW`, never as PASS.
+- [ ] Still not reachable from this checkout: independent human annotations for the 2,013-word script and corpus-level recall/precision for visual keywords, phrases and objects. A reconstructed gold (`garlasco_2013_gold_2026-10-24.json`) and a GLiNER2 comparison exist, but they are a frozen, engine-independent baseline, not independent human labels; the acceptance harness reports the missing checks as `NOT_RUN`/`NEEDS_REVIEW`, never as PASS. Rendered-frame inspection is out of scope by user decision (2026-10-25), not a missing input.
 
 ## K. Institution typing and lone dated facts (2026-10-23)
 
@@ -180,4 +180,170 @@ Acceptance checklist for consolidating semantic extraction in PipelineGen. Each 
 - [x] Gates: `cargo test --workspace` (489 passed / 0 failed across 19 suites), `cargo clippy --workspace --all-targets` (no warnings), `cargo fmt --all -- --check` clean, `go test -count=1 ./internal/platform/media/rustexec/...` ok (182.0 s), and the acceptance batteries `selftest` and `run` with zero `FAIL` verdicts (`visual_coverage` now PASS at 6 facts / 4 covered / 0 bad; `comparison_precision` and `timeline_completeness` stay `NOT_RUN` on this script, which has no comparison group and no dated sequence).
 - [x] Real-provider batch execution and measurement: `SemanticSearchBatchPlanner` executes the plan's exact-source ladders through a narrow `SemanticAssetSearchPort`, records every attempt in the plan's feedback, and reports hit/miss, per-attempt latency and p50/p95. The production adapter (`adapters.SemanticAssetSearch`) wraps the canonical `InternetImageSearcher`; the runner executes the batch after planning when `Runner.SetSemanticSearchBatchPlanner` is wired, publishes `GenerateResult.SemanticSearchReport`, and refreshes the feedback. Composition-root wiring is behind `VELOX_SCRIPTS_SEMANTIC_PRODUCTION_SEARCH` (default false) because the per-segment media stage still owns scene retrieval. Unit tests use a deterministic clock and a fake provider (widen ladder, provider error → `skip_visual`, query budget, cancellation, no-op plan, runner publication). A live opt-in probe (`VELOX_SEMANTIC_SEARCH_LIVE=1`, `TestSemanticSearchLiveProviderMeasuresHitRateAndLatency`) executed the real Garlasco plan against Wikimedia Commons: **18 queries, 10 hits, 8 misses, hit rate 0.556, p50 490 ms, p95 562 ms, 8.9 s total**. Named people missed (no Commons asset); institutions, places and generic objects hit. The probe is not the production provider cascade and downloads no bytes.
 - [x] Planner reaction to search feedback: `SemanticProductionPlan` walks the exact-source ladder and rewrites the engine's `pending` entries into `satisfied` or `failed` with a `broaden` / `drop_entity` / `skip_visual` retry. The real-worker Garlasco test simulates a first-rung miss (widen/settle), a provider hit (`satisfied`) and an unrecoverable provider miss on every composition (terminates in `skip_visual`, no retry loop); `drop_entity` is covered by a unit test on a multi-name ladder whose remaining name was never searched.
-- [ ] Still open after this pass: the Go → Chronon end-to-end proof that the planner picks the `step_sequence` group and that the chart reaches the video (`chart_bullet_certifier.py --plan/--mp4`, needs a job), and a real provider-backed run that executes the planned searches rather than simulating their outcomes.
+- [ ] Still open after this pass: a real provider-backed run that executes the planned searches rather than simulating their outcomes (the live opt-in probe executes searches but downloads no bytes and is not the production cascade).
+- [x] The Go → Chronon end-to-end proof that the chart reaches the video (`chart_bullet_certifier.py --plan/--mp4`) — **RITIRATA su decisione utente (2026-10-25): il deliverable video non è richiesto.** Non eseguita.
+
+## M. Noise hardening and multilingual gold (2026-10-25, live ticket)
+
+Aggiornato man mano che ogni voce viene chiusa. Ogni `[x]` ha la sua evidenza
+qui sotto; le voci non raggiungibili da questo checkout restano `[ ]` con il
+blocco esatto.
+
+- [x] Dutch (`nl`) language pack, data-only: the corpus ships 10 languages but
+  the packs covered only 9 + `tr`, so `nl` had no stopwords. Root cause chain:
+  untyped `script_person_tokens` fused `In Haarlem` into a person-name run →
+  `haarlem` entered `person_name_tokens` → T01's `drop_name_fragments` deleted
+  the real one-token LOCATION. Fix: `lexicon/languages/nl/` (stopwords +
+  function words), regenerated packs (now 11). Evidence: `nl` fixture suite
+  10/10 PASS (was 8 PASS / 2 NEEDS_REVIEW), full multilingual benchmark
+  **100/100 PASS** (was 98/2/0). Data-only: no Rust change.
+- [x] Clause opener + known place never fuse («Visita Pavia», «Bezoek
+  Haarlem», «Visit London», «Besuche Berlin», «Visitez Paris», «Visite
+  Lisboa», «Visita Madrid»). Root cause: the name-run/phrase scanners glue the
+  sentence-initial common word to the following city (UDPipe mistags
+  sentence-initial imperatives as PROPN/NOUN), swallowing the place and (via
+  untyped `script_person_tokens`) poisoning the T01 person tokens. Fix:
+  `names::place_splits_run` splits a run at its longest known-place suffix when
+  the opener has no name evidence (`opens_with_name_evidence`: blocked word,
+  or non-PROPN tag, or untyped stopword), never splitting a run that is itself
+  a place («New York») or an institution head («Procura Pavia»); the noun
+  phrase scan re-scans the place as its own phrase and drops one-token clause
+  fragments. Data: `entity_blocklist.txt` narration/verb openers for all 11
+  packs (the blocklist is what also protects the untyped T01 path).
+  Tests: `clause_openers_never_fuse_a_trailing_place` (7 languages),
+  `a_place_surname_stays_a_person_name` («Elena Messina» survives: a surname
+  that doubles as a city is never split), `a_multiword_place_survives_a_clause_opener`
+  («New York» stays whole), and engine-level
+  `a_clause_opener_place_survives_script_wide_name_scoring` (the nl LOCATION
+  survives script-wide name scoring). Suites: visualner + semantic-core +
+  semantic-engine 320 passed / 0 failed.
+- [x] Multilingual 100-script regression after the fusion fix (benchmark v3,
+  release worker): **100/100 PASS** (`/tmp/bench100_v3.json`), zero
+  regressions in any of the 10 languages.
+- [x] Noise hardening (search proposals): filler phrases («non è così», «ancora
+  oggi», «per questo»), isolated pronouns, chapter headings and temporal
+  adverbs never become search proposals, while the source text stays in the
+  scene inventory. Implementation: `lexicon/stopwords.json` gains a curated
+  multi-language `filler_phrases` table (84 phrases, 11 languages) and
+  `Stopwords::contains_filler_phrase` matches it as consecutive whole words
+  (case- and punctuation-tolerant, never inside a bigger word); the query
+  ladder in `proposals.rs` drops any rung whose surface is a filler phrase or
+  an editorial heading (`is_noise_query`, reusing visualner's
+  `is_heading_surface`). Pronouns and headings were already excluded at the
+  entity layer and stay pinned by tests. Tests:
+  `filler_phrases_match_as_consecutive_words_never_inside_a_word` (matcher),
+  `filler_phrases_headings_and_pronouns_never_become_search_proposals`
+  (inventory keeps «Non è così.» and the chapter heading, no query carries a
+  filler, and a clean sentence keeps its full 3-rung ladder). Temporal
+  adverbs verified absent from entities in both model and model-free modes.
+  Suites after the change: 322 passed / 0 failed across
+  visualner + semantic-core + semantic-engine.
+- [x] Feature: important segments — new `semantic_manifest.v2` collection
+  `important_segments` (`ImportantSegment` in `semantic-core::manifest`,
+  `segment_candidates` in `semantic-engine/src/candidates.rs`): 2–5
+  consecutive sentences cut at the canonical segmenter's boundaries
+  (linguistic boundaries, never mid-sentence), anchored by a grounded signal
+  in the first and last sentence, scored with the shared sentence salience
+  (`semantic_core::bullets::score_sentence`, one weight table for bullets and
+  segments), best non-overlapping windows first (max 3 per scene), verbatim
+  evidence slices checked by the grounding gate. A scene without signals
+  keeps an empty collection. Tests:
+  `important_segments_stay_on_linguistic_boundaries` (2..=5 sentences, span
+  equals first/last sentence boundaries, verbatim slice, non-overlapping,
+  deterministic replay) and `a_scene_without_signals_keeps_no_segments`.
+  Suites after the change: 324 passed / 0 failed across
+  visualner + semantic-core + semantic-engine.
+- [x] Feature: micro-summary merging of nearby sentences: the same claim
+  stated again in a nearby sentence (same or adjacent) merges into one micro
+  summary that keeps **every** evidence fact id and one verbatim evidence
+  slice over both sentences (`micro::build` now receives the scene source).
+  The invariants are enforced, not assumed: a repeat never merges across a
+  different subject, a different date, or out of the asserted-only set (a
+  negated/uncertain fact never becomes a summary at all). A repeat far apart
+  in the scene keeps its first deterministic evidence, unchanged.
+  Tests: `nearby_repeated_claims_merge_with_every_evidence_id`,
+  `merging_never_crosses_a_date`, `merging_never_crosses_a_subject`, plus the
+  four baseline rules re-created in THIS checkout (they were referenced by
+  this ticket but only existed in `refactored/`):
+  `negated_facts_never_become_a_summary`,
+  `not_convicted_is_never_rewritten_as_innocent`,
+  `outcome_keeps_the_year_and_the_fact_id`,
+  `three_dated_outcomes_form_one_ordered_sequence` (7 tests in
+  `micro::tests`). Suites after the change: 331 passed / 0 failed across
+  visualner + semantic-core + semantic-engine.
+- [x] Feature: composed image queries with per-component provenance — new
+  `semantic_manifest.v2` collection `composed_image_queries`
+  (`ComposedImageQuery` + `QueryComponent` in `semantic-core::manifest`,
+  `composed_query_candidates` in `candidates.rs`): the verbatim source slice
+  spanning two or more grounded components (entities, measurements, dates)
+  stated together in one sentence, each component keeping its own span,
+  role (`entity`/`measurement`/`date`) and closed type. The literal-substring
+  rule is kept by construction: composition spans what the source states
+  together, it never joins surfaces the source never wrote. One query per
+  sentence; a sentence without two grounded components emits nothing.
+  Tests: `composed_image_queries_keep_the_literal_substring_rule` (query and
+  every component round-trip the source, components stay inside the span,
+  PERSON and DATE components present, noise sentence composes nothing) and
+  `one_component_never_composes_a_query`. Suites after the change: 333
+  passed / 0 failed.
+- [x] Charts & bullets: positive/negative suites verified and coverage gaps
+  filled in THIS checkout (the T05 fixtures/harness live in `refactored/`, so
+  the same behaviors had no Rust coverage here). Charts:
+  `spelled_percentages_form_one_chart_of_both_values` («quarantadue per cento»
+  vs «diciotto per cento» → one PERCENT chart 18/42, like digits),
+  `a_spelled_value_without_a_unit_enters_no_numeric_projection` («quarantadue»
+  alone is neither a chart value nor a numeric fact),
+  `different_kinds_never_form_a_chart` (percent vs money is not a comparison
+  even with the cue); the pre-existing negatives stay green (single value,
+  unrelated values without cue, dates never become bars, chart items are
+  verbatim slices). Bullets: the shared salience/dedup/signal requirements are
+  covered in `semantic-core::bullets` (5 tests) and at the engine
+  (`bullet_candidates_carry_the_shared_semantic_salience`); new negative
+  `filler_sentences_are_never_bullets` («Non è così. Lui. Lei.» never become
+  bullets; only the grounded sentence does). All four new tests passed
+  against existing behavior — the gap was coverage, not implementation.
+  Suites after the change: 337 passed / 0 failed.
+- [ ] Gold test: 20 annotated scripts (2 per language) with gold JSON
+  annotations (author-annotated, recorded as such: the repo's "independent
+  human annotation" criterion stays open, see the exact blocker below).
+- [ ] Gold test: scorer + run versus thresholds (entity recall ≥ 95%,
+  precision ≥ 98%, noise precision ≥ 95%), resolve engine/gold discrepancies.
+- [ ] Reproducibility: double-run byte-identical manifest check.
+- [ ] Performance: warm-worker P50/P95/RSS/CPU per language versus targets.
+- [ ] Final gates re-run after all changes (fmt/test/clippy/build + benchmark).
+- [ ] Final acceptance report + evidence table.
+
+### Nota metodologica (2026-10-25, richiesta esplicita)
+
+Nessun test va indebolito, e nessuna lista di parole va aggiunta solo per
+far passare un caso: una verifica che passa grazie al proprio gold non è
+evidenza. Regole applicate a tutto il lavoro di questa sezione:
+
+1. **Meccanismo prima dei dati.** Le regole strutturali fanno il lavoro
+   pesante (suffisso-place più lungo, prova nome via POS/lemma, guardie
+   "l'intero run è un posto"/"testa di istituzione", matching per parole
+   intere). Le tabelle lessicali (`entity_blocklist`, `filler_phrases`) sono
+   ammesse SOLO dove il tagger distrugge ogni evidenza strutturale — es/pt
+   lowercasano tutti i lemma PROPN ("Visita Madrid" e "Elena Messina" sono
+   strutturalmente identici) — e dove il passaggio è untyped per design
+   (`script_person_tokens`), che è anche il seam già previsto dal repo
+   (`entity_blocklist.txt`: "words that frequently appear capitalized at
+   sentence start but are not proper nouns"). Ogni lista è una classe
+   documentata (verbi imperativi di narrazione; famiglie di filler citate dal
+   criterio), mai parole scelte per superare un test.
+2. **Gold indipendente dai filtri.** Il gold test va scritto per giudizio
+   linguistico, non copiando dalle tabelle dei filtri: un filler naturale non
+   coperto dal motore è un MISS da riportare e correggere, non da coprire
+   aggiungendo la parola al gold. La vittoria circolare (stessi dati nei
+   filtri e nel gold) è esclusa per costruzione.
+3. **Assertion invariate.** Nessuna asserzione di test esistente è stata
+   allentata; i casi nuovi assertano comportamento esterno (il luogo
+   sopravvive come LOCATION, il nome-persona non si spezza), non
+   l'implementazione.
+
+Blocco esatto per i criteri non raggiungibili: le annotazioni umane
+indipendenti per lo script Garlasco da 2.013 parole e per un corpus annotato
+di oggetti/parole chiave non esistono in questo checkout (ricerche Drive già
+evidenziate in F/T01 e B: nessun file di gold indipendente). Il gold test di
+questa sezione è autoprodotto e dichiarato tale; non chiude il requisito di
+"indipendent annotations", che resta `NOT_RUN`/`NEEDS_REVIEW` e mai PASS.

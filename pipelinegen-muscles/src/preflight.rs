@@ -8,9 +8,9 @@
 //! 2. every scene duration must be finite and > 0,
 //! 3. every scene must carry a resolvable media locator.
 //!
-//! The Go side stays authoritative for enqueue decisions; this module
-//! lets the persistent `scene_intelligence` worker answer `preflight`
-//! without a Go round-trip.
+//! The Go side stays authoritative for enqueue decisions. This module keeps
+//! the Rust mirror of the same rules unit-tested; the retired
+//! `scene_intelligence` worker was its only wire endpoint.
 
 use crate::error::MuscleError;
 use serde::{Deserialize, Serialize};

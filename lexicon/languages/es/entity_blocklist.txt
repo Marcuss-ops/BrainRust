@@ -1,0 +1,17 @@
+# es entity blocklist — words that name an action, not an entity.
+# Tight class: sentence-initial imperative/narration verbs that fuse with a
+# following place name ("Visita Madrid hoy."). Structural evidence (POS tag, lemma
+# case, gazetteer) decides first; this list is the fallback where the tagger
+# destroys that evidence (Spanish/Portuguese lowercase every PROPN lemma) and
+# for the untyped script-wide name pass. One word per line, lowercase.
+visita
+visitas
+visitar
+descubre
+descubrid
+conoce
+conoced
+explora
+explorad
+recorre
+recorred

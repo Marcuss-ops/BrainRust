@@ -1,5 +1,5 @@
 //! Video render benchmark (harness = false, custom loop like
-//! `benches/phrase_impact.rs`).
+//! the retired compatibility benches).
 //!
 //! Measures the `render_stock` canonical timeline executor end-to-end over a
 //! SYNTHETIC fixture: `ffmpeg -f lavfi testsrc2` sources (no network, no

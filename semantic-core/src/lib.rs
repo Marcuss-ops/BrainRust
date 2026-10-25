@@ -46,11 +46,11 @@ pub use manifest::ChartItem;
 pub use manifest::{
     AnalyzerVersions, Candidate, ConsolidatedDate, ConsolidatedDateSpan, ConsolidatedEventLink,
     ConsolidatedFact, ConsolidationInventory, ConsolidationMetrics, ConsolidationSceneStats,
-    CoverageItem, EntityFact, FactRepresentation, MicroSummary, ProductionCandidate,
-    ReferenceNumber, SceneCoverage, SceneInput, SceneManifest, ScriptRequest, SearchFeedback,
-    SearchFeedbackEntry, SearchQuery, SearchRetry, SemanticGroup, SemanticGroupMember,
-    SemanticManifest, StoryEdge, StoryGraph, StoryNode, VisualConsolidation, VisualCoverage,
-    VisualProposal, SCHEMA_VERSION, VISUAL_CONSOLIDATION_SCHEMA,
+    ComposedImageQuery, CoverageItem, EntityFact, FactRepresentation, ImportantSegment,
+    MicroSummary, ProductionCandidate, QueryComponent, ReferenceNumber, SceneCoverage, SceneInput,
+    SceneManifest, ScriptRequest, SearchFeedback, SearchFeedbackEntry, SearchQuery, SearchRetry,
+    SemanticGroup, SemanticGroupMember, SemanticManifest, StoryEdge, StoryGraph, StoryNode,
+    VisualConsolidation, VisualCoverage, VisualProposal, SCHEMA_VERSION, VISUAL_CONSOLIDATION_SCHEMA,
 };
 pub use numbers::{parse_unambiguous_value, values_are_comparable, NumericFact};
 pub use relations::{AssertedRelation, CoMention, RelationStatus, RelationView};

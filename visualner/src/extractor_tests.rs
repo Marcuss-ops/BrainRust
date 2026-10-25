@@ -2,6 +2,7 @@
 //! production file reviewable; compiled only under cfg(test)).
 
 use super::*;
+use crate::{ExtractOptions, VisualEntity};
 
 #[test]
 fn icu_tokenizer_splits_unspaced_scripts_and_keeps_compounds() {
@@ -1547,5 +1548,89 @@ fn a_surname_alias_points_at_its_full_name() {
         !shared.person_surnames.contains_key("rossi"),
         "a shared surname must stay ambiguous: {:?}",
         shared.person_surnames
+    );
+}
+
+#[test]
+fn clause_openers_never_fuse_a_trailing_place() {
+    // A voiceover imperative plus a city ("Visita Pavia oggi.", "Bezoek
+    // Haarlem vandaag.") is a clause opener and a place, not one surface: the
+    // place must survive as its own LOCATION in every language, and the
+    // fused surface must never become an entity.
+    for (language, sentence, opener, place) in [
+        ("it", "Visita Pavia oggi.", "Visita", "Pavia"),
+        ("en", "Visit London today.", "Visit", "London"),
+        ("es", "Visita Madrid hoy.", "Visita", "Madrid"),
+        ("pt", "Visite Lisboa hoje.", "Visite", "Lisboa"),
+        ("de", "Besuche Berlin heute.", "Besuche", "Berlin"),
+        ("fr", "Visitez Paris aujourd'hui.", "Visitez", "Paris"),
+        ("nl", "Bezoek Haarlem vandaag.", "Bezoek", "Haarlem"),
+    ] {
+        let entities = extract(
+            sentence,
+            &ExtractOptions {
+                language: language.to_string(),
+                entity_count: 40,
+            },
+        )
+        .unwrap_or_else(|error| panic!("{language} extraction failed: {error}"));
+        assert!(
+            entities
+                .iter()
+                .any(|entity| entity.text == place && entity.r#type == "LOCATION"),
+            "{language}: {place} must survive as a LOCATION: {entities:?}"
+        );
+        let fused = format!("{opener} {place}");
+        assert!(
+            !entities.iter().any(|entity| {
+                entity.text.eq_ignore_ascii_case(&fused) || entity.text == opener
+            }),
+            "{language}: the fused surface must not be an entity: {entities:?}"
+        );
+    }
+}
+
+#[test]
+fn a_place_surname_stays_a_person_name() {
+    // "Messina" is a known place, but a run opened by a real name keeps its
+    // trailing surname: splitting there would destroy every person whose
+    // surname doubles as a city.
+    let entities = extract(
+        "Elena Messina entra nel tribunale.",
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 40,
+        },
+    )
+    .expect("italian extraction");
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Elena Messina" && entity.r#type == "PERSON"),
+        "a person with a place surname must stay whole: {entities:?}"
+    );
+}
+
+#[test]
+fn a_multiword_place_survives_a_clause_opener() {
+    // "Visit New York today." must keep the whole place: the split rule fires
+    // on the longest known-place suffix, never on its last token alone.
+    let entities = extract(
+        "Visit New York today.",
+        &ExtractOptions {
+            language: "en".to_string(),
+            entity_count: 40,
+        },
+    )
+    .expect("english extraction");
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "New York" && entity.r#type == "LOCATION"),
+        "the multi-word place must stay whole: {entities:?}"
+    );
+    assert!(
+        !entities.iter().any(|entity| entity.text == "York"),
+        "the place must not be cut to its last token: {entities:?}"
     );
 }

@@ -111,7 +111,8 @@ pub fn analyze_with_context(
     options: &ExtractOptions,
     context: &crate::extractor::ScriptContext,
 ) -> Result<Analysis, String> {
-    let entities = crate::extractor::extract_with_context(source_text, options, context)?;
+    let (entities, spelled_candidates) =
+        crate::extractor::extract_with_context_and_spellout(source_text, options, context)?;
     // One canonical segmenter for every extractor (semantic-core).
     let sentences = split_sentences(source_text, &options.language, None);
     let entity_sentence: Vec<Option<usize>> = entities
@@ -145,8 +146,6 @@ pub fn analyze_with_context(
     // The date parser never spells a word itself: the locale's ICU RBNF
     // rules locate "tredici", "duemilasette" or "two thousand seven", and
     // semantic-core only resolves the calendar around the month token.
-    let spelled_candidates =
-        crate::spellout::candidates(source_text, &options.language).unwrap_or_default();
     let spelled_numbers: Vec<SpelledNumber> = spelled_candidates
         .iter()
         .map(|candidate| SpelledNumber {

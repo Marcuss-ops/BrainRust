@@ -20,10 +20,11 @@ The workspace now has two deliberately separate execution boundaries:
 - `semantic-engine` is the dedicated CPU-only text-analysis worker. One
   `analyze_script` request carries all scenes and returns the versioned
   `semantic_manifest.v2`; it does not search for assets or perform media I/O.
-- `pipelinegen-muscles` remains the media executor and hosts the existing
-  Phrase Impact and Scene Intelligence workers during their migration. It
-  owns FFmpeg-related operations and must not become the semantic engine's
-  dependency.
+- `pipelinegen-muscles` remains the media executor. It owns FFmpeg-related
+  operations and must not become the semantic engine's dependency. The
+  standalone Phrase Impact and Scene Intelligence compatibility workers were
+  retired on 2026-10-25 after measured parity; their shared algorithms live in
+  `semantic-core` and in the unified semantic worker batch.
 
 `semantic-core` owns shared semantic contracts and deterministic primitives
 (grounding, sentence spans, numeric/date facts, identity and relation types).
@@ -58,10 +59,13 @@ fact-backed micro phrases and chronological or comparison groups without
 rewriting `not convicted` as innocence. Every retained visual entity gets a
 source-grounded search query.
 Bullet candidates and their editorial salience come from one shared
-`semantic-core::bullets` implementation; Phrase Impact combines that score
-with its embedding importance and still owns duplicate/novelty selection.
-Phrase Impact is computed inside the same worker batch; Scene Intelligence
-remains an explicitly opt-in shadow path pending its own retirement evidence.
+`semantic-core::bullets` implementation; the editorial ranking combines that
+score with embedding importance and owns duplicate/novelty selection. The
+extractive summary, bullets, heavy sentences, chapters and scene highlights
+are computed inside the same unified worker batch. The legacy standalone
+Phrase Impact worker and the opt-in Scene Intelligence shadow path were
+retired on 2026-10-25 after parity evidence was recorded (see
+`RUST_SEMANTIC_ENGINE_TODO.md`).
 
 ## Local check
 
@@ -174,19 +178,13 @@ summary and bullets are extractive source sentences, selected separately from
 the heavy-sentence ranking, so nothing it returns is a generative,
 unsupported paraphrase.
 
-The worker is exposed over the same newline-delimited JSON stdio contract as
-the other muscles and is dispatched by binary name (`bin/phrase_impact`) or by
-the `phrase-impact` argument. Besides the full analysis request it serves
-`{"operation":"split_sentences"}`, the canonical sentence splitter the Go
-adapter uses before embedding. The Go side
-(`internal/platform/media/rustexec.PhraseImpactAnalyzer`) drives this worker
-through the persistent process runner and is wired into the script generation
-runner by `wirePhraseImpactAnalyzer`
-(`external.rust_phrase_impact_path`, default `bin/phrase_impact`, installed by
-`make build-muscles`). A missing or broken worker degrades to "no summary"
-rather than failing the run, and the extractive fields are persisted on
-`GenerateResult`/`GenerationResult` as `summary`, `bullet_points` and
-`heavy_sentences`.
+The core is invoked in-process by the unified `semantic-engine`
+`analyze_script` batch, which carries the editorial products (`summary`,
+`bullet_points`, `heavy_sentences`, `chapter_manifest`, scene highlights) in
+the same manifest the Go runner already consumes. The standalone
+`bin/phrase_impact` worker, its Go adapter and its compatibility benchmarks
+were retired on 2026-10-25: the same core had been proven byte-identical to
+the unified path by the real-binary parity tests before removal.
 
 The permanently stored label fixture is explicitly synthetic and cannot be
 used as evidence that human Precision@K targets pass. CPU percentage and RSS
@@ -218,26 +216,7 @@ replacement for the planned 60/20/20 human-annotated split: no independent
 repository, so WindowDiff, Boundary F1, baseline comparisons, and the proposed
 90% title-acceptance target remain unclaimed.
 
-Per-title latency of the production worker (one NDJSON request/response per
-titled narration, measured against `bin/phrase_impact`) is measured from a
-PipelineGen checkout, which installs the worker and owns the Go benchmark:
-
-```sh
-PHRASE_IMPACT_BIN="$PWD/bin/phrase_impact" go test ./scripts/bench \
-  -run '^$' -bench BenchmarkPhraseImpactTitles -benchmem
-```
-
-The offline Python comparison of extractors over archived scripts stays in
-PipelineGen's `scripts/bench/phrase_impact.py`.
-
-Run the optimized local benchmark (10 warmups / 100 samples at each requested
-word count, concurrency sweep, and 10,000-run memory stress):
-
-```sh
-cargo bench -p pipelinegen-muscles --bench phrase_impact
-```
-
-The JSON report defaults to the ignored
-`pipelinegen-muscles/.cache/phrase-impact/rust_benchmark.json` (Cargo runs
-the benchmark from the package directory); override its path with
-`PHRASE_IMPACT_BENCH_OUTPUT`.
+The worker-only latency benchmark was retired with the compatibility worker.
+The core's behavior is covered by the `semantic-core` phrase-impact regression
+suite and by the real-binary editorial parity tests in PipelineGen, which used
+the retired worker as the comparison surface before removal.

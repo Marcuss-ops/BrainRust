@@ -8,14 +8,6 @@ publish = false
 path = "src/lib.rs"
 
 [[bench]]
-name = "phrase_impact"
-harness = false
-
-[[bench]]
-name = "scene_intelligence"
-harness = false
-
-[[bench]]
 name = "video_render"
 harness = false
 

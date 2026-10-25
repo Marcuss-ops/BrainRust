@@ -247,6 +247,67 @@ pub struct MicroSummary {
     pub score: f32,
 }
 
+/// A grounded multi-sentence passage kept as one editorial unit.
+///
+/// A segment is 2–5 consecutive sentences cut at the canonical segmenter's
+/// boundaries (never mid-sentence), anchored by a grounded signal in its
+/// first and last sentence, and scored with the shared sentence salience
+/// (`semantic_core::bullets`) averaged over the window. Segments never
+/// overlap: the best windows win, in stable order.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ImportantSegment {
+    pub id: String,
+    /// Always `important_segment`.
+    pub kind: String,
+    /// Inclusive scene-local sentence range, from the canonical segmenter.
+    pub sentence_index_start: usize,
+    pub sentence_index_end: usize,
+    /// Verbatim source slice from the first to the last sentence boundary.
+    pub evidence: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    /// Deterministic salience in `[0, 1]`: the shared sentence salience
+    /// averaged over the window's sentences.
+    pub score: f32,
+    /// Grounded signals counted inside the window (for auditability).
+    pub visual_mentions: usize,
+    pub measurement_mentions: usize,
+}
+
+/// One grounded component inside a composed image query: the exact span of a
+/// subject, object, measurement or date the query is composed of.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct QueryComponent {
+    /// `entity`, `measurement` or `date`.
+    pub kind: String,
+    /// The closed source type the component carries (`PERSON`, `LOCATION`,
+    /// `NUMBER`, `PERCENT`, `MONEY`, `DATE`, ...).
+    pub component_type: String,
+    /// Verbatim source slice at `[start_byte, end_byte)`.
+    pub text: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// A ready-to-use image query composed of several grounded components that
+/// the source states together, with every component's own span as
+/// provenance. The literal-substring rule is kept: the query text is a
+/// verbatim source slice spanning the components, never a synthetic join of
+/// surfaces the source never wrote.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ComposedImageQuery {
+    pub id: String,
+    /// Always `composed_image_query`.
+    pub kind: String,
+    /// Verbatim source slice spanning the components.
+    pub query: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub sentence_index: usize,
+    /// Grounded components the query is composed of (never fewer than two).
+    pub components: Vec<QueryComponent>,
+}
+
 /// One rung of the asset-search ladder proposed by the engine. The text is
 /// always an exact source slice; retrieval stays in PipelineGen.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -659,6 +720,12 @@ pub struct SceneManifest {
     pub long_phrases: Vec<Candidate>,
     pub quotes: Vec<Candidate>,
     pub important_words: Vec<Candidate>,
+    /// Grounded multi-sentence passages (2–5 sentences) at linguistic
+    /// boundaries, for planners that treat a passage as one editorial unit.
+    pub important_segments: Vec<ImportantSegment>,
+    /// Multi-component image queries with per-component provenance. Every
+    /// query stays a literal source substring.
+    pub composed_image_queries: Vec<ComposedImageQuery>,
     pub visual_proposals: Vec<VisualProposal>,
     /// Grounded multi-item structures suitable for planner selection.
     pub semantic_groups: Vec<SemanticGroup>,

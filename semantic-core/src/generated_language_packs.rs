@@ -9,6 +9,7 @@ pub const PACKS: &[(&str, &str)] = &[
     ("fr", include_str!("../../lexicon/packs/fr.json")),
     ("id", include_str!("../../lexicon/packs/id.json")),
     ("it", include_str!("../../lexicon/packs/it.json")),
+    ("nl", include_str!("../../lexicon/packs/nl.json")),
     ("pl", include_str!("../../lexicon/packs/pl.json")),
     ("pt", include_str!("../../lexicon/packs/pt.json")),
     ("ru", include_str!("../../lexicon/packs/ru.json")),

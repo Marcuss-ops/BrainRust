@@ -41,6 +41,7 @@ use crate::contains_any;
 pub fn extract(
     source: &str,
     language: &str,
+    sentences: &[semantic_core::SentenceSpan],
     entities: &[VisualEntity],
     entity_ids: &[String],
     temporal_facts: &[TemporalFact],
@@ -52,7 +53,6 @@ pub fn extract(
     let Some(legal) = legal_packs::get(language) else {
         return Vec::new();
     };
-    let sentences = semantic_core::split_sentences(source, language, None);
     // Editorial legal narration often names the person once and then reports
     // agentless outcomes ("il giudice pronunciò una prima assoluzione"). The
     // fallback below attributes such a sentence to the only person mentioned
@@ -593,9 +593,11 @@ mod tests {
             .enumerate()
             .map(|(index, entity)| format!("e{}:{}", index, entity.text))
             .collect();
+        let sentences = semantic_core::split_sentences(text, "it", None);
         let facts = extract(
             text,
             "it",
+            &sentences,
             &analysis.entities,
             &ids,
             &analysis.temporal_facts,
@@ -761,9 +763,11 @@ mod tests {
             .enumerate()
             .map(|(index, entity)| format!("e{}:{}", index, entity.text))
             .collect();
+        let sentences = semantic_core::split_sentences(text, "de", None);
         let facts = extract(
             text,
             "de",
+            &sentences,
             &analysis.entities,
             &ids,
             &analysis.temporal_facts,

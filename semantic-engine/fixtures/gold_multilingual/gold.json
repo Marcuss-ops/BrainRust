@@ -1,0 +1,837 @@
+{
+  "schema": "gold_multilingual.v1",
+  "annotation": {
+    "author": "agent-authored from linguistic judgment; NOT copied from engine output or from the filter/filler data",
+    "entity_scheme": {
+      "PERSON": "named human, full name surface as written in the text",
+      "LOCATION": "named place (city), surface as written",
+      "ORG": "named or definite institution mention (court, prosecutor's office, ministry); the annotation scheme treats a definite institution head in legal narration as an ORG mention, matching the engine's curated cue table",
+      "WORK": "title of a creative work",
+      "BRAND": "commercial brand",
+      "PRODUCT": "named product line"
+    },
+    "scoring": {
+      "unit": "entity per document (unique by surface), not mention-level",
+      "types_scored": [
+        "PERSON",
+        "LOCATION",
+        "ORG",
+        "WORK",
+        "BRAND",
+        "PRODUCT"
+      ],
+      "excluded": "OBJECT / VISUAL_CONCEPT / DATE / NUMBER / MONEY / PERCENT / quotes: the certified contract is the named-entity set; the curated object slice (T05) is not scored",
+      "match": "case-folded token-set containment between gold surface and extracted surface, type must agree",
+      "thresholds": {
+        "recall": 0.95,
+        "typed_recall": 0.95,
+        "precision": 0.98,
+        "noise_leaks": 0
+      },
+      "noise_rules": {
+        "filler": "no query may contain the filler phrase; no entity may contain it",
+        "heading": "no query may contain the heading text; no entity may contain it",
+        "pronoun": "no query and no entity may BE the bare pronoun (equality)"
+      }
+    },
+    "language_notes": {
+      "en": "English ships an empty legal-cue table, so the English scripts carry no institution mention; persons/places/works/brands/products only.",
+      "pl": "Polish place surfaces are annotated in their dictionary form as they appear in the scripts; inflected place forms are outside the current place-index contract (documented limit).",
+      "ru": "Same as Polish: scripts use nominative/indeclinable place surfaces (Москва, Казань)."
+    }
+  },
+  "scripts": {
+    "it_a": {
+      "language": "it",
+      "file": "scripts/it_a.txt",
+      "entities": [
+        {
+          "text": "Elena Messina",
+          "type": "PERSON"
+        },
+        {
+          "text": "Pavia",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Procura di Pavia",
+          "type": "ORG"
+        },
+        {
+          "text": "Marco Rinaldi",
+          "type": "PERSON"
+        },
+        {
+          "text": "Milano",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CAPITOLO SECONDO — LE INDAGINI",
+          "kind": "heading"
+        },
+        {
+          "text": "non è così",
+          "kind": "filler"
+        }
+      ]
+    },
+    "it_b": {
+      "language": "it",
+      "file": "scripts/it_b.txt",
+      "entities": [
+        {
+          "text": "Tribunale di Milano",
+          "type": "ORG"
+        },
+        {
+          "text": "Milano",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Giulia Ferri",
+          "type": "PERSON"
+        },
+        {
+          "text": "Paolo Grasso",
+          "type": "PERSON"
+        },
+        {
+          "text": "Torino",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Jolene",
+          "type": "WORK"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CAPITOLO QUARTO — LA SENTENZA",
+          "kind": "heading"
+        },
+        {
+          "text": "per questo",
+          "kind": "filler"
+        },
+        {
+          "text": "lui",
+          "kind": "pronoun"
+        },
+        {
+          "text": "lei",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "de_a": {
+      "language": "de",
+      "file": "scripts/de_a.txt",
+      "entities": [
+        {
+          "text": "Lena Hoffmann",
+          "type": "PERSON"
+        },
+        {
+          "text": "Berlin",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Staatsanwaltschaft Berlin",
+          "type": "ORG"
+        },
+        {
+          "text": "Jonas Weber",
+          "type": "PERSON"
+        },
+        {
+          "text": "München",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "KAPITEL DREI — DIE UNTERSUCHUNG",
+          "kind": "heading"
+        },
+        {
+          "text": "das ist nicht so",
+          "kind": "filler"
+        }
+      ]
+    },
+    "de_b": {
+      "language": "de",
+      "file": "scripts/de_b.txt",
+      "entities": [
+        {
+          "text": "Landgericht München",
+          "type": "ORG"
+        },
+        {
+          "text": "München",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Katrin Bauer",
+          "type": "PERSON"
+        },
+        {
+          "text": "Thomas Keller",
+          "type": "PERSON"
+        },
+        {
+          "text": "Hamburg",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "KAPITEL VIER — DAS URTEIL",
+          "kind": "heading"
+        },
+        {
+          "text": "aus diesem Grund",
+          "kind": "filler"
+        },
+        {
+          "text": "er",
+          "kind": "pronoun"
+        },
+        {
+          "text": "sie",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "en_a": {
+      "language": "en",
+      "file": "scripts/en_a.txt",
+      "entities": [
+        {
+          "text": "Sarah Collins",
+          "type": "PERSON"
+        },
+        {
+          "text": "London",
+          "type": "LOCATION"
+        },
+        {
+          "text": "David Turner",
+          "type": "PERSON"
+        },
+        {
+          "text": "Jolene",
+          "type": "WORK"
+        },
+        {
+          "text": "Manchester",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CHAPTER TWO — THE INVESTIGATION",
+          "kind": "heading"
+        },
+        {
+          "text": "it is not like that",
+          "kind": "filler"
+        }
+      ]
+    },
+    "en_b": {
+      "language": "en",
+      "file": "scripts/en_b.txt",
+      "entities": [
+        {
+          "text": "Emma Wells",
+          "type": "PERSON"
+        },
+        {
+          "text": "Birmingham",
+          "type": "LOCATION"
+        },
+        {
+          "text": "iPhone",
+          "type": "PRODUCT"
+        },
+        {
+          "text": "Tesla",
+          "type": "BRAND"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CHAPTER THREE — THE VERDICT",
+          "kind": "heading"
+        },
+        {
+          "text": "for this reason",
+          "kind": "filler"
+        },
+        {
+          "text": "he",
+          "kind": "pronoun"
+        },
+        {
+          "text": "she",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "es_a": {
+      "language": "es",
+      "file": "scripts/es_a.txt",
+      "entities": [
+        {
+          "text": "Lucía Navarro",
+          "type": "PERSON"
+        },
+        {
+          "text": "Madrid",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Fiscalía de Madrid",
+          "type": "ORG"
+        },
+        {
+          "text": "Pablo Herrera",
+          "type": "PERSON"
+        },
+        {
+          "text": "Barcelona",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CAPÍTULO TRES — LA INVESTIGACIÓN",
+          "kind": "heading"
+        },
+        {
+          "text": "no es así",
+          "kind": "filler"
+        }
+      ]
+    },
+    "es_b": {
+      "language": "es",
+      "file": "scripts/es_b.txt",
+      "entities": [
+        {
+          "text": "Juzgado de Barcelona",
+          "type": "ORG"
+        },
+        {
+          "text": "Barcelona",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Ana Castillo",
+          "type": "PERSON"
+        },
+        {
+          "text": "Martín Vega",
+          "type": "PERSON"
+        },
+        {
+          "text": "Sevilla",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CAPÍTULO CUARTO — LA SENTENCIA",
+          "kind": "heading"
+        },
+        {
+          "text": "por eso",
+          "kind": "filler"
+        },
+        {
+          "text": "él",
+          "kind": "pronoun"
+        },
+        {
+          "text": "ella",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "fr_a": {
+      "language": "fr",
+      "file": "scripts/fr_a.txt",
+      "entities": [
+        {
+          "text": "Marie Laurent",
+          "type": "PERSON"
+        },
+        {
+          "text": "Paris",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Parquet de Paris",
+          "type": "ORG"
+        },
+        {
+          "text": "Julien Moreau",
+          "type": "PERSON"
+        },
+        {
+          "text": "Lyon",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CHAPITRE TROIS — L'ENQUÊTE",
+          "kind": "heading"
+        },
+        {
+          "text": "ce n'est pas ainsi",
+          "kind": "filler"
+        }
+      ]
+    },
+    "fr_b": {
+      "language": "fr",
+      "file": "scripts/fr_b.txt",
+      "entities": [
+        {
+          "text": "Tribunal de Lyon",
+          "type": "ORG"
+        },
+        {
+          "text": "Lyon",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Camille Petit",
+          "type": "PERSON"
+        },
+        {
+          "text": "Antoine Roux",
+          "type": "PERSON"
+        },
+        {
+          "text": "Marseille",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CHAPITRE QUATRE — LE JUGEMENT",
+          "kind": "heading"
+        },
+        {
+          "text": "c'est pourquoi",
+          "kind": "filler"
+        },
+        {
+          "text": "lui",
+          "kind": "pronoun"
+        },
+        {
+          "text": "elle",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "id_a": {
+      "language": "id",
+      "file": "scripts/id_a.txt",
+      "entities": [
+        {
+          "text": "Rina Wijaya",
+          "type": "PERSON"
+        },
+        {
+          "text": "Jakarta",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Kejaksaan Jakarta",
+          "type": "ORG"
+        },
+        {
+          "text": "Budi Santoso",
+          "type": "PERSON"
+        },
+        {
+          "text": "Surabaya",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "BAB DUA — PENYELIDIKAN",
+          "kind": "heading"
+        },
+        {
+          "text": "bukan begitu",
+          "kind": "filler"
+        }
+      ]
+    },
+    "id_b": {
+      "language": "id",
+      "file": "scripts/id_b.txt",
+      "entities": [
+        {
+          "text": "Pengadilan Surabaya",
+          "type": "ORG"
+        },
+        {
+          "text": "Surabaya",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Sari Dewi",
+          "type": "PERSON"
+        },
+        {
+          "text": "Andi Pratama",
+          "type": "PERSON"
+        },
+        {
+          "text": "Denpasar",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "BAB TIGA — PUTUSAN",
+          "kind": "heading"
+        },
+        {
+          "text": "karena itu",
+          "kind": "filler"
+        },
+        {
+          "text": "dia",
+          "kind": "pronoun"
+        },
+        {
+          "text": "mereka",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "nl_a": {
+      "language": "nl",
+      "file": "scripts/nl_a.txt",
+      "entities": [
+        {
+          "text": "Noor Bakker",
+          "type": "PERSON"
+        },
+        {
+          "text": "Amsterdam",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Openbaar Ministerie",
+          "type": "ORG"
+        },
+        {
+          "text": "Finn de Boer",
+          "type": "PERSON"
+        },
+        {
+          "text": "Rotterdam",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "HOOFDSTUK TWEE — HET ONDERZOEK",
+          "kind": "heading"
+        },
+        {
+          "text": "dat is niet zo",
+          "kind": "filler"
+        }
+      ]
+    },
+    "nl_b": {
+      "language": "nl",
+      "file": "scripts/nl_b.txt",
+      "entities": [
+        {
+          "text": "Rechtbank Rotterdam",
+          "type": "ORG"
+        },
+        {
+          "text": "Rotterdam",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Tess Vermeulen",
+          "type": "PERSON"
+        },
+        {
+          "text": "Bram Smit",
+          "type": "PERSON"
+        },
+        {
+          "text": "Utrecht",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "HOOFDSTUK DRIE — HET VONNIS",
+          "kind": "heading"
+        },
+        {
+          "text": "om deze reden",
+          "kind": "filler"
+        },
+        {
+          "text": "hij",
+          "kind": "pronoun"
+        },
+        {
+          "text": "zij",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "pl_a": {
+      "language": "pl",
+      "file": "scripts/pl_a.txt",
+      "entities": [
+        {
+          "text": "Warszawa",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Anna Kowalska",
+          "type": "PERSON"
+        },
+        {
+          "text": "Prokuratura Krajowa",
+          "type": "ORG"
+        },
+        {
+          "text": "Piotr Nowak",
+          "type": "PERSON"
+        },
+        {
+          "text": "Kraków",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "ROZDZIAŁ DRUGI — ŚLEDZTWO",
+          "kind": "heading"
+        },
+        {
+          "text": "nie jest tak",
+          "kind": "filler"
+        }
+      ]
+    },
+    "pl_b": {
+      "language": "pl",
+      "file": "scripts/pl_b.txt",
+      "entities": [
+        {
+          "text": "Sąd Rejonowy",
+          "type": "ORG"
+        },
+        {
+          "text": "Katarzyna Wiśniewska",
+          "type": "PERSON"
+        },
+        {
+          "text": "Marek Zieliński",
+          "type": "PERSON"
+        },
+        {
+          "text": "Poznań",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "ROZDZIAŁ TRZECI — WYROK",
+          "kind": "heading"
+        },
+        {
+          "text": "z tego powodu",
+          "kind": "filler"
+        },
+        {
+          "text": "on",
+          "kind": "pronoun"
+        },
+        {
+          "text": "ona",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "pt_a": {
+      "language": "pt",
+      "file": "scripts/pt_a.txt",
+      "entities": [
+        {
+          "text": "Maria Silva",
+          "type": "PERSON"
+        },
+        {
+          "text": "Lisboa",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Ministério Público de Lisboa",
+          "type": "ORG"
+        },
+        {
+          "text": "João Ribeiro",
+          "type": "PERSON"
+        },
+        {
+          "text": "Porto",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CAPÍTULO DOIS — A INVESTIGAÇÃO",
+          "kind": "heading"
+        },
+        {
+          "text": "não é assim",
+          "kind": "filler"
+        }
+      ]
+    },
+    "pt_b": {
+      "language": "pt",
+      "file": "scripts/pt_b.txt",
+      "entities": [
+        {
+          "text": "Tribunal do Porto",
+          "type": "ORG"
+        },
+        {
+          "text": "Porto",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Ana Costa",
+          "type": "PERSON"
+        },
+        {
+          "text": "Pedro Almeida",
+          "type": "PERSON"
+        },
+        {
+          "text": "Coimbra",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "CAPÍTULO TRÊS — A SENTENÇA",
+          "kind": "heading"
+        },
+        {
+          "text": "por isso",
+          "kind": "filler"
+        },
+        {
+          "text": "ele",
+          "kind": "pronoun"
+        },
+        {
+          "text": "ela",
+          "kind": "pronoun"
+        }
+      ]
+    },
+    "ru_a": {
+      "language": "ru",
+      "file": "scripts/ru_a.txt",
+      "entities": [
+        {
+          "text": "Москва",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Мария Соколова",
+          "type": "PERSON"
+        },
+        {
+          "text": "Прокуратура Москвы",
+          "type": "ORG"
+        },
+        {
+          "text": "Иван Петров",
+          "type": "PERSON"
+        },
+        {
+          "text": "Казань",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "ГЛАВА ВТОРАЯ — РАССЛЕДОВАНИЕ",
+          "kind": "heading"
+        },
+        {
+          "text": "не так",
+          "kind": "filler"
+        }
+      ]
+    },
+    "ru_b": {
+      "language": "ru",
+      "file": "scripts/ru_b.txt",
+      "entities": [
+        {
+          "text": "Верховный Суд",
+          "type": "ORG"
+        },
+        {
+          "text": "Алексей Иванов",
+          "type": "PERSON"
+        },
+        {
+          "text": "Ольга Смирнова",
+          "type": "PERSON"
+        },
+        {
+          "text": "Казань",
+          "type": "LOCATION"
+        }
+      ],
+      "noise": [
+        {
+          "text": "ГЛАВА ТРЕТЬЯ — ПРИГОВОР",
+          "kind": "heading"
+        },
+        {
+          "text": "именно поэтому",
+          "kind": "filler"
+        },
+        {
+          "text": "он",
+          "kind": "pronoun"
+        },
+        {
+          "text": "она",
+          "kind": "pronoun"
+        }
+      ]
+    }
+  }
+}
