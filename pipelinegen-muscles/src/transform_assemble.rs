@@ -72,22 +72,22 @@ pub(super) fn execute(request: Request) -> Response {
     }
 
     // ── All inputs compatible → concat -c copy ──
+    //
+    // Overlay segments are SILENT video-only artifacts: when NO input carries
+    // an audio stream the audio lane does not exist at all — no audio map, no
+    // audio stream bookkeeping. When audio is ever needed it enters exactly
+    // once, at the final master (`mux_audio_copy`), never inside a segment.
+    let any_audio = probes.iter().any(|probe| probe.audio_stream_count > 0);
+    let audio_map: &[&str] = if any_audio { &["-map", "0:a:0?"] } else { &[] };
     let part = part_path(&output);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
 
     let mut concat_list: Option<PathBuf> = None;
     if inputs.len() == 1 {
-        command.args([
-            "-i",
-            inputs[0].as_str(),
-            "-map",
-            "0:v:0",
-            "-map",
-            "0:a:0?",
-            "-c",
-            "copy",
-        ]);
+        command.args(["-i", inputs[0].as_str(), "-map", "0:v:0"]);
+        command.args(audio_map);
+        command.args(["-c", "copy"]);
     } else {
         let list_path = match write_concat_list(&inputs, "assemble_copy") {
             Ok(path) => path,
@@ -96,20 +96,10 @@ pub(super) fn execute(request: Request) -> Response {
             }
         };
         let list = list_path.to_string_lossy().into_owned();
-        command.args([
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            list.as_str(),
-            "-map",
-            "0:v:0",
-            "-map",
-            "0:a:0?",
-            "-c",
-            "copy",
-        ]);
+        command.args(["-f", "concat", "-safe", "0", "-i", list.as_str()]);
+        command.args(["-map", "0:v:0"]);
+        command.args(audio_map);
+        command.args(["-c", "copy"]);
         concat_list = Some(list_path);
     }
 
