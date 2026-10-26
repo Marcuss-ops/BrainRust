@@ -166,13 +166,18 @@ fn charts(
         let Some(bullet) = bullets.iter().find(|b| b.sentence_index == sentence) else {
             continue;
         };
-        if !crate::chart_rules::chart_claim_is_eligible(&bullet.text) {
-            continue;
-        }
         let points: Vec<&ChartPoint> = chart_points
             .iter()
             .filter(|p| p.sentence_index == sentence)
+            .filter(|p| {
+                let start = p.start.saturating_sub(bullet.start);
+                let end = p.end.saturating_sub(bullet.start);
+                crate::chart_rules::chart_point_is_eligible(&bullet.text, start, end)
+            })
             .collect();
+        if points.len() < 2 {
+            continue;
+        }
         let mut measures: Vec<crate::chart_rules::ChartUnit> = points
             .iter()
             .filter_map(|point| {
@@ -211,7 +216,8 @@ fn charts(
         let items: Vec<ChartItem> = points
             .iter()
             .zip(&measures)
-            .filter_map(|(p, measure)| {
+            .enumerate()
+            .filter_map(|(index, (p, measure))| {
                 let relative_start = p.start.checked_sub(bullet.start)?;
                 let relative_end = p.end.checked_sub(bullet.start)?;
                 let (qualified_start, qualified_end) = crate::chart_rules::qualified_numeric_span(
@@ -220,8 +226,23 @@ fn charts(
                     relative_end,
                 );
                 let text = bullet.text.get(qualified_start..qualified_end)?;
+                let subject_start = if index == 0 {
+                    bullet.start
+                } else {
+                    points[index - 1].end + (p.start.saturating_sub(points[index - 1].end) / 2)
+                };
+                let subject_end = points.get(index + 1).map_or(bullet.end, |next| {
+                    p.end + (next.start.saturating_sub(p.end) / 2)
+                });
                 Some(ChartItem {
-                    label: p.label.clone(),
+                    label: chart_subject_label(
+                        source,
+                        entities,
+                        p,
+                        bullet,
+                        subject_start,
+                        subject_end,
+                    ),
                     text: text.to_string(),
                     kind: measure.kind.clone(),
                     value: measure.value,
@@ -261,9 +282,9 @@ fn charts(
             temporal_surfaces: Vec::new(),
             suggested_layout: Some("bar_comparison"),
             requires_verified_images: false,
-            evidence: bullet.text.clone(),
-            start: bullet.start,
-            end: bullet.end,
+            evidence: chart_claim_evidence(source, bullet, &points),
+            start: chart_claim_bounds(bullet, &points).0,
+            end: chart_claim_bounds(bullet, &points).1,
         });
     }
     cross_sentence_series(source, entities, bullets, chart_points, identities, out);
@@ -300,8 +321,16 @@ fn cross_sentence_series(
                 continue;
             };
             if right.sentence_index.saturating_sub(left.sentence_index) > 3
-                || !crate::chart_rules::chart_claim_is_eligible(&left_bullet.text)
-                || !crate::chart_rules::chart_claim_is_eligible(&right_bullet.text)
+                || !crate::chart_rules::chart_point_is_eligible(
+                    &left_bullet.text,
+                    left.start.saturating_sub(left_bullet.start),
+                    left.end.saturating_sub(left_bullet.start),
+                )
+                || !crate::chart_rules::chart_point_is_eligible(
+                    &right_bullet.text,
+                    right.start.saturating_sub(right_bullet.start),
+                    right.end.saturating_sub(right_bullet.start),
+                )
                 || !same_series_metric(&left_bullet.text, &right_bullet.text)
             {
                 continue;
@@ -313,14 +342,13 @@ fn cross_sentence_series(
             if !has_time_anchor {
                 continue;
             }
-            let evidence_start = left_bullet.start.min(right_bullet.start);
-            let evidence_end = left_bullet.end.max(right_bullet.end);
+            let (left_claim_start, _) = chart_claim_bounds(left_bullet, &[*left]);
+            let (right_claim_start, right_claim_end) = chart_claim_bounds(right_bullet, &[*right]);
+            let evidence_start = left_claim_start.min(right_claim_start);
+            let evidence_end = right_claim_end;
             let Some(evidence) = source.get(evidence_start..evidence_end) else {
                 continue;
             };
-            if !crate::chart_rules::chart_claim_is_eligible(evidence) {
-                continue;
-            }
             let Some(left_start) = left.start.checked_sub(left_bullet.start) else {
                 continue;
             };
@@ -383,7 +411,14 @@ fn cross_sentence_series(
             };
             let items = vec![
                 ChartItem {
-                    label: left.label.clone(),
+                    label: chart_subject_label(
+                        source,
+                        entities,
+                        left,
+                        left_bullet,
+                        left_bullet.start,
+                        left_bullet.end,
+                    ),
                     text: left_text.to_string(),
                     kind: measures[0].kind.clone(),
                     value: measures[0].value,
@@ -391,7 +426,14 @@ fn cross_sentence_series(
                     end_byte: left_bullet.start + left_display_end,
                 },
                 ChartItem {
-                    label: right.label.clone(),
+                    label: chart_subject_label(
+                        source,
+                        entities,
+                        right,
+                        right_bullet,
+                        right_bullet.start,
+                        right_bullet.end,
+                    ),
                     text: right_text.to_string(),
                     kind: measures[1].kind.clone(),
                     value: measures[1].value,
@@ -441,6 +483,171 @@ fn has_four_digit_year(text: &str) -> bool {
                 .parse::<u16>()
                 .is_ok_and(|year| (1900..=2099).contains(&year))
     })
+}
+
+fn chart_claim_bounds(bullet: &Bullet, points: &[&ChartPoint]) -> (usize, usize) {
+    if crate::chart_rules::chart_claim_is_eligible(&bullet.text) {
+        return (bullet.start, bullet.end);
+    }
+    let Some(first) = points.iter().map(|point| point.start).min() else {
+        return (bullet.start, bullet.end);
+    };
+    let Some(last) = points.iter().map(|point| point.end).max() else {
+        return (bullet.start, bullet.end);
+    };
+    let local_first = first.saturating_sub(bullet.start);
+    let local_last = last.saturating_sub(bullet.start);
+    let left = bullet.text[..local_first]
+        .char_indices()
+        .filter(|(_, ch)| matches!(ch, ':' | ';' | '.' | '!' | '?' | '\n'))
+        .map(|(index, ch)| index + ch.len_utf8())
+        .last()
+        .unwrap_or(0);
+    let right = bullet.text[local_last..]
+        .char_indices()
+        .find(|(_, ch)| matches!(ch, ':' | ';' | '.' | '!' | '?' | '\n'))
+        .map(|(index, _)| local_last + index)
+        .unwrap_or(bullet.text.len());
+    (bullet.start + left, bullet.start + right)
+}
+
+fn chart_claim_evidence(source: &str, bullet: &Bullet, points: &[&ChartPoint]) -> String {
+    let (start, end) = chart_claim_bounds(bullet, points);
+    source
+        .get(start..end)
+        .unwrap_or(&bullet.text)
+        .trim()
+        .to_string()
+}
+
+/// Uses the nearest source-grounded nonnumeric entity as the chart category.
+/// When the value is a time-series point, its nearby year is the category.
+/// The full sentence is never used as a chart label.
+fn chart_subject_label(
+    source: &str,
+    entities: &[VisualEntity],
+    point: &ChartPoint,
+    bullet: &Bullet,
+    scope_start: usize,
+    scope_end: usize,
+) -> String {
+    let point_start = point.start;
+    let point_end = point.end;
+    let entity_candidate = entities
+        .iter()
+        .filter(|entity| {
+            entity.start >= scope_start
+                && entity.end <= scope_end
+                && entity.end <= point_start.saturating_add(80)
+                && entity.start.saturating_add(80) >= point_end
+                && !matches!(
+                    entity.r#type.as_str(),
+                    "NUMBER" | "PERCENT" | "MONEY" | "DATE"
+                )
+        })
+        .min_by_key(|entity| span_distance(entity.start, entity.end, point_start, point_end))
+        .and_then(|entity| source.get(entity.start..entity.end).map(str::to_string));
+    let proper_candidate = semantic_core::discourse::word_spans(&bullet.text)
+        .into_iter()
+        .filter_map(|word| {
+            let start = bullet.start + word.start;
+            let end = bullet.start + word.end;
+            let surface = source.get(start..end)?;
+            let first = surface.chars().next()?;
+            let stopwords = [
+                "nel", "nella", "il", "la", "lo", "un", "una", "the", "a", "in", "on", "der",
+                "die", "das", "el", "los", "las", "le", "les", "no",
+            ];
+            if start < scope_start
+                || end > scope_end
+                || !first.is_uppercase()
+                || end > point_start
+                || stopwords.contains(&word.lowered.as_str())
+            {
+                return None;
+            }
+            let distance = span_distance(start, end, point_start, point_end);
+            (distance <= 80).then_some((distance, surface.to_string()))
+        })
+        .min_by_key(|(distance, _)| *distance)
+        .map(|(_, surface)| surface);
+    if let Some(proper) = proper_candidate {
+        return proper;
+    }
+    if let Some(entity) = entity_candidate {
+        return entity;
+    }
+    let local_start = point_start.saturating_sub(40).max(bullet.start);
+    let local_end = point_end.saturating_add(40).min(bullet.end);
+    if let Some(context) = source.get(local_start..local_end) {
+        if let Some(year) = context.split(|ch: char| !ch.is_ascii_digit()).find(|word| {
+            word.len() == 4
+                && word
+                    .parse::<u16>()
+                    .is_ok_and(|year| (1900..=2099).contains(&year))
+        }) {
+            return year.to_string();
+        }
+    }
+    if let Some(after_value) = source.get(point_end..scope_end.min(bullet.end)) {
+        let descriptor: Vec<&str> = after_value
+            .split_whitespace()
+            .take_while(|word| {
+                let word = word
+                    .trim_matches(|ch: char| !ch.is_alphanumeric())
+                    .to_lowercase();
+                ![
+                    "ha",
+                    "hanno",
+                    "è",
+                    "sono",
+                    "era",
+                    "erano",
+                    "was",
+                    "were",
+                    "is",
+                    "are",
+                    "has",
+                    "have",
+                    "had",
+                    "sold",
+                    "recorded",
+                    "reported",
+                    "reached",
+                    "produced",
+                    "venduto",
+                    "venduta",
+                    "registrato",
+                    "registrata",
+                    "raggiunto",
+                    "raggiunta",
+                    "prodotto",
+                    "prodotta",
+                    "aumentate",
+                    "aumentato",
+                    "passed",
+                    "rose",
+                    "increased",
+                ]
+                .contains(&word.as_str())
+            })
+            .take(6)
+            .collect();
+        let descriptor = descriptor.join(" ");
+        let descriptor = descriptor.trim_matches(|ch: char| !ch.is_alphanumeric());
+        if !descriptor.is_empty() {
+            return descriptor.to_string();
+        }
+    }
+    format!("valore {}", point.text)
+}
+
+fn span_distance(start: usize, end: usize, point_start: usize, point_end: usize) -> usize {
+    if end <= point_start {
+        point_start - end
+    } else {
+        start.saturating_sub(point_end)
+    }
 }
 
 fn same_series_metric(left: &str, right: &str) -> bool {

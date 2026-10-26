@@ -53,6 +53,13 @@ fn chart_decisions_match_the_36_case_acceptance_corpus() {
         }
         for chart in &charts {
             for item in chart["chart_items"].as_array().into_iter().flatten() {
+                let label = item["label"].as_str().unwrap_or_default();
+                if label.is_empty() || label == case.text {
+                    mismatches.push(format!(
+                        "case {:02}: chart label is empty or copies the whole sentence: {item}",
+                        case.id
+                    ));
+                }
                 let start = item["start_byte"].as_u64().unwrap_or_default() as usize;
                 let end = item["end_byte"].as_u64().unwrap_or_default() as usize;
                 if case.text.get(start..end) != item["text"].as_str() {

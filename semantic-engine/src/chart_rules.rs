@@ -82,6 +82,29 @@ pub(crate) fn chart_claim_is_eligible(sentence: &str) -> bool {
         .any(|cue| contains_word_sequence(&normalized, cue))
 }
 
+/// Applies denial and verification cues to the local claim containing a
+/// value. A colon or sentence boundary starts a new claim, so a debunked
+/// number does not suppress a separate factual series later in the sentence.
+pub(crate) fn chart_point_is_eligible(sentence: &str, start: usize, end: usize) -> bool {
+    if start > end || end > sentence.len() || !sentence.is_char_boundary(start) {
+        return false;
+    }
+    let left = sentence[..start]
+        .char_indices()
+        .filter(|(_, ch)| matches!(ch, ':' | ';' | '.' | '!' | '?' | '\n'))
+        .map(|(index, ch)| index + ch.len_utf8())
+        .last()
+        .unwrap_or(0);
+    let right = sentence[end..]
+        .char_indices()
+        .find(|(_, ch)| matches!(ch, ':' | ';' | '.' | '!' | '?' | '\n'))
+        .map(|(index, _)| end + index)
+        .unwrap_or(sentence.len());
+    sentence
+        .get(left..right)
+        .is_some_and(chart_claim_is_eligible)
+}
+
 /// Expands a grounded numeric surface to include a directly attached
 /// approximation or bound, so downstream chart labels can display it.
 /// Returns byte offsets relative to `sentence`.
@@ -554,5 +577,16 @@ mod tests {
         let second = sentence.find("350").unwrap();
         let span = qualified_numeric_span(sentence, second, second + 3);
         assert_eq!(&sentence[span.0..span.1], "oltre 350");
+    }
+
+    #[test]
+    fn denial_scope_does_not_veto_a_later_independent_claim() {
+        let text = "È falso che Alfa abbia venduto 500 auto. Le vendite effettive sono state 700 nel 2023 e 900 nel 2024.";
+        let denied = text.find("500").unwrap();
+        let first_fact = text.find("700").unwrap();
+        let second_fact = text.find("900").unwrap();
+        assert!(!chart_point_is_eligible(text, denied, denied + 3));
+        assert!(chart_point_is_eligible(text, first_fact, first_fact + 3));
+        assert!(chart_point_is_eligible(text, second_fact, second_fact + 3));
     }
 }

@@ -149,6 +149,59 @@ fn chart_items_are_verbatim_source_slices() {
 }
 
 #[test]
+fn chart_labels_bind_values_to_nearby_subjects_instead_of_copying_the_sentence() {
+    let text =
+        "Nel 2024 Ford ha venduto 800.000 veicoli e Toyota 1.200.000 veicoli nello stesso mercato.";
+    let value = manifest_value(vec![scene("etichette-chart", text)]);
+    let charts = proposals_of(&value["scenes"][0], "chart");
+    assert_eq!(charts.len(), 1, "one comparison expected: {value}");
+    let mut labels: Vec<&str> = charts[0]["chart_items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["label"].as_str().unwrap())
+        .collect();
+    labels.sort_unstable();
+    assert_eq!(labels, ["Ford", "Toyota"], "manifest: {value}");
+}
+
+#[test]
+fn percentage_labels_keep_the_attached_population_or_group() {
+    let text =
+        "Il 42% dei tecnici ha segnalato il problema, contro il 18% del gruppo di controllo.";
+    let value = manifest_value(vec![scene("etichette-percentuali", text)]);
+    let charts = proposals_of(&value["scenes"][0], "chart");
+    assert_eq!(charts.len(), 1, "one comparison expected: {value}");
+    let labels: Vec<&str> = charts[0]["chart_items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["label"].as_str().unwrap())
+        .collect();
+    assert_eq!(labels, ["dei tecnici", "del gruppo di controllo"]);
+}
+
+#[test]
+fn a_debunked_claim_does_not_suppress_a_separate_true_series() {
+    let text = "È falso che Alfa abbia venduto 500 auto. Le vendite effettive sono state 700 nel 2023 e 900 nel 2024.";
+    let value = manifest_value(vec![scene("negazione-locale", text)]);
+    let charts = proposals_of(&value["scenes"][0], "chart");
+    let actual: Vec<f64> = charts
+        .iter()
+        .flat_map(|chart| chart["chart_items"].as_array().into_iter().flatten())
+        .filter_map(|item| item["value"].as_f64())
+        .collect();
+    assert_eq!(
+        actual,
+        [700.0, 900.0],
+        "only affirmed data is charted: {value}"
+    );
+    assert!(charts
+        .iter()
+        .all(|chart| !chart["evidence"].as_str().unwrap().contains("500")));
+}
+
+#[test]
 fn denied_debunked_and_unverified_numeric_claims_do_not_make_charts() {
     for (id, text) in [
         (
