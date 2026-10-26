@@ -50,6 +50,7 @@ pub(super) fn mark_contextual_locations(
         let mut place = candidate_from_tokens(tokens, source_text, index, end);
         if is_generic_location_noun(&place.text)
             || !is_place_name(&tokens[index], &place.text, language, cased)
+            || ambiguous_location_cue(tokens, index) && !lexicon().is_place(&place.text, language)
         {
             continue;
         }
@@ -73,6 +74,11 @@ pub(super) fn mark_contextual_locations(
         if !is_place_name(&tokens[token_index], &candidate.text, language, cased) {
             continue;
         }
+        if ambiguous_location_cue(tokens, token_index)
+            && !lexicon().is_place(&candidate.text, language)
+        {
+            continue;
+        }
         if has_location_context(tokens, bytes, token_index)
             && !is_month_name(&candidate.text)
             && !is_generic_location_noun(&candidate.text)
@@ -88,6 +94,20 @@ pub(super) fn mark_contextual_locations(
             candidates.push(place);
         }
     }
+}
+
+/// Some prepositions mark either a location or a human recipient. When one
+/// precedes a capitalized span, require independent geographic evidence to
+/// avoid typing names such as "a Elena Conti" as LOCATION.
+fn ambiguous_location_cue(tokens: &[Token], token_index: usize) -> bool {
+    let Some(previous) = token_index.checked_sub(1).map(|index| &tokens[index]) else {
+        return false;
+    };
+    lexicon()
+        .location_cues
+        .ambiguous_context_prepositions
+        .iter()
+        .any(|cue| cue.eq_ignore_ascii_case(&previous.text))
 }
 
 /// A geographic cue takes a proper name ("presso la Procura di Pavia" names

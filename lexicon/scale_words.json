@@ -64,7 +64,26 @@
     "votes",
     "seats",
     "cases",
-    "percent"
+    "percent",
+    "per cent",
+    "per cento",
+    "por ciento",
+    "por cento",
+    "pour cent",
+    "percento",
+    "prozent",
+    "procent",
+    "procenty",
+    "procentów",
+    "процент",
+    "процента",
+    "процентов",
+    "persen"
+  ],
+  "percentage_words": [
+    "percent", "%", "per cent", "per cento", "percento", "por ciento", "por cento",
+    "pour cent", "prozent", "procent", "procenty", "procentów",
+    "процент", "процента", "процентов", "persen"
   ],
   "currency_words": [
     "dollars",

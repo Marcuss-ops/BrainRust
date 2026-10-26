@@ -1,0 +1,29 @@
+# Adpositions and contracted forms (closed class): these words never
+# open or extend a name or a noun phrase. One word per line.
+# Folded into the pack's closed_class by lexicon/tools/build_language_packs.py.
+bez
+dla
+do
+koło
+mimo
+między
+na
+nad
+obok
+od
+około
+po
+pod
+pomimo
+przed
+przez
+przy
+spod
+spośród
+w
+według
+wobec
+wzdłuż
+z
+za
+ze

@@ -2,7 +2,21 @@
   "schema": "language_pack.v1",
   "language": "tr",
   "source": "lexicon/languages/tr",
-  "closed_class": [],
+  "closed_class": [
+    "beri",
+    "dair",
+    "doğru",
+    "gibi",
+    "ile",
+    "için",
+    "kadar",
+    "karşı",
+    "nazaran",
+    "rağmen",
+    "sonra",
+    "yönelik",
+    "önce"
+  ],
   "blocked": [
     "gez",
     "gezin",

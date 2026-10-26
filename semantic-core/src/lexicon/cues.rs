@@ -31,6 +31,17 @@ pub struct OperatorCue {
 /// Facility-fact knowledge (inauguration, capacity, operators, status).
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct FacilityLexicon {
+    /// Explicit facility nouns, across supported languages, used to recognize
+    /// a named structure only when followed by a source-grounded name.
+    #[serde(default)]
+    pub facility_nouns: Vec<String>,
+    /// Explicit asserted predicates for facts such as "is located in".
+    #[serde(default)]
+    pub location_relation_markers: Vec<String>,
+    /// Genitive forms used only for a facility noun phrase such as
+    /// "Stadio Aurora di Torino"; general prepositions are too ambiguous.
+    #[serde(default)]
+    pub bare_location_prepositions: Vec<String>,
     pub inauguration_markers: Vec<String>,
     pub capacity_markers: Vec<String>,
     pub capacity_unit_markers: Vec<String>,

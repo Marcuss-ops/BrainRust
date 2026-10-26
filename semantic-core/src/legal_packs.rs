@@ -86,7 +86,9 @@ mod tests {
 
     #[test]
     fn a_language_without_a_pack_has_no_legal_layer() {
-        assert!(get("de").is_none());
+        // The inventory grows by data entries (de now ships entity cues), but
+        // a language with no committed pack still gets no legal layer at all.
+        assert!(get("ko").is_none());
         assert!(get("zh").is_none());
     }
 }

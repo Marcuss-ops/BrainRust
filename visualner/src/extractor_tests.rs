@@ -853,6 +853,41 @@ fn common_sports_objects_receive_the_typed_object_category() {
 }
 
 #[test]
+fn everyday_technical_and_historical_objects_are_typed_from_the_shared_lexicon() {
+    for (language, source, expected) in [
+        ("it", "Il server è nella sala tecnica.", "server"),
+        ("es", "El sensor está junto al río.", "sensor"),
+        ("fr", "Le capteur mesure le niveau d'eau.", "capteur"),
+        (
+            "de",
+            "Die elektrische Straßenbahn passiert das Museum.",
+            "Straßenbahn",
+        ),
+        (
+            "de",
+            "Ein historisches Manuskript liegt im Archiv.",
+            "Manuskript",
+        ),
+        ("pt", "O sensor mede a água do rio.", "sensor"),
+    ] {
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: language.to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap_or_else(|error| panic!("{language}: {error}"));
+        let entity = entities
+            .iter()
+            .find(|entity| entity.text.eq_ignore_ascii_case(expected))
+            .unwrap_or_else(|| panic!("{language}: {expected} missing: {entities:?}"));
+        assert_eq!(entity.r#type, "OBJECT", "{language}: {entity:?}");
+        assert_eq!(&source[entity.start..entity.end], entity.text);
+    }
+}
+
+#[test]
 fn extracts_typed_brands_metrics_money_and_dates_with_exact_spans() {
     let source = "OpenAI reported 25% growth, $2.5 million in revenue, 42 orders on March 5, 2026, November 22, 1986 and 03/06/2026.";
     let entities = extract(
@@ -1084,6 +1119,34 @@ fn las_vegas_is_a_location_not_a_person() {
     assert_eq!(
         las_vegas.map(|entity| entity.r#type.as_str()),
         Some("LOCATION")
+    );
+}
+
+#[test]
+fn italian_recipient_after_a_is_not_typed_as_a_location() {
+    let text = "Il Comune affidò a Elena Conti la verifica. Lo Stadio Aurora si trova a Torino.";
+    let entities = extract(
+        text,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 8,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Elena Conti" && entity.r#type == "PERSON"),
+        "the recipient is a person: {entities:?}"
+    );
+    assert!(!entities
+        .iter()
+        .any(|entity| entity.text == "Elena Conti" && entity.r#type == "LOCATION"));
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Torino" && entity.r#type == "LOCATION"),
+        "the known city remains locative after the same preposition: {entities:?}"
     );
 }
 
@@ -1500,6 +1563,46 @@ fn institutions_are_orgs_and_never_places_or_people() {
 }
 
 #[test]
+fn capitalized_multilingual_institution_heads_keep_the_full_name() {
+    // The marker head is sometimes tagged as a common noun while its name is
+    // tagged as a proper noun. The extractor must keep the full grounded span
+    // and type the phrase as an organization in each language.
+    for (language, source, expected) in [
+        (
+            "it",
+            "Il Comitato Civico ha pubblicato una relazione.",
+            "Comitato Civico",
+        ),
+        (
+            "fr",
+            "Institut Aurora publie un rapport.",
+            "Institut Aurora",
+        ),
+        ("pl", "Rada Miejska opublikowała raport.", "Rada Miejska"),
+        (
+            "es",
+            "El Consejo Regional publicó el informe.",
+            "Consejo Regional",
+        ),
+    ] {
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: language.to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap_or_else(|error| panic!("{language}: {error}"));
+        let entity = entities
+            .iter()
+            .find(|entity| entity.text == expected)
+            .unwrap_or_else(|| panic!("{language}: {expected} missing: {entities:?}"));
+        assert_eq!(entity.r#type, "ORG", "{language}: {entity:?}");
+        assert_eq!(&source[entity.start..entity.end], expected);
+    }
+}
+
+#[test]
 fn a_sentence_initial_name_is_still_a_person() {
     // UDPipe lemmatizes "Chiara" as the adjective "chiaro" when the name opens
     // the sentence; the PROPN tag on both tokens is the evidence that survives.
@@ -1588,6 +1691,32 @@ fn clause_openers_never_fuse_a_trailing_place() {
             "{language}: the fused surface must not be an entity: {entities:?}"
         );
     }
+}
+
+#[test]
+fn a_nested_place_survives_a_fused_institution_run() {
+    // "Pengadilan Surabaya" is one ORG surface, but Surabaya is also a
+    // grounded LOCATION: the fused run must never consume the place.
+    let entities = extract(
+        "Pengadilan Surabaya menjatuhkan putusan pada 2012.",
+        &ExtractOptions {
+            language: "id".to_string(),
+            entity_count: 40,
+        },
+    )
+    .expect("indonesian extraction");
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Pengadilan Surabaya" && entity.r#type == "ORG"),
+        "the institution keeps its ORG surface: {entities:?}"
+    );
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Surabaya" && entity.r#type == "LOCATION"),
+        "the nested place must survive the ORG surface: {entities:?}"
+    );
 }
 
 #[test]

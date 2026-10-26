@@ -1,0 +1,36 @@
+# Personal pronouns (closed class). One word per line; '#' comments.
+# Folded into the pack's closed_class by lexicon/tools/build_language_packs.py.
+вам
+вами
+вас
+вы
+его
+ей
+ему
+ею
+её
+им
+ими
+их
+меня
+мне
+мной
+мы
+нам
+нами
+нас
+него
+ней
+нею
+неё
+ним
+них
+он
+она
+они
+оно
+тебе
+тебя
+тобой
+ты
+я

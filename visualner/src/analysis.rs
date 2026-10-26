@@ -495,6 +495,98 @@ mod tests {
     }
 
     #[test]
+    fn arabic_numbers_with_written_percent_units_keep_percent_type_multilingually() {
+        assert!(semantic_core::lexicon::lexicon()
+            .scale_words
+            .unit_words
+            .iter()
+            .any(|unit| unit == "per cento"));
+        assert_eq!(
+            crate::extractor::numeric_value_spans("42 per cento")
+                .into_iter()
+                .map(|candidate| (candidate.start, candidate.end, candidate.entity_type))
+                .collect::<Vec<_>>(),
+            vec![(0, "42 per cento".len(), "PERCENT".to_string())]
+        );
+        let cases = [
+            (
+                "it",
+                "Aurora è al 42 per cento contro Lumen al 18 per cento.",
+                [42.0, 18.0],
+            ),
+            (
+                "en",
+                "Aurora is at 42 percent versus Lumen at 18 per cent.",
+                [42.0, 18.0],
+            ),
+            (
+                "es",
+                "Aurora llega al 42 por ciento frente a Lumen con 18 por ciento.",
+                [42.0, 18.0],
+            ),
+            (
+                "pt",
+                "Aurora chega a 42 por cento contra 18 por cento de Lumen.",
+                [42.0, 18.0],
+            ),
+            (
+                "fr",
+                "Aurora atteint 42 pour cent contre 18 pour cent pour Lumen.",
+                [42.0, 18.0],
+            ),
+            (
+                "de",
+                "Aurora erreicht 42 Prozent gegenüber 18 Prozent bei Lumen.",
+                [42.0, 18.0],
+            ),
+            (
+                "nl",
+                "Aurora haalt 42 procent tegenover 18 procent voor Lumen.",
+                [42.0, 18.0],
+            ),
+            (
+                "pl",
+                "Aurora osiąga 42 procent wobec 18 procent Lumen.",
+                [42.0, 18.0],
+            ),
+            (
+                "ru",
+                "Аврора достигает 42 процента против 18 процентов у Люмена.",
+                [42.0, 18.0],
+            ),
+            (
+                "id",
+                "Aurora mencapai 42 persen dibandingkan Lumen 18 persen.",
+                [42.0, 18.0],
+            ),
+        ];
+        for (language, text, expected) in cases {
+            let analysis = analyze(
+                text,
+                &ExtractOptions {
+                    language: language.to_string(),
+                    entity_count: 16,
+                },
+            )
+            .unwrap();
+            let mut percentages: Vec<_> = analysis
+                .numeric_facts
+                .iter()
+                .filter(|fact| fact.kind == "PERCENT")
+                .filter_map(|fact| fact.value)
+                .collect();
+            percentages.sort_by(f64::total_cmp);
+            let mut expected = expected;
+            expected.sort_by(f64::total_cmp);
+            assert_eq!(
+                percentages, expected,
+                "{language}: {:?}",
+                analysis.numeric_facts
+            );
+        }
+    }
+
+    #[test]
     fn relations_stay_inside_one_sentence() {
         let analysis = analyze(SOURCE, &options()).unwrap();
         for rel in &analysis.relations {

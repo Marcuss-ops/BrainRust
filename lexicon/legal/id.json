@@ -1,0 +1,29 @@
+{
+  "schema": "legal_pack.v1",
+  "language": "id",
+  "patterns": [],
+  "age_guard_markers": [],
+  "entity_cues": [
+    {
+      "cue": "Kejaksaan",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Pengadilan",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Kepolisian",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Mahkamah",
+      "kind": "ORG"
+    }
+  ],
+  "entity_alias_cues": [],
+  "finality_markers": [],
+  "outcome_markers": [],
+  "comparison": {},
+  "micro": {}
+}

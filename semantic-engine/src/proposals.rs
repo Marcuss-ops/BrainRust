@@ -42,7 +42,9 @@ pub(crate) fn to_visual_proposal(
                     contextual_visual_query(source, sentence, candidate.start, candidate.end)
                 {
                     if !is_noise_query(context)
-                        && !visual_query_suggestions.iter().any(|query| query == context)
+                        && !visual_query_suggestions
+                            .iter()
+                            .any(|query| query == context)
                     {
                         visual_query_suggestions.push(context.to_string());
                         queries.push(SearchQuery {

@@ -95,6 +95,67 @@ pub fn build(
             score: 0.8,
         });
     }
+
+    // When several asserted facts about one subject are grounded in the same
+    // source sentence, retain that complete sentence as a conservative
+    // extractive summary candidate. This language-neutral path covers facts
+    // without a paraphrase template while preserving every qualifier,
+    // attribution, date, and negation verbatim. It never joins distant or
+    // differently sourced facts.
+    let mut co_evidenced: BTreeMap<(String, usize, usize), Vec<&EntityFact>> = BTreeMap::new();
+    for fact in facts.iter().filter(|fact| fact.status == "asserted") {
+        co_evidenced
+            .entry((
+                fact.subject_entity_id.clone(),
+                fact.evidence_start_byte,
+                fact.evidence_end_byte,
+            ))
+            .or_default()
+            .push(fact);
+    }
+    for ((subject_id, start_byte, end_byte), grouped_facts) in co_evidenced {
+        if grouped_facts.len() < 2 || !names.contains_key(subject_id.as_str()) {
+            continue;
+        }
+        if summaries.iter().any(|summary| {
+            summary.subject_entity_id.as_deref() == Some(subject_id.as_str())
+                && summary.start_byte == start_byte
+                && summary.end_byte == end_byte
+        }) {
+            continue;
+        }
+        let Some(evidence) = source.get(start_byte..end_byte) else {
+            continue;
+        };
+        if evidence.chars().count() > 240
+            || grouped_facts.iter().any(|fact| fact.evidence != evidence)
+        {
+            continue;
+        }
+        let mut fact_ids: Vec<String> = grouped_facts.iter().map(|fact| fact.id.clone()).collect();
+        fact_ids.sort();
+        fact_ids.dedup();
+        if fact_ids.len() < 2 {
+            continue;
+        }
+        let dates: std::collections::BTreeSet<&str> = grouped_facts
+            .iter()
+            .filter_map(|fact| fact.normalized_date.as_deref())
+            .collect();
+        summaries.push(MicroSummary {
+            id: format!("micro_{:03}", summaries.len() + 1),
+            kind: "micro_summary".to_string(),
+            text: evidence.to_string(),
+            evidence_fact_ids: fact_ids,
+            subject_entity_id: Some(subject_id),
+            normalized_date: (dates.len() == 1).then(|| dates.iter().next().unwrap().to_string()),
+            sentence_index: grouped_facts[0].sentence_index,
+            evidence: evidence.to_string(),
+            start_byte,
+            end_byte,
+            score: 0.75,
+        });
+    }
     summaries.sort_by_key(|summary| (summary.sentence_index, summary.start_byte));
 
     let mut groups = Vec::new();
@@ -395,7 +456,10 @@ mod tests {
             .summaries
             .first()
             .unwrap_or_else(|| panic!("summary expected: {:?}", built.summaries));
-        assert_eq!(summary.text, "Alberto Stasi: nessuna condanna nel procedimento descritto");
+        assert_eq!(
+            summary.text,
+            "Alberto Stasi: nessuna condanna nel procedimento descritto"
+        );
         assert!(
             !summary.text.contains("assolto") && !summary.text.contains("innocente"),
             "negation must never become innocence: {}",
@@ -435,9 +499,39 @@ mod tests {
             "Nel 2015 la condanna divenne definitiva.",
         ]);
         let facts = vec![
-            fact("f1", &id, 0, "legal_outcome", "convicted", Some("2014-12-17"), "asserted", "Nel 2014 arrivò la condanna.", spans[0]),
-            fact("f2", &id, 1, "legal_outcome", "acquitted", Some("2011-10-27"), "asserted", "Nel 2011 arrivò l'assoluzione.", spans[1]),
-            fact("f3", &id, 2, "legal_finality", "final", Some("2015-06-11"), "asserted", "Nel 2015 la condanna divenne definitiva.", spans[2]),
+            fact(
+                "f1",
+                &id,
+                0,
+                "legal_outcome",
+                "convicted",
+                Some("2014-12-17"),
+                "asserted",
+                "Nel 2014 arrivò la condanna.",
+                spans[0],
+            ),
+            fact(
+                "f2",
+                &id,
+                1,
+                "legal_outcome",
+                "acquitted",
+                Some("2011-10-27"),
+                "asserted",
+                "Nel 2011 arrivò l'assoluzione.",
+                spans[1],
+            ),
+            fact(
+                "f3",
+                &id,
+                2,
+                "legal_finality",
+                "final",
+                Some("2015-06-11"),
+                "asserted",
+                "Nel 2015 la condanna divenne definitiva.",
+                spans[2],
+            ),
         ];
         let built = build("it", "scena", &source, &facts, &[entity], &[id]);
         assert_eq!(built.summaries.len(), 3);
@@ -470,11 +564,41 @@ mod tests {
         ]);
         let outcome = "acquitted";
         let facts = vec![
-            fact("f1", &id, 0, "legal_outcome", outcome, Some("2011-10-27"), "asserted", "Alberto Stasi fu assolto.", spans[0]),
-            fact("f2", &id, 1, "legal_outcome", outcome, Some("2011-10-27"), "asserted", "Alberto Stasi fu assolto.", spans[1]),
+            fact(
+                "f1",
+                &id,
+                0,
+                "legal_outcome",
+                outcome,
+                Some("2011-10-27"),
+                "asserted",
+                "Alberto Stasi fu assolto.",
+                spans[0],
+            ),
+            fact(
+                "f2",
+                &id,
+                1,
+                "legal_outcome",
+                outcome,
+                Some("2011-10-27"),
+                "asserted",
+                "Alberto Stasi fu assolto.",
+                spans[1],
+            ),
             // The same claim far apart in the scene is not a nearby repeat:
             // it keeps the first deterministic evidence instead of merging.
-            fact("f3", &id, 3, "legal_outcome", outcome, Some("2011-10-27"), "asserted", "Alberto Stasi fu assolto.", spans[3]),
+            fact(
+                "f3",
+                &id,
+                3,
+                "legal_outcome",
+                outcome,
+                Some("2011-10-27"),
+                "asserted",
+                "Alberto Stasi fu assolto.",
+                spans[3],
+            ),
         ];
         let built = build("it", "scena", &source, &facts, &[entity], &[id]);
         assert_eq!(built.summaries.len(), 1, "one claim, one summary");
@@ -494,13 +618,30 @@ mod tests {
     #[test]
     fn merging_never_crosses_a_date() {
         let (entity, id) = person();
-        let (source, spans) = spans_of(&[
-            "Alberto Stasi è indagato.",
-            "Alberto Stasi è indagato.",
-        ]);
+        let (source, spans) = spans_of(&["Alberto Stasi è indagato.", "Alberto Stasi è indagato."]);
         let facts = vec![
-            fact("f1", &id, 0, "investigation_status", "under_investigation", Some("2015"), "asserted", "Alberto Stasi è indagato.", spans[0]),
-            fact("f2", &id, 1, "investigation_status", "under_investigation", Some("2016"), "asserted", "Alberto Stasi è indagato.", spans[1]),
+            fact(
+                "f1",
+                &id,
+                0,
+                "investigation_status",
+                "under_investigation",
+                Some("2015"),
+                "asserted",
+                "Alberto Stasi è indagato.",
+                spans[0],
+            ),
+            fact(
+                "f2",
+                &id,
+                1,
+                "investigation_status",
+                "under_investigation",
+                Some("2016"),
+                "asserted",
+                "Alberto Stasi è indagato.",
+                spans[1],
+            ),
         ];
         let built = build("it", "scena", &source, &facts, &[entity], &[id]);
         assert_eq!(built.summaries.len(), 1);
@@ -518,13 +659,30 @@ mod tests {
         entity_b.start = 100;
         entity_b.end = 100 + NAME.len();
         let id_b = "e_stasi_omonimo".to_string();
-        let (source, spans) = spans_of(&[
-            "Alberto Stasi è indagato.",
-            "Alberto Stasi è indagato.",
-        ]);
+        let (source, spans) = spans_of(&["Alberto Stasi è indagato.", "Alberto Stasi è indagato."]);
         let facts = vec![
-            fact("f1", &id_a, 0, "investigation_status", "under_investigation", Some("2015"), "asserted", "Alberto Stasi è indagato.", spans[0]),
-            fact("f2", &id_b, 1, "investigation_status", "under_investigation", Some("2015"), "asserted", "Alberto Stasi è indagato.", spans[1]),
+            fact(
+                "f1",
+                &id_a,
+                0,
+                "investigation_status",
+                "under_investigation",
+                Some("2015"),
+                "asserted",
+                "Alberto Stasi è indagato.",
+                spans[0],
+            ),
+            fact(
+                "f2",
+                &id_b,
+                1,
+                "investigation_status",
+                "under_investigation",
+                Some("2015"),
+                "asserted",
+                "Alberto Stasi è indagato.",
+                spans[1],
+            ),
         ];
         let built = build(
             "it",

@@ -1,0 +1,37 @@
+{
+  "schema": "legal_pack.v1",
+  "language": "de",
+  "patterns": [],
+  "age_guard_markers": [],
+  "entity_cues": [
+    {
+      "cue": "Staatsanwaltschaft",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Landgericht",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Oberlandesgericht",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Amtsgericht",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Bundesgerichtshof",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Verfassungsgericht",
+      "kind": "ORG"
+    }
+  ],
+  "entity_alias_cues": [],
+  "finality_markers": [],
+  "outcome_markers": [],
+  "comparison": {},
+  "micro": {}
+}

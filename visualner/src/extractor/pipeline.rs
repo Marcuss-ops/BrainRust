@@ -243,13 +243,27 @@ fn flush_name_run(
     if usable {
         // A leading known place is a city, not a person token: the run
         // "Пермь Мария Соколова" must not make "пермь" look like a name
-        // fragment that can suppress the LOCATION candidate later.
+        // fragment that can suppress the LOCATION candidate later. The same
+        // holds for a curated institution head: "Staatsanwaltschaft Berlin"
+        // is a court, not a person name, so seeding its tokens would make
+        // "berlin" look like a name fragment and drop the LOCATION candidate
+        // the nested-place mechanism just produced.
         let skip_leading_place = run.len() >= 3
             && is_known_place(&run[0].text, language)
             && !is_name_particle(&run[1].text, language);
-        for token in run.iter().skip(usize::from(skip_leading_place)) {
-            if !is_stop_token(token, language) {
-                context.person_name_tokens.insert(token.text.to_lowercase());
+        let significant_surface = run
+            .iter()
+            .filter(|token| !is_stop_token(token, language))
+            .map(|token| token.text.as_str())
+            .collect::<Vec<&str>>()
+            .join(" ");
+        let seeds_person_tokens =
+            values::institution_cue_kind(&significant_surface, language).is_none();
+        if seeds_person_tokens {
+            for token in run.iter().skip(usize::from(skip_leading_place)) {
+                if !is_stop_token(token, language) {
+                    context.person_name_tokens.insert(token.text.to_lowercase());
+                }
             }
         }
         // A surname is only claimed from an unambiguous two-word name that is

@@ -4,6 +4,14 @@
 // language's vocabulary.
 
 pub const LEGAL_PACKS: &[(&str, &str)] = &[
+    ("de", include_str!("../../lexicon/legal/de.json")),
     ("en", include_str!("../../lexicon/legal/en.json")),
+    ("es", include_str!("../../lexicon/legal/es.json")),
+    ("fr", include_str!("../../lexicon/legal/fr.json")),
+    ("id", include_str!("../../lexicon/legal/id.json")),
     ("it", include_str!("../../lexicon/legal/it.json")),
+    ("nl", include_str!("../../lexicon/legal/nl.json")),
+    ("pl", include_str!("../../lexicon/legal/pl.json")),
+    ("pt", include_str!("../../lexicon/legal/pt.json")),
+    ("ru", include_str!("../../lexicon/legal/ru.json")),
 ];

@@ -1,5 +1,18 @@
 {
   "schema": "lexicon.v1",
+  "facility_nouns": [
+    "stadio", "stadium", "estadio", "estádio", "stade", "stadion", "стадион",
+    "arena", "arène", "arenă"
+  ],
+  "location_relation_markers": [
+    "si trova a", "si trova in", "situato a", "situato in", "ubicado en", "está ubicado en", "se encuentra en",
+    "localizado em", "está localizado em", "situé à", "est situé à", "se trouve à",
+    "liegt in", "befindet sich in", "ligt in", "bevindt zich in", "znajduje się w", "leży w",
+    "находится в", "расположен в", "расположен на", "está situado em", "fica em",
+    "is located in", "located in", "based in", "is situated in", "situated in", "is located at",
+    "berada di", "terletak di"
+  ],
+  "bare_location_prepositions": ["di", "de", "of", "van"],
   "inauguration_markers": [
     "inaugur",
     "opened",

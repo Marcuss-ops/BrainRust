@@ -1,0 +1,78 @@
+{
+  "schema": "brainrust.editorial_gold.v1",
+  "annotation_policy": {
+    "authoring": "Hand-annotated from source before running the engine; labels are not copied from engine output.",
+    "scope": "Pilot case for long-form entities, visual objects, complete phrases, facts, charts, sequence and image query composition.",
+    "important_phrase_match": "Exact source sentence or complete adjacent sentence span; a truncated prefix is a miss.",
+    "fact_invariants": ["subject", "predicate", "value", "polarity", "date"]
+  },
+  "scripts": {
+    "it_stadium_long_01": {
+      "language": "it",
+      "file": "it_stadium.txt",
+      "entities": [
+        {"text":"Comune di Torino","type":"ORG"},
+        {"text":"Torino","type":"LOCATION"},
+        {"text":"Elena Conti","type":"PERSON"},
+        {"text":"Stadio Aurora","type":"FACILITY"},
+        {"text":"Marco Vitale","type":"PERSON"},
+        {"text":"Università di Torino","type":"ORG"},
+        {"text":"Sara Neri","type":"PERSON"},
+        {"text":"Aurora Sport","type":"ORG"},
+        {"text":"Lumen Energia","type":"ORG"}
+      ],
+      "visual_objects": [
+        {"text":"sensori di umidità","type":"OBJECT"},
+        {"text":"pompa mobile","type":"OBJECT"},
+        {"text":"pannelli fotovoltaici","type":"OBJECT"},
+        {"text":"quadro elettrico","type":"OBJECT"},
+        {"text":"canaletta","type":"OBJECT"},
+        {"text":"cartello temporaneo","type":"OBJECT"},
+        {"text":"scheda tecnica della pompa","type":"VISUAL_CONCEPT"},
+        {"text":"tabella delle misure","type":"VISUAL_CONCEPT"},
+        {"text":"tribuna nord","type":"VISUAL_CONCEPT"},
+        {"text":"mappa delle condotte","type":"VISUAL_CONCEPT"}
+      ],
+      "important_phrases": [
+        "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti.",
+        "A gennaio 2019, invece, un sensore segnalò acqua dietro il quadro elettrico e gli addetti isolarono il circuito prima dell'apertura dei cancelli.",
+        "Il bilancio pubblicato a marzo confrontava due proposte per l'efficienza energetica: Aurora Sport stimava un risparmio del 42 per cento, mentre Lumen Energia prevedeva il 18 per cento.",
+        "A giugno 2019 Conti confermò che il controllo era terminato, ma precisò che i dati non dimostravano ancora un risparmio annuale.",
+        "Durante le dodici settimane di osservazione, Vitale annotò l'ora, la posizione e la quantità d'acqua raccolta in ogni prova.",
+        "Il resoconto finale conserva sia le misure favorevoli sia quelle discordanti e non trasforma le previsioni delle aziende in risultati acquisiti."
+      ],
+      "important_segments": [
+        "Il verbale comunale fissò quattro passaggi: primo, sostituire le guarnizioni; secondo, ripetere le prove con la pompa; terzo, controllare i sensori dopo ogni pioggia; quarto, pubblicare i risultati a fine stagione. A giugno 2019 Conti confermò che il controllo era terminato, ma precisò che i dati non dimostravano ancora un risparmio annuale. Il Comune mantenne quindi il monitoraggio fino a dicembre e rese disponibili la tabella delle misure, le fotografie del quadro elettrico e la mappa aggiornata delle condotte."
+      ],
+      "facts": [
+        {"subject":"Stadio Aurora","predicate":"inaugurated_year","value":"1961","status":"asserted"},
+        {"subject":"Stadio Aurora","predicate":"located_in","value":"Torino","status":"asserted"},
+        {"subject":"Stadio Aurora","predicate":"capacity","value":"18.000","unit":"seats","status":"asserted"},
+        {"subject":"Aurora Sport","predicate":"estimated_saving_percent","value":42,"status":"estimated"},
+        {"subject":"Lumen Energia","predicate":"estimated_saving_percent","value":18,"status":"estimated"},
+        {"subject":"pump","predicate":"fault","value":false,"status":"negated"},
+        {"subject":"annual_saving","predicate":"demonstrated","value":false,"status":"negated"}
+      ],
+      "positive_charts": [
+        {"labels":["Aurora Sport","Lumen Energia"],"values":[42,18],"unit":"PERCENT","evidence":"Aurora Sport stimava un risparmio del 42 per cento, mentre Lumen Energia prevedeva il 18 per cento."}
+      ],
+      "negative_chart_evidence": [
+        "Nel 2014 Neri aveva 18 anni e pagò 300 euro per un biglietto: quei numeri descrivono un episodio personale e non misurano il risparmio."
+      ],
+      "sequence": ["sostituire le guarnizioni","ripetere le prove con la pompa","controllare i sensori dopo ogni pioggia","pubblicare i risultati a fine stagione"],
+      "contextual_image_queries": [
+        {"query":"Stadio Aurora Torino","entity":"Stadio Aurora","location":"Torino","evidence":"Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti."}
+      ],
+      "micro_summary_expectations": [
+        {"subject":"Stadio Aurora","must_preserve":["inaugurated in 1961","located in Torino","capacity 18,000 seats"],"must_not_claim":["annual energy savings were achieved","the pump was faulty"]}
+      ],
+      "critical_invariants": [
+        "The 42% and 18% figures are estimates, not achieved savings.",
+        "The pump was explicitly not identified as faulty.",
+        "The 2014 age and ticket price are not energy measurements.",
+        "The annual saving was explicitly not yet demonstrated."
+      ],
+      "noise": []
+    }
+  }
+}

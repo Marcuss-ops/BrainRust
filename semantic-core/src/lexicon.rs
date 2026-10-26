@@ -253,6 +253,18 @@ impl Lexicon {
         if self.minor_place_aliases.contains(&lower) {
             return false;
         }
+        // A month name of the current language is a calendar word, not a
+        // place. The closed month table (CLDR-derived `months.json`) decides
+        // this — the same seam as the ambiguity table for words like
+        // "March", but derived from a closed class instead of typed by hand.
+        if self
+            .months
+            .months
+            .iter()
+            .any(|entry| entry.name == lower && entry.locales.iter().any(|locale| locale == key))
+        {
+            return false;
+        }
         self.place_index.contains(&lower)
     }
 

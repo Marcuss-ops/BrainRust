@@ -58,7 +58,14 @@ pub(super) fn classify_value_type(
 /// legal pack's, so a new court is a data entry, never a code branch.
 pub(super) fn institution_cue_kind(text: &str, language: &str) -> Option<String> {
     let pack = semantic_core::legal_packs::get(language)?;
-    let head = text.split_whitespace().next()?.to_lowercase();
+    // The cue head is the first *substantive* word: a leading article or
+    // particle ("De Rechtbank") is not the institution's head. The POS
+    // tagger may promote such a word to PROPN inside a name context, so the
+    // skip cannot rely on the tag; the curated function inventory decides.
+    let head = text
+        .split_whitespace()
+        .find(|word| !super::stopwords::is_stop_word(word, language))?
+        .to_lowercase();
     pack.entity_cues
         .iter()
         .find(|cue| {
@@ -101,6 +108,28 @@ fn classify_type(
         .trim_matches(|ch: char| !ch.is_ascii_alphanumeric());
     if contains(&gazetteer.company_suffixes, last_token) {
         return "ORGANIZATION".to_string();
+    }
+    let language_key = language.split(['-', '_']).next().unwrap_or("");
+    if let Some(markers) = gazetteer.organization_markers.get(language_key) {
+        let words: Vec<String> = lower
+            .split(|ch: char| !ch.is_alphanumeric())
+            .map(str::to_string)
+            .filter(|word| !word.is_empty())
+            .collect();
+        if words.len() >= 2
+            && markers.iter().any(|marker| {
+                let marker_words: Vec<String> = marker
+                    .to_lowercase()
+                    .split(|ch: char| !ch.is_alphanumeric())
+                    .map(str::to_string)
+                    .filter(|word| !word.is_empty())
+                    .collect();
+                !marker_words.is_empty()
+                    && (words.starts_with(&marker_words) || words.ends_with(&marker_words))
+            })
+        {
+            return "ORG".to_string();
+        }
     }
     if contains(&gazetteer.brands, &lower) {
         return "BRAND".to_string();
@@ -271,7 +300,7 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
             .scale_words
             .unit_words
             .iter()
-            .find(|unit| tail.starts_with(unit.as_str()));
+            .find(|unit| tail.starts_with(unit.as_str()) && has_word_boundary(&tail, unit.len()));
         let unit = unit.filter(|_| local_scale.is_none());
         if let Some(scale) = local_scale {
             end = suffix + scale.len();
@@ -284,7 +313,13 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
                 || *unit == "yen"
             {
                 kind = "MONEY";
-            } else if *unit == "percent" || *unit == "%" {
+            } else if semantic_core::lexicon::lexicon()
+                .scale_words
+                .percentage_words
+                .iter()
+                .any(|percentage| percentage == unit)
+                || *unit == "%"
+            {
                 kind = "PERCENT";
             } else if matches!(unit.as_str(), "million" | "billion" | "trillion") {
                 let remainder = source_text[end..].trim_start();
@@ -454,6 +489,34 @@ mod tests {
             "ORG"
         );
         assert_eq!(classify_type("Procura", true, false, true, "it"), "ORG");
+    }
+
+    #[test]
+    fn organization_heads_and_tails_type_multilingual_names_without_person_fallbacks() {
+        let samples = [
+            ("it", "Fondazione Prisma"),
+            ("en", "Prism Laboratory"),
+            ("es", "Laboratorio Prisma"),
+            ("pt", "Conselho Estrela"),
+            ("fr", "Laboratoire Prisma"),
+            ("de", "Prisma Stiftung"),
+            ("nl", "Prisma Laboratorium"),
+            ("pl", "Laboratorium Prisma"),
+            ("ru", "Лаборатория Призма"),
+            ("id", "Laboratorium Prisma"),
+        ];
+        for (language, name) in samples {
+            assert_eq!(
+                classify_type(name, true, false, true, language),
+                "ORG",
+                "institution marker should prevent PERSON fallback for {language}: {name}"
+            );
+        }
+        assert_eq!(
+            classify_type("Fondazione", true, false, true, "it"),
+            "VISUAL_CONCEPT",
+            "a bare generic noun does not identify an organization"
+        );
     }
 
     #[test]

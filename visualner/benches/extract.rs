@@ -9,6 +9,10 @@
 //!    its cost. Reports wall time and process peak RSS.
 //! 2. **steady state** — `extract` / `analyze` on 1k/3k/10k-word inputs
 //!    with the model already loaded (the per-request cost).
+//! 3. **warm per language** — the acceptance measurement for
+//!    "warm-worker P50/P95/RSS/CPU per language": every configured corpus
+//!    language runs the same 1,000-word fixture with the model already
+//!    loaded, reporting wall p50/p95/p99, per-run process CPU and peak RSS.
 //!
 //! Reports p50/p95/p99 like the other workspace benches; performance limits
 //! are set against this measured baseline, never invented beforehand.
@@ -17,6 +21,9 @@
 //! ```sh
 //! cargo bench -p visualner --bench extract
 //! ```
+//!
+//! `EXTRACT_BENCH_COLD_ONLY=1` samples only the cold burst;
+//! `EXTRACT_BENCH_WARM_ONLY=1` samples only the warm per-language section.
 
 use std::fs;
 use std::hint::black_box;
@@ -28,6 +35,9 @@ const WARMUP_RUNS: usize = 3;
 const MEASURED_RUNS: usize = 15;
 const COLD_THREADS: usize = 8;
 const COLD_LANGUAGES: &[&str] = &["it", "en", "es"];
+/// The ten gold-corpus languages measured by the warm per-language section.
+const WARM_LANGUAGES: &[&str] = &["de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru"];
+const WARM_WORDS: usize = 1000;
 
 const SENTENCE_POOL: &[(&str, &str)] = &[
     (
@@ -66,6 +76,90 @@ const SENTENCE_POOL: &[(&str, &str)] = &[
         "es",
         "Ford crece con los híbridos mientras Toyota frena en los márgenes industriales del sector.",
     ),
+    (
+        "de",
+        "Im Jahr 2020 kündigte Siemens Investitionen von 120 Millionen an, während Energiekosten die Margen senkten.",
+    ),
+    (
+        "de",
+        "Ford wächst mit Hybriden, während Toyota im Industriesektor an Margen verliert.",
+    ),
+    (
+        "de",
+        "Der Anstieg der Energiekosten hat zur Reduzierung der Unternehmensgewinne beigetragen.",
+    ),
+    (
+        "fr",
+        "En 2020, Siemens a annoncé des investissements de 120 millions alors que les coûts énergétiques réduisaient les marges.",
+    ),
+    (
+        "fr",
+        "Ford progresse avec les hybrides tandis que Toyota ralentit sur les marges industrielles du secteur.",
+    ),
+    (
+        "fr",
+        "La hausse des coûts énergétiques a contribué à la réduction des marges des entreprises.",
+    ),
+    (
+        "id",
+        "Pada tahun 2020 Siemens mengumumkan investasi senilai 120 juta sementara biaya energi menekan margin.",
+    ),
+    (
+        "id",
+        "Ford tumbuh dengan kendaraan hibrida sementara Toyota melambat pada margin industri sektor itu.",
+    ),
+    (
+        "id",
+        "Kenaikan biaya energi berkontribusi pada penurunan margin perusahaan.",
+    ),
+    (
+        "nl",
+        "In 2020 kondigde Siemens investeringen van 120 miljoen aan terwijl energiekosten de marges drukten.",
+    ),
+    (
+        "nl",
+        "Ford groeit met hybrides terwijl Toyota vertraagt op industriële marges in de sector.",
+    ),
+    (
+        "nl",
+        "De stijging van de energiekosten droeg bij aan de verlaging van de bedrijfsmarges.",
+    ),
+    (
+        "pl",
+        "W 2020 roku Siemens ogłosił inwestycje w wysokości 120 milionów, podczas gdy koszty energii obniżały marże.",
+    ),
+    (
+        "pl",
+        "Ford rośnie dzięki hybrydom, podczas gdy Toyota zwalnia na marżach przemysłowych w sektorze.",
+    ),
+    (
+        "pl",
+        "Wzrost kosztów energii przyczynił się do obniżenia marż przedsiębiorstw.",
+    ),
+    (
+        "pt",
+        "Em 2020, a Siemens anunciou investimentos de 120 milhões enquanto os custos de energia reduziam as margens.",
+    ),
+    (
+        "pt",
+        "A Ford cresce com os híbridos enquanto a Toyota desacelera nas margens industriais do setor.",
+    ),
+    (
+        "pt",
+        "A alta dos custos de energia contribuiu para a redução das margens das empresas.",
+    ),
+    (
+        "ru",
+        "В 2020 году Siemens объявила об инвестициях в размере 120 миллионов, тогда как затраты на энергию снижали маржу.",
+    ),
+    (
+        "ru",
+        "Ford растёт за счёт гибридов, тогда как Toyota замедляется по промышленной марже в секторе.",
+    ),
+    (
+        "ru",
+        "Рост затрат на энергию способствовал снижению корпоративной маржи.",
+    ),
 ];
 
 struct Percentiles {
@@ -92,6 +186,28 @@ fn peak_rss_mb() -> Option<f64> {
     let line = status.lines().find(|line| line.starts_with("VmHWM:"))?;
     let kib: f64 = line.split_whitespace().nth(1)?.parse().ok()?;
     Some(kib / 1024.0)
+}
+
+/// Process CPU time (user + system) in milliseconds, from
+/// `/proc/self/stat`. Linux reports those fields in `USER_HZ` ticks (100),
+/// which is what `clock_gettime`-free per-run CPU accounting needs here.
+fn cpu_ms() -> f64 {
+    let Ok(stat) = fs::read_to_string("/proc/self/stat") else {
+        return 0.0;
+    };
+    // utime/stime are fields 14/15 of the stat line; the comm field may
+    // contain spaces and parens, so parse after the last ')'.
+    let tail = stat.rsplit(')').next().unwrap_or("");
+    let mut fields = tail.split_whitespace();
+    let utime: f64 = fields
+        .nth(11)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0.0);
+    let stime: f64 = fields
+        .next()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0.0);
+    (utime + stime) * 10.0
 }
 
 /// Deterministic fixture: `target_words` words of mixed sentences.
@@ -212,6 +328,35 @@ fn steady_state() {
     );
 }
 
+/// Warm per-language measurement: the model is already loaded and every
+/// corpus language runs the same deterministic 1,000-word fixture. This is
+/// the evidence surface for "warm-worker P50/P95/RSS/CPU per language".
+fn warm_per_language() {
+    for language in WARM_LANGUAGES {
+        let text = fixture(language, WARM_WORDS);
+        let actual_words = text.split_whitespace().count();
+        for _ in 0..WARMUP_RUNS {
+            black_box(run_extract(&text, language));
+        }
+        let cpu_before = cpu_ms();
+        let mut runs = Vec::with_capacity(MEASURED_RUNS);
+        for _ in 0..MEASURED_RUNS {
+            let started = Instant::now();
+            black_box(run_extract(&text, language));
+            runs.push(started.elapsed().as_secs_f64() * 1000.0);
+        }
+        let cpu_per_run_ms = (cpu_ms() - cpu_before) / MEASURED_RUNS as f64;
+        let p = percentiles(runs);
+        println!(
+            "warm_extract lang={language} words={actual_words} p50_ms={:.3} p95_ms={:.3} p99_ms={:.3} cpu_ms_per_run={cpu_per_run_ms:.3} peak_rss_mb={:.1} runs={MEASURED_RUNS}",
+            p.p50_ms,
+            p.p95_ms,
+            p.p99_ms,
+            peak_rss_mb().unwrap_or(0.0)
+        );
+    }
+}
+
 fn main() {
     cold_burst();
     // `EXTRACT_BENCH_COLD_ONLY=1` skips the steady-state section so the
@@ -222,6 +367,15 @@ fn main() {
         println!("final_peak_rss_mb={:.1}", peak_rss_mb().unwrap_or(0.0));
         return;
     }
+    // `EXTRACT_BENCH_WARM_ONLY=1` runs only the warm per-language acceptance
+    // section (its warm-up loads the models, so no cold measurement is taken
+    // in this mode). The default (unset) runs everything, unchanged.
+    if std::env::var_os("EXTRACT_BENCH_WARM_ONLY").is_some() {
+        warm_per_language();
+        println!("final_peak_rss_mb={:.1}", peak_rss_mb().unwrap_or(0.0));
+        return;
+    }
     steady_state();
+    warm_per_language();
     println!("final_peak_rss_mb={:.1}", peak_rss_mb().unwrap_or(0.0));
 }

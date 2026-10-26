@@ -39,6 +39,10 @@ pub struct EntityGazetteer {
     /// Nouns that stay VISUAL_CONCEPT explicitly ("company").
     pub generic_visual_nouns: Vec<String>,
     pub company_suffixes: Vec<String>,
+    /// Language-specific institution heads/tails that type a capitalized
+    /// multiword name as an organization (e.g. "Prism Laboratory").
+    #[serde(default)]
+    pub organization_markers: BTreeMap<String, Vec<String>>,
     pub brands: Vec<String>,
     pub locations: Vec<String>,
     /// GeoNames places; empty when the index is disabled by an override.
@@ -62,6 +66,8 @@ pub struct ScaleWords {
     pub words: Vec<String>,
     pub english_scale_words: Vec<String>,
     pub unit_words: Vec<String>,
+    #[serde(default)]
+    pub percentage_words: Vec<String>,
     pub currency_words: Vec<String>,
 }
 
@@ -69,6 +75,11 @@ pub struct ScaleWords {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct LocationCues {
     pub context_prepositions: Vec<String>,
+    /// Prepositions that also mark human indirect objects (for example
+    /// Italian/Spanish/Portuguese "a"). A place-name cue needs gazetteer
+    /// evidence when one of these precedes a capitalized span.
+    #[serde(default)]
+    pub ambiguous_context_prepositions: Vec<String>,
     pub genitive_prepositions: Vec<String>,
     pub container_nouns: Vec<String>,
     pub generic_location_nouns: Vec<String>,

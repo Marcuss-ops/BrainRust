@@ -57,7 +57,8 @@
       "fascicolo",
       "verbale",
       "fotografia",
-      "foto"
+      "foto",
+      "server"
     ],
     "es": [
       "balón",
@@ -82,7 +83,8 @@
       "coche",
       "tren",
       "avión",
-      "documento"
+      "documento",
+      "sensor"
     ],
     "fr": [
       "ballon",
@@ -107,7 +109,8 @@
       "voiture",
       "train",
       "avion",
-      "document"
+      "document",
+      "capteur"
     ],
     "de": [
       "ball",
@@ -129,8 +132,10 @@
       "telefon",
       "auto",
       "zug",
+      "straßenbahn",
       "flugzeug",
-      "dokument"
+      "dokument",
+      "manuskript"
     ],
     "pt": [
       "bola",
@@ -154,7 +159,8 @@
       "carro",
       "trem",
       "avião",
-      "documento"
+      "documento",
+      "sensor"
     ],
     "pl": [
       "piłka",

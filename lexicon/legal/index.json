@@ -1,7 +1,15 @@
 {
   "schema": "legal_packs.v1",
   "languages": [
+    "de",
     "en",
-    "it"
+    "es",
+    "fr",
+    "id",
+    "it",
+    "nl",
+    "pl",
+    "pt",
+    "ru"
   ]
 }

@@ -125,9 +125,9 @@ pub(crate) fn phrase_candidates(
 /// is anchored when its first and its last sentence each carry at least one
 /// grounded signal and every sentence in it is substantive. The score is the
 /// shared sentence salience (`semantic_core::bullets`) averaged over the
-/// window, so bullets and segments rank with one weight table. The best
-/// non-overlapping windows win in stable order; a scene without signals keeps
-/// an empty collection.
+/// window, so bullets and segments rank with one weight table. Every
+/// qualifying window is retained in source order; downstream planners choose
+/// what to display. A scene without signals keeps an empty collection.
 pub(crate) fn segment_candidates(
     source: &str,
     sentences: &[semantic_core::SentenceSpan],
@@ -135,7 +135,6 @@ pub(crate) fn segment_candidates(
 ) -> Vec<ImportantSegment> {
     const MIN_LEN: usize = 2;
     const MAX_LEN: usize = 5;
-    const MAX_SEGMENTS: usize = 3;
 
     let signals: Vec<semantic_core::bullets::BulletSignal> = entities
         .iter()
@@ -169,7 +168,11 @@ pub(crate) fn segment_candidates(
             .and_then(|sentence| source.get(sentence.start_byte..sentence.end_byte))
             .is_some_and(semantic_core::bullets::is_substantive)
     };
-    let anchored = |index: usize| salience.get(index).is_some_and(|(score, _, _)| *score > 0.0);
+    let anchored = |index: usize| {
+        salience
+            .get(index)
+            .is_some_and(|(score, _, _)| *score > 0.0)
+    };
 
     let mut windows: Vec<(f32, usize, usize)> = Vec::new(); // (score, start, end inclusive)
     for start in 0..sentences.len() {
@@ -191,21 +194,12 @@ pub(crate) fn segment_candidates(
             .then_with(|| a.1.cmp(&b.1))
     });
 
-    let mut selected: Vec<(f32, usize, usize)> = Vec::new();
-    for (score, start, end) in windows {
-        if selected.len() >= MAX_SEGMENTS {
-            break;
-        }
-        let overlaps = selected
-            .iter()
-            .any(|(_, other_start, other_end)| start <= *other_end && *other_start <= end);
-        if !overlaps {
-            selected.push((score, start, end));
-        }
-    }
-    selected.sort_by_key(|(_, start, _)| *start);
+    // Keep every complete, grounded window. Overlay selection belongs to
+    // PipelineGen; a BrainRust candidate cap would silently discard valid
+    // passages before the planner can compare them.
+    windows.sort_by_key(|(_, start, end)| (*start, *end));
 
-    selected
+    windows
         .into_iter()
         .enumerate()
         .filter_map(|(index, (score, start, end))| {
@@ -272,10 +266,9 @@ pub(crate) fn composed_query_candidates(
     for component in components {
         let index = sentence_index_at(sentences, component.start_byte);
         if let Some(bucket) = by_sentence.get_mut(index) {
-            if !bucket
-                .iter()
-                .any(|other| other.start_byte == component.start_byte && other.end_byte == component.end_byte)
-            {
+            if !bucket.iter().any(|other| {
+                other.start_byte == component.start_byte && other.end_byte == component.end_byte
+            }) {
                 bucket.push(component);
             }
         }
@@ -290,7 +283,10 @@ pub(crate) fn composed_query_candidates(
             }
             components.sort_by_key(|component| (component.start_byte, component.end_byte));
             let start_byte = components.first()?.start_byte;
-            let end_byte = components.iter().map(|component| component.end_byte).max()?;
+            let end_byte = components
+                .iter()
+                .map(|component| component.end_byte)
+                .max()?;
             let query = source.get(start_byte..end_byte)?;
             (check_span(source, start_byte, end_byte, query) == Grounding::Grounded).then(|| {
                 ComposedImageQuery {
@@ -305,6 +301,144 @@ pub(crate) fn composed_query_candidates(
             })
         })
         .collect()
+}
+
+/// Builds non-literal provider queries only when the engine already has an
+/// asserted, source-grounded relation between two visual entities. The query
+/// joins the exact entity surfaces; sentence evidence and both component
+/// spans preserve why the pair belongs together. Location facts can also use
+/// their grounded value when the location did not survive entity extraction.
+pub(crate) fn contextual_image_query_candidates(
+    source: &str,
+    entities: &[VisualEntity],
+    entity_ids: &[String],
+    facts: &[EntityFact],
+) -> Vec<ContextualImageQuery> {
+    let mut output = Vec::new();
+    let mut seen = HashSet::new();
+    for fact in facts {
+        if fact.status != "asserted" {
+            continue;
+        }
+        let Some(target_id) = fact.target_entity_id.as_deref() else {
+            continue;
+        };
+        let Some(subject_index) = entity_ids.iter().enumerate().find_map(|(index, identity)| {
+            let entity = entities.get(index)?;
+            (identity == &fact.subject_entity_id
+                && entity.start >= fact.evidence_start_byte
+                && entity.end <= fact.evidence_end_byte)
+                .then_some(index)
+        }) else {
+            continue;
+        };
+        let target_index = entity_ids.iter().enumerate().find_map(|(index, identity)| {
+            let entity = entities.get(index)?;
+            (identity == target_id
+                && entity.start >= fact.evidence_start_byte
+                && entity.end <= fact.evidence_end_byte)
+                .then_some(index)
+        });
+        let Some(subject) = entities.get(subject_index) else {
+            continue;
+        };
+        let target = target_index.and_then(|index| entities.get(index));
+        let target_span = if let Some(target) = target {
+            if !is_visual_query_entity(&target.r#type)
+                || (fact.predicate == "located_in" && target.r#type != "LOCATION")
+            {
+                continue;
+            }
+            (
+                target.text.as_str(),
+                target.start,
+                target.end,
+                target.r#type.as_str(),
+                if fact.predicate == "located_in" {
+                    "location"
+                } else {
+                    "related_entity"
+                },
+            )
+        } else if fact.predicate == "located_in"
+            && source.get(fact.start_byte..fact.end_byte) == Some(fact.value.as_str())
+            && fact.start_byte >= fact.evidence_start_byte
+            && fact.end_byte <= fact.evidence_end_byte
+        {
+            (
+                fact.value.as_str(),
+                fact.start_byte,
+                fact.end_byte,
+                "LOCATION",
+                "location",
+            )
+        } else {
+            continue;
+        };
+        if subject.start == target_span.1 && subject.end == target_span.2
+            || !is_visual_query_entity(&subject.r#type)
+            || !seen.insert((
+                fact.sentence_index,
+                fact.subject_entity_id.clone(),
+                target_id.to_string(),
+            ))
+        {
+            continue;
+        }
+        let Some(evidence) = source.get(fact.evidence_start_byte..fact.evidence_end_byte) else {
+            continue;
+        };
+        if evidence != fact.evidence {
+            continue;
+        }
+        let query = format!("{} {}", subject.text.trim(), target_span.0.trim());
+        if query.trim().is_empty() {
+            continue;
+        }
+        output.push(ContextualImageQuery {
+            id: format!("contextual_{:03}", output.len() + 1),
+            kind: "contextual_image_query".to_string(),
+            query,
+            evidence: evidence.to_string(),
+            evidence_start_byte: fact.evidence_start_byte,
+            evidence_end_byte: fact.evidence_end_byte,
+            sentence_index: fact.sentence_index,
+            components: vec![
+                QueryComponent {
+                    kind: "entity".to_string(),
+                    component_type: subject.r#type.clone(),
+                    text: subject.text.clone(),
+                    start_byte: subject.start,
+                    end_byte: subject.end,
+                },
+                QueryComponent {
+                    kind: target_span.4.to_string(),
+                    component_type: target_span.3.to_string(),
+                    text: target_span.0.to_string(),
+                    start_byte: target_span.1,
+                    end_byte: target_span.2,
+                },
+            ],
+        });
+    }
+    output
+}
+
+fn is_visual_query_entity(entity_type: &str) -> bool {
+    matches!(
+        entity_type,
+        "PERSON"
+            | "LOCATION"
+            | "ORG"
+            | "ORGANIZATION"
+            | "FACILITY"
+            | "BRAND"
+            | "PRODUCT"
+            | "OBJECT"
+            | "VISUAL_CONCEPT"
+            | "WORK"
+            | "STRUCTURE"
+    )
 }
 
 /// Extracts complete, explicitly delimited quotations. The delimiters remain
@@ -376,4 +510,80 @@ pub(crate) fn important_word_candidates(entity_candidates: &[Candidate]) -> Vec<
         .filter(|candidate| seen.insert(candidate.text.to_lowercase()))
         .cloned()
         .collect()
+}
+
+#[cfg(test)]
+mod contextual_image_query_tests {
+    use super::*;
+
+    #[test]
+    fn chooses_repeated_entity_mentions_inside_the_supporting_sentence() {
+        let source = "Torino first. Aurora Stadium is located in Torino.";
+        let evidence_start = source.find("Aurora Stadium").unwrap();
+        let evidence_end = source.len();
+        let subject_start = evidence_start;
+        let subject_end = subject_start + "Aurora Stadium".len();
+        let location_start = source.rfind("Torino").unwrap();
+        let entities = vec![
+            VisualEntity {
+                text: "Torino".into(),
+                r#type: "LOCATION".into(),
+                score: 0.9,
+                start: 0,
+                end: 6,
+                evidence: "Torino".into(),
+            },
+            VisualEntity {
+                text: "Aurora Stadium".into(),
+                r#type: "FACILITY".into(),
+                score: 0.9,
+                start: subject_start,
+                end: subject_end,
+                evidence: "Aurora Stadium".into(),
+            },
+            VisualEntity {
+                text: "Torino".into(),
+                r#type: "LOCATION".into(),
+                score: 0.9,
+                start: location_start,
+                end: location_start + "Torino".len(),
+                evidence: "Torino".into(),
+            },
+        ];
+        let ids = vec!["location".into(), "facility".into(), "location".into()];
+        let evidence = source[evidence_start..evidence_end].to_string();
+        let facts = vec![EntityFact {
+            id: "located".into(),
+            subject_entity_id: "facility".into(),
+            predicate: "located_in".into(),
+            value: "Torino".into(),
+            value_type: "ENTITY".into(),
+            normalized_value: None,
+            normalized_date: None,
+            target_entity_id: Some("location".into()),
+            unit: None,
+            operator: None,
+            status: "asserted".into(),
+            sentence_index: 1,
+            evidence,
+            start_byte: location_start,
+            end_byte: location_start + "Torino".len(),
+            evidence_start_byte: evidence_start,
+            evidence_end_byte: evidence_end,
+            importance: 0.0,
+            visual_concept_ids: Vec::new(),
+        }];
+
+        let queries = contextual_image_query_candidates(source, &entities, &ids, &facts);
+        assert_eq!(queries.len(), 1);
+        assert_eq!(queries[0].query, "Aurora Stadium Torino");
+        for component in &queries[0].components {
+            assert!(component.start_byte >= evidence_start);
+            assert!(component.end_byte <= evidence_end);
+            assert_eq!(
+                &source[component.start_byte..component.end_byte],
+                component.text
+            );
+        }
+    }
 }

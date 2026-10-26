@@ -2,8 +2,8 @@
 
 use super::location::{has_dotted_initial_prefix, is_phrase_breaking_byte, starts_uppercase};
 use super::names::{
-    candidate_from_tokens, curated_name_span, is_heading_surface, place_splits_run,
-    proper_name_runs,
+    candidate_from_tokens, curated_name_span, is_heading_surface, nested_institution_places,
+    organization_name_runs, place_splits_run, proper_name_runs,
 };
 use super::pos::is_stop_token;
 use super::stopwords::{is_generic_phrase, is_stop_phrase};
@@ -150,9 +150,21 @@ pub(crate) fn noun_phrase_candidates(
     // Named people/organizations are bounded to the contiguous title-case run.
     // This prevents lower-case lead-ins such as "figures like Phil Jackson"
     // from becoming a PERSON entity; the grounded candidate is "Phil Jackson".
-    for (start, end) in proper_name_runs(tokens, bytes, language) {
+    let mut name_runs = proper_name_runs(tokens, bytes, language);
+    let organization_runs = organization_name_runs(tokens, language);
+    name_runs.retain(|(start, end)| {
+        !organization_runs
+            .iter()
+            .any(|(org_start, org_end)| org_start <= start && end <= org_end)
+    });
+    name_runs.extend(organization_runs);
+    name_runs.sort_unstable();
+    name_runs.dedup();
+    for (start, end) in name_runs {
         out.push(candidate_from_tokens(tokens, source_text, start, end));
     }
+    // The ORG span must never consume a known place that closes it.
+    nested_institution_places(tokens, source_text, language, &mut out);
     // Curated names are entities even when a function word sits inside them
     // ("Will Always Love You" ends in "you"), so they are emitted verbatim
     // before the generic phrase scan can truncate them. The gazetteer decides
@@ -227,11 +239,11 @@ pub(crate) fn noun_phrase_candidates(
             }
         }
         let mut phrase_end = j; // exclusive
-        // "Visita Pavia" is a clause opener plus a city, not one surface:
-        // when a known place closes a title-case phrase whose opener carries
-        // no name evidence, the place is scanned as its own phrase (so it
-        // survives as a LOCATION) and a one-token fragment before it is the
-        // clause opener, not a concept.
+                                // "Visita Pavia" is a clause opener plus a city, not one surface:
+                                // when a known place closes a title-case phrase whose opener carries
+                                // no name evidence, the place is scanned as its own phrase (so it
+                                // survives as a LOCATION) and a one-token fragment before it is the
+                                // clause opener, not a concept.
         let split_place = if starts_uppercase(&tokens[phrase_start].text) {
             place_splits_run(tokens, language, phrase_start, phrase_end)
         } else {

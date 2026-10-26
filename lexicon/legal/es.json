@@ -1,0 +1,29 @@
+{
+  "schema": "legal_pack.v1",
+  "language": "es",
+  "patterns": [],
+  "age_guard_markers": [],
+  "entity_cues": [
+    {
+      "cue": "Fiscalía",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Juzgado",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Tribunal",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Audiencia",
+      "kind": "ORG"
+    }
+  ],
+  "entity_alias_cues": [],
+  "finality_markers": [],
+  "outcome_markers": [],
+  "comparison": {},
+  "micro": {}
+}

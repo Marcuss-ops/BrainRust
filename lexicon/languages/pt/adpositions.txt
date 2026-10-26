@@ -1,0 +1,23 @@
+# Adpositions and contracted forms (closed class): these words never
+# open or extend a name or a noun phrase. One word per line.
+# Folded into the pack's closed_class by lexicon/tools/build_language_packs.py.
+a
+ante
+após
+através
+até
+com
+conforme
+contra
+de
+desde
+durante
+em
+entre
+mediante
+para
+perante
+por
+sem
+sob
+sobre

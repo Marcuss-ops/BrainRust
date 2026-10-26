@@ -308,6 +308,26 @@ pub struct ComposedImageQuery {
     pub components: Vec<QueryComponent>,
 }
 
+/// A contextual image query composed from visual entities joined by an
+/// explicitly grounded relation. Unlike `ComposedImageQuery`, `query` is not
+/// a source substring: each word comes from one of the provenance components,
+/// and the sentence evidence proves their asserted relationship.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ContextualImageQuery {
+    pub id: String,
+    /// Always `contextual_image_query`.
+    pub kind: String,
+    /// A compact provider query composed from the grounded related entities.
+    pub query: String,
+    /// Exact sentence evidence for the explicit `located_in` fact.
+    pub evidence: String,
+    pub evidence_start_byte: usize,
+    pub evidence_end_byte: usize,
+    pub sentence_index: usize,
+    /// The subject and related entity or location, each with its own grounded span.
+    pub components: Vec<QueryComponent>,
+}
+
 /// One rung of the asset-search ladder proposed by the engine. The text is
 /// always an exact source slice; retrieval stays in PipelineGen.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -726,6 +746,9 @@ pub struct SceneManifest {
     /// Multi-component image queries with per-component provenance. Every
     /// query stays a literal source substring.
     pub composed_image_queries: Vec<ComposedImageQuery>,
+    /// Compact image queries derived only from explicit source-grounded
+    /// subject-to-location facts; their evidence and components remain literal.
+    pub contextual_image_queries: Vec<ContextualImageQuery>,
     pub visual_proposals: Vec<VisualProposal>,
     /// Grounded multi-item structures suitable for planner selection.
     pub semantic_groups: Vec<SemanticGroup>,

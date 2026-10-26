@@ -300,6 +300,43 @@ fn r09_two_percentages_yield_a_chart_with_both_values() {
 }
 
 #[test]
+fn a_comparison_word_inside_a_top_ten_item_does_not_chart_the_ranks() {
+    let text = "Nel confronto i risultati sono Aurora 41% contro Lumen 15%.\n\
+                Top 10:\n\
+                1. documenti originali\n\
+                2. rilievi sul campo\n\
+                3. confronto dei gruppi\n\
+                4. verifica dei costi\n\
+                5. cronologia\n\
+                6. pareri dei residenti\n\
+                7. qualità delle immagini\n\
+                8. limiti dei dati\n\
+                9. controllo indipendente\n\
+                10. pubblicazione dei risultati";
+    let value = manifest_value(vec![scene("top-ten-chart-noise", text)]);
+    let charts = proposals_of(&value["scenes"][0], "chart");
+
+    assert_eq!(
+        charts.len(),
+        1,
+        "only the explicit comparison is a chart: {value}"
+    );
+    let items = charts[0]["chart_items"].as_array().unwrap();
+    assert_eq!(
+        items.len(),
+        2,
+        "rank markers are reference numbers: {items:?}"
+    );
+    assert!(items.iter().all(|item| item["kind"] == "PERCENT"));
+    let mut values: Vec<f64> = items
+        .iter()
+        .map(|item| item["value"].as_f64().unwrap())
+        .collect();
+    values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    assert_eq!(values, vec![15.0, 41.0]);
+}
+
+#[test]
 fn visual_query_suggestions_are_always_verbatim_source_slices() {
     // A co-mention and a chart used to suggest their joined labels
     // ("Alberto Stasi Andrea Sempio", "42% 18%"), which never occur in the
@@ -362,7 +399,10 @@ fn different_kinds_never_form_a_chart() {
     // comparison, whatever the comparison cue says.
     let text = "Il 42% dei tecnici ha speso 5.000 euro contro il piano iniziale.";
     let value = manifest_value(vec![scene("tipi-misti", text)]);
-    assert!(proposals_of(&value["scenes"][0], "chart").is_empty(), "{value}");
+    assert!(
+        proposals_of(&value["scenes"][0], "chart").is_empty(),
+        "{value}"
+    );
 }
 
 #[test]
@@ -825,6 +865,121 @@ fn facility_facts_survive_anaphoric_sentences_without_duplicating_capacity() {
 }
 
 #[test]
+fn contextual_image_query_is_a_grounded_subject_place_composition() {
+    let text = "Lo Stadio Aurora è un impianto sportivo di Torino.";
+    let value = manifest_value(vec![scene("contextual-search", text)]);
+    let scene_value = &value["scenes"][0];
+    let queries = scene_value["contextual_image_queries"]
+        .as_array()
+        .expect("contextual image query collection");
+    let query = queries
+        .iter()
+        .find(|query| query["query"] == "Stadio Aurora Torino")
+        .unwrap_or_else(|| panic!("grounded subject-place query missing: {queries:?}"));
+    assert_eq!(query["kind"], "contextual_image_query");
+    assert_eq!(query["evidence"], text);
+    assert!(query["query"] != query["evidence"]);
+    assert_eq!(query["components"].as_array().unwrap().len(), 2);
+    for component in query["components"].as_array().unwrap() {
+        let start = component["start_byte"].as_u64().unwrap() as usize;
+        let end = component["end_byte"].as_u64().unwrap() as usize;
+        assert_eq!(&text[start..end], component["text"].as_str().unwrap());
+    }
+    assert!(queries.iter().all(|query| query["evidence"] == text));
+
+    let co_mention = "Il rapporto cita Stadio Aurora e Torino come riferimenti distinti.";
+    let unrelated = manifest_value(vec![scene("unrelated-context", co_mention)]);
+    assert!(
+        unrelated["scenes"][0]["contextual_image_queries"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "co-mention alone must not imply a location relation"
+    );
+
+    let negated = manifest_value(vec![scene(
+        "negated-location",
+        "Lo Stadio Aurora non si trova a Torino.",
+    )]);
+    assert!(
+        negated["scenes"][0]["contextual_image_queries"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "a negated location relation must not become an image query"
+    );
+}
+
+#[test]
+fn locative_queries_require_a_locative_predicate_and_use_local_place_spans() {
+    let text = "Nel 2018 il Comune di Torino affidò a Elena Conti il controllo dello Stadio Aurora. Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva 18.000 posti.";
+    let value = manifest_value(vec![scene("explicit-locative", text)]);
+    let scene = &value["scenes"][0];
+    let queries = scene["contextual_image_queries"].as_array().unwrap();
+    let query = queries
+        .iter()
+        .find(|query| query["query"] == "Stadio Aurora Torino")
+        .unwrap_or_else(|| panic!("grounded place query missing: {scene}"));
+    assert_eq!(
+        queries.len(),
+        1,
+        "the org's Torino must not locate the stadium"
+    );
+    assert_eq!(
+        query["evidence"],
+        "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva 18.000 posti."
+    );
+    assert!(queries
+        .iter()
+        .all(|query| query["query"] != "Stadio Aurora Elena Conti"));
+    for component in query["components"].as_array().unwrap() {
+        let start = component["start_byte"].as_u64().unwrap() as usize;
+        let end = component["end_byte"].as_u64().unwrap() as usize;
+        let evidence_start = query["evidence_start_byte"].as_u64().unwrap() as usize;
+        let evidence_end = query["evidence_end_byte"].as_u64().unwrap() as usize;
+        assert!(evidence_start <= start && start < end && end <= evidence_end);
+        assert_eq!(&text[start..end], component["text"].as_str().unwrap());
+    }
+}
+
+#[test]
+fn explicit_facility_location_queries_are_supported_across_corpus_languages() {
+    let cases = [
+        ("it", "Lo Stadio Aurora si trova a Torino."),
+        ("en", "Aurora Stadium is located in Torino."),
+        ("es", "El Estadio Aurora está ubicado en Torino."),
+        ("pt", "O Estádio Aurora está localizado em Torino."),
+        ("fr", "Le stade Aurora est situé à Torino."),
+        ("de", "Das Stadion Aurora befindet sich in Torino."),
+        ("nl", "Het stadion Aurora bevindt zich in Torino."),
+        ("pl", "Stadion Aurora znajduje się w Torino."),
+        ("ru", "Стадион Aurora находится в Torino."),
+        ("id", "Stadion Aurora berada di Torino."),
+    ];
+
+    for (language, text) in cases {
+        let mut req = request(vec![scene("facility-location", text)]);
+        req.language = language.to_string();
+        let value = analyze_script(&req).expect("analysis succeeds");
+        let scene = serde_json::to_value(value).unwrap()["scenes"][0].clone();
+        assert!(
+            scene["entities"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|entity| entity["type"] == "FACILITY"),
+            "facility not recognized for {language}: {scene}"
+        );
+        assert!(
+            scene["contextual_image_queries"]
+                .as_array()
+                .is_some_and(|queries| !queries.is_empty()),
+            "explicit location query missing for {language}: {scene}"
+        );
+    }
+}
+
+#[test]
 fn completion_phase_completes_a_four_step_construction_sequence() {
     let text = "La prima fase riguarda la progettazione dello Stadio Aurora. La seconda fase avvia la costruzione dello Stadio Aurora. La terza fase completa le tribune dello Stadio Aurora. La quarta fase amplia la capienza dello Stadio Aurora.";
     let value = manifest_value(vec![scene("quattro-fasi", text)]);
@@ -1133,7 +1288,9 @@ fn filler_phrases_headings_and_pronouns_never_become_search_proposals() {
         "the filler sentence stays in the inventory: {phrases:?}"
     );
     assert!(
-        phrases.iter().any(|phrase| phrase.contains("CAPITOLO SECONDO")),
+        phrases
+            .iter()
+            .any(|phrase| phrase.contains("CAPITOLO SECONDO")),
         "the chapter heading stays in the inventory: {phrases:?}"
     );
 
@@ -1183,45 +1340,89 @@ fn filler_phrases_headings_and_pronouns_never_become_search_proposals() {
 }
 
 #[test]
+fn a_chapter_heading_line_never_lands_inside_a_query() {
+    // The heading is its own sentence, so the source_sentence rung of the
+    // first sentence cannot quote it — in the proposal ladder and in the
+    // search handshake alike.
+    let text = "CAPITOLO SECONDO — LE INDAGINI\nNel 2007 Elena Messina viveva a Pavia.";
+    let value = manifest_value(vec![scene("heading-line", text)]);
+    let mut queries: Vec<String> = Vec::new();
+    for proposal in value["scenes"][0]["visual_proposals"].as_array().unwrap() {
+        if let Some(suggestions) = proposal["visual_query_suggestions"].as_array() {
+            queries.extend(
+                suggestions
+                    .iter()
+                    .filter_map(|query| query.as_str().map(str::to_string)),
+            );
+        }
+    }
+    for entry in value["search_feedback"]["entries"].as_array().unwrap() {
+        for query in entry["queries"].as_array().unwrap() {
+            if let Some(text) = query["text"].as_str() {
+                queries.push(text.to_string());
+            }
+        }
+    }
+    assert!(!queries.is_empty(), "the person still produces queries");
+    for query in &queries {
+        assert!(
+            !query.to_lowercase().contains("capitolo secondo"),
+            "the heading leaked into a query: {query:?} (all: {queries:?})"
+        );
+    }
+}
+
+#[test]
 fn important_segments_stay_on_linguistic_boundaries() {
-    // Segments are 2–5 consecutive sentences cut at the canonical segmenter's
-    // boundaries, anchored by grounded signals, non-overlapping and verbatim.
+    // Segments are every 2–5-sentence window cut at canonical boundaries,
+    // anchored by grounded signals, possibly overlapping and verbatim.
     let text = "Chiara Poggi viveva a Pavia. Il 13 agosto 2007 il caso cambiò. \
                 La Procura di Pavia aprì un'indagine. Alberto Stasi fu rinviato \
                 a giudizio. Non è così. Il processo iniziò nel 2009.";
     let value = manifest_value(vec![scene("segmenti", text)]);
     let scene_value = &value["scenes"][0];
     let segments = scene_value["important_segments"].as_array().unwrap();
-    assert!(!segments.is_empty(), "a signal-rich scene has segments");
-    assert!(segments.len() <= 3, "bounded selection: {segments:?}");
+    assert!(
+        segments.len() > 3,
+        "retain every qualifying passage: {segments:?}"
+    );
 
     let spans = semantic_core::split_sentences(text, "it", None);
     let mut ends: Vec<(usize, usize)> = Vec::new();
     for segment in segments {
         let start = segment["sentence_index_start"].as_u64().unwrap() as usize;
         let end = segment["sentence_index_end"].as_u64().unwrap() as usize;
-        assert!(end >= start && end - start + 1 >= 2 && end - start + 1 <= 5,
-            "2..=5 sentences expected: {segment:?}");
+        assert!(
+            end >= start && end - start >= 1 && end - start < 5,
+            "2..=5 sentences expected: {segment:?}"
+        );
         // Linguistic boundaries: the span starts at the first sentence's start
         // and ends at the last sentence's end.
-        assert_eq!(segment["start_byte"].as_u64().unwrap() as usize, spans[start].start_byte);
-        assert_eq!(segment["end_byte"].as_u64().unwrap() as usize, spans[end].end_byte);
+        assert_eq!(
+            segment["start_byte"].as_u64().unwrap() as usize,
+            spans[start].start_byte
+        );
+        assert_eq!(
+            segment["end_byte"].as_u64().unwrap() as usize,
+            spans[end].end_byte
+        );
         // Verbatim source slice (NO EVIDENCE → NO CANDIDATE).
         let start_byte = segment["start_byte"].as_u64().unwrap() as usize;
         let end_byte = segment["end_byte"].as_u64().unwrap() as usize;
-        assert_eq!(segment["evidence"].as_str().unwrap(), &text[start_byte..end_byte]);
+        assert_eq!(
+            segment["evidence"].as_str().unwrap(),
+            &text[start_byte..end_byte]
+        );
         assert_eq!(segment["kind"], "important_segment");
         ends.push((start_byte, end_byte));
     }
-    // Segments never overlap.
-    ends.sort_unstable();
-    for pair in ends.windows(2) {
-        assert!(pair[0].1 <= pair[1].0, "segments overlap: {segments:?}");
-    }
+    // Overlapping candidate windows are retained for PipelineGen to rank.
+    assert!(ends.windows(2).any(|pair| pair[0].1 > pair[1].0));
     // Deterministic replay: the same request yields the same segments.
     let again = manifest_value(vec![scene("segmenti", text)]);
     assert_eq!(
-        again["scenes"][0]["important_segments"], scene_value["important_segments"]
+        again["scenes"][0]["important_segments"],
+        scene_value["important_segments"]
     );
 }
 
@@ -1229,7 +1430,10 @@ fn important_segments_stay_on_linguistic_boundaries() {
 fn a_scene_without_signals_keeps_no_segments() {
     // A successful analysis with no grounded signals stays empty instead of
     // inventing passages.
-    let value = manifest_value(vec![scene("vuota-di-segnali", "Non è così. Non era così. Non sarà così.")]);
+    let value = manifest_value(vec![scene(
+        "vuota-di-segnali",
+        "Non è così. Non era così. Non sarà così.",
+    )]);
     let scene = &value["scenes"][0];
     assert_eq!(scene["status"], "valid");
     assert!(
@@ -1248,20 +1452,29 @@ fn composed_image_queries_keep_the_literal_substring_rule() {
     let value = manifest_value(vec![scene("composte", text)]);
     let scene_value = &value["scenes"][0];
     let queries = scene_value["composed_image_queries"].as_array().unwrap();
-    assert!(!queries.is_empty(), "components stated together compose a query");
+    assert!(
+        !queries.is_empty(),
+        "components stated together compose a query"
+    );
     for query in queries {
         let start = query["start_byte"].as_u64().unwrap() as usize;
         let end = query["end_byte"].as_u64().unwrap() as usize;
         assert_eq!(query["query"].as_str().unwrap(), &text[start..end]);
         assert_eq!(query["kind"], "composed_image_query");
         let components = query["components"].as_array().unwrap();
-        assert!(components.len() >= 2, "a composed query needs 2+ components: {query:?}");
+        assert!(
+            components.len() >= 2,
+            "a composed query needs 2+ components: {query:?}"
+        );
         for component in components {
             let c_start = component["start_byte"].as_u64().unwrap() as usize;
             let c_end = component["end_byte"].as_u64().unwrap() as usize;
             // Per-component provenance: verbatim and inside the query span.
             assert_eq!(component["text"].as_str().unwrap(), &text[c_start..c_end]);
-            assert!(c_start >= start && c_end <= end, "component outside the query: {query:?}");
+            assert!(
+                c_start >= start && c_end <= end,
+                "component outside the query: {query:?}"
+            );
         }
         // The grounded subject and the dated statement are both components.
         assert!(components.iter().any(|c| c["component_type"] == "PERSON"));
@@ -1284,11 +1497,16 @@ fn one_component_never_composes_a_query() {
     let scene_value = &value["scenes"][0];
     let queries = scene_value["composed_image_queries"].as_array().unwrap();
     assert!(
-        queries.iter().all(|query| query["components"].as_array().unwrap().len() >= 2),
+        queries
+            .iter()
+            .all(|query| query["components"].as_array().unwrap().len() >= 2),
         "{queries:?}"
     );
     // "Milano" alone has only one grounded component, so no query at all.
-    assert!(queries.is_empty(), "one component, no composition: {queries:?}");
+    assert!(
+        queries.is_empty(),
+        "one component, no composition: {queries:?}"
+    );
 }
 
 #[test]
@@ -1779,6 +1997,28 @@ fn a_complete_dated_sequence_is_one_timeline_and_closes_coverage() {
         coverage["covered_facts"], coverage["total_facts"],
         "every fact of a complete timeline is covered: {coverage}"
     );
+}
+
+#[test]
+fn co_evidenced_facility_facts_keep_a_faithful_extractive_micro_summary() {
+    let text = "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti.";
+    let value = manifest_value(vec![scene("micro-facility", text)]);
+    let summaries = value["scenes"][0]["micro_summaries"]
+        .as_array()
+        .expect("micro summaries array");
+    let summary = summaries
+        .iter()
+        .find(|summary| {
+            summary["text"] == text
+                && summary["evidence"] == text
+                && summary["evidence_fact_ids"]
+                    .as_array()
+                    .is_some_and(|ids| ids.len() >= 2)
+        })
+        .expect("co-evidenced facts stay together in a grounded summary");
+    let start = summary["start_byte"].as_u64().unwrap() as usize;
+    let end = summary["end_byte"].as_u64().unwrap() as usize;
+    assert_eq!(&text[start..end], summary["evidence"].as_str().unwrap());
 }
 
 #[test]

@@ -3,6 +3,7 @@
 
 Sources (one directory per language, never copied into Rust code):
   lexicon/languages/<lang>/stopwords.txt
+  lexicon/languages/<lang>/adpositions.txt
   lexicon/languages/<lang>/articles.txt
   lexicon/languages/<lang>/pronouns.txt
   lexicon/languages/<lang>/possessives.txt
@@ -53,6 +54,7 @@ GENERATED_LEGAL = ROOT / "semantic-core" / "src" / "generated_legal_packs.rs"
 # Adding a word to any of these is a data edit; the pack follows automatically.
 CLOSED_CLASS_FILES = (
     "stopwords.txt",
+    "adpositions.txt",
     "articles.txt",
     "pronouns.txt",
     "possessives.txt",

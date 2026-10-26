@@ -8,10 +8,11 @@ pub(crate) fn collect_facilities(source: &str, remaining: usize) -> Vec<VisualEn
         return Vec::new();
     }
     let mut out = Vec::new();
-    for cue in [
-        "Stadio ", "stadio ", "Stadium ", "stadium ", "Arena ", "arena ",
-    ] {
-        for (cue_start, _) in source.match_indices(cue) {
+    for noun in &lexicon::lexicon().facility.facility_nouns {
+        let lower_source = source.to_lowercase();
+        let lower_noun = noun.to_lowercase();
+        let cue = format!("{lower_noun} ");
+        for (cue_start, _) in lower_source.match_indices(&cue) {
             if out.len() >= remaining {
                 return out;
             }
@@ -26,17 +27,17 @@ pub(crate) fn collect_facilities(source: &str, remaining: usize) -> Vec<VisualEn
                 let token_start = name_start + cursor + relative;
                 // "Aurora. La" is two sentences, not one facility name: a
                 // token that carries sentence punctuation closes the name.
-                let core_len = token
-                    .trim_end_matches(|ch: char| ch.is_ascii_punctuation())
-                    .len();
-                let core = &token[..core_len];
+                let trimmed = token.trim_matches(|ch: char| !ch.is_alphanumeric() && ch != '-');
+                let trim_start = token.find(trimmed).unwrap_or(0);
+                let core_len = trimmed.len();
+                let core = trimmed;
                 let Some(first) = core.chars().next() else {
                     break;
                 };
                 if !first.is_uppercase() {
                     break;
                 }
-                name_end = token_start + core_len;
+                name_end = token_start + trim_start + core_len;
                 cursor += relative + token.len();
                 if core_len != token.len() {
                     break;
@@ -62,6 +63,115 @@ pub(crate) fn collect_facilities(source: &str, remaining: usize) -> Vec<VisualEn
                 score: 0.9,
                 start: cue_start,
                 end: name_end,
+                evidence,
+            });
+        }
+        // Some languages conventionally place the proper name before the
+        // facility head ("Aurora Stadium"). Recover the nearest one or two
+        // title-cased words in the same sentence and keep the whole span.
+        for (noun_start, _) in lower_source.match_indices(&lower_noun) {
+            let noun_end = noun_start + noun.len();
+            let after = source.get(noun_end..).and_then(|tail| tail.chars().next());
+            if after.is_some_and(char::is_alphanumeric) {
+                continue;
+            }
+            let sentence_start = source[..noun_start]
+                .rfind(['.', '!', '?', '\n'])
+                .map_or(0, |position| position + 1);
+            let prefix = &source[sentence_start..noun_start];
+            let words: Vec<_> = prefix.split_whitespace().collect();
+            let mut name_start = None;
+            let candidate_words: Vec<_> = words.iter().rev().take(2).rev().copied().collect();
+            let articles = [
+                "a",
+                "an",
+                "the",
+                "lo",
+                "la",
+                "il",
+                "i",
+                "gli",
+                "le",
+                "l'",
+                "el",
+                "los",
+                "las",
+                "un",
+                "una",
+                "o",
+                "os",
+                "as",
+                "um",
+                "uma",
+                "les",
+                "der",
+                "die",
+                "das",
+                "den",
+                "dem",
+                "het",
+                "een",
+                "de",
+                "do",
+                "da",
+                "dos",
+                "этот",
+                "эта",
+                "это",
+                "этого",
+                "этой",
+                "в",
+                "на",
+                "yang",
+                "sebuah",
+                "suatu",
+            ];
+            // A title-cased article is not a proper name. Also leave head-first
+            // constructions to the prefix recognizer when a name follows.
+            if candidate_words.len() == 1
+                && articles.contains(
+                    &candidate_words[0]
+                        .trim_matches(|ch: char| !ch.is_alphanumeric())
+                        .to_lowercase()
+                        .as_str(),
+                )
+            {
+                continue;
+            }
+            let next_word = source[noun_end..].split_whitespace().next().unwrap_or("");
+            let next_name = next_word
+                .trim_matches(|ch: char| !ch.is_alphanumeric() && ch != '-')
+                .chars()
+                .next()
+                .is_some_and(char::is_uppercase);
+            if next_name {
+                continue;
+            }
+            for word in candidate_words {
+                let cleaned = word.trim_matches(|ch: char| !ch.is_alphanumeric() && ch != '-');
+                if cleaned.chars().next().is_some_and(char::is_uppercase) {
+                    let start = source[..noun_start].rfind(word).unwrap_or(noun_start);
+                    name_start = Some(name_start.map_or(start, |prior: usize| start.min(prior)));
+                } else {
+                    break;
+                }
+            }
+            let Some(name_start) = name_start else {
+                continue;
+            };
+            if out
+                .iter()
+                .any(|entity| entity.start == name_start && entity.end == noun_end)
+            {
+                continue;
+            }
+            let evidence = source[name_start..noun_end].to_string();
+            out.push(VisualEntity {
+                text: evidence.clone(),
+                r#type: "FACILITY".to_string(),
+                score: 0.9,
+                start: name_start,
+                end: noun_end,
                 evidence,
             });
         }
@@ -249,10 +359,6 @@ pub(crate) fn extract_entity_facts(
         for (marker, predicate, target_kind) in [
             ("di proprietà", "owned_by", "owner"),
             ("owned by", "owned_by", "owner"),
-            ("si trova a", "located_in", "LOCATION"),
-            ("situato a", "located_in", "LOCATION"),
-            ("located in", "located_in", "LOCATION"),
-            ("based in", "located_in", "LOCATION"),
         ] {
             let Some(marker_offset) = normalized_sentence.find(marker) else {
                 continue;
@@ -298,6 +404,72 @@ pub(crate) fn extract_entity_facts(
                 visual_concept_ids: Vec::new(),
             });
         }
+        for marker in &lexicon::lexicon().facility.location_relation_markers {
+            let Some(marker_offset) = normalized_sentence.find(marker) else {
+                continue;
+            };
+            let target_after = sentence.start_byte + marker_offset + marker.len();
+            let local_target = entities
+                .iter()
+                .enumerate()
+                .find(|(candidate_index, candidate)| {
+                    *candidate_index != entity_index
+                        && candidate.start >= target_after
+                        && candidate.end <= sentence.end_byte
+                        && candidate.r#type == "LOCATION"
+                });
+            let target_span = local_target
+                .map(|(target_index, target)| {
+                    (target_index, target.text.clone(), target.start, target.end)
+                })
+                .or_else(|| {
+                    // Entity extraction may keep only the first mention of a
+                    // canonical place. After an explicit locative predicate, a
+                    // later exact spelling of that already typed place is still
+                    // grounded evidence and can supply this sentence's span.
+                    let tail_start = target_after.max(sentence.start_byte);
+                    let tail = source.get(tail_start..sentence.end_byte)?;
+                    entities.iter().enumerate().find_map(|(index, candidate)| {
+                        if candidate.r#type != "LOCATION" {
+                            return None;
+                        }
+                        let relative = tail.find(&candidate.text)?;
+                        let start = tail_start + relative;
+                        Some((
+                            index,
+                            candidate.text.clone(),
+                            start,
+                            start + candidate.text.len(),
+                        ))
+                    })
+                });
+            let Some((target_index, target_text, target_start, target_end)) = target_span else {
+                continue;
+            };
+            let target_entity_id = identities.id_of(target_index);
+            out.push(EntityFact {
+                id: format!("{}_located_in_{:02}", subject_entity_id, out.len() + 1),
+                subject_entity_id: subject_entity_id.clone(),
+                predicate: "located_in".to_string(),
+                value: target_text,
+                value_type: "ENTITY".to_string(),
+                normalized_value: None,
+                normalized_date: None,
+                target_entity_id: Some(target_entity_id),
+                unit: None,
+                operator: None,
+                status: relation_fact_status(&normalized_sentence, marker_offset),
+                sentence_index,
+                evidence: evidence.to_string(),
+                start_byte: target_start,
+                end_byte: target_end,
+                evidence_start_byte: sentence.start_byte,
+                evidence_end_byte: sentence.end_byte,
+                importance: 0.0,
+                visual_concept_ids: Vec::new(),
+            });
+            break;
+        }
         // "lo stadio di Torino": a bare prepositional phrase is enough when
         // the subject is the scene's facility and the target is a grounded
         // LOCATION mention. An explicit marker above wins over this fallback.
@@ -308,9 +480,17 @@ pub(crate) fn extract_entity_facts(
             let target = entities.iter().enumerate().find(|(index, candidate)| {
                 *index != entity_index
                     && candidate.r#type == "LOCATION"
-                    && candidate.start >= sentence.start_byte
+                        // A city embedded in another proper name earlier in
+                        // the sentence ("Comune di Torino ... Stadio Aurora")
+                        // is not evidence that the facility itself is there.
+                        && candidate.start >= entities[entity_index].end
                     && candidate.end <= sentence.end_byte
-                    && location_cue_precedes(source, sentence.start_byte, candidate.start)
+                    && location_cue_precedes(
+                        source,
+                        sentence.start_byte,
+                        candidate.start,
+                        &lexicon::lexicon().facility.bare_location_prepositions,
+                    )
             });
             if let Some((target_index, target)) = target {
                 out.push(EntityFact {
@@ -351,16 +531,14 @@ pub(crate) fn location_cue_precedes(
     source: &str,
     sentence_start: usize,
     target_start: usize,
+    accepted_cues: &[String],
 ) -> bool {
     let prefix = source
         .get(sentence_start..target_start)
         .unwrap_or_default()
         .trim_end();
     let word = prefix.split_whitespace().next_back().unwrap_or_default();
-    lexicon::lexicon()
-        .location_cues
-        .sentence_locative_prepositions
-        .contains(&word.to_lowercase())
+    accepted_cues.contains(&word.to_lowercase())
 }
 
 /// A bare surname the script already introduced belongs to that person.

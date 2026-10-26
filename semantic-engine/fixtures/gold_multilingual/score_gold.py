@@ -19,8 +19,11 @@ rewrites the gold.
 
 Usage:
     python3 score_gold.py [--worker PATH] [--report /tmp/gold_score_report.json] [script_id ...]
+    python3 score_gold.py --check-reproducible
 
 Exit code 0 when every threshold in `gold.json` is met, 1 otherwise.
+`--check-reproducible` instead runs every script through two cold worker
+processes and requires the manifest JSON to be byte-identical.
 """
 
 from __future__ import annotations
@@ -223,10 +226,55 @@ def score_script(worker: NDJSONWorker, script_id: str, spec: dict) -> dict:
     }
 
 
+def canonical_manifest(worker: NDJSONWorker, script_id: str, spec: dict) -> str:
+    script_text = (BASE / spec["file"]).read_text(encoding="utf-8").strip()
+    response = worker.request(
+        {
+            "operation": "analyze_script",
+            "language": spec["language"],
+            "scenes": [{"scene_id": "s01", "text": script_text}],
+        }
+    )
+    if not response.get("ok"):
+        raise RuntimeError(f"worker refused {script_id}: {response.get('error')}")
+    return json.dumps(response["manifest"], ensure_ascii=False, separators=(",", ":"))
+
+
+def check_reproducible(worker_path: Path, ids: list[str], specs: dict) -> bool:
+    """Two cold worker processes; every manifest must match byte for byte."""
+    runs: list[dict[str, str]] = []
+    for run in range(2):
+        worker = NDJSONWorker(worker_path)
+        try:
+            health = worker.request({"operation": "health"}, 30.0)
+            if not health.get("ok"):
+                raise RuntimeError(f"worker health failed: {health}")
+            runs.append(
+                {i: canonical_manifest(worker, i, specs[i]) for i in ids}
+            )
+        finally:
+            worker.close()
+    ok = True
+    for script_id in ids:
+        if runs[0][script_id] != runs[1][script_id]:
+            print(f"  DIFF {script_id}: manifest differs between cold runs")
+            ok = False
+    print(
+        f"reproducibility: {'PASS' if ok else 'FAIL'} "
+        f"({len(ids)} scripts × 2 cold runs, byte-identical manifests)"
+    )
+    return ok
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker", default=str(DEFAULT_WORKER))
     parser.add_argument("--report", default="/tmp/gold_score_report.json")
+    parser.add_argument(
+        "--check-reproducible",
+        action="store_true",
+        help="two cold runs per script; manifests must be byte-identical",
+    )
     parser.add_argument("scripts", nargs="*")
     args = parser.parse_args()
 
@@ -241,6 +289,9 @@ def main() -> int:
     gold = json.loads((BASE / "gold.json").read_text(encoding="utf-8"))
     specs = gold["scripts"]
     ids = args.scripts or sorted(specs)
+
+    if args.check_reproducible:
+        return 0 if check_reproducible(worker_path, ids, specs) else 1
 
     worker = NDJSONWorker(worker_path)
     try:

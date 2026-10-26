@@ -47,6 +47,20 @@ pub fn split_sentences(text: &str, language: &str, max_words: Option<usize>) -> 
         return Vec::new();
     }
     let mut cuts = Vec::new();
+    // A heading line ("CAPITOLO SECONDO — LE INDAGINI") ends a sentence at
+    // its line break. Without this boundary the heading glues to the first
+    // sentence and every query-ladder rung of that sentence quotes the
+    // heading. The rule is structural — an all-caps line — never a word list.
+    let mut line_start = 0;
+    for (offset, ch) in text.char_indices() {
+        if ch != '\n' {
+            continue;
+        }
+        if is_heading_line(&text[line_start..offset]) {
+            cuts.push(offset + ch.len_utf8());
+        }
+        line_start = offset + ch.len_utf8();
+    }
     let mut i = 0;
     while i < chars.len() {
         let ch = chars[i].1;
@@ -124,6 +138,8 @@ pub fn split_sentences(text: &str, language: &str, max_words: Option<usize>) -> 
         }
     }
 
+    cuts.sort_unstable();
+    cuts.dedup();
     let mut segments = Vec::new();
     let mut start = 0;
     for end in cuts {
@@ -210,6 +226,26 @@ fn split_long_segment(
 
 fn word_count(text: &str) -> usize {
     text.split_whitespace().count()
+}
+
+/// A heading line: at least two substantial words (two or more alphabetic
+/// characters) and every one of them entirely uppercase. A single lowercase
+/// letter ends the pattern, so ordinary prose never matches; a one-word
+/// marker ("IMPORTANT") is not a chapter title by this rule and keeps its
+/// historical segmentation.
+fn is_heading_line(line: &str) -> bool {
+    let mut substantial = 0usize;
+    for word in line.split_whitespace() {
+        let alphabetic: Vec<char> = word.chars().filter(|ch| ch.is_alphabetic()).collect();
+        if alphabetic.len() < 2 {
+            continue;
+        }
+        if !alphabetic.iter().all(|ch| ch.is_uppercase()) {
+            return false;
+        }
+        substantial += 1;
+    }
+    substantial >= 2
 }
 
 /// A period that closes a one- or two-digit ordinal at the start of the
@@ -486,6 +522,27 @@ mod tests {
         assert_eq!(
             texts("Nel 1959. Poi arrivò il resto.", "it"),
             vec!["Nel 1959.", "Poi arrivò il resto."]
+        );
+    }
+
+    #[test]
+    fn a_heading_line_is_its_own_sentence() {
+        // The heading must not glue to the first sentence: every query rung of
+        // that sentence would quote the heading.
+        assert_eq!(
+            texts(
+                "CAPITOLO SECONDO — LE INDAGINI\nNel 2007 Elena viveva a Pavia.",
+                "it"
+            ),
+            vec![
+                "CAPITOLO SECONDO — LE INDAGINI",
+                "Nel 2007 Elena viveva a Pavia."
+            ]
+        );
+        // Ordinary prose without punctuation does not split at the line break.
+        assert_eq!(
+            texts("Riga senza punto\nSeconda frase qui.", "it"),
+            vec!["Riga senza punto\nSeconda frase qui."]
         );
     }
 

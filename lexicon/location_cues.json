@@ -1,5 +1,6 @@
 {
   "schema": "lexicon.v1",
+  "ambiguous_context_prepositions": ["a", "à"],
   "context_prepositions": [
     "em",
     "no",

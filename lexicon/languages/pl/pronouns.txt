@@ -1,0 +1,28 @@
+# Personal pronouns (closed class). One word per line; '#' comments.
+# Folded into the pack's closed_class by lexicon/tools/build_language_packs.py.
+ci
+ciebie
+im
+ja
+jego
+jej
+mi
+mnie
+mu
+my
+nam
+nich
+niego
+niej
+nim
+nimi
+nią
+on
+ona
+one
+oni
+ono
+tobie
+ty
+wam
+wy

@@ -37,7 +37,15 @@ pub struct NumericFact {
 /// convention, so a chart never plots a guessed value.
 pub fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
     let mut rest = text.trim().to_lowercase();
-    for suffix in ["percent", "dollars", "euros", "euro", "pounds", "yen"] {
+    let mut suffixes: Vec<&str> = crate::lexicon::lexicon()
+        .scale_words
+        .percentage_words
+        .iter()
+        .map(String::as_str)
+        .chain(["dollars", "euros", "euro", "pounds", "yen"])
+        .collect();
+    suffixes.sort_by_key(|suffix| std::cmp::Reverse(suffix.len()));
+    for suffix in suffixes {
         if let Some(stripped) = rest.strip_suffix(suffix) {
             rest = stripped.trim_end().to_string();
             break;

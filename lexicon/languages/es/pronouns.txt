@@ -1,0 +1,18 @@
+# Personal pronouns (closed class). One word per line; '#' comments.
+# Folded into the pack's closed_class by lexicon/tools/build_language_packs.py.
+consigo
+ella
+ellas
+ellos
+mí
+nosotras
+nosotros
+sí
+ti
+tú
+usted
+ustedes
+vosotras
+vosotros
+yo
+él

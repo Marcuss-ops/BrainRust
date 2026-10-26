@@ -1,0 +1,25 @@
+{
+  "schema": "legal_pack.v1",
+  "language": "fr",
+  "patterns": [],
+  "age_guard_markers": [],
+  "entity_cues": [
+    {
+      "cue": "Parquet",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Tribunal",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Cour",
+      "kind": "ORG"
+    }
+  ],
+  "entity_alias_cues": [],
+  "finality_markers": [],
+  "outcome_markers": [],
+  "comparison": {},
+  "micro": {}
+}

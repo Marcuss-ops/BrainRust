@@ -1,8 +1,31 @@
 #!/usr/bin/env python3
 """Deterministic multilingual corpus smoke/quality benchmark for BrainRust."""
-import argparse, json, os, pathlib, select, subprocess, tempfile, time
+import argparse, json, os, pathlib, re, select, subprocess, tempfile, time
 from collections import Counter
 ROOT = pathlib.Path(__file__).resolve().parent
+
+def worker_metrics(pid):
+    """Read Linux process high-water memory and cumulative CPU counters."""
+    try:
+        status = pathlib.Path(f"/proc/{pid}/status").read_text(encoding="ascii")
+        values = {}
+        for line in status.splitlines():
+            key, _, rest = line.partition(":")
+            if key in {"VmRSS", "VmHWM", "VmSize"}:
+                values[key] = int(rest.split()[0])
+        stat = pathlib.Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+        fields = stat.rsplit(")", 1)[1].split()
+        ticks = int(fields[11]) + int(fields[12])
+        values["cpu_seconds"] = ticks / os.sysconf("SC_CLK_TCK")
+        return values
+    except (FileNotFoundError, IndexError, ValueError, OSError):
+        return {}
+
+def percentile(values, fraction):
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[max(0, min(len(ordered) - 1, int((len(ordered) - 1) * fraction + 0.5)))]
 
 def make_scenes(text, budget):
     scenes, current, n = [], [], 0
@@ -57,7 +80,7 @@ def inspect(case, manifest, scenes):
     records = manifest.get("scenes",[])
     if manifest.get("schema_version")!="semantic_manifest.v2": problems.append("schema mismatch")
     if len(records)!=len(scenes): problems.append("scene count mismatch")
-    entities = []; dates=[]; charts=[]; bullet=[]; micro=[]; groups=[]; proposals=[]
+    entities = []; dates=[]; charts=[]; bullet=[]; micro=[]; groups=[]; proposals=[]; contextual=[]
     for r in records:
         scene_id = r.get("scene_id")
         if scene_id not in byid:
@@ -75,6 +98,27 @@ def inspect(case, manifest, scenes):
         for x in r.get("visual_proposals",[]):
             if any(q not in src for q in x.get("visual_query_suggestions",[])):
                 problems.append(f"{scene_id}: visual query not in source");break
+        for query in r.get("contextual_image_queries",[]):
+            evidence=query.get("evidence","")
+            start=query.get("evidence_start_byte"); end=query.get("evidence_end_byte")
+            components=query.get("components",[])
+            valid=(isinstance(start,int) and isinstance(end,int) and 0<=start<end<=len(raw)
+                   and raw[start:end].decode("utf8",errors="replace")==evidence
+                   and query.get("kind")=="contextual_image_query" and len(components)==2)
+            component_texts=[]; locations=0
+            for component in components:
+                a=component.get("start_byte"); b=component.get("end_byte"); surface=component.get("text","")
+                grounded=(isinstance(start,int) and isinstance(end,int) and
+                          isinstance(a,int) and isinstance(b,int) and start<=a<b<=end
+                          and raw[a:b].decode("utf8",errors="replace")==surface)
+                valid=valid and grounded and bool(component.get("component_type"))
+                component_texts.append(surface)
+                locations+=component.get("component_type")=="LOCATION"
+            valid=valid and locations==1 and query.get("query")==" ".join(component_texts)
+            if not valid:
+                problems.append(f"{scene_id}: contextual image query is unsupported or ungrounded")
+                break
+            contextual.append(query)
         entities.extend(r.get("entities",[]))
         dates.extend(r.get("temporal_facts",[]))
         bullet.extend(r.get("bullets",[]))
@@ -89,7 +133,55 @@ def inspect(case, manifest, scenes):
     normalized={str(x.get("normalized") or x.get("normalized_date") or "")[:4] for x in dates}
     for year in ea["years"]:
         if year not in normalized: review.append("missing normalized year: "+year)
-    if not charts: review.append("explicit two-value percent chart missing")
+    expected_chart = sorted(float(value) for value in ea["percentages"])
+    matching_charts = []
+    for chart in charts:
+        items = chart.get("chart_items", [])
+        kinds = {item.get("kind") for item in items}
+        values = sorted(float(item["value"]) for item in items if isinstance(item.get("value"), (int, float)))
+        if len(items) == 2 and kinds == {"PERCENT"} and values == expected_chart:
+            matching_charts.append(chart)
+    if len(matching_charts) != 1:
+        review.append(
+            f"expected one two-value percent chart {expected_chart}; "
+            f"found {len(matching_charts)} valid among {len(charts)} proposals"
+        )
+    for surface, expected_type in (
+        (ea["organization"], "ORG"),
+        (ea["city"], "LOCATION"),
+    ):
+        if not any(
+            entity.get("type") == expected_type
+            and surface.casefold() in str(entity.get("text", "")).casefold()
+            for entity in entities
+        ):
+            review.append(f"missing typed {expected_type}: {surface}")
+    expected_object_tokens = {
+        token.casefold() for token in re.findall(r"[^\W_]+", ea["object"], flags=re.UNICODE)
+    }
+    # A composed source description can be represented by its typed object
+    # head ("sensor" in "sensor de agua"). Keep that distinct from exact
+    # phrase coverage so the report shows whether modifiers/context survived.
+    exact_object = any(
+        ea["object"].casefold() in str(entity.get("text", "")).casefold()
+        and entity.get("type") in {"OBJECT", "VISUAL_CONCEPT"}
+        for entity in entities
+    )
+    object_head = any(
+        entity.get("type") == "OBJECT"
+        and bool(
+            expected_object_tokens
+            & {
+                token.casefold()
+                for token in re.findall(
+                    r"[^\W_]+", str(entity.get("text", "")), flags=re.UNICODE
+                )
+            }
+        )
+        for entity in entities
+    )
+    if not exact_object and not object_head:
+        review.append("missing visual object: " + ea["object"])
     if not bullet: review.append("no bullet candidates")
     if not any(x.get("type")=="LOCATION" for x in entities):review.append("no LOCATION")
     if not any(x.get("proposal_type")=="entity_search" for x in proposals):review.append("no search suggestions")
@@ -99,7 +191,9 @@ def inspect(case, manifest, scenes):
      "visual_concepts":sum(e.get("type")=="VISUAL_CONCEPT" for e in entities),
      "dates":len(dates),"bullets":len(bullet),"micro_summaries":len(micro),
      "groups":len(groups),"charts":len(charts),"search_proposals":sum(x.get("proposal_type")=="entity_search" for x in proposals),
-     "co_mentions":sum(len(s.get("relations",{}).get("co_mentions",[])) for s in records)}
+     "co_mentions":sum(len(s.get("relations",{}).get("co_mentions",[])) for s in records),
+     "contextual_image_queries":len(contextual),
+     "expected_object_exact_phrase":exact_object,"expected_object_typed_head":object_head}
 
 def main():
     ap=argparse.ArgumentParser()
@@ -115,9 +209,11 @@ def main():
     if args.limit:cases=cases[:args.limit]
     if not cases:ap.error("no test cases")
     worker=NDJSONWorker(args.worker); result=[]; start=time.monotonic()
+    resource_samples=[]
     try:
         health=worker.request({"operation":"health"},args.timeout)
         if not health.get("ok"):raise RuntimeError("worker health failed")
+        resource_samples.append(worker_metrics(worker.p.pid))
         for i,c in enumerate(cases):
             text=(ROOT/c["path"]).read_text(encoding="utf-8")
             if len(text.split())!=c["word_count"] or len(text.encode("utf-8"))!=c["byte_count"]:
@@ -128,24 +224,46 @@ def main():
                 t0=time.monotonic()
                 try:
                     response=worker.request(request,args.timeout)
+                    resource_samples.append(worker_metrics(worker.p.pid))
+                    analysis_seconds=time.monotonic()-t0
                     if not response.get("ok"):
                         row={"id":c["id"],"language":c["lang"],"status":"FAIL","problems":[str(response.get("error"))]}
                     else:
                         row=inspect(c,response["manifest"],scenes)
-                        if i==0:
-                            replay=worker.request(request,args.timeout)
-                            if replay.get("manifest")!=response["manifest"] or not replay.get("cached"):
-                                row["status"]="FAIL";row["problems"].append("cache replay mismatch")
-                    row["seconds"]=round(time.monotonic()-t0,2)
+                        replay_start=time.monotonic()
+                        replay=worker.request(request,args.timeout)
+                        replay_identical=(replay.get("manifest")==response["manifest"] and replay.get("cached"))
+                        row["replay_seconds"]=round(time.monotonic()-replay_start,4)
+                        row["replay_identical"]=bool(replay_identical)
+                        if not replay_identical:
+                            row["status"]="FAIL";row["problems"].append("cache replay mismatch")
+                    row["seconds"]=round(analysis_seconds,2)
                 except Exception as e:
                     row={"id":c["id"],"language":c["lang"],"status":"FAIL","problems":[str(e)]}
             result.append(row)
             print(f'{i+1:3d}/{len(cases)} {c["id"]:24} {row["status"]:12} chart={row.get("charts","-")} micro={row.get("micro_summaries","-")}',flush=True)
     finally:worker.close()
+    latencies=[x["seconds"] for x in result if isinstance(x.get("seconds"),(int,float))]
+    replay_latencies=[x["replay_seconds"] for x in result if isinstance(x.get("replay_seconds"),(int,float))]
+    latest_metrics=next((sample for sample in reversed(resource_samples) if sample),{})
+    total_words=sum(c.get("word_count",0) for c in cases)
+    elapsed=round(time.monotonic()-start,2)
     output=args.report or str(pathlib.Path(tempfile.gettempdir())/"brainrust_multilingual_100_report.json")
     pathlib.Path(output).parent.mkdir(parents=True,exist_ok=True)
     report={"schema":"brainrust.multilingual100.v1","totals":dict(Counter(x["status"] for x in result)),
-      "duration_seconds":round(time.monotonic()-start,2),"cases":result}
+      "duration_seconds":elapsed,"cases":result,
+      "performance":{"input_words":total_words,
+       "throughput_words_per_second":round(total_words/elapsed,2) if elapsed else None,
+       "latency_p50_seconds":percentile(latencies,0.50),
+       "latency_p95_seconds":percentile(latencies,0.95),
+       "cache_replay_count":sum("replay_identical" in row for row in result),
+       "cache_replay_identical_count":sum(row.get("replay_identical") is True for row in result),
+       "cache_replay_latency_p50_seconds":percentile(replay_latencies,0.50),
+       "cache_replay_latency_p95_seconds":percentile(replay_latencies,0.95),
+       "worker_peak_rss_kb":max((s.get("VmHWM",0) for s in resource_samples),default=0),
+       "worker_peak_vmsize_kb":max((s.get("VmSize",0) for s in resource_samples),default=0),
+       "worker_cpu_seconds":round(latest_metrics["cpu_seconds"],2) if "cpu_seconds" in latest_metrics else None,
+       "worker_cpu_cores_average":round(latest_metrics["cpu_seconds"]/elapsed,3) if elapsed and "cpu_seconds" in latest_metrics else None}}
     pathlib.Path(output).write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n",encoding="utf8")
     print("RESULT:",report["totals"],"REPORT:",output)
     return 1 if any(x["status"]=="FAIL" for x in result) else (2 if any(x["status"]=="NEEDS_REVIEW" for x in result) else 0)

@@ -39,10 +39,10 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use semantic_core::grounding::{check_span, retain_grounded, Grounding};
 use semantic_core::lexicon;
 use semantic_core::{
-    AssertedRelation, Candidate, CoMention, ComposedImageQuery, EntityFact, IdentityRegistry,
-    ImportantSegment, QueryComponent, RelationStatus, RelationView, SceneManifest,
-    SearchFeedbackEntry, SearchQuery, SemanticGroup, SemanticGroupMember, SemanticManifest,
-    VisualProposal,
+    AssertedRelation, Candidate, CoMention, ComposedImageQuery, ContextualImageQuery, EntityFact,
+    IdentityRegistry, ImportantSegment, QueryComponent, RelationStatus, RelationView,
+    SceneManifest, SearchFeedbackEntry, SearchQuery, SemanticGroup, SemanticGroupMember,
+    SemanticManifest, VisualProposal,
 };
 use visualner::{analyze_with_context, ExtractOptions, TemporalFact, VisualEntity};
 
@@ -119,6 +119,7 @@ fn analyze_scene_with_search(
                     important_words: Vec::new(),
                     important_segments: Vec::new(),
                     composed_image_queries: Vec::new(),
+                    contextual_image_queries: Vec::new(),
                     visual_proposals: Vec::new(),
                     semantic_groups: Vec::new(),
                     micro_summaries: Vec::new(),
@@ -225,8 +226,15 @@ fn analyze_scene_with_search(
         &entity_facts,
         &identities,
     );
-    let composed_image_queries =
-        composed_query_candidates(source, &sentence_spans, &entities, &analysis.numeric_facts, &temporal_facts);
+    let composed_image_queries = composed_query_candidates(
+        source,
+        &sentence_spans,
+        &entities,
+        &analysis.numeric_facts,
+        &temporal_facts,
+    );
+    let contextual_image_queries =
+        contextual_image_query_candidates(source, &entities, &entity_ids, &entity_facts);
     let bullets = bullet_candidates(source, &sentence_spans, &entities);
     let candidates = groups::build_candidates(
         &entities,
@@ -307,6 +315,7 @@ fn analyze_scene_with_search(
             important_words,
             important_segments: segment_candidates(source, &sentence_spans, &entities),
             composed_image_queries,
+            contextual_image_queries,
             bullets,
             short_phrases: phrase_candidates(source, &sentence_spans, 0, 18),
             long_phrases: phrase_candidates(source, &sentence_spans, 18, usize::MAX),

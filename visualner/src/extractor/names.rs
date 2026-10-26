@@ -149,6 +149,54 @@ pub(crate) fn proper_name_runs(
     runs
 }
 
+/// Finds capitalized institution heads followed by a proper name, such as
+/// "Institut Aurora" or "Comitato Stella". UDPipe often tags the generic
+/// head as a common noun, so the ordinary proper-name run starts one token too
+/// late. The multilingual organization vocabulary supplies the head; the
+/// following capitalized token supplies the identity. This is a general
+/// linguistic pattern and does not depend on a specific organization name.
+pub(crate) fn organization_name_runs(tokens: &[Token], language: &str) -> Vec<(usize, usize)> {
+    let key = language.split(['-', '_']).next().unwrap_or("");
+    let Some(markers) = semantic_core::lexicon::lexicon()
+        .gazetteer
+        .organization_markers
+        .get(key)
+    else {
+        return Vec::new();
+    };
+    let mut runs = Vec::new();
+    for (start, token) in tokens.iter().enumerate() {
+        if !starts_uppercase(&token.text) {
+            continue;
+        }
+        for marker in markers {
+            let marker_words: Vec<String> =
+                marker.split_whitespace().map(str::to_lowercase).collect();
+            let end = start + marker_words.len();
+            if marker_words.is_empty()
+                || end >= tokens.len()
+                || tokens[start..end]
+                    .iter()
+                    .zip(&marker_words)
+                    .any(|(actual, expected)| !actual.text.eq_ignore_ascii_case(expected))
+                || !starts_uppercase(&tokens[end].text)
+                || is_stop_token(&tokens[end], language)
+            {
+                continue;
+            }
+            let mut run_end = end + 1;
+            while run_end < tokens.len()
+                && starts_uppercase(&tokens[run_end].text)
+                && !is_stop_token(&tokens[run_end], language)
+            {
+                run_end += 1;
+            }
+            runs.push((start, run_end));
+        }
+    }
+    runs
+}
+
 /// Whether the token at `index` extends the name run that starts before it.
 /// A lowercase surname particle is allowed only between name tokens, so
 /// "Emma de Vries" is one name while a trailing "de" stays out.
@@ -212,7 +260,16 @@ pub(crate) fn place_splits_run(
     if end - start < 2 || opens_with_name_evidence(&tokens[start], language) {
         return None;
     }
-    if institution_cue_kind(&tokens[start].text, language).is_some() {
+    // The cue head is the first substantive word: a leading article the
+    // tagger promoted to PROPN ("De Rechtbank") is not the institution head,
+    // and the institution keeps its trailing place fused.
+    let substantive_surface = tokens[start..end]
+        .iter()
+        .filter(|token| !is_stop_token(token, language))
+        .map(|token| token.text.as_str())
+        .collect::<Vec<&str>>()
+        .join(" ");
+    if institution_cue_kind(&substantive_surface, language).is_some() {
         return None;
     }
     if is_known_place(&run_surface(tokens, start, end), language) {
@@ -231,6 +288,42 @@ fn run_surface(tokens: &[Token], start: usize, end: usize) -> String {
         .map(|token| token.text.as_str())
         .collect::<Vec<&str>>()
         .join(" ")
+}
+
+/// A known place that closes a curated institution run ("Pengadilan
+/// Surabaya", "Landgericht München") keeps its own LOCATION candidate. The
+/// ORG span must never consume the nested place — the nested-place rule of
+/// "Procura di Pavia", generalized to a fused surface. A person run is never
+/// split here: "Elena Messina" is a person whose surname doubles as a city.
+pub(crate) fn nested_institution_places(
+    tokens: &[Token],
+    source_text: &str,
+    language: &str,
+    candidates: &mut Vec<super::values::Candidate>,
+) {
+    let bytes = source_text.as_bytes();
+    for (start, end) in proper_name_runs(tokens, bytes, language) {
+        let surface = run_surface(tokens, start, end);
+        if institution_cue_kind(&surface, language).is_none() {
+            continue;
+        }
+        let Some(split) = (start + 1..end)
+            .find(|&split| is_known_place(&run_surface(tokens, split, end), language))
+        else {
+            continue;
+        };
+        let place_start = tokens[split].start;
+        let place_end = tokens[end - 1].end;
+        if candidates
+            .iter()
+            .any(|candidate| candidate.start == place_start && candidate.end == place_end)
+        {
+            continue;
+        }
+        let mut place = candidate_from_tokens(tokens, source_text, split, end);
+        place.entity_type = Some("LOCATION".to_string());
+        candidates.push(place);
+    }
 }
 
 /// True when `text` is a surname particle declared for the language.

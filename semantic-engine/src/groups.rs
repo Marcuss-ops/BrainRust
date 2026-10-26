@@ -167,7 +167,7 @@ fn charts(
         // values belong in one chart. Require an explicit comparison cue, read
         // from the shared discourse vocabulary so the engine and this builder
         // can never disagree about what a comparison is.
-        if semantic_core::discourse::comparison_cue(&bullet.text).is_none() {
+        if !comparison_cue_binds_values(bullet, chart_points, sentence) {
             continue;
         }
         let mut indices: Vec<usize> = chart_points
@@ -192,6 +192,38 @@ fn charts(
             end: bullet.end,
         });
     }
+}
+
+/// A comparison word elsewhere in a long enumerated bullet must not turn the
+/// list's rank numbers into chart values. Bind the cue to at least two
+/// comparable values on the same source line. Ordinary prose comparisons
+/// remain valid because their values and cue share a line.
+fn comparison_cue_binds_values(
+    bullet: &Bullet,
+    chart_points: &[ChartPoint],
+    sentence_index: usize,
+) -> bool {
+    let Some((cue_start, _)) = semantic_core::discourse::comparison_cue(&bullet.text) else {
+        return false;
+    };
+    let cue_line = bullet.text[..cue_start]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count();
+    let comparable_on_line = chart_points
+        .iter()
+        .filter(|point| point.sentence_index == sentence_index)
+        .filter(|point| point.start >= bullet.start && point.end <= bullet.end)
+        .filter(|point| {
+            let relative = point.start - bullet.start;
+            bullet.text[..relative]
+                .bytes()
+                .filter(|byte| *byte == b'\n')
+                .count()
+                == cue_line
+        })
+        .count();
+    comparable_on_line >= 2
 }
 
 fn timelines(bullets: &[Bullet], temporal_facts: &[TemporalFact], out: &mut Vec<VisualCandidate>) {
