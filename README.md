@@ -65,7 +65,7 @@ extractive summary, bullets, heavy sentences, chapters and scene highlights
 are computed inside the same unified worker batch. The legacy standalone
 Phrase Impact worker and the opt-in Scene Intelligence shadow path were
 retired on 2026-10-25 after parity evidence was recorded (see
-`RUST_SEMANTIC_ENGINE_TODO.md`).
+[`../docs/stato/brainrust.md`](../docs/stato/brainrust.md)).
 
 ## Local check
 
