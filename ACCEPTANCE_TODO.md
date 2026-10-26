@@ -96,6 +96,29 @@ diagnostic only and cannot certify language-wide metrics.
 - [ ] Verify the 1,000 overlays/minute target with PipelineGen integration
   measurements after the semantic worker contract is certified.
 
+## Test layout regrouping (2026-10-26)
+
+The oversized test files were split by topic and the two test conventions are
+now uniform across crates (documented in `README.md`, "Test layout"):
+
+- `semantic-engine/tests/semantic_engine.rs` (2,155 lines, 80 tests) became
+  nine topic binaries plus `tests/common/mod.rs`. Known WIP test failures are
+  unchanged by the move: `every_mention_of_eight_people...`,
+  `filler_phrases_headings...` (entities_identity) and
+  `entity_search_queries...`, `visual_query_suggestions...` (search_queries)
+  fail identically against the pre-move `semantic_engine.rs` checked out from
+  git; several search-query failures still evolve with the in-flight
+  `src/candidates.rs` work.
+- `visualner/src/extractor_tests.rs` became the `src/extractor_tests/`
+  topic folder (57 tests, kept in `src/` because `tokenize` is
+  `pub(crate)`). The three failing extractor/value tests fail identically
+  against the pre-move single file from git.
+- `semantic-core/src/phrase_impact_tests/summary_rank.rs` (954 lines)
+  became `summary.rs` + `rank.rs` + `corpus_metrics.rs`; all 138
+  `semantic-core` tests pass.
+- Workspace gates at the time of the move: `cargo fmt --all -- --check`
+  clean; `cargo clippy --workspace --all-targets` zero warnings.
+
 ## Current language-query change
 
 Facility heads and explicit location predicates are now loaded from the

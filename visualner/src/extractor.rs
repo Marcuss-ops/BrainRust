@@ -55,5 +55,5 @@ pub(crate) use tokenizer::tokenize;
 // Adding a word here is a one-line change; no model retraining.
 
 #[cfg(test)]
-#[path = "extractor_tests.rs"]
+#[path = "extractor_tests/mod.rs"]
 mod tests;

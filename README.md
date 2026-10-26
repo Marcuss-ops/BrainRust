@@ -105,6 +105,36 @@ RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" cargo run -p visualner -- --locale-co
 cargo build --release
 ```
 
+## Test layout
+
+Tests follow two conventions, both split by topic — never by size:
+
+- **Unit tests that need crate-private items stay inside `src/`, in one
+  folder per topic.** `semantic-core` keeps the phrase-impact suite in
+  `src/phrase_impact_tests/` (bullets, chapters, splitting, scenes_titles,
+  summary, rank, corpus_metrics plus `common.rs` for shared fixtures) and
+  `visualner` keeps the extractor suite in `src/extractor_tests/`
+  (tokenizer_pos, persons_names, places_locations, orgs_concepts,
+  objects_values, scoring_guards plus `common.rs`). In both, the folder is
+  wired with `#[cfg(test)] #[path = "<folder>/mod.rs"]`; each topic file sees
+  production items through `super::super::*` and shared helpers through
+  `super::common::*`. `pipelinegen-muscles` follows the same rule with its
+  two small `render_clip_tests*` modules. These paths exist because their
+  subjects expose `pub(crate)` items that integration binaries cannot see
+  (for example `visualner`'s test-only `tokenize`); do not move them to
+  `tests/` without making private items public.
+- **Integration tests against the public API live in `tests/`, one file per
+  topic.** `semantic-engine` splits its manifest-level suite into topic
+  binaries (`entities_identity`, `search_queries`, `charts_numeric`,
+  `relations_groups`, `process_sequences`, `facilities_legal_micro`,
+  `editorial_segments`, `story_coverage`, `protocol_validation`) plus
+  `common/` for the shared request/manifest helpers — not every topic
+  binary uses every helper, so helpers may be `#[allow(dead_code)]` there.
+
+When adding tests: join the topic file that matches the behavior, or open a
+new topic file in the same style. Do not grow a file into a new catch-all
+module, and do not ressurect a single large file.
+
 ## Languages
 
 Linguistic knowledge is data, not Rust: one directory per language under
