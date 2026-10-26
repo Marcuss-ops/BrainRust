@@ -168,7 +168,13 @@ pub fn analyze_with_context(
         &spelled_candidates,
         &temporal_facts,
     );
-    let chart_points = chart_points(source_text, &numeric_facts, &sentences, &entities);
+    let chart_points = chart_points(
+        source_text,
+        &options.language,
+        &numeric_facts,
+        &sentences,
+        &entities,
+    );
 
     Ok(Analysis {
         entities,
@@ -354,6 +360,7 @@ fn bullets(
 /// with more numbers than entities no longer loses chart values.
 fn chart_points(
     source_text: &str,
+    language: &str,
     numeric_facts: &[NumericFact],
     sentences: &[SentenceSpan],
     entities: &[VisualEntity],
@@ -361,7 +368,9 @@ fn chart_points(
     numeric_facts
         .iter()
         .filter_map(|fact| {
-            let value = fact.value?;
+            let value = fact
+                .value
+                .or_else(|| semantic_core::numbers::parse_scaled_value(&fact.surface, language))?;
             let sentence_index = sentence_index_of(sentences, fact.start_byte)?;
             let sentence = sentences[sentence_index];
             let entity = entities
@@ -671,7 +680,7 @@ mod tests {
         ];
         let sentences = split_sentences(source, "en", None);
         let facts = numeric_facts(source, "en", &[], &[]);
-        let points = chart_points(source, &facts, &sentences, &entities);
+        let points = chart_points(source, "en", &facts, &sentences, &entities);
         let values: Vec<f64> = points.iter().map(|p| p.value).collect();
         assert_eq!(values, vec![25.0, 1200.0]);
     }
@@ -699,7 +708,7 @@ mod tests {
         ];
         let sentences = split_sentences(source, "en", None);
         let facts = numeric_facts(source, "en", &[], &[]);
-        let points = chart_points(source, &facts, &sentences, &entities);
+        let points = chart_points(source, "en", &facts, &sentences, &entities);
         let values: Vec<f64> = points.iter().map(|p| p.value).collect();
         assert_eq!(values, vec![3.25]);
     }

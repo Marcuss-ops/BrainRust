@@ -13,6 +13,7 @@
 #![deny(unsafe_code)]
 
 pub mod cache;
+mod chart_rules;
 pub mod consolidate;
 pub mod groups;
 pub mod identity_lookup;
@@ -66,7 +67,7 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
     semantic_core::AnalyzerVersions {
         visualner: "visualner".to_string(),
         semantic_core: env!("CARGO_PKG_VERSION").to_string(),
-        phrase_impact: "phrase_impact".to_string(),
+        phrase_impact: "phrase_impact+chart-gate-v1".to_string(),
         lexicon: semantic_core::lexicon::LEXICON_VERSION.to_string(),
     }
 }
@@ -267,6 +268,7 @@ fn analyze_scene_with_search(
     );
     let bullets = bullet_candidates(source, &sentence_spans, &entities);
     let candidates = groups::build_candidates(
+        source,
         &entities,
         &analysis.bullets,
         &analysis.chart_points,

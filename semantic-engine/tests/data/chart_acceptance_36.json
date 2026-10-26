@@ -1,0 +1,285 @@
+[
+  {
+    "id": 1,
+    "expected": "chart",
+    "text": "Il 42% dei tecnici ha segnalato il problema, contro il 18% del gruppo di controllo.",
+    "expected_values": [
+      42,
+      18
+    ]
+  },
+  {
+    "id": 2,
+    "expected": "chart",
+    "text": "Il quarantadue per cento dei tecnici ha segnalato il problema, contro il diciotto per cento del gruppo di controllo.",
+    "expected_values": [
+      42,
+      18
+    ]
+  },
+  {
+    "id": 3,
+    "expected": "chart",
+    "text": "Nel 2024, nello stesso mercato, Ford ha venduto 800.000 veicoli e Toyota 1.200.000 veicoli.",
+    "expected_values": [
+      800000,
+      1200000
+    ]
+  },
+  {
+    "id": 4,
+    "expected": "chart",
+    "text": "Il fatturato di Alfa è stato di 20 milioni di euro nel 2022, 27 milioni nel 2023 e 35 milioni nel 2024.",
+    "expected_values": [
+      20000000,
+      27000000,
+      35000000
+    ]
+  },
+  {
+    "id": 5,
+    "expected": "chart",
+    "text": "Nel 2025, nel mercato italiano, la quota di Alfa è stata del 35%, quella di Beta del 25% e quella di Gamma del 15%.",
+    "expected_values": [
+      35,
+      25,
+      15
+    ]
+  },
+  {
+    "id": 6,
+    "expected": "chart",
+    "text": "Nel 2025 le esportazioni sono state di 15 miliardi di euro in Germania, 12 miliardi in Francia e 9 miliardi in Spagna.",
+    "expected_values": [
+      15000000000,
+      12000000000,
+      9000000000
+    ]
+  },
+  {
+    "id": 7,
+    "expected": "none",
+    "text": "Il 42% dei tecnici ha segnalato il problema durante la prova.",
+    "expected_values": []
+  },
+  {
+    "id": 8,
+    "expected": "none",
+    "text": "Il progetto ha assunto 150 ingegneri nel 2025.",
+    "expected_values": []
+  },
+  {
+    "id": 9,
+    "expected": "none",
+    "text": "Il 42% dei clienti ha risposto al sondaggio; il 18% del budget è stato destinato alla ricerca.",
+    "expected_values": []
+  },
+  {
+    "id": 10,
+    "expected": "none",
+    "text": "Il 42% dei tecnici ha speso 5.000 euro contro il piano iniziale.",
+    "expected_values": []
+  },
+  {
+    "id": 11,
+    "expected": "none",
+    "text": "Il volo AZ 421 è partito dal terminal 3 il 12 giugno 2024.",
+    "expected_values": []
+  },
+  {
+    "id": 12,
+    "expected": "none",
+    "text": "L’impronta numero 33 è stata acquisita nel 2007 e rivalutata nel 2026.",
+    "expected_values": []
+  },
+  {
+    "id": 13,
+    "expected": "none",
+    "text": "Il 17 dicembre 2009 ci fu una decisione. Il 6 dicembre 2011 ci fu un’altra decisione.",
+    "expected_values": []
+  },
+  {
+    "id": 14,
+    "expected": "none",
+    "text": "Top 5 risultati: 1. Alfa; 2. Beta; 3. Gamma; 4. Delta; 5. Epsilon.",
+    "expected_values": []
+  },
+  {
+    "id": 15,
+    "expected": "none",
+    "text": "Il 60% dei 100 intervistati approva la proposta; il 40% dei 1.000 clienti acquista il prodotto.",
+    "expected_values": []
+  },
+  {
+    "id": 16,
+    "expected": "none",
+    "text": "Non è vero che il tasso sia passato dal 10% al 30%: quei numeri erano ipotesi smentite.",
+    "expected_values": []
+  },
+  {
+    "id": 17,
+    "expected": "conditional",
+    "text": "Secondo lo scenario ottimistico, i ricavi potrebbero arrivare a 30 milioni nel 2027, mentre quello prudente ipotizza 18 milioni.",
+    "expected_values": [
+      30000000,
+      18000000
+    ]
+  },
+  {
+    "id": 18,
+    "expected": "conditional",
+    "text": "Il progetto aveva circa 200 dipendenti nel 2022 e oltre 350 nel 2024.",
+    "expected_values": [
+      200,
+      350
+    ]
+  },
+  {
+    "id": 19,
+    "expected": "conditional",
+    "text": "Il percorso A misura 2 chilometri, mentre il percorso B misura 1.500 metri.",
+    "expected_values": [
+      2000,
+      1500
+    ]
+  },
+  {
+    "id": 20,
+    "expected": "none",
+    "text": "Sono stati venduti 200 prodotti a un prezzo medio di 35 euro.",
+    "expected_values": []
+  },
+  {
+    "id": 21,
+    "expected": "conditional",
+    "text": "Nel 2022 le vendite erano 100 unità, nel 2023 il dato non è disponibile e nel 2024 erano 150 unità.",
+    "expected_values": [
+      100,
+      150
+    ]
+  },
+  {
+    "id": 22,
+    "expected": "none",
+    "text": "Le vendite sono aumentate del 25% rispetto all’anno precedente, senza indicare volumi assoluti.",
+    "expected_values": []
+  },
+  {
+    "id": 23,
+    "expected": "none",
+    "text": "Alfa non ha venduto 500 auto contro le 300 di Beta: la notizia è falsa.",
+    "expected_values": []
+  },
+  {
+    "id": 24,
+    "expected": "chart",
+    "text": "La produzione di energia è passata da 100 GWh nel 2022 a 125 GWh nel 2023 e 140 GWh nel 2024.",
+    "expected_values": [
+      100,
+      125,
+      140
+    ]
+  },
+  {
+    "id": 25,
+    "expected": "chart",
+    "text": "Nel medesimo sondaggio, il 48% degli intervistati preferisce A e il 32% preferisce B.",
+    "expected_values": [
+      48,
+      32
+    ]
+  },
+  {
+    "id": 26,
+    "expected": "none",
+    "text": "Alfa ha fatturato 10 milioni di dollari e Beta 9 milioni di euro nel 2025.",
+    "expected_values": []
+  },
+  {
+    "id": 27,
+    "expected": "conditional",
+    "text": "Nel sondaggio, A ha ottenuto il 40% e B il 35%; il resto delle risposte non è specificato.",
+    "expected_values": [
+      40,
+      35
+    ]
+  },
+  {
+    "id": 28,
+    "expected": "conditional",
+    "text": "Il costo previsto è compreso tra 10 e 15 milioni di euro, rispetto agli 8 milioni di budget iniziale.",
+    "expected_values": [
+      10000000,
+      15000000,
+      8000000
+    ]
+  },
+  {
+    "id": 29,
+    "expected": "chart",
+    "text": "Nel 2023 Alfa ha venduto 40 unità; nel 2024 ne ha vendute 55.",
+    "expected_values": [
+      40,
+      55
+    ]
+  },
+  {
+    "id": 30,
+    "expected": "none",
+    "text": "Il 15 marzo 2024 il tribunale ha ricevuto 30 documenti; nel 2025 la popolazione cittadina ha superato 50.000 abitanti.",
+    "expected_values": []
+  },
+  {
+    "id": 31,
+    "expected": "chart",
+    "text": "Nel 2022 l’azienda ha registrato 0 incidenti, nel 2023 ne ha registrati 3 e nel 2024 ne ha registrati 1.",
+    "expected_values": [
+      0,
+      3,
+      1
+    ]
+  },
+  {
+    "id": 32,
+    "expected": "chart",
+    "text": "Su 200 richieste, 120 sono state approvate e 80 respinte.",
+    "expected_values": [
+      200,
+      120,
+      80
+    ]
+  },
+  {
+    "id": 33,
+    "expected": "conditional",
+    "text": "Il costo annuo di A è di 20 euro al mese e quello di B è 150 euro all’anno.",
+    "expected_values": [
+      240,
+      150
+    ]
+  },
+  {
+    "id": 34,
+    "expected": "chart",
+    "text": "Nel 2023 Alfa ha registrato 80 milioni di ricavi. L’azienda ha poi aperto due nuove sedi. Nel 2024 i ricavi di Alfa hanno raggiunto 95 milioni.",
+    "expected_values": [
+      80000000,
+      95000000
+    ]
+  },
+  {
+    "id": 35,
+    "expected": "chart",
+    "text": "Nel 2023 Beta ha prodotto 100.000 pezzi. L’anno seguente ne ha prodotti 120.000.",
+    "expected_values": [
+      100000,
+      120000
+    ]
+  },
+  {
+    "id": 36,
+    "expected": "none",
+    "text": "Il rapporto cita la frase «nel 2022 la società valeva 10 milioni e nel 2023 20 milioni», ma precisa che questi valori non sono verificati.",
+    "expected_values": []
+  }
+]

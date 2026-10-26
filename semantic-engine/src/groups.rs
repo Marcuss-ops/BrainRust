@@ -39,6 +39,7 @@ pub struct VisualCandidate {
 
 /// Builds every proposal of one scene, in deterministic source order.
 pub fn build_candidates(
+    source: &str,
     entities: &[VisualEntity],
     bullets: &[Bullet],
     chart_points: &[ChartPoint],
@@ -49,7 +50,14 @@ pub fn build_candidates(
     let mut out = Vec::new();
     entity_searches(entities, identities, &mut out);
     multiple_entities(entities, bullets, identities, &mut out);
-    charts(entities, bullets, chart_points, identities, &mut out);
+    charts(
+        source,
+        entities,
+        bullets,
+        chart_points,
+        identities,
+        &mut out,
+    );
     timelines(bullets, temporal_facts, &mut out);
     entity_cards(entities, lower_thirds, identities, &mut out);
     out
@@ -144,6 +152,7 @@ fn multiple_entities(
 }
 
 fn charts(
+    source: &str,
     entities: &[VisualEntity],
     bullets: &[Bullet],
     chart_points: &[ChartPoint],
@@ -154,16 +163,71 @@ fn charts(
     sentences.sort_unstable();
     sentences.dedup();
     for sentence in sentences {
-        let items: Vec<ChartItem> = chart_points
+        let Some(bullet) = bullets.iter().find(|b| b.sentence_index == sentence) else {
+            continue;
+        };
+        if !crate::chart_rules::chart_claim_is_eligible(&bullet.text) {
+            continue;
+        }
+        let points: Vec<&ChartPoint> = chart_points
             .iter()
             .filter(|p| p.sentence_index == sentence)
-            .map(|p| ChartItem {
-                label: p.label.clone(),
-                text: p.text.clone(),
-                kind: p.kind.clone(),
-                value: p.value,
-                start_byte: p.start,
-                end_byte: p.end,
+            .collect();
+        let mut measures: Vec<crate::chart_rules::ChartUnit> = points
+            .iter()
+            .filter_map(|point| {
+                let relative_start = point.start.checked_sub(bullet.start)?;
+                let relative_end = point.end.checked_sub(bullet.start)?;
+                Some(crate::chart_rules::chart_unit(
+                    &bullet.text,
+                    relative_start,
+                    relative_end,
+                    point.value,
+                    &point.kind,
+                ))
+            })
+            .collect();
+        let explicit_units: std::collections::BTreeSet<(String, String)> = measures
+            .iter()
+            .filter(|measure| measure.signature != measure.kind)
+            .map(|measure| (measure.signature.clone(), measure.kind.clone()))
+            .collect();
+        if explicit_units.len() == 1 {
+            let (signature, kind) = explicit_units.iter().next().unwrap();
+            for measure in &mut measures {
+                if measure.signature == measure.kind {
+                    measure.signature = signature.clone();
+                    measure.kind = kind.clone();
+                }
+            }
+        }
+        if measures.len() != points.len()
+            || measures
+                .windows(2)
+                .any(|pair| pair[0].signature != pair[1].signature || pair[0].kind != pair[1].kind)
+        {
+            continue;
+        }
+        let items: Vec<ChartItem> = points
+            .iter()
+            .zip(&measures)
+            .filter_map(|(p, measure)| {
+                let relative_start = p.start.checked_sub(bullet.start)?;
+                let relative_end = p.end.checked_sub(bullet.start)?;
+                let (qualified_start, qualified_end) = crate::chart_rules::qualified_numeric_span(
+                    &bullet.text,
+                    relative_start,
+                    relative_end,
+                );
+                let text = bullet.text.get(qualified_start..qualified_end)?;
+                Some(ChartItem {
+                    label: p.label.clone(),
+                    text: text.to_string(),
+                    kind: measure.kind.clone(),
+                    value: measure.value,
+                    start_byte: bullet.start + qualified_start,
+                    end_byte: bullet.start + qualified_end,
+                })
             })
             .collect();
         // A chart needs at least two comparable values; one number is not a
@@ -172,14 +236,12 @@ fn charts(
         if items.len() < 2 || !all_same_kind(&items) {
             continue;
         }
-        let Some(bullet) = bullets.iter().find(|b| b.sentence_index == sentence) else {
-            continue;
-        };
         // Equal units and a shared sentence are not enough to prove that two
-        // values belong in one chart. Require an explicit comparison cue, read
-        // from the shared discourse vocabulary so the engine and this builder
-        // can never disagree about what a comparison is.
-        if !comparison_cue_binds_values(bullet, chart_points, sentence) {
+        // values belong in one chart. Require either an explicit comparison
+        // cue or the conservative repeated-series context checked below.
+        if !comparison_cue_binds_values(bullet, chart_points, sentence)
+            && !crate::chart_rules::has_series_context(&bullet.text, items.len())
+        {
             continue;
         }
         let mut indices: Vec<usize> = chart_points
@@ -204,6 +266,204 @@ fn charts(
             end: bullet.end,
         });
     }
+    cross_sentence_series(source, entities, bullets, chart_points, identities, out);
+}
+
+/// Joins adjacent source-grounded measures when the script repeats a metric
+/// across sentences (for example, annual revenue or output). The emitted
+/// evidence is one exact source slice spanning all included sentences.
+fn cross_sentence_series(
+    source: &str,
+    entities: &[VisualEntity],
+    bullets: &[Bullet],
+    chart_points: &[ChartPoint],
+    identities: &IdentityLookup,
+    out: &mut Vec<VisualCandidate>,
+) {
+    let mut ordered: Vec<&ChartPoint> = chart_points.iter().collect();
+    ordered.sort_by_key(|point| (point.start, point.end));
+    for (left_index, left) in ordered.iter().enumerate() {
+        for right in ordered.iter().skip(left_index + 1) {
+            if left.sentence_index == right.sentence_index {
+                continue;
+            }
+            let Some(left_bullet) = bullets
+                .iter()
+                .find(|b| b.sentence_index == left.sentence_index)
+            else {
+                continue;
+            };
+            let Some(right_bullet) = bullets
+                .iter()
+                .find(|b| b.sentence_index == right.sentence_index)
+            else {
+                continue;
+            };
+            if right.sentence_index.saturating_sub(left.sentence_index) > 3
+                || !crate::chart_rules::chart_claim_is_eligible(&left_bullet.text)
+                || !crate::chart_rules::chart_claim_is_eligible(&right_bullet.text)
+                || !same_series_metric(&left_bullet.text, &right_bullet.text)
+            {
+                continue;
+            }
+            let has_time_anchor = has_four_digit_year(&left_bullet.text)
+                && (has_four_digit_year(&right_bullet.text)
+                    || right_bullet.text.to_lowercase().contains("seguente")
+                    || right_bullet.text.to_lowercase().contains("following year"));
+            if !has_time_anchor {
+                continue;
+            }
+            let evidence_start = left_bullet.start.min(right_bullet.start);
+            let evidence_end = left_bullet.end.max(right_bullet.end);
+            let Some(evidence) = source.get(evidence_start..evidence_end) else {
+                continue;
+            };
+            if !crate::chart_rules::chart_claim_is_eligible(evidence) {
+                continue;
+            }
+            let Some(left_start) = left.start.checked_sub(left_bullet.start) else {
+                continue;
+            };
+            let Some(left_end) = left.end.checked_sub(left_bullet.start) else {
+                continue;
+            };
+            let Some(right_start) = right.start.checked_sub(right_bullet.start) else {
+                continue;
+            };
+            let Some(right_end) = right.end.checked_sub(right_bullet.start) else {
+                continue;
+            };
+            let mut measures = [
+                crate::chart_rules::chart_unit(
+                    &left_bullet.text,
+                    left_start,
+                    left_end,
+                    left.value,
+                    &left.kind,
+                ),
+                crate::chart_rules::chart_unit(
+                    &right_bullet.text,
+                    right_start,
+                    right_end,
+                    right.value,
+                    &right.kind,
+                ),
+            ];
+            if measures[0].signature == measures[0].kind
+                && measures[1].signature != measures[1].kind
+            {
+                measures[0].signature = measures[1].signature.clone();
+                measures[0].kind = measures[1].kind.clone();
+            } else if measures[1].signature == measures[1].kind
+                && measures[0].signature != measures[0].kind
+            {
+                measures[1].signature = measures[0].signature.clone();
+                measures[1].kind = measures[0].kind.clone();
+            }
+            if measures[0].signature != measures[1].signature
+                || measures[0].kind != measures[1].kind
+            {
+                continue;
+            }
+            let (left_display_start, left_display_end) =
+                crate::chart_rules::qualified_numeric_span(&left_bullet.text, left_start, left_end);
+            let (right_display_start, right_display_end) =
+                crate::chart_rules::qualified_numeric_span(
+                    &right_bullet.text,
+                    right_start,
+                    right_end,
+                );
+            let (Some(left_text), Some(right_text)) = (
+                left_bullet.text.get(left_display_start..left_display_end),
+                right_bullet
+                    .text
+                    .get(right_display_start..right_display_end),
+            ) else {
+                continue;
+            };
+            let items = vec![
+                ChartItem {
+                    label: left.label.clone(),
+                    text: left_text.to_string(),
+                    kind: measures[0].kind.clone(),
+                    value: measures[0].value,
+                    start_byte: left_bullet.start + left_display_start,
+                    end_byte: left_bullet.start + left_display_end,
+                },
+                ChartItem {
+                    label: right.label.clone(),
+                    text: right_text.to_string(),
+                    kind: measures[1].kind.clone(),
+                    value: measures[1].value,
+                    start_byte: right_bullet.start + right_display_start,
+                    end_byte: right_bullet.start + right_display_end,
+                },
+            ];
+            if out.iter().any(|candidate| {
+                candidate.kind == "chart"
+                    && candidate
+                        .chart_items
+                        .iter()
+                        .any(|item| item.start_byte == left.start)
+                    && candidate
+                        .chart_items
+                        .iter()
+                        .any(|item| item.start_byte == right.start)
+            }) {
+                continue;
+            }
+            let mut indices: Vec<usize> =
+                [left.entity, right.entity].into_iter().flatten().collect();
+            indices.sort_unstable();
+            indices.dedup();
+            out.push(VisualCandidate {
+                kind: "chart",
+                sentence_index: left.sentence_index.min(right.sentence_index),
+                entity_ids: ids_of(identities, &indices),
+                entity_texts: texts_of(entities, &indices),
+                entity_indices: indices,
+                chart_items: items,
+                temporal_surfaces: Vec::new(),
+                suggested_layout: Some("bar_comparison"),
+                requires_verified_images: false,
+                evidence: evidence.to_string(),
+                start: evidence_start,
+                end: evidence_end,
+            });
+        }
+    }
+}
+
+fn has_four_digit_year(text: &str) -> bool {
+    text.split(|ch: char| !ch.is_ascii_digit()).any(|token| {
+        token.len() == 4
+            && token
+                .parse::<u16>()
+                .is_ok_and(|year| (1900..=2099).contains(&year))
+    })
+}
+
+fn same_series_metric(left: &str, right: &str) -> bool {
+    const METRICS: &[&str] = &[
+        "ricav",
+        "fatturat",
+        "vendu",
+        "vendit",
+        "prodott",
+        "produzion",
+        "incident",
+        "sales",
+        "revenue",
+        "produced",
+        "production",
+        "accident",
+        "export",
+    ];
+    let left = left.to_lowercase();
+    let right = right.to_lowercase();
+    METRICS
+        .iter()
+        .any(|metric| left.contains(metric) && right.contains(metric))
 }
 
 /// A comparison word elsewhere in a long enumerated bullet must not turn the

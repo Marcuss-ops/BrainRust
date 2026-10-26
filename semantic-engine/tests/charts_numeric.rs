@@ -149,6 +149,30 @@ fn chart_items_are_verbatim_source_slices() {
 }
 
 #[test]
+fn denied_debunked_and_unverified_numeric_claims_do_not_make_charts() {
+    for (id, text) in [
+        (
+            "negated",
+            "Non è vero che il tasso sia passato dal 10% al 30%: quei numeri erano ipotesi smentite.",
+        ),
+        (
+            "debunked",
+            "Alfa non ha venduto 500 auto contro le 300 di Beta: la notizia è falsa.",
+        ),
+        (
+            "unverified",
+            "Il rapporto cita la frase «nel 2022 la società valeva 10 milioni e nel 2023 20 milioni», ma precisa che questi valori non sono verificati.",
+        ),
+    ] {
+        let value = manifest_value(vec![scene(id, text)]);
+        assert!(
+            proposals_of(&value["scenes"][0], "chart").is_empty(),
+            "a denied, debunked, or unverified claim must not become a chart: {value}"
+        );
+    }
+}
+
+#[test]
 fn a_lone_dated_legal_fact_gets_a_date_card() {
     // "emise la sua decisione" is an event the predicate list does not name
     // (it is tuned for construction and outcome stems), but the sentence does

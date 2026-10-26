@@ -103,6 +103,55 @@ pub fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
     number.parse::<f64>().ok()
 }
 
+/// Parses a chartable scaled quantity such as `20 milioni` or `1.2 billion`.
+/// The scale is applied only when a recognized scale token is present; this
+/// leaves [`parse_unambiguous_value`] conservative for general numeric facts.
+pub fn parse_scaled_value(text: &str, language: &str) -> Option<f64> {
+    if let Some(value) = parse_unambiguous_value(text, language) {
+        return Some(value);
+    }
+    let lower = text.to_lowercase();
+    let factor = lower
+        .split(|ch: char| !ch.is_alphanumeric())
+        .find_map(scale_factor)?;
+    let number_end = lower
+        .char_indices()
+        .take_while(|(_, ch)| ch.is_ascii_digit() || matches!(ch, '.' | ','))
+        .last()
+        .map(|(index, ch)| index + ch.len_utf8())?;
+    let number = parse_unambiguous_value(&lower[..number_end], language)?;
+    Some(number * factor)
+}
+
+fn scale_factor(word: &str) -> Option<f64> {
+    let factor = if matches!(
+        word,
+        "thousand" | "mille" | "mil" | "tausend" | "mila" | "ribu" | "tysiac" | "tysiące"
+    ) {
+        1_000.0
+    } else if matches!(word, "juta")
+        || word.starts_with("million")
+        || word.starts_with("milion")
+        || word.starts_with("milyon")
+        || word.starts_with("миллион")
+    {
+        1_000_000.0
+    } else if word.starts_with("billion")
+        || word.starts_with("milliard")
+        || word.starts_with("miliard")
+        || word.starts_with("миллиард")
+        || word == "miliar"
+        || word == "milyar"
+    {
+        1_000_000_000.0
+    } else if word.starts_with("trillion") || word.starts_with("triliun") {
+        1_000_000_000_000.0
+    } else {
+        return None;
+    };
+    Some(factor)
+}
+
 /// Two numeric facts are *comparable* (safe to place in one chart) only when
 /// both carry an unambiguous value and the same kind (PERCENT with PERCENT,
 /// MONEY with MONEY). A date is never comparable to a percentage, and a
@@ -128,5 +177,15 @@ mod tests {
         // The refused ambiguous form stays refused: "1,200" in Italian would
         // be 1.2 by convention and 1,200 by English grouping, so it is None.
         assert_eq!(parse_unambiguous_value("1,200", "it"), None);
+    }
+
+    #[test]
+    fn chart_scale_words_are_normalized_without_changing_raw_fact_parsing() {
+        assert_eq!(parse_unambiguous_value("20 milioni", "it"), None);
+        assert_eq!(parse_scaled_value("20 milioni", "it"), Some(20_000_000.0));
+        assert_eq!(
+            parse_scaled_value("1.2 billion", "en"),
+            Some(1_200_000_000.0)
+        );
     }
 }
