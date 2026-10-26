@@ -278,7 +278,7 @@ pub struct ImportantSegment {
 /// subject, object, measurement or date the query is composed of.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct QueryComponent {
-    /// `entity`, `measurement` or `date`.
+    /// `entity`, `related_entity`, `location`, `co_mentioned_entity`, `measurement` or `date`.
     pub kind: String,
     /// The closed source type the component carries (`PERSON`, `LOCATION`,
     /// `NUMBER`, `PERCENT`, `MONEY`, `DATE`, ...).
@@ -309,9 +309,10 @@ pub struct ComposedImageQuery {
 }
 
 /// A contextual image query composed from visual entities joined by an
-/// explicitly grounded relation. Unlike `ComposedImageQuery`, `query` is not
-/// a source substring: each word comes from one of the provenance components,
-/// and the sentence evidence proves their asserted relationship.
+/// asserted relation or a same-sentence co-mention. A co-mention is only a
+/// retrieval cue; it does not assert a real-world relationship. Unlike
+/// `ComposedImageQuery`, `query` is not a source substring: each word comes
+/// from provenance components and the exact sentence remains attached.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ContextualImageQuery {
     pub id: String,
@@ -319,24 +320,108 @@ pub struct ContextualImageQuery {
     pub kind: String,
     /// A compact provider query composed from the grounded related entities.
     pub query: String,
-    /// Exact sentence evidence for the explicit `located_in` fact.
+    /// Exact sentence evidence for the relation or co-mention.
     pub evidence: String,
     pub evidence_start_byte: usize,
     pub evidence_end_byte: usize,
     pub sentence_index: usize,
-    /// The subject and related entity or location, each with its own grounded span.
+    /// The grounded entity components; `kind` distinguishes relation targets
+    /// from same-sentence co-mentions.
     pub components: Vec<QueryComponent>,
 }
 
-/// One rung of the asset-search ladder proposed by the engine. The text is
-/// always an exact source slice; retrieval stays in PipelineGen.
+/// One rung of the asset-search ladder proposed by the engine. Literal queries
+/// preserve a source mention; contextual queries combine grounded components
+/// and carry the sentence that supports the combination.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SearchQuery {
-    /// `exact_mention`, `context_phrase` or `source_sentence`, in widening
-    /// order. The exact identity is tried first; the sentence is the last
-    /// resort for an illustrative stock search.
+    /// `exact_mention` or `context_phrase`.
     pub kind: String,
     pub text: String,
+    /// `literal`, `derived_from_source_context` or `derived_from_semantic_template`.
+    pub origin: String,
+    /// True when the query searches for a generic illustrative asset rather
+    /// than an image of a specific real-world entity.
+    pub illustrative: bool,
+    /// Exact sentence or mention that grounds the query.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evidence: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evidence_start_byte: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evidence_end_byte: Option<usize>,
+    /// Exact source spans combined into `text`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub components: Vec<QueryComponent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_id: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub derived_terms: Vec<String>,
+}
+
+impl SearchQuery {
+    /// A literal query that is itself a source surface.
+    pub fn literal(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            kind: "exact_mention".to_string(),
+            origin: "literal".to_string(),
+            illustrative: false,
+            evidence: None,
+            evidence_start_byte: None,
+            evidence_end_byte: None,
+            components: Vec::new(),
+            template_id: None,
+            derived_terms: Vec::new(),
+        }
+    }
+
+    /// A query assembled from exact source components in one evidence span.
+    pub fn contextual(
+        text: impl Into<String>,
+        evidence: impl Into<String>,
+        start_byte: usize,
+        end_byte: usize,
+        components: Vec<QueryComponent>,
+        illustrative: bool,
+    ) -> Self {
+        Self {
+            text: text.into(),
+            kind: "context_phrase".to_string(),
+            origin: "derived_from_source_context".to_string(),
+            illustrative,
+            evidence: Some(evidence.into()),
+            evidence_start_byte: Some(start_byte),
+            evidence_end_byte: Some(end_byte),
+            components,
+            template_id: None,
+            derived_terms: Vec::new(),
+        }
+    }
+
+    /// A clearly illustrative query expanded with a vocabulary template.
+    pub fn semantic_context(
+        text: impl Into<String>,
+        evidence: impl Into<String>,
+        start_byte: usize,
+        end_byte: usize,
+        components: Vec<QueryComponent>,
+        template_id: impl Into<String>,
+        derived_terms: Vec<String>,
+    ) -> Self {
+        Self {
+            text: text.into(),
+            kind: "context_phrase".to_string(),
+            origin: "derived_from_semantic_template".to_string(),
+            illustrative: true,
+            evidence: Some(evidence.into()),
+            evidence_start_byte: Some(start_byte),
+            evidence_end_byte: Some(end_byte),
+            components,
+            template_id: Some(template_id.into()),
+            derived_terms,
+        }
+    }
 }
 
 /// What the planner should do when a search ladder is exhausted. Only the

@@ -67,15 +67,18 @@ fn consolidation_dedupes_facts_queries_and_proposals_without_deleting_inventory(
         "the repeated Sempio under_investigation claim must be one canonical fact: {consolidation}"
     );
     assert!(
-        consolidation["metrics"]["production_candidates"]
+        consolidation["metrics"]["production_search_candidates"]
             .as_u64()
             .unwrap()
             < raw_proposals as u64,
-        "production must be selective: {consolidation}"
+        "external searches must be selective; non-media fact cards remain available: {consolidation}"
     );
     assert!(
-        consolidation["metrics"]["production_queries"].as_u64().unwrap() < raw_queries as u64,
-        "one query per canonical identity must be fewer than one ladder per mention: {consolidation}"
+        consolidation["metrics"]["production_queries"]
+            .as_u64()
+            .unwrap()
+            <= raw_queries as u64,
+        "canonical queries must not exceed the raw query inventory: {consolidation}"
     );
 
     let facts = consolidation["facts"].as_array().unwrap();

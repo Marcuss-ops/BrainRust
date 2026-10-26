@@ -10,7 +10,7 @@
 use crate::extractor::numeric_value_spans;
 use crate::temporal::{temporal_facts_with_words, SpelledNumber, TemporalFact};
 use crate::types::{ExtractOptions, VisualEntity};
-use semantic_core::bullets::{generate_with_sentences, BulletSignal, SignalKind};
+use semantic_core::bullets::{generate_with_sentences, BulletSignal};
 use semantic_core::numbers::parse_unambiguous_value;
 use semantic_core::sentences::{split_sentences, SentenceSpan};
 use serde::Serialize;
@@ -316,14 +316,13 @@ fn bullets(
 ) -> Vec<Bullet> {
     let signals: Vec<BulletSignal> = entities
         .iter()
-        .map(|entity| BulletSignal {
-            start_byte: entity.start,
-            end_byte: entity.end,
-            kind: if is_measurement(&entity.r#type) {
-                SignalKind::Measurement
-            } else {
-                SignalKind::Visual
-            },
+        .filter_map(|entity| {
+            let kind = semantic_core::bullets::signal_kind_for_entity_type(&entity.r#type)?;
+            Some(BulletSignal {
+                start_byte: entity.start,
+                end_byte: entity.end,
+                kind,
+            })
         })
         .collect();
     generate_with_sentences(source_text, sentences, &signals)
@@ -345,10 +344,6 @@ fn bullets(
             }
         })
         .collect()
-}
-
-fn is_measurement(entity_type: &str) -> bool {
-    matches!(entity_type, "NUMBER" | "PERCENT" | "MONEY" | "DATE")
 }
 
 /// Projects the unambiguous subset of `numeric_facts` into chart points.

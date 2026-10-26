@@ -50,6 +50,11 @@ fn r02_two_persons_in_one_sentence_are_a_co_mention_not_a_relation() {
     assert!(groups[0]["visual_query_suggestions"]
         .as_array()
         .is_some_and(|queries| !queries.is_empty()));
+    assert!(groups[0]["visual_query_suggestions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|query| query != "Alberto Stasi Andrea Sempio"));
     assert!(
         proposals_of(scene, "chart").is_empty(),
         "names must not produce charts"
@@ -943,6 +948,73 @@ fn locative_queries_require_a_locative_predicate_and_use_local_place_spans() {
 }
 
 #[test]
+fn street_addresses_are_extracted_as_locations_and_entity_co_mentions_do_not_make_queries() {
+    let text = "Il corpo fu ritrovato nell'abitazione di via Pascoli. Nel caso compaiono Chiara Poggi e Alberto Stasi.";
+    let value = manifest_value(vec![scene("indirizzo-e-ricerca", text)]);
+    let scene = &value["scenes"][0];
+    let entities = scene["entities"].as_array().unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity["text"] == "via Pascoli" && entity["type"] == "LOCATION"),
+        "street address should be retained as a place: {entities:?}"
+    );
+    let queries = scene["contextual_image_queries"].as_array().unwrap();
+    assert!(
+        queries
+            .iter()
+            .all(|query| query["query"] != "Chiara Poggi Alberto Stasi"),
+        "mere co-mention must not produce a paired image query: {queries:?}"
+    );
+}
+
+#[test]
+fn visual_search_adds_a_context_query_with_explicit_provenance() {
+    let text = "Il reperto conservato viene sottoposto a nuove analisi scientifiche.";
+    let value = manifest_value(vec![scene("query-contesto", text)]);
+    let candidates = value["visual_consolidation"]["production_candidates"]
+        .as_array()
+        .unwrap();
+    let search = candidates
+        .iter()
+        .find(|candidate| candidate["recipe"] == "entity_search" && candidate["title"] == "reperto")
+        .unwrap_or_else(|| panic!("reperto search candidate missing: {candidates:?}"));
+    let context = search["queries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|query| query["origin"] == "derived_from_source_context")
+        .unwrap_or_else(|| panic!("context query missing: {}", search["queries"]));
+    assert_eq!(context["illustrative"], true);
+    let query = context["text"].as_str().unwrap();
+    assert!(query.split_whitespace().count() >= 3, "{query}");
+    assert!(text.contains(context["evidence"].as_str().unwrap()));
+    let components = context["components"].as_array().unwrap();
+    assert!(components.len() >= 2);
+    for component in components {
+        let start = component["start_byte"].as_u64().unwrap() as usize;
+        let end = component["end_byte"].as_u64().unwrap() as usize;
+        assert_eq!(&text[start..end], component["text"].as_str().unwrap());
+    }
+    let illustrative = search["queries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|query| query["origin"] == "derived_from_semantic_template")
+        .unwrap_or_else(|| panic!("semantic expansion missing: {}", search["queries"]));
+    assert_eq!(illustrative["illustrative"], true);
+    assert_eq!(illustrative["template_id"], "it.OBJECT");
+    assert_eq!(
+        illustrative["derived_terms"],
+        serde_json::json!(["laboratorio", "forense"])
+    );
+    assert!(illustrative["text"]
+        .as_str()
+        .unwrap()
+        .contains("laboratorio forense"));
+}
+
+#[test]
 fn explicit_facility_location_queries_are_supported_across_corpus_languages() {
     let cases = [
         ("it", "Lo Stadio Aurora si trova a Torino."),
@@ -1765,7 +1837,7 @@ fn visual_coverage_counts_a_charted_value_as_covered() {
 }
 
 #[test]
-fn search_feedback_offers_a_widening_ladder_and_stays_pending() {
+fn search_feedback_keeps_exact_queries_and_stays_pending_without_context() {
     let text = "Alberto Stasi torna nel racconto del procedimento.";
     let value = manifest_value(vec![scene("ricerca", text)]);
     let entries = value["search_feedback"]["entries"].as_array().unwrap();
@@ -1785,20 +1857,18 @@ fn search_feedback_offers_a_widening_ladder_and_stays_pending() {
         let queries = entry["queries"].as_array().unwrap();
         assert!(!queries.is_empty());
         assert_eq!(queries[0]["kind"], "exact_mention");
+        assert_eq!(queries[0]["origin"], "literal");
         for query in queries {
             let query_text = query["text"].as_str().unwrap();
             assert!(
                 text.contains(query_text),
-                "every rung is an exact source slice: {query_text}"
+                "literal query must be source-grounded: {query_text}"
             );
         }
     }
-    let search = entries
+    assert!(entries
         .iter()
-        .find(|entry| entry["queries"].as_array().unwrap().len() == 3)
-        .expect("an entity search widens to phrase and sentence");
-    assert_eq!(search["queries"][1]["kind"], "context_phrase");
-    assert_eq!(search["queries"][2]["kind"], "source_sentence");
+        .all(|entry| entry["queries"].as_array().unwrap().len() == 1));
 }
 
 #[test]

@@ -117,6 +117,8 @@ fn classify_type(
             .filter(|word| !word.is_empty())
             .collect();
         if words.len() >= 2
+            && proper_noun
+            && name_evidence
             && markers.iter().any(|marker| {
                 let marker_words: Vec<String> = marker
                     .to_lowercase()

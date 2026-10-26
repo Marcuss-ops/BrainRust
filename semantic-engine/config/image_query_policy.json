@@ -1,0 +1,58 @@
+{
+  "schema": "image_query_policy.v1",
+  "max_context_entities": 2,
+  "max_context_distance_bytes": 96,
+  "min_query_words": 3,
+  "max_query_words": 8,
+  "max_query_chars": 96,
+  "visual_context_types": [
+    "OBJECT",
+    "VISUAL_CONCEPT",
+    "ORG",
+    "ORGANIZATION",
+    "LOCATION",
+    "FACILITY"
+  ],
+  "named_entity_types": [
+    "PERSON",
+    "ORG",
+    "ORGANIZATION",
+    "LOCATION",
+    "FACILITY",
+    "BRAND",
+    "PRODUCT",
+    "WORK"
+  ],
+  "illustrative_types": [
+    "OBJECT",
+    "VISUAL_CONCEPT"
+  ],
+  "semantic_expansions": {
+    "it": {
+      "LOCATION": {
+        "template": "{anchor} veduta città {context}",
+        "terms": ["veduta", "città"]
+      },
+      "FACILITY": {
+        "template": "{anchor} edificio {context}",
+        "terms": ["edificio"]
+      },
+      "ORG": {
+        "template": "{anchor} documenti giudiziari {context}",
+        "terms": ["documenti", "giudiziari"]
+      },
+      "ORGANIZATION": {
+        "template": "{anchor} documenti giudiziari {context}",
+        "terms": ["documenti", "giudiziari"]
+      },
+      "OBJECT": {
+        "template": "{anchor} laboratorio forense {context}",
+        "terms": ["laboratorio", "forense"]
+      },
+      "VISUAL_CONCEPT": {
+        "template": "{anchor} immagini illustrative {context}",
+        "terms": ["immagini", "illustrative"]
+      }
+    }
+  }
+}

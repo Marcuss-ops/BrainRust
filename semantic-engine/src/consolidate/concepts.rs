@@ -15,64 +15,6 @@ const MAX_GENERIC_CONCEPTS_PER_SCENE: usize = 4;
 /// instead of four weak ones; the planner can still use the inventory.
 const MIN_CONCEPT_PRIORITY: f32 = 0.45;
 
-/// High-frequency abstract nouns that are poor image queries. They are not
-/// removed from the inventory; they are down-ranked when the per-scene concept
-/// budget is applied.
-const GENERIC_VISUAL_NOUNS: &[&str] = &[
-    "atti",
-    "caso",
-    "casa",
-    "centro",
-    "compito",
-    "conclusione",
-    "contesto",
-    "cronaca",
-    "data",
-    "decisione",
-    "differenza",
-    "dolore",
-    "diritto",
-    "elementi",
-    "fase",
-    "fatto",
-    "fatti",
-    "indagine",
-    "innocenza",
-    "linguaggio",
-    "luoghi",
-    "merito",
-    "modo",
-    "motivazioni",
-    "oggetti",
-    "parole",
-    "parte",
-    "parti",
-    "passaggio",
-    "persona",
-    "posizione",
-    "presenza",
-    "procedimento",
-    "prova",
-    "pubblico",
-    "qualità",
-    "racconto",
-    "reclusione",
-    "responsabilità",
-    "resto",
-    "ricostruzioni",
-    "rigore",
-    "rispetto",
-    "sede",
-    "sequenza",
-    "tempi",
-    "tempo",
-    "testimonianze",
-    "verità",
-    "vicenda",
-    "violenza",
-    "vita",
-];
-
 pub(super) fn push_visual_concepts(
     scenes: &[SceneManifest],
     identities: &BTreeMap<String, IdentityState>,
@@ -110,12 +52,25 @@ pub(super) fn push_visual_concepts(
                 .then_with(|| right.text.len().cmp(&left.text.len()))
                 .then_with(|| left.start_byte.cmp(&right.start_byte))
         });
+        let mut scene_selected = BTreeSet::new();
         for concept in concepts
             .into_iter()
+            // A visual concept becomes a production search only when the
+            // script independently returns to it. This corpus-level signal
+            // is language-neutral and replaces lists of abstract nouns.
+            .filter(|concept| {
+                identities
+                    .get(&concept.id)
+                    .is_some_and(|identity| identity.mentions.len() >= 2)
+            })
             .filter(|concept| concept_priority(concept) >= MIN_CONCEPT_PRIORITY)
-            .take(MAX_GENERIC_CONCEPTS_PER_SCENE)
         {
-            selected.insert(concept.id.clone());
+            if scene_selected.insert(concept.id.clone()) {
+                selected.insert(concept.id.clone());
+                if scene_selected.len() >= MAX_GENERIC_CONCEPTS_PER_SCENE {
+                    break;
+                }
+            }
         }
     }
     for id in selected {
@@ -154,16 +109,14 @@ pub(super) fn push_visual_concepts(
             chart_items: Vec::new(),
             temporal_surfaces: Vec::new(),
             asset_key: format!("entity:{}", identity.id),
-            queries: vec![SearchQuery {
-                kind: "exact_mention".to_string(),
-                text: anchor.surface.clone(),
-            }],
+            queries: vec![SearchQuery::literal(anchor.surface.clone())],
             requires_media: true,
             dedup_key: format!("entity:{}:search", identity.id),
             covered_fact_ids: Vec::new(),
             rationale: vec![
-                "selected among the scene's most specific visual concepts".to_string(),
-                "generic abstract nouns are down-ranked, not deleted from inventory".to_string(),
+                "the source returns to this noun phrase, giving it script-level salience"
+                    .to_string(),
+                "the phrase remains a typed visual concept, not a named identity".to_string(),
             ],
         });
     }
@@ -259,71 +212,29 @@ fn concept_identity_priority(identity: &IdentityState) -> f32 {
         .clamp(0.05, 0.85)
 }
 
-/// A phrase is a poor image query when it is entirely abstract or when it is
-/// really a clause: an adverb (`automaticamente`) or an infinitive with an
-/// attached pronoun (`restituirle`) is not a visual subject. The rule is
-/// lexical and conservative; it only down-ranks, never deletes.
+/// The extractor already enforces a complete, multiword noun phrase before a
+/// generic concept reaches this production selector. This final penalty uses
+/// only the shared multilingual filler data and phrase shape; it does not
+/// maintain a language-specific blacklist of abstract nouns or verb endings.
 fn visual_phrase_penalty(lower: &str) -> f32 {
     let words: Vec<&str> = lower.split_whitespace().collect();
-    let mut penalty = if GENERIC_VISUAL_NOUNS.contains(&lower) {
+    let lexicon = semantic_core::lexicon::lexicon();
+    let mut penalty = if lexicon.stopwords.contains_filler_phrase(lower)
+        || lexicon
+            .stopwords
+            .stop_phrases
+            .iter()
+            .any(|phrase| phrase == lower)
+    {
         0.35
-    } else if words.iter().any(|word| GENERIC_VISUAL_NOUNS.contains(word)) {
-        0.12
     } else {
         0.0
     };
-    if words.iter().any(|word| word.ends_with("mente")) {
-        penalty += 0.28;
+    if words.len() < 2 {
+        penalty += 0.25;
     }
-    if words.iter().any(|word| {
-        word.len() > 5
-            && (word.ends_with("are") || word.ends_with("ere") || word.ends_with("ire"))
-            && !matches!(*word, "carcere" | "dovere" | "parere" | "piacere")
-    }) {
-        penalty += 0.18;
-    }
-    // Infinitive with an attached clitic ("restituirle", "raccontarlo") is a
-    // clause fragment, not a visual noun phrase.
-    if words.iter().any(|word| {
-        word.len() > 6
-            && (word.ends_with("rle")
-                || word.ends_with("rlo")
-                || word.ends_with("rla")
-                || word.ends_with("rli")
-                || word.ends_with("rci")
-                || word.ends_with("rsi")
-                || word.ends_with("rvi")
-                || word.ends_with("rne"))
-    }) {
-        penalty += 0.2;
-    }
-    if words.iter().any(|word| {
-        matches!(
-            *word,
-            "già"
-                | "ancora"
-                | "sempre"
-                | "mai"
-                | "più"
-                | "meno"
-                | "molto"
-                | "poco"
-                | "troppo"
-                | "così"
-                | "dove"
-                | "quando"
-                | "mentre"
-                | "senza"
-                | "dentro"
-                | "fuori"
-                | "dopo"
-                | "prima"
-                | "oggi"
-                | "ieri"
-                | "domani"
-        )
-    }) {
-        penalty += 0.12;
+    if words.len() > 5 {
+        penalty += 0.10;
     }
     penalty
 }

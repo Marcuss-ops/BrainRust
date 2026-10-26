@@ -112,95 +112,107 @@ pub fn extract(
                 continue;
             }
             for marker in &pattern.markers {
-                let Some(relative) = lower.find(marker.as_str()) else {
-                    continue;
-                };
-                if matches!(pattern.normalized.as_str(), "acquitted" | "convicted")
-                    && confirmation_spans
-                        .iter()
-                        .any(|&(start, end)| relative >= start && relative + marker.len() <= end)
-                {
-                    continue;
-                }
-                let marker_start = sentence.start_byte + relative;
-                let marker_end = marker_start + marker.len();
-                let subject_index = if pattern.normalized == "final" {
-                    // The conviction becomes final for the person who was
-                    // convicted, not for the court named after the marker
-                    // ("la condanna divenne definitiva in Cassazione").
-                    finality_subject(entities, &in_sentence, marker_start, fallback_person)
-                } else {
-                    pick_subject(entities, &in_sentence, marker_start, pattern.subject_kind())
-                        .or_else(|| {
-                            let index = fallback_person?;
-                            subject_matches_kind(entities, index, pattern.subject_kind())
-                                .then_some(index)
+                // A sentence may define a marker first and assert it later
+                // about a named person. Inspect every occurrence so a
+                // non-attributable definition cannot hide the actual claim.
+                let positions: Vec<usize> = lower
+                    .match_indices(marker.as_str())
+                    .map(|(position, _)| position)
+                    .collect();
+                for relative in positions {
+                    if matches!(pattern.normalized.as_str(), "acquitted" | "convicted")
+                        && confirmation_spans.iter().any(|&(start, end)| {
+                            relative >= start && relative + marker.len() <= end
                         })
-                };
-                let Some(subject_index) = subject_index else {
-                    continue;
-                };
-                let Some(resolved) = resolve_value(
-                    source,
-                    sentence.start_byte,
-                    sentence.end_byte,
-                    marker_start,
-                    marker_end,
-                    pattern,
-                    entities,
-                    entity_ids,
-                    &in_sentence,
-                    subject_index,
-                    temporal_facts,
-                    numeric_facts,
-                ) else {
-                    continue;
-                };
-                let ResolvedValue {
-                    value,
-                    value_type,
-                    normalized,
-                    normalized_date,
-                    start,
-                    end,
-                    target,
-                } = resolved;
-                let status = status_for(text, relative, pattern.normalized.as_str(), language);
-                let subject_entity_id = entity_ids[subject_index].clone();
-                if out.iter().any(|fact| {
-                    fact.subject_entity_id == subject_entity_id
-                        && fact.predicate == pattern.predicate
-                        && fact.normalized_value.as_deref() == Some(normalized.as_str())
-                        && fact.start_byte == start
-                }) {
-                    continue;
-                }
-                out.push(EntityFact {
-                    id: format!(
-                        "{}_{}_{:02}",
+                    {
+                        continue;
+                    }
+                    let marker_start = sentence.start_byte + relative;
+                    let marker_end = marker_start + marker.len();
+                    let subject_index = if pattern.predicate == "investigation_status" {
+                        // A glossary sentence such as "per indagato intendiamo
+                        // una persona..." must not inherit the person named in
+                        // a previous sentence. Investigation status is asserted
+                        // only when the person is explicit in this sentence.
+                        pick_subject(entities, &in_sentence, marker_start, pattern.subject_kind())
+                    } else if pattern.normalized == "final" {
+                        // The conviction becomes final for the person who was
+                        // convicted, not for the court named after the marker
+                        // ("la condanna divenne definitiva in Cassazione").
+                        finality_subject(entities, &in_sentence, marker_start, fallback_person)
+                    } else {
+                        pick_subject(entities, &in_sentence, marker_start, pattern.subject_kind())
+                            .or_else(|| {
+                                let index = fallback_person?;
+                                subject_matches_kind(entities, index, pattern.subject_kind())
+                                    .then_some(index)
+                            })
+                    };
+                    let Some(subject_index) = subject_index else {
+                        continue;
+                    };
+                    let Some(resolved) = resolve_value(
+                        source,
+                        sentence.start_byte,
+                        sentence.end_byte,
+                        marker_start,
+                        marker_end,
+                        pattern,
+                        entities,
+                        entity_ids,
+                        &in_sentence,
+                        subject_index,
+                        temporal_facts,
+                        numeric_facts,
+                    ) else {
+                        continue;
+                    };
+                    let ResolvedValue {
+                        value,
+                        value_type,
+                        normalized,
+                        normalized_date,
+                        start,
+                        end,
+                        target,
+                    } = resolved;
+                    let status = status_for(text, relative, pattern.normalized.as_str(), language);
+                    let subject_entity_id = entity_ids[subject_index].clone();
+                    if out.iter().any(|fact| {
+                        fact.subject_entity_id == subject_entity_id
+                            && fact.predicate == pattern.predicate
+                            && fact.normalized_value.as_deref() == Some(normalized.as_str())
+                            && fact.start_byte == start
+                    }) {
+                        continue;
+                    }
+                    out.push(EntityFact {
+                        id: format!(
+                            "{}_{}_{:02}",
+                            subject_entity_id,
+                            pattern.normalized,
+                            out.len() + 1
+                        ),
                         subject_entity_id,
-                        pattern.normalized,
-                        out.len() + 1
-                    ),
-                    subject_entity_id,
-                    predicate: pattern.predicate.to_string(),
-                    value,
-                    value_type,
-                    normalized_value: Some(normalized),
-                    normalized_date,
-                    target_entity_id: target,
-                    unit: None,
-                    operator: None,
-                    status,
-                    sentence_index,
-                    evidence: text.to_string(),
-                    start_byte: start,
-                    end_byte: end,
-                    evidence_start_byte: sentence.start_byte,
-                    evidence_end_byte: sentence.end_byte,
-                    importance: 0.0,
-                    visual_concept_ids: Vec::new(),
-                });
+                        predicate: pattern.predicate.to_string(),
+                        value,
+                        value_type,
+                        normalized_value: Some(normalized),
+                        normalized_date,
+                        target_entity_id: target,
+                        unit: None,
+                        operator: None,
+                        status,
+                        sentence_index,
+                        evidence: text.to_string(),
+                        start_byte: start,
+                        end_byte: end,
+                        evidence_start_byte: sentence.start_byte,
+                        evidence_end_byte: sentence.end_byte,
+                        importance: 0.0,
+                        visual_concept_ids: Vec::new(),
+                    });
+                }
             }
         }
     }
@@ -744,6 +756,19 @@ mod tests {
             .collect();
         assert!(statuses.contains(&("under_investigation", "asserted")));
         assert!(statuses.contains(&("denies_accusations", "asserted")));
+    }
+
+    #[test]
+    fn glossary_definition_does_not_inherit_a_recent_person_as_indagato() {
+        let (extracted, _) = facts(
+            "Andrea Sempio compare nel racconto. Ogni volta che useremo la parola indagato, intendiamo una persona su cui un procedimento è aperto.",
+        );
+        assert!(
+            extracted
+                .iter()
+                .all(|fact| fact.predicate != "investigation_status"),
+            "a definition is not evidence about the recently named person: {extracted:?}"
+        );
     }
 
     #[test]

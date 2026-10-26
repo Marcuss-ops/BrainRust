@@ -119,6 +119,7 @@ pub(crate) fn extract_with_context_and_spellout(
         .filter(|candidate| !is_heading_surface(&candidate.text))
         .filter(|candidate| keeps_as_visual_candidate(candidate, &tokens, language))
         .filter_map(|c| validate_evidence(c, source_text, &tokens, language))
+        .filter(|entity| structurally_specific_visual_concept(entity, &tokens))
         .map(score_entity)
         .collect();
     let mut scored = drop_name_fragments(scored, context);
@@ -163,6 +164,35 @@ pub(crate) fn extract_with_context_and_spellout(
         reserve_numeric_slots(unique, options.top_n()),
         spelled_candidates,
     ))
+}
+
+/// Generic visual concepts are useful phrase inventory only when they form a
+/// complete noun phrase with at least two words. A bare common noun is too
+/// broad to identify an image subject; named entities, typed values and
+/// lexicon-backed objects are handled by their own type and bypass this gate.
+/// The POS check also removes adverb-led fragments such as "ancora oggi parte"
+/// without maintaining a language-specific list of filler expressions.
+fn structurally_specific_visual_concept(entity: &VisualEntity, tokens: &[Token]) -> bool {
+    if entity.r#type != "VISUAL_CONCEPT" {
+        return true;
+    }
+    if entity.text.split_whitespace().count() < 2 {
+        return false;
+    }
+    let span: Vec<&Token> = tokens
+        .iter()
+        .filter(|token| token.start >= entity.start && token.end <= entity.end)
+        .collect();
+    if span.iter().all(|token| token.upos.is_none()) {
+        return true;
+    }
+    let has_nominal_head = span
+        .iter()
+        .any(|token| matches!(token.upos.as_deref(), Some("NOUN" | "PROPN")));
+    let starts_as_noun_phrase = span
+        .first()
+        .is_some_and(|token| matches!(token.upos.as_deref(), Some("NOUN" | "PROPN" | "ADJ")));
+    has_nominal_head && starts_as_noun_phrase
 }
 
 /// Collects the tokens of every multi-token capitalized run in the script.

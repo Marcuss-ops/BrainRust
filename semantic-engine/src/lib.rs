@@ -181,7 +181,32 @@ fn analyze_scene_with_search(
             analysis.entities.push(legal_entity);
         }
     }
-    promote_known_surnames(&mut analysis.entities, context, language);
+    let known_person_surnames: HashSet<String> = analysis
+        .entities
+        .iter()
+        .filter(|entity| entity.r#type == "PERSON")
+        .filter_map(|entity| {
+            let words: Vec<&str> = entity.text.split_whitespace().collect();
+            (words.len() >= 2).then(|| words.last().unwrap().to_lowercase())
+        })
+        .chain(
+            registry
+                .identities()
+                .iter()
+                .filter(|identity| identity.kind == "PERSON")
+                .filter_map(|identity| {
+                    let words: Vec<&str> = identity.canonical_surface.split_whitespace().collect();
+                    (words.len() >= 2).then(|| words.last().unwrap().to_lowercase())
+                }),
+        )
+        .collect();
+    promote_known_surnames(
+        source,
+        &mut analysis.entities,
+        context,
+        &known_person_surnames,
+        language,
+    );
     let (entities, rejected_entities) = retain_grounded_entities(source, analysis.entities);
     let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
 
@@ -233,8 +258,13 @@ fn analyze_scene_with_search(
         &analysis.numeric_facts,
         &temporal_facts,
     );
-    let contextual_image_queries =
-        contextual_image_query_candidates(source, &entities, &entity_ids, &entity_facts);
+    let contextual_image_queries = contextual_image_query_candidates(
+        source,
+        &sentence_spans,
+        &entities,
+        &entity_ids,
+        &entity_facts,
+    );
     let bullets = bullet_candidates(source, &sentence_spans, &entities);
     let candidates = groups::build_candidates(
         &entities,
@@ -290,8 +320,7 @@ fn analyze_scene_with_search(
     let mut visual_proposals = Vec::with_capacity(visual_candidates.len());
     let mut search_feedback = Vec::new();
     for (index, candidate) in visual_candidates.into_iter().enumerate() {
-        let (proposal, feedback) =
-            to_visual_proposal(candidate, source, &sentence_spans, &scene.scene_id, index);
+        let (proposal, feedback) = to_visual_proposal(candidate, &scene.scene_id, index);
         visual_proposals.push(proposal);
         if let Some(entry) = feedback {
             search_feedback.push(entry);
@@ -375,7 +404,8 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
 
     let story_graph = story::build_story_graph(&scenes);
     let visual_coverage = story::build_visual_coverage(&scenes);
-    let visual_consolidation = consolidate::build(&request.scenes, &scenes, &search_entries);
+    let visual_consolidation =
+        consolidate::build(language, &request.scenes, &scenes, &search_entries);
 
     let analyzers = analyzer_versions();
     let fingerprint = request_fingerprint(request, &analyzers);

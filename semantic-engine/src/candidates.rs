@@ -41,14 +41,13 @@ pub(crate) fn bullet_candidates(
 ) -> Vec<Candidate> {
     let signals: Vec<semantic_core::bullets::BulletSignal> = entities
         .iter()
-        .map(|entity| semantic_core::bullets::BulletSignal {
-            start_byte: entity.start,
-            end_byte: entity.end,
-            kind: if is_visual_subject(entity) {
-                semantic_core::bullets::SignalKind::Visual
-            } else {
-                semantic_core::bullets::SignalKind::Measurement
-            },
+        .filter_map(|entity| {
+            let kind = semantic_core::bullets::signal_kind_for_entity_type(&entity.r#type)?;
+            Some(semantic_core::bullets::BulletSignal {
+                start_byte: entity.start,
+                end_byte: entity.end,
+                kind,
+            })
         })
         .collect();
     semantic_core::bullets::generate_with_sentences(source, sentences, &signals)
@@ -138,14 +137,13 @@ pub(crate) fn segment_candidates(
 
     let signals: Vec<semantic_core::bullets::BulletSignal> = entities
         .iter()
-        .map(|entity| semantic_core::bullets::BulletSignal {
-            start_byte: entity.start,
-            end_byte: entity.end,
-            kind: if is_visual_subject(entity) {
-                semantic_core::bullets::SignalKind::Visual
-            } else {
-                semantic_core::bullets::SignalKind::Measurement
-            },
+        .filter_map(|entity| {
+            let kind = semantic_core::bullets::signal_kind_for_entity_type(&entity.r#type)?;
+            Some(semantic_core::bullets::BulletSignal {
+                start_byte: entity.start,
+                end_byte: entity.end,
+                kind,
+            })
         })
         .collect();
     // Per-sentence salience and signal counts come from the shared bullets
@@ -239,13 +237,18 @@ pub(crate) fn composed_query_candidates(
     temporal_facts: &[TemporalFact],
 ) -> Vec<ComposedImageQuery> {
     let mut components: Vec<QueryComponent> = Vec::new();
-    components.extend(entities.iter().map(|entity| QueryComponent {
-        kind: "entity".to_string(),
-        component_type: entity.r#type.clone(),
-        text: entity.text.clone(),
-        start_byte: entity.start,
-        end_byte: entity.end,
-    }));
+    components.extend(
+        entities
+            .iter()
+            .filter(|entity| is_image_component_type(&entity.r#type))
+            .map(|entity| QueryComponent {
+                kind: "entity".to_string(),
+                component_type: entity.r#type.clone(),
+                text: entity.text.clone(),
+                start_byte: entity.start,
+                end_byte: entity.end,
+            }),
+    );
     components.extend(numeric_facts.iter().map(|fact| QueryComponent {
         kind: "measurement".to_string(),
         component_type: fact.kind.clone(),
@@ -278,7 +281,11 @@ pub(crate) fn composed_query_candidates(
         .into_iter()
         .enumerate()
         .filter_map(|(sentence_index, mut components)| {
-            if components.len() < 2 {
+            if components.len() < 2
+                || !components
+                    .iter()
+                    .any(|component| is_visual_query_entity(&component.component_type))
+            {
                 return None;
             }
             components.sort_by_key(|component| (component.start_byte, component.end_byte));
@@ -288,6 +295,9 @@ pub(crate) fn composed_query_candidates(
                 .map(|component| component.end_byte)
                 .max()?;
             let query = source.get(start_byte..end_byte)?;
+            if query.split_whitespace().count() > 12 || query.chars().count() > 80 {
+                return None;
+            }
             (check_span(source, start_byte, end_byte, query) == Grounding::Grounded).then(|| {
                 ComposedImageQuery {
                     id: format!("composed_{:03}", sentence_index + 1),
@@ -310,6 +320,7 @@ pub(crate) fn composed_query_candidates(
 /// their grounded value when the location did not survive entity extraction.
 pub(crate) fn contextual_image_query_candidates(
     source: &str,
+    sentences: &[semantic_core::SentenceSpan],
     entities: &[VisualEntity],
     entity_ids: &[String],
     facts: &[EntityFact],
@@ -377,11 +388,19 @@ pub(crate) fn contextual_image_query_candidates(
         };
         if subject.start == target_span.1 && subject.end == target_span.2
             || !is_visual_query_entity(&subject.r#type)
-            || !seen.insert((
+            || !seen.insert(relation_query_key(
                 fact.sentence_index,
-                fact.subject_entity_id.clone(),
-                target_id.to_string(),
+                fact.subject_entity_id.as_str(),
+                target_id,
             ))
+        {
+            continue;
+        }
+        let Some(sentence) = sentences.get(fact.sentence_index) else {
+            continue;
+        };
+        if fact.evidence_start_byte < sentence.start_byte
+            || fact.evidence_end_byte > sentence.end_byte
         {
             continue;
         }
@@ -421,7 +440,19 @@ pub(crate) fn contextual_image_query_candidates(
             ],
         });
     }
+    // Co-mention alone does not establish that two entities form a useful
+    // image-search subject. Pair queries are emitted only above when a
+    // grounded asserted fact links the identities; each identity still gets
+    // its own exact/context search ladder in the proposal stage.
     output
+}
+
+fn relation_query_key(sentence_index: usize, left: &str, right: &str) -> (usize, String, String) {
+    if left <= right {
+        (sentence_index, left.to_string(), right.to_string())
+    } else {
+        (sentence_index, right.to_string(), left.to_string())
+    }
 }
 
 fn is_visual_query_entity(entity_type: &str) -> bool {
@@ -435,10 +466,14 @@ fn is_visual_query_entity(entity_type: &str) -> bool {
             | "BRAND"
             | "PRODUCT"
             | "OBJECT"
-            | "VISUAL_CONCEPT"
             | "WORK"
             | "STRUCTURE"
     )
+}
+
+fn is_image_component_type(entity_type: &str) -> bool {
+    is_visual_query_entity(entity_type)
+        || matches!(entity_type, "DATE" | "NUMBER" | "PERCENT" | "MONEY")
 }
 
 /// Extracts complete, explicitly delimited quotations. The delimiters remain
@@ -489,23 +524,15 @@ pub(crate) fn quote_candidates(
         .collect()
 }
 
-/// Projects the already-built entity candidates into the keyword surface:
-/// keywords must be usable as image queries, so they are a curated subset of
-/// the entities, not a second extraction. Duplicates are removed per scene so
-/// the same name does not spend several planner keyword slots.
+/// Projects only typed, picturable entities into the provider keyword surface.
+/// Generic noun phrases remain available in the phrase inventory; they do not
+/// independently become search terms. Duplicates are removed per scene so a
+/// repeated mention does not spend several planner keyword slots.
 pub(crate) fn important_word_candidates(entity_candidates: &[Candidate]) -> Vec<Candidate> {
     let mut seen = HashSet::new();
     entity_candidates
         .iter()
-        .filter(|candidate| {
-            !matches!(
-                candidate.kind.as_str(),
-                "DATE" | "NUMBER" | "PERCENT" | "MONEY"
-            )
-        })
-        .filter(|candidate| {
-            candidate.kind != "VISUAL_CONCEPT" || candidate.text.split_whitespace().count() >= 2
-        })
+        .filter(|candidate| is_visual_query_entity(&candidate.kind))
         .filter(|candidate| candidate.text.split_whitespace().count() <= 5)
         .filter(|candidate| seen.insert(candidate.text.to_lowercase()))
         .cloned()
@@ -574,7 +601,9 @@ mod contextual_image_query_tests {
             visual_concept_ids: Vec::new(),
         }];
 
-        let queries = contextual_image_query_candidates(source, &entities, &ids, &facts);
+        let sentences = semantic_core::split_sentences(source, "en", None);
+        let queries =
+            contextual_image_query_candidates(source, &sentences, &entities, &ids, &facts);
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0].query, "Aurora Stadium Torino");
         for component in &queries[0].components {

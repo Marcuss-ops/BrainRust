@@ -225,10 +225,7 @@ pub(super) fn push_named_entities(
             chart_items: Vec::new(),
             temporal_surfaces: Vec::new(),
             asset_key: format!("entity:{}", identity.id),
-            queries: vec![SearchQuery {
-                kind: "exact_mention".to_string(),
-                text: anchor.surface.clone(),
-            }],
+            queries: vec![SearchQuery::literal(anchor.surface.clone())],
             requires_media: true,
             dedup_key: format!("entity:{}:search", identity.id),
             covered_fact_ids: Vec::new(),

@@ -1,5 +1,6 @@
 {
   "schema": "lexicon.v1",
+  "street_address_cues": ["via", "viale", "piazza", "corso", "vicolo", "strada"],
   "ambiguous_context_prepositions": ["a", "à"],
   "context_prepositions": [
     "em",
@@ -20,6 +21,9 @@
     "região",
     "region",
     "a",
+    "via",
+    "viale",
+    "piazza",
     "nel",
     "nello",
     "nella",

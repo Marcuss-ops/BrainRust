@@ -75,6 +75,11 @@ pub struct ScaleWords {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct LocationCues {
     pub context_prepositions: Vec<String>,
+    /// Street-type words that belong in a grounded address surface (for
+    /// example Italian "via Pascoli"), rather than being dropped before the
+    /// place name.
+    #[serde(default)]
+    pub street_address_cues: Vec<String>,
     /// Prepositions that also mark human indirect objects (for example
     /// Italian/Spanish/Portuguese "a"). A place-name cue needs gazetteer
     /// evidence when one of these precedes a capitalized span.

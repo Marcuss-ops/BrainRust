@@ -84,6 +84,20 @@ pub(super) fn mark_contextual_locations(
             && !is_generic_location_noun(&candidate.text)
         {
             candidate.entity_type = Some("LOCATION".to_string());
+            if token_index > 0
+                && lexicon()
+                    .location_cues
+                    .street_address_cues
+                    .iter()
+                    .any(|cue| cue.eq_ignore_ascii_case(&tokens[token_index - 1].text))
+            {
+                let end_token = tokens.partition_point(|token| token.end <= candidate.end);
+                let address =
+                    candidate_from_tokens(tokens, source_text, token_index - 1, end_token);
+                candidate.text = address.text;
+                candidate.start = address.start;
+                candidate.end = address.end;
+            }
         }
     }
     for place in contextual {

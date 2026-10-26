@@ -32,6 +32,19 @@ pub enum SignalKind {
     Measurement,
 }
 
+/// Maps an extracted semantic type to the signals that can make a sentence
+/// an editorial bullet. Generic noun phrases remain available as phrase
+/// inventory, but do not independently turn every prose sentence into a
+/// bullet or an important segment.
+pub fn signal_kind_for_entity_type(entity_type: &str) -> Option<SignalKind> {
+    match entity_type {
+        "PERSON" | "ORGANIZATION" | "ORG" | "LOCATION" | "FACILITY" | "BRAND" | "PRODUCT"
+        | "WORK" | "OBJECT" | "STRUCTURE" | "EVENT" => Some(SignalKind::Visual),
+        "NUMBER" | "PERCENT" | "MONEY" | "DATE" => Some(SignalKind::Measurement),
+        _ => None,
+    }
+}
+
 /// One grounded mention inside the source text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BulletSignal {

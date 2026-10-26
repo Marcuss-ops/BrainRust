@@ -548,11 +548,13 @@ pub(crate) fn location_cue_precedes(
 /// the exact surname token of an unambiguous two-word name the script states
 /// and never overrides a place, an institution or a typed entity.
 pub(crate) fn promote_known_surnames(
-    entities: &mut [visualner::VisualEntity],
+    source: &str,
+    entities: &mut Vec<visualner::VisualEntity>,
     context: &visualner::ScriptContext,
+    known_person_surnames: &HashSet<String>,
     language: &str,
 ) {
-    if context.person_surnames.is_empty() {
+    if context.person_surnames.is_empty() || known_person_surnames.is_empty() {
         return;
     }
     let lexicon = semantic_core::lexicon::lexicon();
@@ -564,6 +566,7 @@ pub(crate) fn promote_known_surnames(
         if lower.split_whitespace().count() != 1
             || lower.chars().filter(|ch| ch.is_alphabetic()).count() < 4
             || !context.person_surnames.contains_key(&lower)
+            || !known_person_surnames.contains(&lower)
         {
             continue;
         }
@@ -578,6 +581,63 @@ pub(crate) fn promote_known_surnames(
         }
         entity.r#type = "PERSON".to_string();
         entity.score = entity.score.max(0.9);
+    }
+
+    // Some extractors omit a one-token surname mention entirely. Add only
+    // exact, standalone surname tokens that resolve to one full name already
+    // introduced in the script. This gives fact attribution a grounded span
+    // in the sentence and avoids falling back to a person from a prior
+    // sentence (which misread glossary definitions as assertions).
+    let mut cursor = 0usize;
+    while cursor < source.len() {
+        let Some((_, ch)) = source[cursor..].char_indices().next() else {
+            break;
+        };
+        if !ch.is_alphanumeric() {
+            cursor += ch.len_utf8();
+            continue;
+        }
+        let start = cursor;
+        let mut end = start + ch.len_utf8();
+        while let Some(next) = source[end..].chars().next() {
+            if !next.is_alphanumeric() {
+                break;
+            }
+            end += next.len_utf8();
+        }
+        let surface = &source[start..end];
+        let lower = surface.to_lowercase();
+        if !context.person_surnames.contains_key(&lower) || !known_person_surnames.contains(&lower)
+        {
+            cursor = end;
+            continue;
+        }
+        if lexicon.is_place(surface, language)
+            || lexicon
+                .gazetteer
+                .generic_visual_nouns
+                .iter()
+                .any(|noun| noun == &lower)
+        {
+            cursor = end;
+            continue;
+        }
+        if entities
+            .iter()
+            .any(|entity| entity.start < end && start < entity.end)
+        {
+            cursor = end;
+            continue;
+        }
+        entities.push(visualner::VisualEntity {
+            text: surface.to_string(),
+            r#type: "PERSON".to_string(),
+            score: 0.9,
+            start,
+            end,
+            evidence: surface.to_string(),
+        });
+        cursor = end;
     }
 }
 

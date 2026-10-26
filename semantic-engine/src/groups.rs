@@ -9,6 +9,7 @@
 //! the planner can map a scene's proposal to the same person across scenes.
 
 use serde::Serialize;
+use std::collections::HashSet;
 use visualner::analysis::{Bullet, ChartPoint, LowerThird};
 use visualner::{TemporalFact, VisualEntity};
 
@@ -62,15 +63,24 @@ fn entity_searches(
     identities: &IdentityLookup,
     out: &mut Vec<VisualCandidate>,
 ) {
-    for (index, entity) in entities
+    let indices: Vec<usize> = entities
         .iter()
         .enumerate()
-        .filter(|(_, entity)| is_visual_entity(entity))
-    {
+        .filter_map(|(index, entity)| is_visual_entity(entity).then_some(index))
+        .collect();
+    let mut seen = HashSet::new();
+    for index in indices {
+        let Some(entity) = entities.get(index) else {
+            continue;
+        };
+        let id = identities.id_of(index);
+        if !seen.insert(id.clone()) {
+            continue;
+        }
         out.push(VisualCandidate {
             kind: "entity_search",
             sentence_index: 0,
-            entity_ids: ids_of(identities, &[index]),
+            entity_ids: vec![id],
             entity_indices: vec![index],
             entity_texts: vec![entity.text.clone()],
             chart_items: Vec::new(),
@@ -106,6 +116,8 @@ fn multiple_entities(
             .collect();
         indices.sort_unstable();
         indices.dedup();
+        let mut seen_identities = HashSet::new();
+        indices.retain(|&index| seen_identities.insert(identities.id_of(index)));
         if indices.len() < 2 {
             continue;
         }
@@ -258,6 +270,7 @@ fn entity_cards(
     identities: &IdentityLookup,
     out: &mut Vec<VisualCandidate>,
 ) {
+    let mut seen = HashSet::new();
     for third in lower_thirds {
         let Some(entity) = entities.get(third.entity) else {
             continue;
@@ -265,10 +278,14 @@ fn entity_cards(
         if !is_visual_entity(entity) {
             continue;
         }
+        let id = identities.id_of(third.entity);
+        if !seen.insert(id.clone()) {
+            continue;
+        }
         out.push(VisualCandidate {
             kind: "entity_card",
             sentence_index: third.sentence_index,
-            entity_ids: ids_of(identities, std::slice::from_ref(&third.entity)),
+            entity_ids: vec![id],
             entity_indices: vec![third.entity],
             entity_texts: vec![entity.text.clone()],
             chart_items: Vec::new(),
@@ -286,9 +303,19 @@ fn entity_cards(
 /// number such as "due" must never become a person card or a co-mention group;
 /// measurements feed charts and timelines instead.
 pub(crate) fn is_visual_entity(entity: &VisualEntity) -> bool {
-    !matches!(
+    matches!(
         entity.r#type.as_str(),
-        "NUMBER" | "PERCENT" | "MONEY" | "DATE"
+        "PERSON"
+            | "ORGANIZATION"
+            | "ORG"
+            | "LOCATION"
+            | "FACILITY"
+            | "BRAND"
+            | "PRODUCT"
+            | "WORK"
+            | "OBJECT"
+            | "STRUCTURE"
+            | "EVENT"
     )
 }
 
