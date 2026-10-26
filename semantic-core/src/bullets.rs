@@ -40,7 +40,7 @@ pub fn signal_kind_for_entity_type(entity_type: &str) -> Option<SignalKind> {
     match entity_type {
         "PERSON" | "ORGANIZATION" | "ORG" | "LOCATION" | "FACILITY" | "BRAND" | "PRODUCT"
         | "WORK" | "OBJECT" | "STRUCTURE" | "EVENT" => Some(SignalKind::Visual),
-        "NUMBER" | "PERCENT" | "MONEY" | "DATE" => Some(SignalKind::Measurement),
+        "NUMBER" | "PERCENT" | "MONEY" | "MEASUREMENT" | "DATE" => Some(SignalKind::Measurement),
         _ => None,
     }
 }

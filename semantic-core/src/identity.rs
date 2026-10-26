@@ -133,7 +133,7 @@ fn id_prefix(kind: &str) -> &'static str {
         "ORG" => "org",
         "LOCATION" => "location",
         "DATE" => "date",
-        "PERCENT" | "NUMBER" | "MONEY" => "number",
+        "PERCENT" | "NUMBER" | "MONEY" | "MEASUREMENT" => "number",
         _ => "entity",
     }
 }

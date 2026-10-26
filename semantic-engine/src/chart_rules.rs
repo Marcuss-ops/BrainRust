@@ -93,7 +93,7 @@ pub(crate) fn chart_point_is_eligible(sentence: &str, start: usize, end: usize) 
         .char_indices()
         .filter(|(_, ch)| matches!(ch, ':' | ';' | '.' | '!' | '?' | '\n'))
         .map(|(index, ch)| index + ch.len_utf8())
-        .last()
+        .next_back()
         .unwrap_or(0);
     let right = sentence[end..]
         .char_indices()

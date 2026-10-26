@@ -89,9 +89,27 @@ pub(crate) fn sentence_index_at(sentences: &[semantic_core::SentenceSpan], offse
 pub(crate) fn phrase_candidates(
     source: &str,
     sentences: &[semantic_core::SentenceSpan],
+    entities: &[VisualEntity],
     min_words: usize,
     max_words: usize,
 ) -> Vec<Candidate> {
+    let signals: Vec<semantic_core::bullets::BulletSignal> = entities
+        .iter()
+        .filter_map(|entity| {
+            let kind = semantic_core::bullets::signal_kind_for_entity_type(&entity.r#type)?;
+            Some(semantic_core::bullets::BulletSignal {
+                start_byte: entity.start,
+                end_byte: entity.end,
+                kind,
+            })
+        })
+        .collect();
+    let mut salience = vec![0.0; sentences.len()];
+    for bullet in semantic_core::bullets::generate_with_sentences(source, sentences, &signals) {
+        if let Some(score) = salience.get_mut(bullet.sentence_index) {
+            *score = bullet.score;
+        }
+    }
     sentences
         .iter()
         .enumerate()
@@ -111,7 +129,10 @@ pub(crate) fn phrase_candidates(
                     end_byte: sentence.end_byte,
                     sentence_index,
                     evidence: evidence.to_string(),
-                    score: (0.5 + (word_count.min(30) as f32 / 60.0)).min(1.0),
+                    // Keep all complete sentences in the phrase inventory;
+                    // rank their editorial value from grounded semantic
+                    // signals rather than rewarding length alone.
+                    score: salience.get(sentence_index).copied().unwrap_or_default(),
                     provenance: "semantic_core_sentence_segmenter".to_string(),
                 })
         })
@@ -124,16 +145,19 @@ pub(crate) fn phrase_candidates(
 /// is anchored when its first and its last sentence each carry at least one
 /// grounded signal and every sentence in it is substantive. The score is the
 /// shared sentence salience (`semantic_core::bullets`) averaged over the
-/// window, so bullets and segments rank with one weight table. Every
-/// qualifying window is retained in source order; downstream planners choose
-/// what to display. A scene without signals keeps an empty collection.
+/// window, so bullets and segments rank with one weight table. A bounded
+/// greedy interval selection keeps at most three non-overlapping passages per
+/// scene; every selected passage remains contiguous and source-grounded.
+/// A scene without signals keeps an empty collection.
 pub(crate) fn segment_candidates(
     source: &str,
     sentences: &[semantic_core::SentenceSpan],
     entities: &[VisualEntity],
+    facts: &[semantic_core::EntityFact],
 ) -> Vec<ImportantSegment> {
     const MIN_LEN: usize = 2;
     const MAX_LEN: usize = 5;
+    const MIN_EDITORIAL_SCORE: f32 = 0.4;
 
     let signals: Vec<semantic_core::bullets::BulletSignal> = entities
         .iter()
@@ -172,6 +196,26 @@ pub(crate) fn segment_candidates(
             .is_some_and(|(score, _, _)| *score > 0.0)
     };
 
+    // Dated, asserted events are editorial anchors. Reward a contiguous
+    // passage that preserves several events together, so a timeline is not
+    // fragmented into individually high scoring sentences that omit its
+    // beginning or conclusion.
+    let event_counts: Vec<usize> = sentences
+        .iter()
+        .enumerate()
+        .map(|(index, _)| {
+            facts
+                .iter()
+                .filter(|fact| {
+                    fact.status == "asserted"
+                        && fact.normalized_date.is_some()
+                        && fact.sentence_index == index
+                })
+                .count()
+        })
+        .collect();
+    let total_events: usize = event_counts.iter().sum();
+
     let mut windows: Vec<(f32, usize, usize)> = Vec::new(); // (score, start, end inclusive)
     for start in 0..sentences.len() {
         for len in MIN_LEN..=MAX_LEN {
@@ -179,11 +223,21 @@ pub(crate) fn segment_candidates(
             if end >= sentences.len() {
                 break;
             }
-            if !anchored(start) || !anchored(end) || !(start..=end).all(substantive) {
+            if !(start..=end).any(anchored) || !(start..=end).all(substantive) {
                 continue;
             }
             let total: f32 = (start..=end).map(|index| salience[index].0).sum();
-            windows.push((total / len as f32, start, end));
+            let editorial_score = total / len as f32;
+            let covered_events: usize = (start..=end).map(|index| event_counts[index]).sum();
+            let sequence_bonus = if total_events > 1 {
+                0.32 * (covered_events as f32 / total_events as f32)
+            } else {
+                0.0
+            };
+            let score = (editorial_score + sequence_bonus).min(1.0);
+            if score >= MIN_EDITORIAL_SCORE {
+                windows.push((score, start, end));
+            }
         }
     }
     windows.sort_by(|a, b| {
@@ -191,13 +245,24 @@ pub(crate) fn segment_candidates(
             .then_with(|| (b.2 - b.1).cmp(&(a.2 - a.1)))
             .then_with(|| a.1.cmp(&b.1))
     });
+    const MAX_SEGMENTS_PER_SCENE: usize = 3;
+    let mut selected: Vec<(f32, usize, usize)> = Vec::new();
+    for window in windows {
+        if selected.len() == MAX_SEGMENTS_PER_SCENE {
+            break;
+        }
+        let (_, start, end) = window;
+        if selected
+            .iter()
+            .any(|(_, prior_start, prior_end)| start <= *prior_end && *prior_start <= end)
+        {
+            continue;
+        }
+        selected.push(window);
+    }
+    selected.sort_by_key(|(_, start, end)| (*start, *end));
 
-    // Keep every complete, grounded window. Overlay selection belongs to
-    // PipelineGen; a BrainRust candidate cap would silently discard valid
-    // passages before the planner can compare them.
-    windows.sort_by_key(|(_, start, end)| (*start, *end));
-
-    windows
+    selected
         .into_iter()
         .enumerate()
         .filter_map(|(index, (score, start, end))| {
@@ -223,12 +288,9 @@ pub(crate) fn segment_candidates(
         .collect()
 }
 
-/// Composed image queries: the verbatim source slice that spans two or more
-/// grounded components (entities, measurements, dates) stated together in one
-/// sentence, with every component's own span as provenance. The literal-
-/// substring rule is kept: the query is a source slice, never a synthetic
-/// join of surfaces the source never wrote. One query per sentence, in source
-/// order; a sentence without two grounded components stays out.
+/// Composed image queries are a small source-grounded shortlist. They need two
+/// picturable entities in the same sentence, stay short enough for an image
+/// provider, and keep the exact literal span as provenance.
 pub(crate) fn composed_query_candidates(
     source: &str,
     sentences: &[semantic_core::SentenceSpan],
@@ -277,56 +339,136 @@ pub(crate) fn composed_query_candidates(
         }
     }
 
-    by_sentence
+    let mut candidates: Vec<(usize, usize, ComposedImageQuery)> = by_sentence
         .into_iter()
         .enumerate()
         .filter_map(|(sentence_index, mut components)| {
             if components.len() < 2
-                || !components
+                || components
                     .iter()
-                    .any(|component| is_visual_query_entity(&component.component_type))
+                    .filter(|component| is_visual_query_entity(&component.component_type))
+                    .count()
+                    < 2
             {
                 return None;
             }
-            components.sort_by_key(|component| (component.start_byte, component.end_byte));
+            components.sort_by_key(|component| {
+                (component.start_byte, std::cmp::Reverse(component.end_byte))
+            });
+            let mut non_overlapping = Vec::with_capacity(components.len());
+            for component in components {
+                if non_overlapping.iter().any(|prior: &QueryComponent| {
+                    component.start_byte < prior.end_byte && prior.start_byte < component.end_byte
+                }) {
+                    continue;
+                }
+                non_overlapping.push(component);
+            }
+            components = non_overlapping;
+            if components
+                .iter()
+                .filter(|component| is_visual_query_entity(&component.component_type))
+                .count()
+                < 2
+                || !components
+                    .iter()
+                    .filter(|component| is_visual_query_entity(&component.component_type))
+                    .enumerate()
+                    .any(|(index, left)| {
+                        components
+                            .iter()
+                            .filter(|component| is_visual_query_entity(&component.component_type))
+                            .skip(index + 1)
+                            .any(|right| {
+                                image_pair_quality(&left.component_type, &right.component_type) >= 3
+                            })
+                    })
+            {
+                return None;
+            }
             let start_byte = components.first()?.start_byte;
             let end_byte = components
                 .iter()
                 .map(|component| component.end_byte)
                 .max()?;
             let query = source.get(start_byte..end_byte)?;
-            if query.split_whitespace().count() > 12 || query.chars().count() > 80 {
+            if query.split_whitespace().count() > 9 || query.chars().count() > 68 {
                 return None;
             }
             (check_span(source, start_byte, end_byte, query) == Grounding::Grounded).then(|| {
-                ComposedImageQuery {
-                    id: format!("composed_{:03}", sentence_index + 1),
-                    kind: "composed_image_query".to_string(),
-                    query: query.to_string(),
-                    start_byte,
-                    end_byte,
+                let visual_count = components
+                    .iter()
+                    .filter(|component| is_visual_query_entity(&component.component_type))
+                    .count();
+                let named_count = components
+                    .iter()
+                    .filter(|component| {
+                        matches!(
+                            component.component_type.as_str(),
+                            "PERSON" | "LOCATION" | "ORG" | "ORGANIZATION" | "FACILITY"
+                        )
+                    })
+                    .count();
+                let quality = named_count * 10 + visual_count;
+                (
+                    quality,
                     sentence_index,
-                    components,
-                }
+                    ComposedImageQuery {
+                        id: format!("composed_{:03}", sentence_index + 1),
+                        kind: "composed_image_query".to_string(),
+                        query: query.to_string(),
+                        start_byte,
+                        end_byte,
+                        sentence_index,
+                        components,
+                    },
+                )
             })
+        })
+        .collect();
+    candidates.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| left.2.query.len().cmp(&right.2.query.len()))
+            .then_with(|| left.1.cmp(&right.1))
+    });
+    candidates.truncate(3);
+    candidates.sort_by_key(|(_, sentence_index, _)| *sentence_index);
+    candidates
+        .into_iter()
+        .enumerate()
+        .map(|(index, (_, _, mut candidate))| {
+            candidate.id = format!("composed_{:03}", index + 1);
+            candidate
         })
         .collect()
 }
 
-/// Builds non-literal provider queries only when the engine already has an
-/// asserted, source-grounded relation between two visual entities. The query
-/// joins the exact entity surfaces; sentence evidence and both component
-/// spans preserve why the pair belongs together. Location facts can also use
-/// their grounded value when the location did not survive entity extraction.
+/// Builds compact provider queries from asserted relations first, then from
+/// source-grounded same-sentence co-mentions. A co-mention is explicitly a
+/// retrieval cue, not an assertion that the entities are related. Queries are
+/// bounded per scene and every component retains its exact source span.
 pub(crate) fn contextual_image_query_candidates(
     source: &str,
     sentences: &[semantic_core::SentenceSpan],
     entities: &[VisualEntity],
     entity_ids: &[String],
     facts: &[EntityFact],
+    co_mentions: &[semantic_core::CoMention],
 ) -> Vec<ContextualImageQuery> {
+    let max_contextual_queries =
+        crate::consolidate::image_query_policy().max_contextual_queries_per_scene;
     let mut output = Vec::new();
     let mut seen = HashSet::new();
+    let explicitly_located_entities: HashSet<String> = facts
+        .iter()
+        .filter(|fact| fact.status == "asserted" && fact.predicate == "located_in")
+        .flat_map(|fact| {
+            std::iter::once(fact.subject_entity_id.clone())
+                .chain(fact.target_entity_id.iter().cloned())
+        })
+        .collect();
     for fact in facts {
         if fact.status != "asserted" {
             continue;
@@ -388,6 +530,11 @@ pub(crate) fn contextual_image_query_candidates(
         };
         if subject.start == target_span.1 && subject.end == target_span.2
             || !is_visual_query_entity(&subject.r#type)
+            // A place already contained in an institution's source name is
+            // not useful as a second query component ("Comune di Torino
+            // Torino"). Keep the entity span and relation evidence intact,
+            // but do not emit a redundant image query.
+            || (subject.start < target_span.2 && target_span.1 < subject.end)
             || !seen.insert(relation_query_key(
                 fact.sentence_index,
                 fact.subject_entity_id.as_str(),
@@ -411,7 +558,10 @@ pub(crate) fn contextual_image_query_candidates(
             continue;
         }
         let query = format!("{} {}", subject.text.trim(), target_span.0.trim());
-        if query.trim().is_empty() {
+        if query.trim().is_empty()
+            || query.split_whitespace().count() > 7
+            || query.chars().count() > 64
+        {
             continue;
         }
         output.push(ContextualImageQuery {
@@ -440,11 +590,182 @@ pub(crate) fn contextual_image_query_candidates(
             ],
         });
     }
-    // Co-mention alone does not establish that two entities form a useful
-    // image-search subject. Pair queries are emitted only above when a
-    // grounded asserted fact links the identities; each identity still gets
-    // its own exact/context search ladder in the proposal stage.
+    let mut co_mention_candidates: Vec<(usize, usize, String, ContextualImageQuery)> = Vec::new();
+    for mention in co_mentions {
+        // Prefer the explicit location relation already extracted for an
+        // entity. A second, merely co-mentioned person/place pair in another
+        // clause of the same scene is too easy to misread as a location link.
+        if explicitly_located_entities.contains(&mention.left_id)
+            || explicitly_located_entities.contains(&mention.right_id)
+        {
+            continue;
+        }
+        let Some(sentence) = sentences.get(mention.sentence_index) else {
+            continue;
+        };
+        let Some(evidence) = source.get(sentence.start_byte..sentence.end_byte) else {
+            continue;
+        };
+        if evidence != mention.evidence {
+            continue;
+        }
+        let left_indices: Vec<usize> = entity_ids
+            .iter()
+            .enumerate()
+            .filter_map(|(index, identity)| {
+                let entity = entities.get(index)?;
+                (identity == &mention.left_id
+                    && entity.start >= sentence.start_byte
+                    && entity.end <= sentence.end_byte
+                    && is_visual_query_entity(&entity.r#type)
+                    && source.get(entity.start..entity.end) == Some(entity.text.as_str()))
+                .then_some(index)
+            })
+            .collect();
+        let right_indices: Vec<usize> = entity_ids
+            .iter()
+            .enumerate()
+            .filter_map(|(index, identity)| {
+                let entity = entities.get(index)?;
+                (identity == &mention.right_id
+                    && entity.start >= sentence.start_byte
+                    && entity.end <= sentence.end_byte
+                    && is_visual_query_entity(&entity.r#type)
+                    && source.get(entity.start..entity.end) == Some(entity.text.as_str()))
+                .then_some(index)
+            })
+            .collect();
+        let Some((left, right)) = left_indices
+            .iter()
+            .flat_map(|left| {
+                right_indices.iter().filter_map(move |right| {
+                    let a = entities.get(*left)?;
+                    let b = entities.get(*right)?;
+                    let distinct = a.start != b.start || a.end != b.end;
+                    let disjoint = a.end <= b.start || b.end <= a.start;
+                    (distinct && disjoint).then_some((*left, *right))
+                })
+            })
+            .min_by_key(|(left, right)| {
+                let a = &entities[*left];
+                let b = &entities[*right];
+                a.start.abs_diff(b.start)
+            })
+        else {
+            continue;
+        };
+        let a = &entities[left];
+        let b = &entities[right];
+        let (first, second) = contextual_entity_order(a, b);
+        let query = format!("{} {}", first.text.trim(), second.text.trim());
+        if query.split_whitespace().count() > 7 || query.chars().count() > 64 {
+            continue;
+        }
+        let key = relation_query_key(mention.sentence_index, &mention.left_id, &mention.right_id);
+        if !seen.insert(key) {
+            continue;
+        }
+        let pair_quality = image_pair_quality(&first.r#type, &second.r#type);
+        if pair_quality < 3 {
+            continue;
+        }
+        co_mention_candidates.push((
+            pair_quality,
+            first.start.abs_diff(second.start),
+            query.clone(),
+            ContextualImageQuery {
+                id: String::new(),
+                kind: "contextual_image_query".to_string(),
+                query,
+                evidence: evidence.to_string(),
+                evidence_start_byte: sentence.start_byte,
+                evidence_end_byte: sentence.end_byte,
+                sentence_index: mention.sentence_index,
+                components: vec![first, second]
+                    .into_iter()
+                    .map(|entity| QueryComponent {
+                        kind: "co_mentioned_entity".to_string(),
+                        component_type: entity.r#type.clone(),
+                        text: entity.text.clone(),
+                        start_byte: entity.start,
+                        end_byte: entity.end,
+                    })
+                    .collect(),
+            },
+        ));
+    }
+    co_mention_candidates.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| left.1.cmp(&right.1))
+            .then_with(|| left.2.cmp(&right.2))
+            .then_with(|| left.3.sentence_index.cmp(&right.3.sentence_index))
+    });
+    for (_, _, _, candidate) in co_mention_candidates {
+        if output.len() >= max_contextual_queries {
+            break;
+        }
+        if output
+            .iter()
+            .any(|existing| existing.query.eq_ignore_ascii_case(&candidate.query))
+        {
+            continue;
+        }
+        output.push(candidate);
+    }
+    output.truncate(max_contextual_queries);
+    output.sort_by_key(|candidate| candidate.sentence_index);
+    for (index, candidate) in output.iter_mut().enumerate() {
+        candidate.id = format!("contextual_{:03}", index + 1);
+    }
     output
+}
+
+fn image_pair_quality(left_type: &str, right_type: &str) -> usize {
+    let has_object = left_type == "OBJECT" || right_type == "OBJECT";
+    let has_person = left_type == "PERSON" || right_type == "PERSON";
+    let has_location = left_type == "LOCATION" || right_type == "LOCATION";
+    let has_org =
+        matches!(left_type, "ORG" | "ORGANIZATION") || matches!(right_type, "ORG" | "ORGANIZATION");
+    if (left_type == "OBJECT" && right_type == "OBJECT")
+        || (has_person && has_location)
+        || (has_object && has_location)
+    {
+        5
+    } else if (has_person && has_object) || (has_org && has_location) {
+        4
+    } else if has_person && has_org {
+        // Co-mention alone is too weak to make a useful joint image query
+        // for a person and an organization. Asserted relation facts can still
+        // produce that pair through the fact-grounded path above.
+        2
+    } else if has_person && left_type == "PERSON" && right_type == "PERSON" {
+        2
+    } else {
+        0
+    }
+}
+
+fn contextual_entity_order<'a>(
+    left: &'a VisualEntity,
+    right: &'a VisualEntity,
+) -> (&'a VisualEntity, &'a VisualEntity) {
+    let rank = |entity_type: &str| match entity_type {
+        "PERSON" => 0,
+        "OBJECT" => 1,
+        "ORG" | "ORGANIZATION" => 2,
+        "FACILITY" => 3,
+        "LOCATION" => 4,
+        _ => 5,
+    };
+    if rank(&left.r#type) < rank(&right.r#type)
+        || (rank(&left.r#type) == rank(&right.r#type) && left.start <= right.start)
+    {
+        (left, right)
+    } else {
+        (right, left)
+    }
 }
 
 fn relation_query_key(sentence_index: usize, left: &str, right: &str) -> (usize, String, String) {
@@ -603,7 +924,7 @@ mod contextual_image_query_tests {
 
         let sentences = semantic_core::split_sentences(source, "en", None);
         let queries =
-            contextual_image_query_candidates(source, &sentences, &entities, &ids, &facts);
+            contextual_image_query_candidates(source, &sentences, &entities, &ids, &facts, &[]);
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0].query, "Aurora Stadium Torino");
         for component in &queries[0].components {

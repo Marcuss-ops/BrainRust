@@ -304,6 +304,25 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
             .iter()
             .find(|unit| tail.starts_with(unit.as_str()) && has_word_boundary(&tail, unit.len()));
         let unit = unit.filter(|_| local_scale.is_none());
+        // A physical measurement ("12 km", "20 °C") is a quantity, not a
+        // count: it gets its own type so charts and bullets can tell it apart.
+        let measurement = if unit.is_none() && local_scale.is_none() {
+            semantic_core::lexicon::lexicon()
+                .scale_words
+                .measurement_units
+                .iter()
+                .find(|unit| {
+                    tail.starts_with(unit.as_str()) && has_word_boundary(&tail, unit.len())
+                })
+        } else {
+            None
+        };
+        // The unit is part of the quantity's type, not its span: the number
+        // keeps the same byte range it has as a NUMBER, so numeric facts and
+        // charts that read the number are unaffected.
+        if measurement.is_some() {
+            kind = "MEASUREMENT";
+        }
         if let Some(scale) = local_scale {
             end = suffix + scale.len();
         }
@@ -474,6 +493,55 @@ mod tests {
             candidate.text == "giugno 1988"
                 && source.get(candidate.start..candidate.end) == Some("giugno 1988")
         }));
+    }
+
+    #[test]
+    fn physical_measurements_are_typed_as_measurement_not_number() {
+        let cases = [
+            ("Il ponte misura 12 km di lunghezza.", "12"),
+            ("La nave pesa 3,5 tonnellate.", "3,5"),
+            ("Il forno raggiunge 180 °C.", "180"),
+            ("The tank holds 40 liters.", "40"),
+            ("The parcel weighs 2 kg.", "2"),
+            ("El puente mide 12 km de largo.", "12"),
+            ("Die Brücke ist 12 km lang.", "12"),
+            ("Le pont mesure 12 km de long.", "12"),
+            ("Ponte ma 12 km długości.", "12"),
+            ("Мост имеет длину 12 км.", "12"),
+        ];
+        for (source, surface) in cases {
+            let candidates = value_candidates(source);
+            assert!(
+                candidates.iter().any(|candidate| {
+                    candidate.entity_type.as_deref() == Some("MEASUREMENT")
+                        && source.get(candidate.start..candidate.end) == Some(surface)
+                }),
+                "{source}: {:?}",
+                candidates
+                    .iter()
+                    .map(|candidate| (&candidate.text, &candidate.entity_type))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn measurement_units_do_not_steal_money_percent_or_dates() {
+        let money = value_candidates("Costs rose to $1,200.");
+        assert!(money
+            .iter()
+            .any(|c| c.entity_type.as_deref() == Some("MONEY")));
+        let percent = value_candidates("Sales grew 25% this year.");
+        assert!(percent
+            .iter()
+            .any(|c| c.entity_type.as_deref() == Some("PERCENT")));
+        let date = value_candidates("Il 12 giugno 1988 la nave partì.");
+        assert!(date
+            .iter()
+            .any(|c| c.entity_type.as_deref() == Some("DATE")));
+        assert!(!date
+            .iter()
+            .any(|c| c.entity_type.as_deref() == Some("MEASUREMENT")));
     }
 
     #[test]

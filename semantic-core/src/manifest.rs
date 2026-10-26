@@ -79,7 +79,7 @@ pub struct VisualProposal {
     /// Canonical ids of the identities the proposal is about.
     pub entity_ids: Vec<String>,
     /// Reusable query suggestions; retrieval remains owned by PipelineGen.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub visual_query_suggestions: Vec<String>,
     /// Suggested layout (`side_by_side`, `grid`, `bar_comparison`, ...).
     pub suggested_visual: String,

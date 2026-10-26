@@ -21,13 +21,18 @@ pub fn numeric_value_spans(source_text: &str) -> Vec<NumericSpan> {
         .filter(|candidate| {
             matches!(
                 candidate.entity_type.as_deref(),
-                Some("NUMBER") | Some("PERCENT") | Some("MONEY")
+                Some("NUMBER") | Some("PERCENT") | Some("MONEY") | Some("MEASUREMENT")
             )
         })
         .map(|candidate| NumericSpan {
             start: candidate.start,
             end: candidate.end,
-            entity_type: candidate.entity_type.unwrap_or_default(),
+            // A measurement is still a number for the chart code; its type
+            // stays NUMBER here so chart decisions are unchanged.
+            entity_type: match candidate.entity_type.as_deref() {
+                Some("MEASUREMENT") | None => "NUMBER".to_string(),
+                Some(other) => other.to_string(),
+            },
         })
         .collect()
 }

@@ -121,6 +121,7 @@ pub struct Request {
     pub font: Option<String>,
     pub effects: Option<Vec<RenderEffect>>,
     pub overlays: Option<Vec<RenderOverlay>>,
+    pub overlay_manifest: Option<OverlayManifest>,
     pub max_duration_sec: Option<f64>,
     /// Typed compiled audio plan (compiled-audio-plan.v1/v2). A malformed
     /// plan fails request parsing fail-closed instead of travelling as
@@ -155,6 +156,9 @@ impl Request {
                 "unsupported protocol version: {}",
                 self.version
             )));
+        }
+        if let Some(manifest) = &self.overlay_manifest {
+            manifest.validate().map_err(MuscleError::generic)?;
         }
         let require_source = || {
             if self.source_path.as_deref().unwrap_or("").trim().is_empty() {
@@ -283,6 +287,78 @@ pub struct RenderOverlay {
     pub size: String,
     pub y: String,
     pub color: String,
+}
+
+pub const OVERLAY_MANIFEST_SCHEMA_V1: &str = "pipelinegen.overlay-manifest.v1";
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct OverlayManifestAsset {
+    pub asset_id: String,
+    pub drive_file_id: String,
+    pub url: String,
+    pub sha256: String,
+    pub size_bytes: i64,
+    pub frame_count: i64,
+    pub duration_ms: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct OverlayManifestEntry {
+    pub item_id: String,
+    pub track: u32,
+    pub in_us: i64,
+    pub out_us: i64,
+    pub content_hash: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct OverlayManifest {
+    pub schema_version: String,
+    pub plan_id: String,
+    pub video_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeline_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset: Option<OverlayManifestAsset>,
+    pub entries: Vec<OverlayManifestEntry>,
+}
+
+impl OverlayManifest {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema_version != OVERLAY_MANIFEST_SCHEMA_V1 {
+            return Err(format!(
+                "invalid overlay manifest schema: got {:?}, expected {:?}",
+                self.schema_version, OVERLAY_MANIFEST_SCHEMA_V1
+            ));
+        }
+        if self.plan_id.trim().is_empty() {
+            return Err("overlay manifest plan_id is required".to_string());
+        }
+        for entry in &self.entries {
+            if entry.item_id.trim().is_empty() {
+                return Err("overlay manifest entry item_id is required".to_string());
+            }
+            if entry.in_us < 0 {
+                return Err(format!(
+                    "overlay manifest entry {} in_us must be >= 0",
+                    entry.item_id
+                ));
+            }
+            if entry.out_us <= entry.in_us {
+                return Err(format!(
+                    "overlay manifest entry {} out_us must be > in_us",
+                    entry.item_id
+                ));
+            }
+            if entry.content_hash.len() != 64 {
+                return Err(format!(
+                    "overlay manifest entry {} content_hash must be 64-char sha256",
+                    entry.item_id
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]

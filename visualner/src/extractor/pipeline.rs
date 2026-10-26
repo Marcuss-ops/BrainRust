@@ -367,7 +367,12 @@ fn reserve_numeric_slots(ranked: Vec<VisualEntity>, top_n: usize) -> Vec<VisualE
     if ranked.len() <= top_n {
         return ranked;
     }
-    let is_numeric = |e: &VisualEntity| matches!(e.r#type.as_str(), "NUMBER" | "PERCENT" | "MONEY");
+    let is_numeric = |e: &VisualEntity| {
+        matches!(
+            e.r#type.as_str(),
+            "NUMBER" | "PERCENT" | "MONEY" | "MEASUREMENT"
+        )
+    };
     let reserve = (top_n / 3).max(1).min(top_n);
     let kept_numeric = ranked[..top_n].iter().filter(|e| is_numeric(e)).count();
     let spare: Vec<usize> = (top_n..ranked.len())

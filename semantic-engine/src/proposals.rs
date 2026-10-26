@@ -16,7 +16,7 @@ pub(crate) fn to_visual_proposal(
     // query is emitted only by the relation-grounded contextual-query path.
     let mut visual_query_suggestions: Vec<String> = Vec::new();
     let mut queries: Vec<SearchQuery> = Vec::new();
-    if !candidate.entity_texts.is_empty() && candidate.kind != "entity_card" {
+    if !candidate.entity_texts.is_empty() {
         for text in &candidate.entity_texts {
             if text.is_empty() || is_noise_query(text) {
                 continue;

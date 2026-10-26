@@ -6,7 +6,7 @@ pub(super) fn named_entity_rank(entity: &VisualEntity) -> u8 {
     match entity.r#type.as_str() {
         "PERSON" | "BRAND" => 0,
         "ORGANIZATION" | "LOCATION" | "EVENT" | "WORK" | "PRODUCT" | "OBJECT" => 1,
-        "DATE" | "MONEY" | "NUMBER" | "PERCENT" => 2,
+        "DATE" | "MONEY" | "NUMBER" | "PERCENT" | "MEASUREMENT" => 2,
         _ => 3,
     }
 }

@@ -501,7 +501,7 @@ fn chart_claim_bounds(bullet: &Bullet, points: &[&ChartPoint]) -> (usize, usize)
         .char_indices()
         .filter(|(_, ch)| matches!(ch, ':' | ';' | '.' | '!' | '?' | '\n'))
         .map(|(index, ch)| index + ch.len_utf8())
-        .last()
+        .next_back()
         .unwrap_or(0);
     let right = bullet.text[local_last..]
         .char_indices()

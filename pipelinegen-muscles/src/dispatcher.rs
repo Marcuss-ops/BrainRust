@@ -128,6 +128,7 @@ mod tests {
             green_screen_color: None,
             green_screen_similarity: None,
             green_screen_blend: None,
+            overlay_manifest: None,
             input_paths: Some(vec!["/tmp/in.mp4".to_string()]),
             no_transitions: None,
             clip_duration_sec: None,

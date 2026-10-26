@@ -163,6 +163,24 @@ pub(crate) fn noun_phrase_candidates(
     for (start, end) in name_runs {
         out.push(candidate_from_tokens(tokens, source_text, start, end));
     }
+    // In a coordinated list of proper-noun subjects, a single-token member
+    // is a person mention even though it is too short to establish an
+    // identity on its own. Require POS evidence for each member and a verbal
+    // predicate after the list; this avoids promoting sentence-initial words,
+    // headings, or an unstructured list of place names.
+    for person in coordinated_person_list_candidates(tokens, source_text, language) {
+        if let Some(existing) = out
+            .iter_mut()
+            .find(|candidate| candidate.start == person.start && candidate.end == person.end)
+        {
+            // In a coordinated subject list, the local syntactic evidence
+            // resolves a single-token homograph that the gazetteer typed as
+            // a place.
+            existing.entity_type = Some("PERSON".to_string());
+        } else {
+            out.push(person);
+        }
+    }
     // The ORG span must never consume a known place that closes it.
     nested_institution_places(tokens, source_text, language, &mut out);
     // Curated names are entities even when a function word sits inside them
@@ -293,6 +311,64 @@ pub(crate) fn noun_phrase_candidates(
         // The finite verb that broke the phrase is not candidate material.
         if i < tokens.len() && verb::is_verbal_continuation(tokens, i, language) {
             i += 1;
+        }
+    }
+    out
+}
+
+fn coordinated_person_list_candidates(
+    tokens: &[Token],
+    source_text: &str,
+    language: &str,
+) -> Vec<Candidate> {
+    let mut out = Vec::new();
+    for start in 0..tokens.len() {
+        let first = &tokens[start];
+        if !starts_uppercase(&first.text) || first.upos.as_deref() != Some("PROPN") {
+            continue;
+        }
+        if start > 0 {
+            let prior_gap = &source_text[tokens[start - 1].end..first.start];
+            if prior_gap.contains(',') || tokens[start - 1].upos.as_deref() == Some("CCONJ") {
+                continue;
+            }
+        }
+        let mut members = vec![start];
+        let mut commas = 0;
+        let mut index = start;
+        while let Some(next) = tokens.get(index + 1) {
+            if starts_uppercase(&next.text) && next.upos.as_deref() == Some("PROPN") {
+                let gap = &source_text[tokens[index].end..next.start];
+                if gap.contains(',') {
+                    commas += 1;
+                    members.push(index + 1);
+                    index += 1;
+                    continue;
+                }
+            }
+            if next.upos.as_deref() == Some("CCONJ") {
+                if let Some(member) = tokens.get(index + 2) {
+                    if starts_uppercase(&member.text) && member.upos.as_deref() == Some("PROPN") {
+                        members.push(index + 2);
+                    }
+                }
+            }
+            break;
+        }
+        // A coordinated subject list needs at least three single-name
+        // members, at least two explicit commas, a final conjunction, and a
+        // following verb. These structural cues provide evidence without a
+        // per-name allowlist.
+        if members.len() < 3
+            || commas < 2
+            || !verb::is_verbal_continuation(tokens, index + 1, language)
+        {
+            continue;
+        }
+        for member in members {
+            let mut candidate = candidate_from_tokens(tokens, source_text, member, member + 1);
+            candidate.entity_type = Some("PERSON".to_string());
+            out.push(candidate);
         }
     }
     out

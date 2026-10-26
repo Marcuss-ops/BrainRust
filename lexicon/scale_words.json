@@ -90,5 +90,16 @@
     "euros",
     "pounds",
     "yen"
+  ],
+  "measurement_units": [
+    "km", "km/h", "kmh", "kilometri", "kilometro", "kilometers", "kilometres", "kilometer",
+    "mph", "miles", "mile", "miglia",
+    "m", "metri", "metro", "meters", "metres", "meter",
+    "cm", "mm", "ml", "litri", "litro", "liters", "litres", "liter", "litre",
+    "kg", "mg", "chilogrammi", "chilogrammo", "kilograms", "kilogram", "kilos",
+    "g", "grammi", "grammo", "grams", "gram",
+    "tonnellate", "tonnellata", "tonnes", "tonne", "tons", "ton",
+    "ettari", "ettaro", "hectares", "hectare",
+    "км", "м", "см", "мм", "кг", "г", "т", "литров", "литра", "литр", "тонн", "тонны", "градусов", "градуса", "°c", "°f", "celsius", "fahrenheit"
   ]
 }

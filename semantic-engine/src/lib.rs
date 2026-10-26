@@ -67,7 +67,8 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
     semantic_core::AnalyzerVersions {
         visualner: "visualner".to_string(),
         semantic_core: env!("CARGO_PKG_VERSION").to_string(),
-        phrase_impact: "phrase_impact+chart-gate-v1".to_string(),
+        phrase_impact: "phrase_impact+editorial-selection-v3+image-query-fanout-v3+chart-gate-v1"
+            .to_string(),
         lexicon: semantic_core::lexicon::LEXICON_VERSION.to_string(),
     }
 }
@@ -265,6 +266,7 @@ fn analyze_scene_with_search(
         &entities,
         &entity_ids,
         &entity_facts,
+        &relations.co_mentions,
     );
     let bullets = bullet_candidates(source, &sentence_spans, &entities);
     let candidates = groups::build_candidates(
@@ -331,6 +333,7 @@ fn analyze_scene_with_search(
 
     let entity_candidate_list = entity_candidates(source, &sentence_spans, &entities, &identities);
     let important_words = important_word_candidates(&entity_candidate_list);
+    let important_segments = segment_candidates(source, &sentence_spans, &entities, &entity_facts);
 
     (
         SceneManifest {
@@ -344,12 +347,12 @@ fn analyze_scene_with_search(
             temporal_facts,
             entity_facts,
             important_words,
-            important_segments: segment_candidates(source, &sentence_spans, &entities),
+            important_segments,
             composed_image_queries,
             contextual_image_queries,
             bullets,
-            short_phrases: phrase_candidates(source, &sentence_spans, 0, 18),
-            long_phrases: phrase_candidates(source, &sentence_spans, 18, usize::MAX),
+            short_phrases: phrase_candidates(source, &sentence_spans, &entities, 0, 18),
+            long_phrases: phrase_candidates(source, &sentence_spans, &entities, 18, usize::MAX),
             quotes: quote_candidates(source, &sentence_spans),
             visual_proposals,
             semantic_groups,

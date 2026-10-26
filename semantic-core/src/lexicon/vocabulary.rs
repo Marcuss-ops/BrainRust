@@ -69,6 +69,10 @@ pub struct ScaleWords {
     #[serde(default)]
     pub percentage_words: Vec<String>,
     pub currency_words: Vec<String>,
+    /// Physical measurement units ("12 km", "20 °C"); lowercase, matched
+    /// on a word boundary after a number.
+    #[serde(default)]
+    pub measurement_units: Vec<String>,
 }
 
 /// Contextual geographic cues (no gazetteer: syntax only).
