@@ -371,7 +371,7 @@ fn push_contextual_search_candidates(
         let contextual_queries = query_seeds
             .get(scene.scene_id.as_str())
             .copied()
-            .unwrap_or_else(|| scene.contextual_image_queries.as_slice());
+            .unwrap_or(scene.contextual_image_queries.as_slice());
         for contextual in contextual_queries {
             let policy = image_query_policy();
             let lower_evidence = contextual.evidence.to_lowercase();
@@ -755,7 +755,7 @@ fn enrich_contextual_search_queries(
         let contextual_queries = query_seeds
             .get(scene.scene_id.as_str())
             .copied()
-            .unwrap_or_else(|| scene.contextual_image_queries.as_slice());
+            .unwrap_or(scene.contextual_image_queries.as_slice());
         contexts_by_scene.insert(&scene.scene_id, contextual_queries.iter().collect());
     }
     let searchable_entity_ids: HashSet<(String, String)> = candidates

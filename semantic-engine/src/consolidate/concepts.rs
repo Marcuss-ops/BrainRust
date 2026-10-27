@@ -305,6 +305,9 @@ fn is_policy_excluded_visual_concept(text: &str) -> bool {
         .any(|phrase| normalized.contains(&phrase.to_lowercase()))
 }
 
+use super::identities::{identity_anchor, is_named_kind};
+use super::IdentityState;
+
 #[cfg(test)]
 mod document_anchor_tests {
     use super::super::{IdentityState, MentionRef};
@@ -351,6 +354,3 @@ mod document_anchor_tests {
         );
     }
 }
-
-use super::identities::{identity_anchor, is_named_kind};
-use super::IdentityState;

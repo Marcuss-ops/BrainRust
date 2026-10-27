@@ -478,16 +478,11 @@ pub(crate) fn contextual_image_query_candidates(
     // The boolean records the origin: `true` for a fact-grounded relation
     // query that satisfies the manifest contract, `false` for a visual-context
     // family that stays out of the manifest.
-    let mut combined: Vec<(bool, ContextualImageQuery)> = fact_grounded_location_queries(
-        source,
-        sentences,
-        entities,
-        entity_ids,
-        entity_facts,
-    )
-    .into_iter()
-    .map(|query| (true, query))
-    .collect();
+    let mut combined: Vec<(bool, ContextualImageQuery)> =
+        fact_grounded_location_queries(source, sentences, entities, entity_ids, entity_facts)
+            .into_iter()
+            .map(|query| (true, query))
+            .collect();
     for candidate in linked_clause_visual_queries(language, source, sentences, entities) {
         if combined.len() >= max_contextual_queries {
             break;

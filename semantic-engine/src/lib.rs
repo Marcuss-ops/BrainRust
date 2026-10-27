@@ -422,8 +422,13 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
 
     let story_graph = story::build_story_graph(&scenes);
     let visual_coverage = story::build_visual_coverage(&scenes);
-    let visual_consolidation =
-        consolidate::build(language, &request.scenes, &scenes, &search_entries, &scene_query_seeds);
+    let visual_consolidation = consolidate::build(
+        language,
+        &request.scenes,
+        &scenes,
+        &search_entries,
+        &scene_query_seeds,
+    );
 
     let analyzers = analyzer_versions();
     let fingerprint = request_fingerprint(request, &analyzers);
