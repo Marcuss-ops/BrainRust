@@ -4,6 +4,8 @@ pub(crate) fn to_visual_proposal(
     candidate: VisualCandidate,
     scene_id: &str,
     index: usize,
+    source: &str,
+    language: &str,
 ) -> (VisualProposal, Option<SearchFeedbackEntry>) {
     let score = match candidate.kind {
         "chart" => 0.9,
@@ -18,13 +20,58 @@ pub(crate) fn to_visual_proposal(
     let mut queries: Vec<SearchQuery> = Vec::new();
     if !candidate.entity_texts.is_empty() {
         for text in &candidate.entity_texts {
-            if text.is_empty() || is_noise_query(text) {
+            if text.is_empty() || is_noise_query(text) || !source.contains(text.as_str()) {
                 continue;
             }
             if !visual_query_suggestions.iter().any(|query| query == text) {
                 visual_query_suggestions.push(text.clone());
             }
             queries.push(SearchQuery::literal(text.clone()));
+            if candidate.kind == "entity_search" {
+                if let Some(span) =
+                    semantic_core::sentences::split_sentences(source, language, None)
+                        .into_iter()
+                        .find(|span| {
+                            span.start_byte <= candidate.start && span.end_byte >= candidate.end
+                        })
+                {
+                    if let Some(sentence) = source.get(span.start_byte..span.end_byte) {
+                        let sentence = sentence.trim();
+                        let words_through_entity = source
+                            .get(span.start_byte..candidate.end)
+                            .unwrap_or_default()
+                            .split_whitespace()
+                            .count();
+                        let word_count = words_through_entity.saturating_add(4);
+                        let compact_end = sentence
+                            .char_indices()
+                            .filter(|(_, ch)| !ch.is_whitespace())
+                            .filter(|(index, _)| {
+                                *index == 0 || sentence[..*index].ends_with(char::is_whitespace)
+                            })
+                            .nth(word_count)
+                            .map(|(index, _)| index)
+                            .unwrap_or(sentence.len());
+                        let mut compact = sentence[..compact_end].trim_end().to_string();
+                        if compact == sentence {
+                            compact = sentence.trim_end_matches(['.', '!', '?', '。']).to_string();
+                        }
+                        let suggestions: [String; 2] = [compact, sentence.to_string()];
+                        for suggestion in suggestions {
+                            if suggestion.as_str() != text.as_str()
+                                && source.contains(suggestion.as_str())
+                                && !is_noise_query(&suggestion)
+                                && !visual_query_suggestions
+                                    .iter()
+                                    .any(|query| query == &suggestion)
+                            {
+                                visual_query_suggestions.push(suggestion.clone());
+                                queries.push(SearchQuery::literal(suggestion));
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     let proposal_id = format!("{scene_id}_visual_{:03}", index + 1);

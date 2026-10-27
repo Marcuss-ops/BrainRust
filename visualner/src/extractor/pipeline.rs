@@ -167,8 +167,9 @@ pub(crate) fn extract_with_context_and_spellout(
 }
 
 /// Generic visual concepts are useful phrase inventory only when they form a
-/// complete noun phrase with at least two words. A bare common noun is too
-/// broad to identify an image subject; named entities, typed values and
+/// complete noun phrase. A bare common noun is usually too broad to identify
+/// an image subject; model-backed nominal heads (for example "tifosi") are
+/// useful search terms, while named entities, typed values and
 /// lexicon-backed objects are handled by their own type and bypass this gate.
 /// The POS check also removes adverb-led fragments such as "ancora oggi parte"
 /// without maintaining a language-specific list of filler expressions.
@@ -176,15 +177,12 @@ fn structurally_specific_visual_concept(entity: &VisualEntity, tokens: &[Token])
     if entity.r#type != "VISUAL_CONCEPT" {
         return true;
     }
-    if entity.text.split_whitespace().count() < 2 {
-        return false;
-    }
     let span: Vec<&Token> = tokens
         .iter()
         .filter(|token| token.start >= entity.start && token.end <= entity.end)
         .collect();
     if span.iter().all(|token| token.upos.is_none()) {
-        return true;
+        return entity.text.split_whitespace().count() >= 2;
     }
     let has_nominal_head = span
         .iter()
@@ -335,6 +333,11 @@ fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> 
         .filter(|entity| entity.r#type == "PERSON")
         .map(|entity| (entity.start, entity.end))
         .collect();
+    let location_spans: Vec<(usize, usize)> = entities
+        .iter()
+        .filter(|entity| entity.r#type == "LOCATION")
+        .map(|entity| (entity.start, entity.end))
+        .collect();
     entities
         .into_iter()
         .filter(|entity| {
@@ -346,6 +349,15 @@ fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> 
                 && context
                     .person_name_tokens
                     .contains(&entity.text.to_lowercase())
+            {
+                return false;
+            }
+            if entity.r#type == "LOCATION"
+                && location_spans.iter().any(|(start, end)| {
+                    (*start, *end) != (entity.start, entity.end)
+                        && entity.start >= *start
+                        && entity.end <= *end
+                })
             {
                 return false;
             }

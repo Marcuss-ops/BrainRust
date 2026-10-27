@@ -98,9 +98,6 @@ fn classify_type(
     if contains(&gazetteer.object_words, &lower) {
         return "OBJECT".to_string();
     }
-    if contains(&gazetteer.generic_visual_nouns, &lower) {
-        return "VISUAL_CONCEPT".to_string();
-    }
     let last_token = lower
         .split_whitespace()
         .last()
@@ -116,9 +113,13 @@ fn classify_type(
             .map(str::to_string)
             .filter(|word| !word.is_empty())
             .collect();
+        let capitalized_name = text
+            .split_whitespace()
+            .filter(|word| word.chars().next().is_some_and(char::is_uppercase))
+            .count()
+            >= 2;
         if words.len() >= 2
-            && proper_noun
-            && name_evidence
+            && (proper_noun || capitalized_name)
             && markers.iter().any(|marker| {
                 let marker_words: Vec<String> = marker
                     .to_lowercase()
@@ -133,6 +134,9 @@ fn classify_type(
             return "ORG".to_string();
         }
     }
+    if contains(&gazetteer.generic_visual_nouns, &lower) {
+        return "VISUAL_CONCEPT".to_string();
+    }
     if contains(&gazetteer.brands, &lower) {
         return "BRAND".to_string();
     }
@@ -140,6 +144,14 @@ fn classify_type(
     // mislabels the city ("Cagliari" as NOUN): it is high-precision data.
     if contains(&gazetteer.locations, &lower) {
         return "LOCATION".to_string();
+    }
+    let facility_head = lexicon
+        .facility
+        .facility_nouns
+        .iter()
+        .any(|noun| lower.split_whitespace().next() == Some(noun.as_str()));
+    if facility_head && name_evidence && text.split_whitespace().count() >= 2 {
+        return "FACILITY".to_string();
     }
     // The real GeoNames index is consulted only for place names: "Come"
     // (ADV) and "Corte" (PROPN with a lowercase lemma) also exist as place

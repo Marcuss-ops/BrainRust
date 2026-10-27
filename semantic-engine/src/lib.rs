@@ -324,7 +324,8 @@ fn analyze_scene_with_search(
     let mut visual_proposals = Vec::with_capacity(visual_candidates.len());
     let mut search_feedback = Vec::new();
     for (index, candidate) in visual_candidates.into_iter().enumerate() {
-        let (proposal, feedback) = to_visual_proposal(candidate, &scene.scene_id, index);
+        let (proposal, feedback) =
+            to_visual_proposal(candidate, &scene.scene_id, index, source, language);
         visual_proposals.push(proposal);
         if let Some(entry) = feedback {
             search_feedback.push(entry);

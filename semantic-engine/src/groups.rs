@@ -74,7 +74,9 @@ fn entity_searches(
     let indices: Vec<usize> = entities
         .iter()
         .enumerate()
-        .filter_map(|(index, entity)| is_visual_entity(entity).then_some(index))
+        .filter_map(|(index, entity)| {
+            (is_visual_entity(entity) || entity.r#type == "VISUAL_CONCEPT").then_some(index)
+        })
         .collect();
     let mut seen = HashSet::new();
     for index in indices {
@@ -547,6 +549,48 @@ fn chart_subject_label(
         })
         .min_by_key(|entity| span_distance(entity.start, entity.end, point_start, point_end))
         .and_then(|entity| source.get(entity.start..entity.end).map(str::to_string));
+    // Percentages normally describe the immediately following population
+    // ("42% dei tecnici", "18% del gruppo di controllo"). Keep that complete
+    // grounded noun phrase as the category instead of dropping its relation
+    // marker and displaying only the head noun.
+    let percentage_population = (point.kind == "PERCENT")
+        .then(|| {
+            entities
+                .iter()
+                .filter(|entity| {
+                    entity.start >= point_end
+                        && entity.start < scope_end
+                        && !matches!(
+                            entity.r#type.as_str(),
+                            "NUMBER" | "PERCENT" | "MONEY" | "DATE"
+                        )
+                        && entity.start.saturating_sub(point_end) <= 24
+                })
+                .min_by_key(|entity| entity.start)
+                .and_then(|entity| {
+                    let mut end = entity.end;
+                    let tail = source.get(end..scope_end)?;
+                    let mut words = tail.split_whitespace();
+                    let connector = words.next()?;
+                    if matches!(
+                        connector.to_lowercase().as_str(),
+                        "di" | "de" | "of" | "van" | "von"
+                    ) {
+                        let next = words.next()?;
+                        let next_len = next.trim_end_matches([',', ';', '.', ':']).len();
+                        end += tail.find(next)? + next_len;
+                    }
+                    source.get(point_end..end)
+                })
+                .map(str::trim)
+                .filter(|label| {
+                    let words = label.split_whitespace().count();
+                    (2..=5).contains(&words)
+                        && !label.chars().any(|ch| matches!(ch, ',' | ';' | '.' | ':'))
+                })
+                .map(str::to_string)
+        })
+        .flatten();
     let proper_candidate = semantic_core::discourse::word_spans(&bullet.text)
         .into_iter()
         .filter_map(|word| {
@@ -573,6 +617,9 @@ fn chart_subject_label(
         .map(|(_, surface)| surface);
     if let Some(proper) = proper_candidate {
         return proper;
+    }
+    if let Some(population) = percentage_population {
+        return population;
     }
     if let Some(entity) = entity_candidate {
         return entity;

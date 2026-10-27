@@ -201,6 +201,19 @@ pub(crate) fn noun_phrase_candidates(
             out.push(candidate);
         }
     }
+    // Preserve exact single-token GeoNames matches even when UDPipe tags a
+    // city as a common noun and the surrounding clause would otherwise make
+    // the maximal noun phrase fail the POS gate (notably in Turkish).
+    for (index, token) in tokens.iter().enumerate() {
+        if starts_uppercase(&token.text)
+            && semantic_core::lexicon::lexicon().is_place(&token.text, language)
+            && !super::location::is_month_name(&token.text)
+        {
+            let mut candidate = candidate_from_tokens(tokens, source_text, index, index + 1);
+            candidate.entity_type = Some("LOCATION".to_string());
+            out.push(candidate);
+        }
+    }
     let mut i = 0;
     while i < tokens.len() {
         // A single uppercase initial between periods is a tokenization
@@ -336,22 +349,44 @@ fn coordinated_person_list_candidates(
         let mut members = vec![start];
         let mut commas = 0;
         let mut index = start;
-        while let Some(next) = tokens.get(index + 1) {
-            if starts_uppercase(&next.text) && next.upos.as_deref() == Some("PROPN") {
+        let mut saw_conjunction = false;
+        loop {
+            let mut next_index = index + 1;
+            while tokens.get(next_index).is_some_and(|token| {
+                token.upos.as_deref() == Some("PUNCT")
+                    && source_text[tokens[next_index - 1].end..token.start]
+                        .chars()
+                        .all(char::is_whitespace)
+            }) {
+                next_index += 1;
+            }
+            let Some(next) = tokens.get(next_index) else {
+                break;
+            };
+            if next.upos.as_deref() == Some("CCONJ") {
+                saw_conjunction = true;
+                next_index += 1;
+                while tokens
+                    .get(next_index)
+                    .is_some_and(|token| token.upos.as_deref() == Some("PUNCT"))
+                {
+                    next_index += 1;
+                }
+            } else {
                 let gap = &source_text[tokens[index].end..next.start];
                 if gap.contains(',') {
                     commas += 1;
-                    members.push(index + 1);
-                    index += 1;
-                    continue;
+                } else {
+                    break;
                 }
             }
-            if next.upos.as_deref() == Some("CCONJ") {
-                if let Some(member) = tokens.get(index + 2) {
-                    if starts_uppercase(&member.text) && member.upos.as_deref() == Some("PROPN") {
-                        members.push(index + 2);
-                    }
-                }
+            let Some(member) = tokens.get(next_index) else {
+                break;
+            };
+            if starts_uppercase(&member.text) && member.upos.as_deref() == Some("PROPN") {
+                members.push(next_index);
+                index = next_index;
+                continue;
             }
             break;
         }
@@ -361,6 +396,7 @@ fn coordinated_person_list_candidates(
         // per-name allowlist.
         if members.len() < 3
             || commas < 2
+            || !saw_conjunction
             || !verb::is_verbal_continuation(tokens, index + 1, language)
         {
             continue;

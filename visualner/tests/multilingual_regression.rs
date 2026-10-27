@@ -47,7 +47,7 @@ const CASES: &[Case] = &[
     (
         "it",
         "Il progetto ha raggiunto 2 milioni di utenti.",
-        &[],
+        &[2_000_000.0],
         &[],
     ),
     (
@@ -71,7 +71,7 @@ const CASES: &[Case] = &[
     (
         "it",
         "Firenze ha ospitato 500 mila turisti nel 2025.",
-        &[],
+        &[500_000.0],
         &["Firenze"],
     ),
     (
@@ -105,7 +105,12 @@ const CASES: &[Case] = &[
         &[7.0],
         &["Berlin"],
     ),
-    ("en", "The project reached 2 million users.", &[], &[]),
+    (
+        "en",
+        "The project reached 2 million users.",
+        &[2_000_000.0],
+        &[],
+    ),
     (
         "en",
         "Madrid hosts a festival with 40% foreign visitors.",
@@ -122,7 +127,7 @@ const CASES: &[Case] = &[
     (
         "en",
         "Chicago welcomed 500 thousand tourists in 2025.",
-        &[],
+        &[500_000.0],
         &["Chicago"],
     ),
     (
@@ -156,7 +161,12 @@ const CASES: &[Case] = &[
         &[7.0],
         &["München"],
     ),
-    ("de", "Das Projekt erreichte 2 Millionen Nutzer.", &[], &[]),
+    (
+        "de",
+        "Das Projekt erreichte 2 Millionen Nutzer.",
+        &[2_000_000.0],
+        &[],
+    ),
     (
         "de",
         "Hamburg hat ein Festival mit 40% ausländischen Besuchern.",
@@ -173,7 +183,7 @@ const CASES: &[Case] = &[
     (
         "de",
         "Frankfurt begrüßte 500 Tausend Touristen im Jahr 2025.",
-        &[],
+        &[500_000.0],
         &["Frankfurt"],
     ),
     (
@@ -229,7 +239,7 @@ const CASES: &[Case] = &[
     (
         "es",
         "Barcelona recibió 500 mil turistas en 2025.",
-        &[],
+        &[500_000.0],
         &["Barcelona"],
     ),
     (
@@ -266,7 +276,7 @@ const CASES: &[Case] = &[
     (
         "fr",
         "Le projet a atteint 2 millions d'utilisateurs.",
-        &[],
+        &[2_000_000.0],
         &[],
     ),
     (
@@ -285,7 +295,7 @@ const CASES: &[Case] = &[
     (
         "fr",
         "Nantes a accueilli 500 mille touristes en 2025.",
-        &[],
+        &[500_000.0],
         &["Nantes"],
     ),
     (
@@ -319,7 +329,12 @@ const CASES: &[Case] = &[
         &[7.0],
         &["Казань"],
     ),
-    ("ru", "Проект достиг 2 миллионов пользователей.", &[], &[]),
+    (
+        "ru",
+        "Проект достиг 2 миллионов пользователей.",
+        &[2_000_000.0],
+        &[],
+    ),
     (
         "ru",
         "Петербург проводит фестиваль с 40% иностранных гостей.",
@@ -370,7 +385,12 @@ const CASES: &[Case] = &[
         &[7.0],
         &["Kraków"],
     ),
-    ("pl", "Projekt osiągnął 2 miliony użytkowników.", &[], &[]),
+    (
+        "pl",
+        "Projekt osiągnął 2 miliony użytkowników.",
+        &[2_000_000.0],
+        &[],
+    ),
     (
         "pl",
         "Gdańsk organizuje festiwal z 40% zagranicznych gości.",
@@ -421,7 +441,12 @@ const CASES: &[Case] = &[
         &[7.0],
         &["Ankara"],
     ),
-    ("tr", "Proje 2 milyon kullanıcıya ulaştı.", &[], &[]),
+    (
+        "tr",
+        "Proje 2 milyon kullanıcıya ulaştı.",
+        &[2_000_000.0],
+        &[],
+    ),
     (
         "tr",
         "İzmir %40 yabancı ziyaretçiyle bir festival düzenliyor.",
@@ -467,7 +492,12 @@ const CASES: &[Case] = &[
         &[7.0],
         &["Surabaya"],
     ),
-    ("id", "Proyek mencapai 2 juta pengguna.", &[], &[]),
+    (
+        "id",
+        "Proyek mencapai 2 juta pengguna.",
+        &[2_000_000.0],
+        &[],
+    ),
     (
         "id",
         "Bandung menggelar festival dengan 40% pengunjung asing.",
@@ -484,7 +514,7 @@ const CASES: &[Case] = &[
     (
         "id",
         "Makassar menerima 500 ribu wisatawan pada 2025.",
-        &[],
+        &[500_000.0],
         &["Makassar"],
     ),
     (

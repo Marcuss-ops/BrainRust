@@ -141,10 +141,10 @@ fn ambiguous_location_cue(tokens: &[Token], token_index: usize) -> bool {
 /// vocabulary and the capitalization guard apply, so the model-free path keeps
 /// its behavior.
 pub(super) fn is_place_name(token: &Token, surface: &str, language: &str, cased: bool) -> bool {
-    // UDPipe leaves some names untagged (X) or bare; the cue still applies.
-    if let Some("NOUN") = token.upos.as_deref() {
-        return false;
-    }
+    // An exact, capitalized GeoNames match remains useful even when UDPipe
+    // calls a name a common noun (for example Turkish city names). The shared
+    // place lookup applies its own orthographic guard, while institution
+    // heads are excluded below.
     if cased && surface.contains(char::is_whitespace) {
         if let Some(lemma) = token.lemma.as_deref() {
             if lemma.chars().next().is_some_and(char::is_lowercase) {

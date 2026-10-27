@@ -105,7 +105,7 @@ def inspect(case, manifest, scenes):
             valid=(isinstance(start,int) and isinstance(end,int) and 0<=start<end<=len(raw)
                    and raw[start:end].decode("utf8",errors="replace")==evidence
                    and query.get("kind")=="contextual_image_query" and len(components)==2)
-            component_texts=[]; locations=0
+            component_texts=[]
             for component in components:
                 a=component.get("start_byte"); b=component.get("end_byte"); surface=component.get("text","")
                 grounded=(isinstance(start,int) and isinstance(end,int) and
@@ -113,8 +113,44 @@ def inspect(case, manifest, scenes):
                           and raw[a:b].decode("utf8",errors="replace")==surface)
                 valid=valid and grounded and bool(component.get("component_type"))
                 component_texts.append(surface)
-                locations+=component.get("component_type")=="LOCATION"
-            valid=valid and locations==1 and query.get("query")==" ".join(component_texts)
+            # Relation targets and same-sentence co-mentions are distinct
+            # retrieval cues. Neither may invent components or an assertion.
+            co_mention = all(c.get("kind") == "co_mentioned_entity" for c in components)
+            relation = any(c.get("kind") in {"location", "related_entity"} for c in components)
+            if co_mention:
+                grounded_ids = []
+                for component in components:
+                    ids = {entity["id"] for entity in r.get("entities", [])
+                           if entity.get("start_byte") == component.get("start_byte")
+                           and entity.get("end_byte") == component.get("end_byte")
+                           and entity.get("text") == component.get("text")}
+                    grounded_ids.append(ids)
+                supported = len(grounded_ids) == 2 and any(
+                    mention.get("sentence_index") == query.get("sentence_index")
+                    and mention.get("evidence") == evidence
+                    and ((mention.get("left_id") in grounded_ids[0] and mention.get("right_id") in grounded_ids[1])
+                         or (mention.get("right_id") in grounded_ids[0] and mention.get("left_id") in grounded_ids[1]))
+                    for mention in r.get("relations", {}).get("co_mentions", []))
+            else:
+                component_ids = [
+                    {entity["id"] for entity in r.get("entities", [])
+                     if entity.get("start_byte") == component.get("start_byte")
+                     and entity.get("end_byte") == component.get("end_byte")
+                     and entity.get("text") == component.get("text")}
+                    for component in components]
+                supported = relation and len(component_ids) == 2 and any(
+                    fact.get("status") == "asserted"
+                    and fact.get("subject_entity_id") in component_ids[0]
+                    and (fact.get("target_entity_id") in component_ids[1]
+                         or (fact.get("predicate") == "located_in"
+                             and components[1].get("text") == fact.get("value")
+                             and components[1].get("start_byte") == fact.get("start_byte")
+                             and components[1].get("end_byte") == fact.get("end_byte")))
+                    and fact.get("sentence_index") == query.get("sentence_index")
+                    and fact.get("evidence") == evidence
+                    and fact.get("target_entity_id")
+                    for fact in r.get("entity_facts", []))
+            valid=valid and supported and query.get("query")==" ".join(component_texts)
             if not valid:
                 problems.append(f"{scene_id}: contextual image query is unsupported or ungrounded")
                 break

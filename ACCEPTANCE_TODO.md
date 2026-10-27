@@ -16,19 +16,42 @@ no RenderingGen or Chronon runs.
   the scope changes.
 - [x] Release build of `semantic-engine` against the host ICU major version.
 - [x] Analytic tests for `semantic-core`, `semantic-engine` and `visualner`:
-  138 + 114 + 98 tests passed, including installed UDPipe model checks.
+  139 + 128 + 100 tests passed on the current worktree, including installed
+  UDPipe model checks; `mediasampler` + `ndjson-stdio` add 34 passes (401 total
+  analytic tests). One existing manual performance probe is ignored.
 - [x] Targeted Go projection tests for important segments, composed and
   contextual image queries, and one-batch scene analysis.
-- [x] 100 multilingual fixtures: 100/100 PASS, 10/10 per language.
+- [ ] Multilingual candidate-quality gate on the current worktree: 89 PASS,
+  11 NEEDS_REVIEW, 0 structural FAIL. Ten German cases miss the expected
+  hyphenated ORG; `en-07-flood` misses `water-level sensor`. The previous
+  100/100 claim is not the current result.
 - [x] UTF-8/source grounding checks exercised by the 100-fixture runner.
 - [x] Deterministic worker cache replay: 100/100 byte-identical manifests.
 - [x] Gold subset cold-start replay: 20 scripts × 2 workers, byte-identical.
 - [x] Retain all grounded important-segment windows for PipelineGen; the
   three-segment/non-overlap cap is removed and covered by an analytic test.
-- [ ] Full manifest/Go projection audit, including all newly exposed semantic
-  fields, on the current worktree.
+- [x] Full manifest/Go projection audit on the current worktree: preserve
+  `story_graph`, `visual_coverage`, analyzer `lexicon`, group-member
+  `normalized_date`, semantic bullet identity/evidence/provenance, editorial
+  bullet sentence/timing and ranked-sentence centrality/novelty. Current Rust
+  release worker → Go recursive wire-field check and all six analytic
+  real-binary adapter/planner tests PASS. Corrupt graph/coverage fixtures
+  fail closed. Missing additive whole-script views remain nil for older workers.
 
-Latest corpus report after retaining all segment windows:
+Current automated evidence (project-local, output-only):
+`../.tmp/brainrust-audit-analytic-tests.log` (401 PASS, 1 existing ignored probe),
+`../.tmp/brainrust-audit-repair.log` (query regression, Clippy and release build),
+`../.tmp/brainrust-audit-multilingual100-final.json` (89 PASS, 11 NEEDS_REVIEW,
+0 structural FAIL, 100/100 identical replays; 203,254 words, 446.76 words/s,
+P50/P95 4.14/6.41 s, peak RSS 1,589,888 KiB, CPU 430.1 s). These timings
+are observations from this host, not a before/after performance claim.
+Short gold: recall 98/98, precision 112/113, zero noise leaks; one false
+LOCATION (`Bukan`). Long gold remains one 584-word Italian script, scorer
+exit 2: entity recall 5/9, typed object recall 4/10, fact recall 3/7,
+phrase recall 6/6, contextual query 1/1, chart 1/1, zero grounding errors.
+Neither report certifies long-form multilingual quality.
+
+Historical corpus report after retaining all segment windows:
 `/tmp/brainrust_final_100_all_segments.json`. It processed 203,254 words at
 428.02 words/s; request P50/P95 4.45/6.57 s; replay P50/P95 0.0968/0.1681 s;
 peak RSS 1,811,888 KiB and VSZ 2,304,820 KiB. All 100 manifests passed and
@@ -74,8 +97,10 @@ diagnostic only and cannot certify language-wide metrics.
 
 ## Gate C — Multilingual coverage
 
-- [x] 100 long synthetic fixtures pass: ten each in it, en, es, pt, fr, de,
-  nl, pl, ru and id.
+- [x] All 100 long synthetic fixtures are structurally grounded across it,
+  en, es, pt, fr, de, nl, pl, ru and id, with 100/100 identical cache replays.
+- [ ] Candidate-quality acceptance: 89/100 PASS; 10 German ORG cases and one
+  English compound-object case still NEEDS_REVIEW (not release-certified).
 - [x] Explicit facility-location query smoke test passes in all ten languages.
 - [ ] Document per-language gold precision/recall and critical errors for the
   full semantic annotation set.
@@ -95,6 +120,24 @@ diagnostic only and cannot certify language-wide metrics.
   and preservation of all important facts in the Go contract.
 - [ ] Verify the 1,000 overlays/minute target with PipelineGen integration
   measurements after the semantic worker contract is certified.
+
+## Remaining-ticket classification
+
+- Automatically closed: current manifest/Go transport audit, analytic test
+  baseline, release build, UTF-8 literal-query whitespace regression, cache
+  replay (100/100) and independent cold replay (20 scripts × 2 workers).
+  The corpus checker now verifies grounded co-mentions separately from
+  asserted subject/target relations, with positive and negative unit tests.
+- Automatically measurable but NOT closed: eleven multilingual candidate
+  misses listed above and the diagnostic long-gold entity/object/fact misses.
+  No fixture-specific names or rule exceptions were added to make them pass.
+- Needs independent editorial input: expand and annotate at least 20 long
+  scripts across ten languages; summary faithfulness, complete sequences,
+  morphology and full per-language precision/recall remain uncertified.
+- Needs provider/deployment scope: independently judged precision@10,
+  production provider cascade, 1,000 overlays/minute and render-consumer
+  migration. No provider requests, video renders or deployments certify these
+  tickets in this analytic run. Full workspace video tests remain out of scope.
 
 ## Test layout regrouping (2026-10-26)
 
@@ -116,8 +159,15 @@ now uniform across crates (documented in `README.md`, "Test layout"):
 - `semantic-core/src/phrase_impact_tests/summary_rank.rs` (954 lines)
   became `summary.rs` + `rank.rs` + `corpus_metrics.rs`; all 138
   `semantic-core` tests pass.
-- Workspace gates at the time of the move: `cargo fmt --all -- --check`
-  clean; `cargo clippy --workspace --all-targets` zero warnings.
+- Those failure descriptions are historical, not the current baseline. The
+  analytic run on 2026-10-26 passed 366 tests across `semantic-core`,
+  `semantic-engine` and `visualner`; one existing manual performance probe
+  remains ignored. It includes the entity, query and multilingual regression
+  suites named above. The local host requires the documented ICU override
+  (`RUST_ICU_MAJOR_VERSION_NUMBER=70`); the release pin remains ICU 72.
+- Full workspace tests remain outstanding: the analytic run does not execute
+  `pipelinegen-muscles` video tests and must not be reported as workspace
+  certification.
 
 ## Current language-query change
 

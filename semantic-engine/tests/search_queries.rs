@@ -55,6 +55,23 @@ fn entity_search_queries_include_the_grounded_sentence_context_for_images_and_st
 }
 
 #[test]
+fn literal_query_context_preserves_newlines_tabs_and_repeated_spaces() {
+    let text = "I tifosi\tfesteggiano  sugli spalti\ndopo la vittoria della squadra.";
+    let value = manifest_value(vec![scene("whitespace-context", text)]);
+    let searches = proposals_of(&value["scenes"][0], "entity_search");
+    assert!(!searches.is_empty());
+    for proposal in searches {
+        for query in proposal["visual_query_suggestions"].as_array().unwrap() {
+            let query = query.as_str().unwrap();
+            assert!(
+                text.contains(query),
+                "literal query changed source whitespace: {query:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn typed_visual_objects_all_receive_grounded_reusable_search_queries() {
     for (language, text, scene_id) in [
         ("en", "Ball, trophy, jersey.", "sports-objects-en"),
@@ -467,7 +484,19 @@ fn search_feedback_keeps_exact_queries_and_stays_pending_without_context() {
             );
         }
     }
-    assert!(entries
-        .iter()
-        .all(|entry| entry["queries"].as_array().unwrap().len() == 1));
+    for entry in entries {
+        let proposal_id = entry["proposal_id"].as_str().unwrap();
+        let proposal = value["scenes"][0]["visual_proposals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|proposal| proposal["id"] == proposal_id)
+            .unwrap();
+        let expected = if proposal["proposal_type"] == "entity_search" {
+            3
+        } else {
+            1
+        };
+        assert_eq!(entry["queries"].as_array().unwrap().len(), expected);
+    }
 }
