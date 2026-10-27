@@ -266,6 +266,39 @@ def check_reproducible(worker_path: Path, ids: list[str], specs: dict) -> bool:
     return ok
 
 
+def per_language(results: list[dict]) -> dict[str, dict]:
+    """Per-language entity recall/precision and critical errors.
+
+    Gate C asks for per-language precision/recall and critical errors; the
+    global thresholds stay untouched, this block only documents them.
+    """
+    block: dict[str, dict] = {}
+    for language in sorted({r["language"] for r in results}):
+        rows = [r for r in results if r["language"] == language]
+        gold = sum(r["gold"] for r in rows)
+        found = sum(r["found"] for r in rows)
+        extracted = sum(r["extracted_named"] for r in rows)
+        correct = sum(r["correct"] for r in rows)
+        typed_misses = [m for r in rows for m in r["typed_misses"]]
+        block[language] = {
+            "scripts": len(rows),
+            "gold_entities": gold,
+            "found": found,
+            "recall": found / gold if gold else None,
+            "extracted": extracted,
+            "correct": correct,
+            "precision": correct / extracted if extracted else None,
+            "critical_errors": {
+                "entity_misses": sum(len(r["misses"]) for r in rows),
+                "typed_misses": len(typed_misses),
+                "noise_leaks": sum(len(r["noise_leaks"]) for r in rows),
+            },
+            "misses": [m for r in rows for m in r["misses"]],
+            "typed_miss_details": typed_misses,
+        }
+    return block
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker", default=str(DEFAULT_WORKER))
@@ -341,10 +374,34 @@ def main() -> int:
         and precision >= thresholds["precision"]
         and total_leaks == thresholds["noise_leaks"]
     )
+    languages = per_language(results)
     Path(args.report).write_text(
-        json.dumps({"results": results, "recall": recall, "precision": precision, "leaks": total_leaks, "pass": ok}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {
+                "results": results,
+                "recall": recall,
+                "precision": precision,
+                "leaks": total_leaks,
+                "pass": ok,
+                "annotation_authority": gold["annotation"].get("author", "unspecified"),
+                "per_language": languages,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
+    print()
+    for language, row in languages.items():
+        recall_text = "n/a" if row["recall"] is None else f"{row['recall']:.3f}"
+        precision_text = "n/a" if row["precision"] is None else f"{row['precision']:.3f}"
+        print(
+            f"  {language}: scripts={row['scripts']} entities={row['found']}/{row['gold_entities']} "
+            f"recall={recall_text} precision={precision_text} "
+            f"critical(miss={row['critical_errors']['entity_misses']}, "
+            f"typed={row['critical_errors']['typed_misses']}, "
+            f"noise={row['critical_errors']['noise_leaks']})"
+        )
     print(f"\n{'PASS' if ok else 'FAIL'} - report: {args.report}")
     return 0 if ok else 1
 

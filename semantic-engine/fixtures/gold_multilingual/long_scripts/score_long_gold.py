@@ -260,6 +260,66 @@ def score_one(worker: Worker, script_id: str, spec: dict) -> dict:
     }
 
 
+def category_row(rows: list[dict], path: tuple[str, str, str], label: str) -> dict:
+    """Aggregate one category over `rows`; `path` is (score field, expected key, found key)."""
+    field, expected_key, found_key = path
+    expected = sum(row[field][expected_key] for row in rows)
+    found = sum(row[field][found_key] for row in rows)
+    return {
+        label: {
+            "annotated_scripts": sum(1 for row in rows if row[field][expected_key]),
+            "expected": expected,
+            "found": found,
+            "recall": (found / expected) if expected else None,
+        }
+    }
+
+
+CATEGORY_PATHS = (
+    ("named_entities", ("named_entities", "expected", "found")),
+    ("visual_objects_surface_only", ("visual_objects_surface_only", "expected", "found")),
+    ("visual_objects_typed", ("visual_objects_typed", "expected", "found")),
+    ("important_phrases", ("important_phrases", "expected", "found")),
+    ("important_segments", ("important_segments", "expected", "found")),
+    ("facts", ("facts", "expected", "found")),
+    ("contextual_queries", ("contextual_queries", "expected", "found")),
+    ("positive_charts", ("charts", "positive_expected", "typed_matches")),
+)
+
+
+def aggregate(rows: list[dict]) -> dict:
+    """Per-category aggregation with explicit annotation coverage.
+
+    A category with no annotation in this slice reports `recall: null` instead
+    of a fabricated 0.0: an unannotated category is *not measured*, and
+    conflating the two is how a gold set starts lying.
+    """
+    block: dict = {
+        "scripts": len(rows),
+        "words": sum(row["words"] for row in rows),
+        "grounding_errors": sum(len(row["source_grounding_errors"]) for row in rows),
+        "replay_identical": all(row["replay_identical"] for row in rows),
+    }
+    for label, path in CATEGORY_PATHS:
+        block.update(category_row(rows, path, label))
+    block["annotated_categories"] = sorted(
+        label for label, path in CATEGORY_PATHS if block[label]["expected"]
+    )
+    block["sequences_exactly_extracted"] = {
+        "expected": sum(row["sequence_items_expected"] for row in rows),
+        "found": sum(row["sequence_items_exactly_extracted"] for row in rows),
+    }
+    block["bullets"] = sum(row["bullet_count"] for row in rows)
+    return block
+
+
+def per_language(results: list[dict]) -> dict:
+    return {
+        language: aggregate([row for row in results if row["language"] == language])
+        for language in sorted({row["language"] for row in results})
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker", type=Path, default=DEFAULT_WORKER)
@@ -279,11 +339,34 @@ def main() -> int:
         worker.close()
     words = sum(row["words"] for row in results)
     languages = sorted({row["language"] for row in results})
-    report = {"schema": "brainrust.editorial_gold_report.v1", "scripts": results,
-              "corpus": {"script_count": len(results), "language_count": len(languages), "languages": languages,
-                         "word_count": words, "is_release_sized": len(results) >= 20 and len(languages) == 10}}
+    authority = (gold.get("annotation_policy") or {}).get("authority", "unspecified")
+    release_sized = len(results) >= 20 and len(languages) == 10
+    if authority != "human_annotator":
+        certification = "blocked_pending_human_review"
+    elif not release_sized:
+        certification = "blocked_pending_release_size"
+    else:
+        certification = "certified"
+    report = {
+        "schema": "brainrust.editorial_gold_report.v1",
+        "scripts": results,
+        "corpus": {"script_count": len(results), "language_count": len(languages), "languages": languages,
+                   "word_count": words, "is_release_sized": release_sized,
+                   "annotation_authority": authority, "certification": certification},
+        "overall": aggregate(results),
+        "per_language": per_language(results),
+    }
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["corpus"], ensure_ascii=False))
+    for language, block in report["per_language"].items():
+        def ratio(label: str) -> str:
+            row = block[label]
+            return "n/a" if row["recall"] is None else f"{row['recall']:.3f} ({row['found']}/{row['expected']})"
+        print(f"  {language}: scripts={block['scripts']} words={block['words']} "
+              f"entities={ratio('named_entities')} objects={ratio('visual_objects_surface_only')} "
+              f"phrases={ratio('important_phrases')} facts={ratio('facts')} charts={ratio('positive_charts')} "
+              f"annotated={','.join(block['annotated_categories']) or '-'} "
+              f"grounding-errors={block['grounding_errors']} replay-identical={block['replay_identical']}")
     for row in results:
         print(f"{row['id']}: words={row['words']} entity-recall={row['named_entities']['recall']:.3f} "
               f"object-recall={row['visual_objects_surface_only']['recall']:.3f} "

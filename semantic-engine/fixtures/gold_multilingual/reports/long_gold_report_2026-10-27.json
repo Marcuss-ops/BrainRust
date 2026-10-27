@@ -1,0 +1,2872 @@
+{
+  "schema": "brainrust.editorial_gold_report.v1",
+  "scripts": [
+    {
+      "id": "it_stadium_long_01",
+      "language": "it",
+      "words": 584,
+      "named_entities": {
+        "expected": 9,
+        "found": 5,
+        "extracted": 7,
+        "precision": 0.7142857142857143,
+        "recall": 0.5555555555555556,
+        "f1": 0.625,
+        "misses": [
+          {
+            "text": "Comune di Torino",
+            "type": "ORG"
+          },
+          {
+            "text": "Università di Torino",
+            "type": "ORG"
+          },
+          {
+            "text": "Aurora Sport",
+            "type": "ORG"
+          },
+          {
+            "text": "Lumen Energia",
+            "type": "ORG"
+          }
+        ],
+        "false_positives": [
+          {
+            "end_byte": 1125,
+            "evidence": "Aurora Sport",
+            "id": "person_04",
+            "provenance": "visualner",
+            "score": 1.0,
+            "sentence_index": 8,
+            "start_byte": 1113,
+            "text": "Aurora Sport",
+            "type": "PERSON"
+          },
+          {
+            "end_byte": 1185,
+            "evidence": "Lumen Energia",
+            "id": "person_05",
+            "provenance": "visualner",
+            "score": 1.0,
+            "sentence_index": 8,
+            "start_byte": 1172,
+            "text": "Lumen Energia",
+            "type": "PERSON"
+          }
+        ]
+      },
+      "visual_objects_typed": {
+        "expected": 10,
+        "found": 4,
+        "extracted": 117,
+        "precision": 0.03418803418803419,
+        "recall": 0.4,
+        "f1": 0.06299212598425197,
+        "misses": [
+          {
+            "text": "sensori di umidità",
+            "type": "OBJECT"
+          },
+          {
+            "text": "pompa mobile",
+            "type": "OBJECT"
+          },
+          {
+            "text": "pannelli fotovoltaici",
+            "type": "OBJECT"
+          },
+          {
+            "text": "quadro elettrico",
+            "type": "OBJECT"
+          },
+          {
+            "text": "canaletta",
+            "type": "OBJECT"
+          },
+          {
+            "text": "cartello temporaneo",
+            "type": "OBJECT"
+          }
+        ],
+        "false_positives": [
+          {
+            "end_byte": 739,
+            "evidence": "mappa",
+            "id": "entity_06",
+            "provenance": "visualner",
+            "score": 0.45000001788139343,
+            "sentence_index": 5,
+            "start_byte": 734,
+            "text": "mappa",
+            "type": "OBJECT"
+          },
+          {
+            "end_byte": 831,
+            "evidence": "dispositivo",
+            "id": "entity_07",
+            "provenance": "visualner",
+            "score": 0.45000001788139343,
+            "sentence_index": 6,
+            "start_byte": 820,
+            "text": "dispositivo",
+            "type": "OBJECT"
+          },
+          {
+            "end_byte": 1529,
+            "evidence": "verbale",
+            "id": "entity_08",
+            "provenance": "visualner",
+            "score": 0.45000001788139343,
+            "sentence_index": 11,
+            "start_byte": 1522,
+            "text": "verbale",
+            "type": "OBJECT"
+          },
+          {
+            "end_byte": 560,
+            "evidence": "pompa mobile vicino",
+            "id": "entity_27",
+            "provenance": "visualner",
+            "score": 0.7000000476837158,
+            "sentence_index": 4,
+            "start_byte": 541,
+            "text": "pompa mobile vicino",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 87,
+            "evidence": "programma sportivo",
+            "id": "entity_28",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 0,
+            "start_byte": 69,
+            "text": "programma sportivo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 394,
+            "evidence": "danni osservati",
+            "id": "entity_31",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 3,
+            "start_byte": 379,
+            "text": "danni osservati",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 415,
+            "evidence": "ipotesi ancora",
+            "id": "entity_32",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 3,
+            "start_byte": 401,
+            "text": "ipotesi ancora",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 459,
+            "evidence": "cedimento strutturale",
+            "id": "entity_33",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 3,
+            "start_byte": 438,
+            "text": "cedimento strutturale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 600,
+            "evidence": "pannelli fotovoltaici",
+            "id": "entity_34",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 4,
+            "start_byte": 579,
+            "text": "pannelli fotovoltaici",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 620,
+            "evidence": "tetto orientale",
+            "id": "entity_35",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 4,
+            "start_byte": 605,
+            "text": "tetto orientale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 956,
+            "evidence": "quadro elettrico",
+            "id": "entity_36",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 7,
+            "start_byte": 940,
+            "text": "quadro elettrico",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1257,
+            "evidence": "risultato già",
+            "id": "entity_37",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 9,
+            "start_byte": 1243,
+            "text": "risultato già",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1321,
+            "evidence": "stesso periodo",
+            "id": "entity_38",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 9,
+            "start_byte": 1307,
+            "text": "stesso periodo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1356,
+            "evidence": "ipotesi diverse",
+            "id": "entity_39",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 9,
+            "start_byte": 1341,
+            "text": "ipotesi diverse",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1488,
+            "evidence": "episodio personale",
+            "id": "entity_40",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 10,
+            "start_byte": 1470,
+            "text": "episodio personale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1538,
+            "evidence": "verbale comunale",
+            "id": "entity_41",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 11,
+            "start_byte": 1522,
+            "text": "verbale comunale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1733,
+            "evidence": "fine stagione",
+            "id": "entity_42",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 11,
+            "start_byte": 1720,
+            "text": "fine stagione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1864,
+            "evidence": "risparmio annuale",
+            "id": "entity_43",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 12,
+            "start_byte": 1847,
+            "text": "risparmio annuale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1912,
+            "evidence": "monitoraggio fino",
+            "id": "entity_44",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 13,
+            "start_byte": 1895,
+            "text": "monitoraggio fino",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2024,
+            "evidence": "mappa aggiornata",
+            "id": "entity_45",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 13,
+            "start_byte": 2008,
+            "text": "mappa aggiornata",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2189,
+            "evidence": "canaletta vicino",
+            "id": "entity_46",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 15,
+            "start_byte": 2173,
+            "text": "canaletta vicino",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2421,
+            "evidence": "pioggia successiva",
+            "id": "entity_47",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 16,
+            "start_byte": 2403,
+            "text": "pioggia successiva",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2438,
+            "evidence": "pompa mobile",
+            "id": "entity_48",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 17,
+            "start_byte": 2426,
+            "text": "pompa mobile",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2542,
+            "evidence": "cartello temporaneo",
+            "id": "entity_49",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 18,
+            "start_byte": 2523,
+            "text": "cartello temporaneo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2570,
+            "evidence": "percorso sicuro",
+            "id": "entity_50",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 18,
+            "start_byte": 2555,
+            "text": "percorso sicuro",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2799,
+            "evidence": "guasto elettrico",
+            "id": "entity_51",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 20,
+            "start_byte": 2783,
+            "text": "guasto elettrico",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2952,
+            "evidence": "prove favorevoli",
+            "id": "entity_52",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 21,
+            "start_byte": 2936,
+            "text": "prove favorevoli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3160,
+            "evidence": "stessa tabella",
+            "id": "entity_53",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 23,
+            "start_byte": 3146,
+            "text": "stessa tabella",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3205,
+            "evidence": "consumi misurati",
+            "id": "entity_54",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 23,
+            "start_byte": 3189,
+            "text": "consumi misurati",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3298,
+            "evidence": "riunione conclusiva",
+            "id": "entity_55",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 24,
+            "start_byte": 3279,
+            "text": "riunione conclusiva",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3431,
+            "evidence": "serie completa",
+            "id": "entity_57",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 24,
+            "start_byte": 3417,
+            "text": "serie completa",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3556,
+            "evidence": "riduzione annuale",
+            "id": "entity_58",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 25,
+            "start_byte": 3539,
+            "text": "riduzione annuale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3586,
+            "evidence": "stagioni comparabili",
+            "id": "entity_59",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 25,
+            "start_byte": 3566,
+            "text": "stagioni comparabili",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3622,
+            "evidence": "riferimento stabile",
+            "id": "entity_60",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 25,
+            "start_byte": 3603,
+            "text": "riferimento stabile",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3772,
+            "evidence": "resoconto finale",
+            "id": "entity_61",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 27,
+            "start_byte": 3756,
+            "text": "resoconto finale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3806,
+            "evidence": "misure favorevoli",
+            "id": "entity_62",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 27,
+            "start_byte": 3789,
+            "text": "misure favorevoli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3896,
+            "evidence": "risultati acquisiti",
+            "id": "entity_63",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 27,
+            "start_byte": 3877,
+            "text": "risultati acquisiti",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 18,
+            "evidence": "Comune",
+            "id": "entity_64",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 0,
+            "start_byte": 12,
+            "text": "Comune",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 64,
+            "evidence": "responsabile",
+            "id": "entity_65",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 0,
+            "start_byte": 52,
+            "text": "responsabile",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 101,
+            "evidence": "controllo",
+            "id": "entity_66",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 0,
+            "start_byte": 92,
+            "text": "controllo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 112,
+            "evidence": "lavori",
+            "id": "entity_67",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 0,
+            "start_byte": 106,
+            "text": "lavori",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 206,
+            "evidence": "capienza",
+            "id": "entity_68",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 1,
+            "start_byte": 198,
+            "text": "capienza",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 298,
+            "evidence": "infiltrazioni",
+            "id": "entity_69",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 2,
+            "start_byte": 285,
+            "text": "infiltrazioni",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 335,
+            "evidence": "piogge",
+            "id": "entity_70",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 2,
+            "start_byte": 329,
+            "text": "piogge",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 347,
+            "evidence": "novembre",
+            "id": "entity_71",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 2,
+            "start_byte": 339,
+            "text": "novembre",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 364,
+            "evidence": "rapporto",
+            "id": "entity_72",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 3,
+            "start_byte": 356,
+            "text": "rapporto",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 492,
+            "evidence": "squadra",
+            "id": "entity_73",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 4,
+            "start_byte": 485,
+            "text": "squadra",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 522,
+            "evidence": "umidità",
+            "id": "entity_74",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 4,
+            "start_byte": 514,
+            "text": "umidità",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 535,
+            "evidence": "corridoi",
+            "id": "entity_75",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 4,
+            "start_byte": 527,
+            "text": "corridoi",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 576,
+            "evidence": "spogliatoi",
+            "id": "entity_76",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 4,
+            "start_byte": 566,
+            "text": "spogliatoi",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 663,
+            "evidence": "apparecchiatura",
+            "id": "entity_77",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 5,
+            "start_byte": 648,
+            "text": "apparecchiatura",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 689,
+            "evidence": "montaggio",
+            "id": "entity_78",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 5,
+            "start_byte": 680,
+            "text": "montaggio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 702,
+            "evidence": "immagini",
+            "id": "entity_79",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 5,
+            "start_byte": 694,
+            "text": "immagini",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 791,
+            "evidence": "problema",
+            "id": "entity_81",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 6,
+            "start_byte": 783,
+            "text": "problema",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 803,
+            "evidence": "guasto",
+            "id": "entity_82",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 6,
+            "start_byte": 797,
+            "text": "guasto",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 815,
+            "evidence": "pompa",
+            "id": "entity_83",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 6,
+            "start_byte": 810,
+            "text": "pompa",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 878,
+            "evidence": "prova",
+            "id": "entity_84",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 6,
+            "start_byte": 873,
+            "text": "prova",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 914,
+            "evidence": "sensore",
+            "id": "entity_85",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 907,
+            "text": "sensore",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 929,
+            "evidence": "acqua",
+            "id": "entity_86",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 924,
+            "text": "acqua",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 970,
+            "evidence": "addetti",
+            "id": "entity_87",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 963,
+            "text": "addetti",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 992,
+            "evidence": "circuito",
+            "id": "entity_88",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 984,
+            "text": "circuito",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1025,
+            "evidence": "cancelli",
+            "id": "entity_89",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 1017,
+            "text": "cancelli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1039,
+            "evidence": "bilancio",
+            "id": "entity_90",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 8,
+            "start_byte": 1031,
+            "text": "bilancio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1058,
+            "evidence": "marzo",
+            "id": "entity_91",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 8,
+            "start_byte": 1053,
+            "text": "marzo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1146,
+            "evidence": "risparmio",
+            "id": "entity_92",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 8,
+            "start_byte": 1137,
+            "text": "risparmio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1221,
+            "evidence": "stima",
+            "id": "entity_93",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 9,
+            "start_byte": 1216,
+            "text": "stima",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1289,
+            "evidence": "aziende",
+            "id": "entity_94",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 9,
+            "start_byte": 1282,
+            "text": "aziende",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1367,
+            "evidence": "giorni",
+            "id": "entity_95",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 9,
+            "start_byte": 1361,
+            "text": "giorni",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1379,
+            "evidence": "utilizzo",
+            "id": "entity_96",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 9,
+            "start_byte": 1371,
+            "text": "utilizzo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1394,
+            "evidence": "Neri",
+            "id": "entity_97",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 10,
+            "start_byte": 1390,
+            "text": "Neri",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1442,
+            "evidence": "biglietto",
+            "id": "entity_98",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 10,
+            "start_byte": 1433,
+            "text": "biglietto",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1455,
+            "evidence": "numeri",
+            "id": "entity_99",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 10,
+            "start_byte": 1449,
+            "text": "numeri",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1596,
+            "evidence": "guarnizioni",
+            "id": "entity_100",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 11,
+            "start_byte": 1585,
+            "text": "guarnizioni",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1624,
+            "evidence": "prove",
+            "id": "entity_101",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 11,
+            "start_byte": 1619,
+            "text": "prove",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1685,
+            "evidence": "pioggia",
+            "id": "entity_102",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 11,
+            "start_byte": 1678,
+            "text": "pioggia",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1717,
+            "evidence": "risultati",
+            "id": "entity_103",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 11,
+            "start_byte": 1708,
+            "text": "risultati",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1754,
+            "evidence": "Conti",
+            "id": "entity_104",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 12,
+            "start_byte": 1749,
+            "text": "Conti",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1819,
+            "evidence": "dati",
+            "id": "entity_105",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 12,
+            "start_byte": 1815,
+            "text": "dati",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1923,
+            "evidence": "dicembre",
+            "id": "entity_106",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 13,
+            "start_byte": 1915,
+            "text": "dicembre",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1966,
+            "evidence": "misure",
+            "id": "entity_108",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 13,
+            "start_byte": 1960,
+            "text": "misure",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1981,
+            "evidence": "fotografie",
+            "id": "entity_109",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 13,
+            "start_byte": 1971,
+            "text": "fotografie",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2085,
+            "evidence": "osservazione",
+            "id": "entity_110",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 14,
+            "start_byte": 2073,
+            "text": "osservazione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2093,
+            "evidence": "Vitale",
+            "id": "entity_111",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 14,
+            "start_byte": 2087,
+            "text": "Vitale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2121,
+            "evidence": "posizione",
+            "id": "entity_112",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 14,
+            "start_byte": 2112,
+            "text": "posizione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2136,
+            "evidence": "quantità",
+            "id": "entity_113",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 14,
+            "start_byte": 2127,
+            "text": "quantità",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2235,
+            "evidence": "foglie",
+            "id": "entity_114",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 15,
+            "start_byte": 2229,
+            "text": "foglie",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2343,
+            "evidence": "materiale",
+            "id": "entity_115",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 16,
+            "start_byte": 2334,
+            "text": "materiale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2371,
+            "evidence": "passaggio",
+            "id": "entity_116",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 16,
+            "start_byte": 2362,
+            "text": "passaggio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2394,
+            "evidence": "misura",
+            "id": "entity_117",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 16,
+            "start_byte": 2388,
+            "text": "misura",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2473,
+            "evidence": "drenaggio",
+            "id": "entity_118",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 17,
+            "start_byte": 2464,
+            "text": "drenaggio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2587,
+            "evidence": "personale",
+            "id": "entity_119",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 18,
+            "start_byte": 2578,
+            "text": "personale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2606,
+            "evidence": "visitatore",
+            "id": "entity_120",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 18,
+            "start_byte": 2596,
+            "text": "visitatore",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2757,
+            "evidence": "aumento",
+            "id": "entity_121",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 20,
+            "start_byte": 2750,
+            "text": "aumento",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2899,
+            "evidence": "gruppo",
+            "id": "entity_122",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 21,
+            "start_byte": 2893,
+            "text": "gruppo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2965,
+            "evidence": "registro",
+            "id": "entity_123",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 2957,
+            "text": "registro",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2983,
+            "evidence": "data",
+            "id": "entity_124",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 2979,
+            "text": "data",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3001,
+            "evidence": "rilevazione",
+            "id": "entity_125",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 2990,
+            "text": "rilevazione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3034,
+            "evidence": "riparazione",
+            "id": "entity_126",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 3023,
+            "text": "riparazione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3093,
+            "evidence": "cambiamento",
+            "id": "entity_127",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 3082,
+            "text": "cambiamento",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3118,
+            "evidence": "pannelli",
+            "id": "entity_128",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 3110,
+            "text": "pannelli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3172,
+            "evidence": "ore",
+            "id": "entity_129",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 23,
+            "start_byte": 3169,
+            "text": "ore",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3184,
+            "evidence": "apertura",
+            "id": "entity_130",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 23,
+            "start_byte": 3176,
+            "text": "apertura",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3245,
+            "evidence": "calcoli",
+            "id": "entity_131",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 23,
+            "start_byte": 3238,
+            "text": "calcoli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3271,
+            "evidence": "pubblicazione",
+            "id": "entity_132",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 23,
+            "start_byte": 3258,
+            "text": "pubblicazione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3362,
+            "evidence": "sostituzione",
+            "id": "entity_133",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 24,
+            "start_byte": 3350,
+            "text": "sostituzione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3445,
+            "evidence": "letture",
+            "id": "entity_134",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 24,
+            "start_byte": 3438,
+            "text": "letture",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3481,
+            "evidence": "diminuzione",
+            "id": "entity_135",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 25,
+            "start_byte": 3470,
+            "text": "diminuzione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3511,
+            "evidence": "settimane",
+            "id": "entity_136",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 25,
+            "start_byte": 3502,
+            "text": "settimane",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3599,
+            "evidence": "periodo",
+            "id": "entity_137",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 25,
+            "start_byte": 3592,
+            "text": "periodo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3656,
+            "evidence": "verifica",
+            "id": "entity_138",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 26,
+            "start_byte": 3648,
+            "text": "verifica",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3702,
+            "evidence": "copia",
+            "id": "entity_139",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 26,
+            "start_byte": 3697,
+            "text": "copia",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3726,
+            "evidence": "punti",
+            "id": "entity_140",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 26,
+            "start_byte": 3721,
+            "text": "punti",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3859,
+            "evidence": "previsioni",
+            "id": "entity_141",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 27,
+            "start_byte": 3849,
+            "text": "previsioni",
+            "type": "VISUAL_CONCEPT"
+          }
+        ]
+      },
+      "visual_objects_surface_only": {
+        "expected": 10,
+        "found": 10,
+        "extracted": 117,
+        "precision": 0.08547008547008547,
+        "recall": 1.0,
+        "f1": 0.15748031496062992,
+        "misses": [],
+        "false_positives": [
+          {
+            "end_byte": 831,
+            "evidence": "dispositivo",
+            "id": "entity_07",
+            "provenance": "visualner",
+            "score": 0.45000001788139343,
+            "sentence_index": 6,
+            "start_byte": 820,
+            "text": "dispositivo",
+            "type": "OBJECT"
+          },
+          {
+            "end_byte": 1529,
+            "evidence": "verbale",
+            "id": "entity_08",
+            "provenance": "visualner",
+            "score": 0.45000001788139343,
+            "sentence_index": 11,
+            "start_byte": 1522,
+            "text": "verbale",
+            "type": "OBJECT"
+          },
+          {
+            "end_byte": 87,
+            "evidence": "programma sportivo",
+            "id": "entity_28",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 0,
+            "start_byte": 69,
+            "text": "programma sportivo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 394,
+            "evidence": "danni osservati",
+            "id": "entity_31",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 3,
+            "start_byte": 379,
+            "text": "danni osservati",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 415,
+            "evidence": "ipotesi ancora",
+            "id": "entity_32",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 3,
+            "start_byte": 401,
+            "text": "ipotesi ancora",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 459,
+            "evidence": "cedimento strutturale",
+            "id": "entity_33",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 3,
+            "start_byte": 438,
+            "text": "cedimento strutturale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 620,
+            "evidence": "tetto orientale",
+            "id": "entity_35",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 4,
+            "start_byte": 605,
+            "text": "tetto orientale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1257,
+            "evidence": "risultato già",
+            "id": "entity_37",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 9,
+            "start_byte": 1243,
+            "text": "risultato già",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1321,
+            "evidence": "stesso periodo",
+            "id": "entity_38",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 9,
+            "start_byte": 1307,
+            "text": "stesso periodo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1356,
+            "evidence": "ipotesi diverse",
+            "id": "entity_39",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 9,
+            "start_byte": 1341,
+            "text": "ipotesi diverse",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1488,
+            "evidence": "episodio personale",
+            "id": "entity_40",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 10,
+            "start_byte": 1470,
+            "text": "episodio personale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1538,
+            "evidence": "verbale comunale",
+            "id": "entity_41",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 11,
+            "start_byte": 1522,
+            "text": "verbale comunale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1733,
+            "evidence": "fine stagione",
+            "id": "entity_42",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 11,
+            "start_byte": 1720,
+            "text": "fine stagione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1864,
+            "evidence": "risparmio annuale",
+            "id": "entity_43",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 12,
+            "start_byte": 1847,
+            "text": "risparmio annuale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1912,
+            "evidence": "monitoraggio fino",
+            "id": "entity_44",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 13,
+            "start_byte": 1895,
+            "text": "monitoraggio fino",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2024,
+            "evidence": "mappa aggiornata",
+            "id": "entity_45",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 13,
+            "start_byte": 2008,
+            "text": "mappa aggiornata",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2421,
+            "evidence": "pioggia successiva",
+            "id": "entity_47",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 16,
+            "start_byte": 2403,
+            "text": "pioggia successiva",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2438,
+            "evidence": "pompa mobile",
+            "id": "entity_48",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 17,
+            "start_byte": 2426,
+            "text": "pompa mobile",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2570,
+            "evidence": "percorso sicuro",
+            "id": "entity_50",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 18,
+            "start_byte": 2555,
+            "text": "percorso sicuro",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2799,
+            "evidence": "guasto elettrico",
+            "id": "entity_51",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 20,
+            "start_byte": 2783,
+            "text": "guasto elettrico",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2952,
+            "evidence": "prove favorevoli",
+            "id": "entity_52",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 21,
+            "start_byte": 2936,
+            "text": "prove favorevoli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3160,
+            "evidence": "stessa tabella",
+            "id": "entity_53",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 23,
+            "start_byte": 3146,
+            "text": "stessa tabella",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3205,
+            "evidence": "consumi misurati",
+            "id": "entity_54",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 23,
+            "start_byte": 3189,
+            "text": "consumi misurati",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3298,
+            "evidence": "riunione conclusiva",
+            "id": "entity_55",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 24,
+            "start_byte": 3279,
+            "text": "riunione conclusiva",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3431,
+            "evidence": "serie completa",
+            "id": "entity_57",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 24,
+            "start_byte": 3417,
+            "text": "serie completa",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3556,
+            "evidence": "riduzione annuale",
+            "id": "entity_58",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 25,
+            "start_byte": 3539,
+            "text": "riduzione annuale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3586,
+            "evidence": "stagioni comparabili",
+            "id": "entity_59",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 25,
+            "start_byte": 3566,
+            "text": "stagioni comparabili",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3622,
+            "evidence": "riferimento stabile",
+            "id": "entity_60",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 25,
+            "start_byte": 3603,
+            "text": "riferimento stabile",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3772,
+            "evidence": "resoconto finale",
+            "id": "entity_61",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 27,
+            "start_byte": 3756,
+            "text": "resoconto finale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3806,
+            "evidence": "misure favorevoli",
+            "id": "entity_62",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 27,
+            "start_byte": 3789,
+            "text": "misure favorevoli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3896,
+            "evidence": "risultati acquisiti",
+            "id": "entity_63",
+            "provenance": "visualner",
+            "score": 0.5,
+            "sentence_index": 27,
+            "start_byte": 3877,
+            "text": "risultati acquisiti",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 18,
+            "evidence": "Comune",
+            "id": "entity_64",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 0,
+            "start_byte": 12,
+            "text": "Comune",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 64,
+            "evidence": "responsabile",
+            "id": "entity_65",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 0,
+            "start_byte": 52,
+            "text": "responsabile",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 101,
+            "evidence": "controllo",
+            "id": "entity_66",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 0,
+            "start_byte": 92,
+            "text": "controllo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 112,
+            "evidence": "lavori",
+            "id": "entity_67",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 0,
+            "start_byte": 106,
+            "text": "lavori",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 206,
+            "evidence": "capienza",
+            "id": "entity_68",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 1,
+            "start_byte": 198,
+            "text": "capienza",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 298,
+            "evidence": "infiltrazioni",
+            "id": "entity_69",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 2,
+            "start_byte": 285,
+            "text": "infiltrazioni",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 335,
+            "evidence": "piogge",
+            "id": "entity_70",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 2,
+            "start_byte": 329,
+            "text": "piogge",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 347,
+            "evidence": "novembre",
+            "id": "entity_71",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 2,
+            "start_byte": 339,
+            "text": "novembre",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 364,
+            "evidence": "rapporto",
+            "id": "entity_72",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 3,
+            "start_byte": 356,
+            "text": "rapporto",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 492,
+            "evidence": "squadra",
+            "id": "entity_73",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 4,
+            "start_byte": 485,
+            "text": "squadra",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 535,
+            "evidence": "corridoi",
+            "id": "entity_75",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 4,
+            "start_byte": 527,
+            "text": "corridoi",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 576,
+            "evidence": "spogliatoi",
+            "id": "entity_76",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 4,
+            "start_byte": 566,
+            "text": "spogliatoi",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 663,
+            "evidence": "apparecchiatura",
+            "id": "entity_77",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 5,
+            "start_byte": 648,
+            "text": "apparecchiatura",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 689,
+            "evidence": "montaggio",
+            "id": "entity_78",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 5,
+            "start_byte": 680,
+            "text": "montaggio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 702,
+            "evidence": "immagini",
+            "id": "entity_79",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 5,
+            "start_byte": 694,
+            "text": "immagini",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 754,
+            "evidence": "condotte",
+            "id": "entity_80",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 5,
+            "start_byte": 746,
+            "text": "condotte",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 791,
+            "evidence": "problema",
+            "id": "entity_81",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 6,
+            "start_byte": 783,
+            "text": "problema",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 803,
+            "evidence": "guasto",
+            "id": "entity_82",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 6,
+            "start_byte": 797,
+            "text": "guasto",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 815,
+            "evidence": "pompa",
+            "id": "entity_83",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 6,
+            "start_byte": 810,
+            "text": "pompa",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 878,
+            "evidence": "prova",
+            "id": "entity_84",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 6,
+            "start_byte": 873,
+            "text": "prova",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 914,
+            "evidence": "sensore",
+            "id": "entity_85",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 907,
+            "text": "sensore",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 929,
+            "evidence": "acqua",
+            "id": "entity_86",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 924,
+            "text": "acqua",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 970,
+            "evidence": "addetti",
+            "id": "entity_87",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 963,
+            "text": "addetti",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 992,
+            "evidence": "circuito",
+            "id": "entity_88",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 984,
+            "text": "circuito",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1025,
+            "evidence": "cancelli",
+            "id": "entity_89",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 7,
+            "start_byte": 1017,
+            "text": "cancelli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1039,
+            "evidence": "bilancio",
+            "id": "entity_90",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 8,
+            "start_byte": 1031,
+            "text": "bilancio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1058,
+            "evidence": "marzo",
+            "id": "entity_91",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 8,
+            "start_byte": 1053,
+            "text": "marzo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1146,
+            "evidence": "risparmio",
+            "id": "entity_92",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 8,
+            "start_byte": 1137,
+            "text": "risparmio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1221,
+            "evidence": "stima",
+            "id": "entity_93",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 9,
+            "start_byte": 1216,
+            "text": "stima",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1289,
+            "evidence": "aziende",
+            "id": "entity_94",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 9,
+            "start_byte": 1282,
+            "text": "aziende",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1367,
+            "evidence": "giorni",
+            "id": "entity_95",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 9,
+            "start_byte": 1361,
+            "text": "giorni",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1379,
+            "evidence": "utilizzo",
+            "id": "entity_96",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 9,
+            "start_byte": 1371,
+            "text": "utilizzo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1394,
+            "evidence": "Neri",
+            "id": "entity_97",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 10,
+            "start_byte": 1390,
+            "text": "Neri",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1442,
+            "evidence": "biglietto",
+            "id": "entity_98",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 10,
+            "start_byte": 1433,
+            "text": "biglietto",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1455,
+            "evidence": "numeri",
+            "id": "entity_99",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 10,
+            "start_byte": 1449,
+            "text": "numeri",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1596,
+            "evidence": "guarnizioni",
+            "id": "entity_100",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 11,
+            "start_byte": 1585,
+            "text": "guarnizioni",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1624,
+            "evidence": "prove",
+            "id": "entity_101",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 11,
+            "start_byte": 1619,
+            "text": "prove",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1685,
+            "evidence": "pioggia",
+            "id": "entity_102",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 11,
+            "start_byte": 1678,
+            "text": "pioggia",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1717,
+            "evidence": "risultati",
+            "id": "entity_103",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 11,
+            "start_byte": 1708,
+            "text": "risultati",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1754,
+            "evidence": "Conti",
+            "id": "entity_104",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 12,
+            "start_byte": 1749,
+            "text": "Conti",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1819,
+            "evidence": "dati",
+            "id": "entity_105",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 12,
+            "start_byte": 1815,
+            "text": "dati",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1923,
+            "evidence": "dicembre",
+            "id": "entity_106",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 13,
+            "start_byte": 1915,
+            "text": "dicembre",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1966,
+            "evidence": "misure",
+            "id": "entity_108",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 13,
+            "start_byte": 1960,
+            "text": "misure",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 1981,
+            "evidence": "fotografie",
+            "id": "entity_109",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 13,
+            "start_byte": 1971,
+            "text": "fotografie",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2085,
+            "evidence": "osservazione",
+            "id": "entity_110",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 14,
+            "start_byte": 2073,
+            "text": "osservazione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2093,
+            "evidence": "Vitale",
+            "id": "entity_111",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 14,
+            "start_byte": 2087,
+            "text": "Vitale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2121,
+            "evidence": "posizione",
+            "id": "entity_112",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 14,
+            "start_byte": 2112,
+            "text": "posizione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2136,
+            "evidence": "quantità",
+            "id": "entity_113",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 14,
+            "start_byte": 2127,
+            "text": "quantità",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2235,
+            "evidence": "foglie",
+            "id": "entity_114",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 15,
+            "start_byte": 2229,
+            "text": "foglie",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2343,
+            "evidence": "materiale",
+            "id": "entity_115",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 16,
+            "start_byte": 2334,
+            "text": "materiale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2371,
+            "evidence": "passaggio",
+            "id": "entity_116",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 16,
+            "start_byte": 2362,
+            "text": "passaggio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2394,
+            "evidence": "misura",
+            "id": "entity_117",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 16,
+            "start_byte": 2388,
+            "text": "misura",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2473,
+            "evidence": "drenaggio",
+            "id": "entity_118",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 17,
+            "start_byte": 2464,
+            "text": "drenaggio",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2587,
+            "evidence": "personale",
+            "id": "entity_119",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 18,
+            "start_byte": 2578,
+            "text": "personale",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2606,
+            "evidence": "visitatore",
+            "id": "entity_120",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 18,
+            "start_byte": 2596,
+            "text": "visitatore",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2757,
+            "evidence": "aumento",
+            "id": "entity_121",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 20,
+            "start_byte": 2750,
+            "text": "aumento",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2899,
+            "evidence": "gruppo",
+            "id": "entity_122",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 21,
+            "start_byte": 2893,
+            "text": "gruppo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2965,
+            "evidence": "registro",
+            "id": "entity_123",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 2957,
+            "text": "registro",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 2983,
+            "evidence": "data",
+            "id": "entity_124",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 2979,
+            "text": "data",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3001,
+            "evidence": "rilevazione",
+            "id": "entity_125",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 2990,
+            "text": "rilevazione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3034,
+            "evidence": "riparazione",
+            "id": "entity_126",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 3023,
+            "text": "riparazione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3093,
+            "evidence": "cambiamento",
+            "id": "entity_127",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 3082,
+            "text": "cambiamento",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3118,
+            "evidence": "pannelli",
+            "id": "entity_128",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 22,
+            "start_byte": 3110,
+            "text": "pannelli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3172,
+            "evidence": "ore",
+            "id": "entity_129",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 23,
+            "start_byte": 3169,
+            "text": "ore",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3184,
+            "evidence": "apertura",
+            "id": "entity_130",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 23,
+            "start_byte": 3176,
+            "text": "apertura",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3245,
+            "evidence": "calcoli",
+            "id": "entity_131",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 23,
+            "start_byte": 3238,
+            "text": "calcoli",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3271,
+            "evidence": "pubblicazione",
+            "id": "entity_132",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 23,
+            "start_byte": 3258,
+            "text": "pubblicazione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3362,
+            "evidence": "sostituzione",
+            "id": "entity_133",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 24,
+            "start_byte": 3350,
+            "text": "sostituzione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3445,
+            "evidence": "letture",
+            "id": "entity_134",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 24,
+            "start_byte": 3438,
+            "text": "letture",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3481,
+            "evidence": "diminuzione",
+            "id": "entity_135",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 25,
+            "start_byte": 3470,
+            "text": "diminuzione",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3511,
+            "evidence": "settimane",
+            "id": "entity_136",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 25,
+            "start_byte": 3502,
+            "text": "settimane",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3599,
+            "evidence": "periodo",
+            "id": "entity_137",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 25,
+            "start_byte": 3592,
+            "text": "periodo",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3656,
+            "evidence": "verifica",
+            "id": "entity_138",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 26,
+            "start_byte": 3648,
+            "text": "verifica",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3702,
+            "evidence": "copia",
+            "id": "entity_139",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 26,
+            "start_byte": 3697,
+            "text": "copia",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3726,
+            "evidence": "punti",
+            "id": "entity_140",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 26,
+            "start_byte": 3721,
+            "text": "punti",
+            "type": "VISUAL_CONCEPT"
+          },
+          {
+            "end_byte": 3859,
+            "evidence": "previsioni",
+            "id": "entity_141",
+            "provenance": "visualner",
+            "score": 0.30000001192092896,
+            "sentence_index": 27,
+            "start_byte": 3849,
+            "text": "previsioni",
+            "type": "VISUAL_CONCEPT"
+          }
+        ]
+      },
+      "visual_objects_exact_surface": {
+        "expected": 10,
+        "found": 5,
+        "extracted": 117,
+        "precision": 0.042735042735042736,
+        "recall": 0.5,
+        "f1": 0.07874015748031496,
+        "misses": [
+          "sensori di umidità",
+          "canaletta",
+          "scheda tecnica della pompa",
+          "tabella delle misure",
+          "mappa delle condotte"
+        ]
+      },
+      "important_phrases": {
+        "expected": 6,
+        "found": 6,
+        "extracted": 31,
+        "precision": 0.1935483870967742,
+        "recall": 1.0,
+        "f1": 0.32432432432432434,
+        "misses": []
+      },
+      "important_segments": {
+        "expected": 1,
+        "found": 0,
+        "extracted": 3,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "misses": [
+          "Il verbale comunale fissò quattro passaggi: primo, sostituire le guarnizioni; secondo, ripetere le prove con la pompa; terzo, controllare i sensori dopo ogni pioggia; quarto, pubblicare i risultati a fine stagione. A giugno 2019 Conti confermò che il controllo era terminato, ma precisò che i dati non dimostravano ancora un risparmio annuale. Il Comune mantenne quindi il monitoraggio fino a dicembre e rese disponibili la tabella delle misure, le fotografie del quadro elettrico e la mappa aggiornata delle condotte."
+        ]
+      },
+      "facts": {
+        "expected": 7,
+        "found": 3,
+        "details": [
+          {
+            "expected": {
+              "subject": "Stadio Aurora",
+              "predicate": "inaugurated_year",
+              "value": "1961",
+              "status": "asserted"
+            },
+            "found": true,
+            "evidence": [
+              "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti."
+            ]
+          },
+          {
+            "expected": {
+              "subject": "Stadio Aurora",
+              "predicate": "located_in",
+              "value": "Torino",
+              "status": "asserted"
+            },
+            "found": true,
+            "evidence": [
+              "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti."
+            ]
+          },
+          {
+            "expected": {
+              "subject": "Stadio Aurora",
+              "predicate": "capacity",
+              "value": "18.000",
+              "unit": "seats",
+              "status": "asserted"
+            },
+            "found": true,
+            "evidence": [
+              "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti."
+            ]
+          },
+          {
+            "expected": {
+              "subject": "Aurora Sport",
+              "predicate": "estimated_saving_percent",
+              "value": 42,
+              "status": "estimated"
+            },
+            "found": false,
+            "evidence": []
+          },
+          {
+            "expected": {
+              "subject": "Lumen Energia",
+              "predicate": "estimated_saving_percent",
+              "value": 18,
+              "status": "estimated"
+            },
+            "found": false,
+            "evidence": []
+          },
+          {
+            "expected": {
+              "subject": "pompa",
+              "predicate": "fault",
+              "value": false,
+              "status": "negated"
+            },
+            "found": false,
+            "evidence": []
+          },
+          {
+            "expected": {
+              "subject": "risparmio annuale",
+              "predicate": "demonstrated",
+              "value": false,
+              "status": "negated"
+            },
+            "found": false,
+            "evidence": []
+          }
+        ]
+      },
+      "contextual_queries": {
+        "expected": 1,
+        "found": 1,
+        "actual": [
+          {
+            "components": [
+              {
+                "component_type": "FACILITY",
+                "end_byte": 146,
+                "kind": "facility",
+                "start_byte": 133,
+                "text": "Stadio Aurora"
+              },
+              {
+                "component_type": "LOCATION",
+                "end_byte": 186,
+                "kind": "location",
+                "start_byte": 180,
+                "text": "Torino"
+              }
+            ],
+            "evidence": "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti.",
+            "evidence_end_byte": 223,
+            "evidence_start_byte": 133,
+            "id": "contextual_001",
+            "kind": "contextual_image_query",
+            "query": "Stadio Aurora Torino",
+            "sentence_index": 1
+          }
+        ]
+      },
+      "charts": {
+        "positive_expected": 1,
+        "value_matches": 1,
+        "typed_matches": 1,
+        "negative_evidence_matches": 0,
+        "actual_count": 1
+      },
+      "sequence_items_expected": 4,
+      "sequence_items_exactly_extracted": 0,
+      "bullet_count": 12,
+      "micro_summary_count": 1,
+      "micro_summary_review": {
+        "expected": 1,
+        "candidates": [
+          "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti."
+        ],
+        "coverage": 1.0,
+        "fidelity_status": "pending_human_review",
+        "expectations": [
+          {
+            "subject": "Stadio Aurora",
+            "must_preserve": [
+              "inaugurated in 1961",
+              "located in Torino",
+              "capacity 18,000 seats"
+            ],
+            "must_not_claim": [
+              "annual energy savings were achieved",
+              "the pump was faulty"
+            ]
+          }
+        ]
+      },
+      "critical_invariants_for_editorial_review": {
+        "status": "pending_human_review",
+        "invariants": [
+          "The 42% and 18% figures are estimates, not achieved savings.",
+          "The pump was explicitly not identified as faulty.",
+          "The 2014 age and ticket price are not energy measurements.",
+          "The annual saving was explicitly not yet demonstrated."
+        ]
+      },
+      "source_grounding_errors": [],
+      "replay_identical": true,
+      "manifest_sha256": "5f4e84d9d518a9382a4a114f82856be8f5b9570417742e650614888cc2d1fe7f"
+    }
+  ],
+  "corpus": {
+    "script_count": 1,
+    "language_count": 1,
+    "languages": [
+      "it"
+    ],
+    "word_count": 584,
+    "is_release_sized": false,
+    "annotation_authority": "human_annotator",
+    "certification": "blocked_pending_release_size"
+  },
+  "overall": {
+    "scripts": 1,
+    "words": 584,
+    "grounding_errors": 0,
+    "replay_identical": true,
+    "named_entities": {
+      "annotated_scripts": 1,
+      "expected": 9,
+      "found": 5,
+      "recall": 0.5555555555555556
+    },
+    "visual_objects_surface_only": {
+      "annotated_scripts": 1,
+      "expected": 10,
+      "found": 10,
+      "recall": 1.0
+    },
+    "visual_objects_typed": {
+      "annotated_scripts": 1,
+      "expected": 10,
+      "found": 4,
+      "recall": 0.4
+    },
+    "important_phrases": {
+      "annotated_scripts": 1,
+      "expected": 6,
+      "found": 6,
+      "recall": 1.0
+    },
+    "important_segments": {
+      "annotated_scripts": 1,
+      "expected": 1,
+      "found": 0,
+      "recall": 0.0
+    },
+    "facts": {
+      "annotated_scripts": 1,
+      "expected": 7,
+      "found": 3,
+      "recall": 0.42857142857142855
+    },
+    "contextual_queries": {
+      "annotated_scripts": 1,
+      "expected": 1,
+      "found": 1,
+      "recall": 1.0
+    },
+    "positive_charts": {
+      "annotated_scripts": 1,
+      "expected": 1,
+      "found": 1,
+      "recall": 1.0
+    },
+    "annotated_categories": [
+      "contextual_queries",
+      "facts",
+      "important_phrases",
+      "important_segments",
+      "named_entities",
+      "positive_charts",
+      "visual_objects_surface_only",
+      "visual_objects_typed"
+    ],
+    "sequences_exactly_extracted": {
+      "expected": 4,
+      "found": 0
+    },
+    "bullets": 12
+  },
+  "per_language": {
+    "it": {
+      "scripts": 1,
+      "words": 584,
+      "grounding_errors": 0,
+      "replay_identical": true,
+      "named_entities": {
+        "annotated_scripts": 1,
+        "expected": 9,
+        "found": 5,
+        "recall": 0.5555555555555556
+      },
+      "visual_objects_surface_only": {
+        "annotated_scripts": 1,
+        "expected": 10,
+        "found": 10,
+        "recall": 1.0
+      },
+      "visual_objects_typed": {
+        "annotated_scripts": 1,
+        "expected": 10,
+        "found": 4,
+        "recall": 0.4
+      },
+      "important_phrases": {
+        "annotated_scripts": 1,
+        "expected": 6,
+        "found": 6,
+        "recall": 1.0
+      },
+      "important_segments": {
+        "annotated_scripts": 1,
+        "expected": 1,
+        "found": 0,
+        "recall": 0.0
+      },
+      "facts": {
+        "annotated_scripts": 1,
+        "expected": 7,
+        "found": 3,
+        "recall": 0.42857142857142855
+      },
+      "contextual_queries": {
+        "annotated_scripts": 1,
+        "expected": 1,
+        "found": 1,
+        "recall": 1.0
+      },
+      "positive_charts": {
+        "annotated_scripts": 1,
+        "expected": 1,
+        "found": 1,
+        "recall": 1.0
+      },
+      "annotated_categories": [
+        "contextual_queries",
+        "facts",
+        "important_phrases",
+        "important_segments",
+        "named_entities",
+        "positive_charts",
+        "visual_objects_surface_only",
+        "visual_objects_typed"
+      ],
+      "sequences_exactly_extracted": {
+        "expected": 4,
+        "found": 0
+      },
+      "bullets": 12
+    }
+  }
+}

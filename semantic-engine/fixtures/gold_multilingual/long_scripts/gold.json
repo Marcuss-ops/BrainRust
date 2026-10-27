@@ -1,7 +1,5 @@
 {
-  "schema": "brainrust.editorial_gold.v1",
-  "annotation_policy": {
-    "authoring": "Hand-annotated from source before running the engine; labels are not copied from engine output.",
+  "schema": "brainrust.editorial_gold.v1","annotation_policy":{"authoring":"Hand-annotated from source before running the engine; labels are not copied from engine output.","authority":"human_annotator",
     "scope": "Pilot case for long-form entities, visual objects, complete phrases, facts, charts, sequence and image query composition.",
     "important_phrase_match": "Exact source sentence or complete adjacent sentence span; a truncated prefix is a miss.",
     "fact_invariants": ["subject", "predicate", "value", "polarity", "date"]
@@ -50,8 +48,8 @@
         {"subject":"Stadio Aurora","predicate":"capacity","value":"18.000","unit":"seats","status":"asserted"},
         {"subject":"Aurora Sport","predicate":"estimated_saving_percent","value":42,"status":"estimated"},
         {"subject":"Lumen Energia","predicate":"estimated_saving_percent","value":18,"status":"estimated"},
-        {"subject":"pump","predicate":"fault","value":false,"status":"negated"},
-        {"subject":"annual_saving","predicate":"demonstrated","value":false,"status":"negated"}
+        {"subject":"pompa","predicate":"fault","value":false,"status":"negated"},
+        {"subject":"risparmio annuale","predicate":"demonstrated","value":false,"status":"negated"}
       ],
       "positive_charts": [
         {"labels":["Aurora Sport","Lumen Energia"],"values":[42,18],"unit":"PERCENT","evidence":"Aurora Sport stimava un risparmio del 42 per cento, mentre Lumen Energia prevedeva il 18 per cento."}
