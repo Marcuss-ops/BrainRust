@@ -449,6 +449,22 @@ pub(crate) fn composed_query_candidates(
 /// each clause and from explicit anaphoric references between scene sentences.
 /// Queries stay within evidence spans, are budgeted per scene, and never
 /// promote a retrieval composition into a verified fact.
+/// The two consumers of contextual queries require different contracts.
+/// `SceneManifest::contextual_image_queries` is contract-pure: only queries
+/// composed from an asserted subject-to-location fact (with its exact
+/// sentence evidence) may appear there. The visual-context families (clause
+/// slots, linked clauses, inherited scene context) are retrieval
+/// compositions, never relation assertions, so they may only seed
+/// `contextual_search` production candidates alongside the grounded queries.
+pub(crate) struct ContextualQueries {
+    /// Fact-grounded relation queries: the only form the manifest contract
+    /// allows. Numbered `contextual_NNN` in sentence order.
+    pub manifest_queries: Vec<ContextualImageQuery>,
+    /// Grounded and visual-context queries together, in sentence order, as
+    /// production-candidate seeds. Numbered `contextual_NNN` in that order.
+    pub production_seeds: Vec<ContextualImageQuery>,
+}
+
 pub(crate) fn contextual_image_query_candidates(
     language: &str,
     source: &str,
@@ -456,50 +472,74 @@ pub(crate) fn contextual_image_query_candidates(
     entities: &[VisualEntity],
     entity_ids: &[String],
     entity_facts: &[semantic_core::EntityFact],
-) -> Vec<ContextualImageQuery> {
+) -> ContextualQueries {
     let max_contextual_queries =
         crate::consolidate::image_query_policy().max_contextual_queries_per_scene;
-    let mut output =
-        fact_grounded_location_queries(source, sentences, entities, entity_ids, entity_facts);
+    // The boolean records the origin: `true` for a fact-grounded relation
+    // query that satisfies the manifest contract, `false` for a visual-context
+    // family that stays out of the manifest.
+    let mut combined: Vec<(bool, ContextualImageQuery)> = fact_grounded_location_queries(
+        source,
+        sentences,
+        entities,
+        entity_ids,
+        entity_facts,
+    )
+    .into_iter()
+    .map(|query| (true, query))
+    .collect();
     for candidate in linked_clause_visual_queries(language, source, sentences, entities) {
-        if output.len() >= max_contextual_queries {
+        if combined.len() >= max_contextual_queries {
             break;
         }
-        if !output
+        if !combined
             .iter()
-            .any(|existing| existing.query.eq_ignore_ascii_case(&candidate.query))
+            .any(|(_, existing)| existing.query.eq_ignore_ascii_case(&candidate.query))
         {
-            output.push(candidate);
+            combined.push((false, candidate));
         }
     }
     for candidate in sentence_visual_slot_queries(language, source, sentences, entities) {
-        if output.len() >= max_contextual_queries {
+        if combined.len() >= max_contextual_queries {
             break;
         }
-        if !output
+        if !combined
             .iter()
-            .any(|existing| existing.query.eq_ignore_ascii_case(&candidate.query))
+            .any(|(_, existing)| existing.query.eq_ignore_ascii_case(&candidate.query))
         {
-            output.push(candidate);
+            combined.push((false, candidate));
         }
     }
     for candidate in inherited_scene_visual_queries(language, source, sentences, entities) {
-        if output.len() >= max_contextual_queries {
+        if combined.len() >= max_contextual_queries {
             break;
         }
-        if !output
+        if !combined
             .iter()
-            .any(|existing| existing.query.eq_ignore_ascii_case(&candidate.query))
+            .any(|(_, existing)| existing.query.eq_ignore_ascii_case(&candidate.query))
         {
-            output.push(candidate);
+            combined.push((false, candidate));
         }
     }
-    output.truncate(max_contextual_queries);
-    output.sort_by_key(|candidate| candidate.sentence_index);
-    for (index, candidate) in output.iter_mut().enumerate() {
+    combined.truncate(max_contextual_queries);
+    combined.sort_by_key(|(_, candidate)| candidate.sentence_index);
+    let mut production_seeds: Vec<ContextualImageQuery> =
+        combined.iter().map(|(_, query)| query.clone()).collect();
+    for (index, candidate) in production_seeds.iter_mut().enumerate() {
         candidate.id = format!("contextual_{:03}", index + 1);
     }
-    output
+    let mut manifest_queries: Vec<ContextualImageQuery> = combined
+        .into_iter()
+        .filter(|(grounded, _)| *grounded)
+        .map(|(_, query)| query)
+        .collect();
+    for (index, candidate) in manifest_queries.iter_mut().enumerate() {
+        candidate.id = format!("contextual_{:03}", index + 1);
+    }
+    ContextualQueries {
+        manifest_queries,
+        production_seeds,
+    }
 }
 
 fn fact_grounded_location_queries(
@@ -1510,9 +1550,13 @@ mod contextual_image_query_tests {
         let sentences = semantic_core::split_sentences(source, "en", None);
         let queries =
             contextual_image_query_candidates("en", source, &sentences, &entities, &[], &[]);
-        assert_eq!(queries.len(), 1);
-        assert_eq!(queries[0].query, "Aurora Stadium Torino");
-        for component in &queries[0].components {
+        // Without an asserted fact nothing may enter the manifest collection:
+        // the visual-context family is a production seed only.
+        assert!(queries.manifest_queries.is_empty());
+        assert_eq!(queries.production_seeds.len(), 1);
+        let query = &queries.production_seeds[0];
+        assert_eq!(query.query, "Aurora Stadium Torino");
+        for component in &query.components {
             assert!(component.start_byte >= evidence_start);
             assert!(component.end_byte <= evidence_end);
             assert_eq!(

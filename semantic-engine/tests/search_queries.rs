@@ -240,6 +240,31 @@ fn contextual_image_query_is_a_grounded_subject_place_composition() {
 }
 
 #[test]
+fn visual_clause_compositions_never_enter_the_contextual_manifest() {
+    // An entity-plus-action clause is a retrieval composition, not a
+    // relation assertion: it may seed contextual_search production
+    // candidates, but the manifest contract admits only fact-grounded
+    // subject-to-location queries.
+    let text = "Sofia Rinaldi ha esaminato il tram elettrico durante il sopralluogo.";
+    let value = manifest_value(vec![scene("action-clause", text)]);
+    let scene = &value["scenes"][0];
+    let queries = scene["contextual_image_queries"].as_array().unwrap();
+    assert!(
+        queries.is_empty(),
+        "an action composition must not enter the contextual manifest: {queries:?}"
+    );
+    let candidates = value["visual_consolidation"]["production_candidates"]
+        .as_array()
+        .unwrap();
+    assert!(
+        candidates
+            .iter()
+            .any(|candidate| candidate["recipe"] == "contextual_search"),
+        "the composition must still seed production candidates: {candidates:?}"
+    );
+}
+
+#[test]
 fn contextual_production_query_inherits_a_nested_place_without_an_entity_owner() {
     let text = "The city built a treatment plant at Collins Park in East Toledo.";
     let manifest = analyze_script(&ScriptRequest {

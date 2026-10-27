@@ -71,12 +71,23 @@ use stats::{canonical_micro_count, metrics, scene_rank, scene_stats};
 use timeline::{canonical_dates, push_timeline, selected_timeline_groups, timeline_groups};
 
 /// Builds the whole-script consolidation projection.
+///
+/// `scene_query_seeds` carries the visual-context query seeds per scene. They
+/// feed `contextual_search` production candidates but are not part of the
+/// manifest contract; a scene without an entry falls back to its manifest
+/// `contextual_image_queries` so callers that predate the split keep their
+/// behavior.
 pub fn build(
     language: &str,
     sources: &[SceneInput],
     scenes: &[SceneManifest],
     search_entries: &[SearchFeedbackEntry],
+    scene_query_seeds: &[(String, Vec<semantic_core::ContextualImageQuery>)],
 ) -> VisualConsolidation {
+    let query_seeds: HashMap<&str, &[semantic_core::ContextualImageQuery]> = scene_query_seeds
+        .iter()
+        .map(|(scene_id, seeds)| (scene_id.as_str(), seeds.as_slice()))
+        .collect();
     let scene_index: HashMap<&str, usize> = sources
         .iter()
         .enumerate()
@@ -126,8 +137,15 @@ pub fn build(
         &mut fact_representations,
         &mut candidates,
     );
-    enrich_contextual_search_queries(language, sources, scenes, &mut candidates);
-    push_contextual_search_candidates(language, sources, scenes, &identities, &mut candidates);
+    enrich_contextual_search_queries(language, sources, scenes, &query_seeds, &mut candidates);
+    push_contextual_search_candidates(
+        language,
+        sources,
+        scenes,
+        &query_seeds,
+        &identities,
+        &mut candidates,
+    );
     apply_visual_query_priority(language, &identities, &mut candidates);
 
     // Rank once, then assign stable production ids and resolve the fact
@@ -337,6 +355,7 @@ fn push_contextual_search_candidates(
     language: &str,
     sources: &[SceneInput],
     scenes: &[SceneManifest],
+    query_seeds: &HashMap<&str, &[semantic_core::ContextualImageQuery]>,
     identities: &BTreeMap<String, IdentityState>,
     candidates: &mut Vec<ProductionCandidate>,
 ) {
@@ -349,7 +368,11 @@ fn push_contextual_search_candidates(
         let Some(source) = sources_by_scene.get(scene.scene_id.as_str()).copied() else {
             continue;
         };
-        for contextual in &scene.contextual_image_queries {
+        let contextual_queries = query_seeds
+            .get(scene.scene_id.as_str())
+            .copied()
+            .unwrap_or_else(|| scene.contextual_image_queries.as_slice());
+        for contextual in contextual_queries {
             let policy = image_query_policy();
             let lower_evidence = contextual.evidence.to_lowercase();
             let future_or_proposed = policy
@@ -695,6 +718,7 @@ fn enrich_contextual_search_queries(
     _language: &str,
     sources: &[SceneInput],
     scenes: &[SceneManifest],
+    query_seeds: &HashMap<&str, &[semantic_core::ContextualImageQuery]>,
     candidates: &mut [ProductionCandidate],
 ) {
     let policy = image_query_policy();
@@ -728,10 +752,11 @@ fn enrich_contextual_search_queries(
                 entity.id.clone(),
             );
         }
-        contexts_by_scene.insert(
-            &scene.scene_id,
-            scene.contextual_image_queries.iter().collect(),
-        );
+        let contextual_queries = query_seeds
+            .get(scene.scene_id.as_str())
+            .copied()
+            .unwrap_or_else(|| scene.contextual_image_queries.as_slice());
+        contexts_by_scene.insert(&scene.scene_id, contextual_queries.iter().collect());
     }
     let searchable_entity_ids: HashSet<(String, String)> = candidates
         .iter()

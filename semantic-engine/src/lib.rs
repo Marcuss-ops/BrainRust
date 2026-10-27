@@ -86,14 +86,19 @@ pub fn analyze_scene(
 }
 
 /// Same analysis, also returning the asset-search entries the script-level
-/// manifest aggregates. Retrieval never happens here: every entry is `pending`.
+/// manifest aggregates and the production-candidate seeds for the visual
+/// context queries. Retrieval never happens here: every entry is `pending`.
 fn analyze_scene_with_search(
     scene: &SceneInput,
     language: &str,
     safety_cap: usize,
     registry: &mut IdentityRegistry,
     context: &visualner::ScriptContext,
-) -> (SceneManifest, Vec<SearchFeedbackEntry>) {
+) -> (
+    SceneManifest,
+    Vec<SearchFeedbackEntry>,
+    Vec<semantic_core::ContextualImageQuery>,
+) {
     let options = ExtractOptions {
         language: language.to_string(),
         // The extractor keeps every grounded entity up to the safety cap; the
@@ -127,6 +132,7 @@ fn analyze_scene_with_search(
                     micro_summaries: Vec::new(),
                     rejected_items: 0,
                 },
+                Vec::new(),
                 Vec::new(),
             );
         }
@@ -260,7 +266,7 @@ fn analyze_scene_with_search(
         &analysis.numeric_facts,
         &temporal_facts,
     );
-    let contextual_image_queries = contextual_image_query_candidates(
+    let contextual = contextual_image_query_candidates(
         language,
         source,
         &sentence_spans,
@@ -350,7 +356,7 @@ fn analyze_scene_with_search(
             important_words,
             important_segments,
             composed_image_queries,
-            contextual_image_queries,
+            contextual_image_queries: contextual.manifest_queries,
             bullets,
             short_phrases: phrase_candidates(source, &sentence_spans, &entities, 0, 18),
             long_phrases: phrase_candidates(source, &sentence_spans, &entities, 18, usize::MAX),
@@ -361,6 +367,7 @@ fn analyze_scene_with_search(
             rejected_items: rejected_entities + rejected_candidates,
         },
         search_feedback,
+        contextual.production_seeds,
     )
 }
 
@@ -390,6 +397,10 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
     let mut registry = IdentityRegistry::new();
     let mut search_entries: Vec<SearchFeedbackEntry> = Vec::new();
     let mut scenes: Vec<SceneManifest> = Vec::with_capacity(request.scenes.len());
+    // Visual-context query seeds for the production planner. They are not
+    // part of the manifest contract and never leave this call.
+    let mut scene_query_seeds: Vec<(String, Vec<semantic_core::ContextualImageQuery>)> =
+        Vec::with_capacity(request.scenes.len());
     // Script-wide name evidence: one tokenization pass over every scene, so a
     // scene that says only a first name cannot turn it into a place.
     let texts: Vec<&str> = request
@@ -399,8 +410,9 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         .collect();
     let context = visualner::script_person_tokens(&texts, language);
     for scene in &request.scenes {
-        let (manifest, entries) =
+        let (manifest, entries, seeds) =
             analyze_scene_with_search(scene, language, safety_cap, &mut registry, &context);
+        scene_query_seeds.push((manifest.scene_id.clone(), seeds));
         scenes.push(manifest);
         search_entries.extend(entries);
     }
@@ -411,7 +423,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
     let story_graph = story::build_story_graph(&scenes);
     let visual_coverage = story::build_visual_coverage(&scenes);
     let visual_consolidation =
-        consolidate::build(language, &request.scenes, &scenes, &search_entries);
+        consolidate::build(language, &request.scenes, &scenes, &search_entries, &scene_query_seeds);
 
     let analyzers = analyzer_versions();
     let fingerprint = request_fingerprint(request, &analyzers);
