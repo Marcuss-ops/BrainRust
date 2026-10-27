@@ -113,10 +113,33 @@ pub(crate) fn object_lexicon_candidates(
                 normalized.push(' ');
             }
             normalized.push_str(&token_lower[end_index]);
-            if !term_set.contains(normalized.as_str()) {
+            let mut object_start = tokens[start_index].start;
+            let lexicon_match = term_set.contains(normalized.as_str());
+            let elided_match = if start_index == end_index && !lexicon_match {
+                token_lower[start_index]
+                    .rfind(['\'', '\u{2019}'])
+                    .map(|apostrophe| {
+                        let suffix_start = apostrophe
+                            + token_lower[start_index][apostrophe..]
+                                .chars()
+                                .next()
+                                .map_or(1, char::len_utf8);
+                        let suffix = &token_lower[start_index][suffix_start..];
+                        if term_set.contains(suffix) {
+                            object_start = tokens[start_index].start + suffix_start;
+                            true
+                        } else {
+                            false
+                        }
+                    })
+                    .unwrap_or(false)
+            } else {
+                false
+            };
+            if !lexicon_match && !elided_match {
                 continue;
             }
-            let start = tokens[start_index].start;
+            let start = object_start;
             let end = tokens[end_index].end;
             let Some(text) = source_text.get(start..end) else {
                 continue;

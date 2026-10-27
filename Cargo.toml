@@ -18,3 +18,14 @@ semantic-core = { path = "semantic-core" }
 # and CI enforces zero warnings with `cargo clippy -- -D warnings`.
 [workspace.lints.rust]
 unsafe_code = "deny"
+
+# Release size/speed tuning (2026-10-27): the shipped binaries are small
+# deterministic CLI tools (16M range), dominated by ICU4C + UDPipe native
+# code. Thin LTO + single codegen unit + symbol stripping trims ~10-20%
+# off the release binaries with no source change. Debug info is stripped
+# from the binary but CI still runs un-stripped dev builds, so backtraces
+# in tests are unaffected.
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1

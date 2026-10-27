@@ -249,6 +249,7 @@ fn enrich_contextual_search_queries(
         .collect();
     let mut entities_by_span: HashMap<(String, String, usize, usize), &semantic_core::Candidate> =
         HashMap::new();
+    let mut identity_by_span: HashMap<(String, usize, usize), String> = HashMap::new();
     let mut contexts_by_scene: HashMap<&str, Vec<&semantic_core::ContextualImageQuery>> =
         HashMap::new();
     for scene in scenes {
@@ -262,26 +263,187 @@ fn enrich_contextual_search_queries(
                 ),
                 entity,
             );
+            identity_by_span.insert(
+                (scene.scene_id.clone(), entity.start_byte, entity.end_byte),
+                entity.id.clone(),
+            );
         }
         contexts_by_scene.insert(
             &scene.scene_id,
             scene.contextual_image_queries.iter().collect(),
         );
     }
+    let searchable_entity_ids: HashSet<(String, String)> = candidates
+        .iter()
+        .filter(|candidate| candidate.recipe == "entity_search" && candidate.entity_ids.len() == 1)
+        .map(|candidate| (candidate.scene_id.clone(), candidate.entity_ids[0].clone()))
+        .collect();
 
-    for candidate in candidates.iter_mut().filter(|candidate| {
-        candidate.recipe == "entity_search"
-            && candidate.requires_media
-            && candidate.entity_ids.len() == 1
-    }) {
+    for candidate in candidates
+        .iter_mut()
+        .filter(|candidate| candidate.recipe == "entity_search" && candidate.entity_ids.len() == 1)
+    {
         let Some(source) = sources_by_scene.get(candidate.scene_id.as_str()).copied() else {
             continue;
         };
         let Some(contexts) = contexts_by_scene.get(candidate.scene_id.as_str()) else {
             continue;
         };
+        let identity = candidate.entity_ids[0].as_str();
+        let anchor_start = candidate.start_byte.min(source.text.len());
+        let anchor_end = candidate.end_byte.min(source.text.len());
+        let sentence_start = source.text[..anchor_start]
+            .rfind(['.', '!', '?', '\n'])
+            .map_or(0, |index| index + 1);
+        let sentence_end = source.text[anchor_end..]
+            .find(['.', '!', '?', '\n'])
+            .map_or(source.text.len(), |index| anchor_end + index + 1);
+        let candidate_text = source
+            .text
+            .get(sentence_start..sentence_end)
+            .unwrap_or("")
+            .to_lowercase();
+        let non_subject_object = policy
+            .non_subject_object_terms
+            .iter()
+            .any(|term| candidate.title.eq_ignore_ascii_case(term));
+        if non_subject_object {
+            candidate.requires_media = false;
+            candidate.queries.clear();
+            continue;
+        }
+        let disconnected_meta_sentence = policy
+            .link_disclaimer_cues
+            .iter()
+            .any(|cue| candidate_text.contains(cue.to_lowercase().as_str()));
+        let explicit_comparison_context = contexts.iter().any(|context| {
+            context.evidence_start_byte <= candidate.start_byte
+                && candidate.start_byte <= context.evidence_end_byte
+                && context.components.iter().any(|component| {
+                    component.component_type == "ACTION"
+                        && policy
+                            .comparison_cues
+                            .iter()
+                            .any(|cue| component.text.eq_ignore_ascii_case(cue))
+                })
+        });
+        if disconnected_meta_sentence && !explicit_comparison_context {
+            candidate.requires_media = false;
+            candidate.queries.clear();
+            continue;
+        }
+        let context_owner = |context: &semantic_core::ContextualImageQuery| {
+            context
+                .components
+                .iter()
+                .filter_map(|component| {
+                    let id = identity_by_span.get(&(
+                        candidate.scene_id.clone(),
+                        component.start_byte,
+                        component.end_byte,
+                    ))?;
+                    let entity = entities_by_span.get(&(
+                        candidate.scene_id.clone(),
+                        id.clone(),
+                        component.start_byte,
+                        component.end_byte,
+                    ))?;
+                    Some((visual_query_owner_rank(&entity.kind), id.as_str()))
+                })
+                .min_by_key(|(rank, _)| *rank)
+                .map(|(_, id)| id)
+        };
+        let effective_context_owner = |context: &semantic_core::ContextualImageQuery| {
+            let preferred = context_owner(context);
+            if preferred.is_some_and(|id| {
+                searchable_entity_ids.contains(&(candidate.scene_id.clone(), id.to_string()))
+            }) {
+                return preferred;
+            }
+            context
+                .components
+                .iter()
+                .filter_map(|component| {
+                    let id = identity_by_span.get(&(
+                        candidate.scene_id.clone(),
+                        component.start_byte,
+                        component.end_byte,
+                    ))?;
+                    if !searchable_entity_ids.contains(&(candidate.scene_id.clone(), id.clone())) {
+                        return None;
+                    }
+                    let entity = entities_by_span.get(&(
+                        candidate.scene_id.clone(),
+                        id.clone(),
+                        component.start_byte,
+                        component.end_byte,
+                    ))?;
+                    Some((visual_query_owner_rank(&entity.kind), id.as_str()))
+                })
+                .min_by_key(|(rank, _)| *rank)
+                .map(|(_, id)| id)
+        };
+        let owns_any_context = contexts
+            .iter()
+            .any(|context| effective_context_owner(context) == Some(identity));
+        let covered_by_context = contexts.iter().any(|context| {
+            effective_context_owner(context).is_some_and(|owner| owner != identity)
+                && context.components.iter().any(|component| {
+                    let component_identity = identity_by_span.get(&(
+                        candidate.scene_id.clone(),
+                        component.start_byte,
+                        component.end_byte,
+                    ));
+                    component_identity.is_some_and(|id| id == identity)
+                        || (component.start_byte <= candidate.start_byte
+                            && candidate.end_byte <= component.end_byte)
+                })
+        });
+        let candidate_kind = candidate
+            .entity_ids
+            .first()
+            .and_then(|id| {
+                entities_by_span
+                    .iter()
+                    .find_map(|((scene, entity_id, _, _), entity)| {
+                        (scene == &candidate.scene_id && entity_id == id)
+                            .then_some(entity.kind.as_str())
+                    })
+            })
+            .unwrap_or("");
+        let unlinked_person_in_visual_scene = candidate_kind == "PERSON"
+            && !contexts.is_empty()
+            && !contexts.iter().any(|context| {
+                context.components.iter().any(|component| {
+                    identity_by_span
+                        .get(&(
+                            candidate.scene_id.clone(),
+                            component.start_byte,
+                            component.end_byte,
+                        ))
+                        .is_some_and(|id| id == identity)
+                })
+            });
+        if unlinked_person_in_visual_scene {
+            candidate.requires_media = false;
+            candidate.queries.clear();
+            continue;
+        }
+        if covered_by_context && !owns_any_context {
+            // One contextual event gets one provider request. Its named
+            // subjects remain in the manifest, but do not each issue a
+            // separate exact-name search for the same scene event.
+            candidate.requires_media = false;
+            candidate.queries.clear();
+            continue;
+        }
         let mut added = 0;
-        for context in contexts.iter().copied() {
+        let mut contextual_queries = Vec::new();
+        for context in contexts
+            .iter()
+            .copied()
+            .filter(|context| effective_context_owner(context) == Some(identity))
+        {
             if added >= policy.max_contextual_queries_per_candidate {
                 break;
             }
@@ -329,7 +491,7 @@ fn enrich_contextual_search_queries(
             if !evidence_valid || !components_valid || composed_query != context.query {
                 continue;
             }
-            candidate.queries.push(SearchQuery::contextual(
+            contextual_queries.push(SearchQuery::contextual(
                 context.query.clone(),
                 context.evidence.clone(),
                 context.evidence_start_byte,
@@ -339,6 +501,31 @@ fn enrich_contextual_search_queries(
             ));
             added += 1;
         }
+        if !contextual_queries.is_empty() {
+            // Search the source-supported event first. The canonical identity
+            // query remains the fallback if the composed search has no useful
+            // hit; it must not consume the first provider request by default.
+            if candidate.queries.is_empty() {
+                candidate
+                    .queries
+                    .push(SearchQuery::literal(candidate.title.clone()));
+            }
+            candidate.requires_media = true;
+            contextual_queries.append(&mut candidate.queries);
+            candidate.queries = contextual_queries;
+        }
+    }
+}
+
+fn visual_query_owner_rank(entity_type: &str) -> u8 {
+    match entity_type {
+        "PRODUCT" => 0,
+        "OBJECT" => 1,
+        "FACILITY" | "STRUCTURE" => 2,
+        "BRAND" | "ORG" | "ORGANIZATION" => 3,
+        "PERSON" => 4,
+        "LOCATION" => 5,
+        _ => 6,
     }
 }
 
@@ -349,6 +536,20 @@ pub(crate) struct ImageQueryPolicy {
     pub(crate) max_contextual_queries_per_candidate: usize,
     pub(crate) max_query_words: usize,
     pub(crate) max_query_chars: usize,
+    pub(crate) visual_action_cues: Vec<String>,
+    pub(crate) scene_reference_cues: Vec<String>,
+    pub(crate) anaphoric_object_terms: Vec<String>,
+    pub(crate) location_inheritance_cues: Vec<String>,
+    pub(crate) visual_clause_separators: Vec<String>,
+    pub(crate) linked_clause_visual_cues: Vec<String>,
+    pub(crate) comparison_cues: Vec<String>,
+    pub(crate) link_disclaimer_cues: Vec<String>,
+    pub(crate) irrealis_visual_cues: Vec<String>,
+    pub(crate) passive_owner_cues: Vec<String>,
+    pub(crate) non_subject_object_terms: Vec<String>,
+    pub(crate) location_anchor_cues: Vec<String>,
+    pub(crate) nonvisual_action_context_phrases: Vec<String>,
+    pub(crate) nonvisual_concept_phrases: Vec<String>,
 }
 
 impl Default for ImageQueryPolicy {
@@ -358,6 +559,20 @@ impl Default for ImageQueryPolicy {
             max_contextual_queries_per_scene: 10,
             max_query_words: 7,
             max_query_chars: 64,
+            visual_action_cues: Vec::new(),
+            scene_reference_cues: Vec::new(),
+            anaphoric_object_terms: Vec::new(),
+            location_inheritance_cues: Vec::new(),
+            visual_clause_separators: Vec::new(),
+            linked_clause_visual_cues: Vec::new(),
+            comparison_cues: Vec::new(),
+            link_disclaimer_cues: Vec::new(),
+            irrealis_visual_cues: Vec::new(),
+            passive_owner_cues: Vec::new(),
+            non_subject_object_terms: Vec::new(),
+            location_anchor_cues: Vec::new(),
+            nonvisual_action_context_phrases: Vec::new(),
+            nonvisual_concept_phrases: Vec::new(),
         }
     }
 }

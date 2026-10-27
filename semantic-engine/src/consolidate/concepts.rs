@@ -34,6 +34,10 @@ pub(super) fn push_visual_concepts(
             .entities
             .iter()
             .filter(|entity| entity.kind == "VISUAL_CONCEPT")
+            // Editorial/legal abstractions are useful to semantic analysis,
+            // but they are not image-search subjects. Keep this vocabulary
+            // in policy data so it can evolve without changing extraction.
+            .filter(|entity| !is_policy_excluded_visual_concept(&entity.text))
             .filter(|entity| {
                 // A fragment of a longer named entity ("d'Assise d'Appello"
                 // inside "Corte d'Assise d'Appello") is inventory, not a
@@ -237,6 +241,14 @@ fn visual_phrase_penalty(lower: &str) -> f32 {
         penalty += 0.10;
     }
     penalty
+}
+
+fn is_policy_excluded_visual_concept(text: &str) -> bool {
+    let normalized = text.to_lowercase();
+    crate::consolidate::image_query_policy()
+        .nonvisual_concept_phrases
+        .iter()
+        .any(|phrase| normalized.contains(&phrase.to_lowercase()))
 }
 
 use super::identities::{identity_anchor, is_named_kind};

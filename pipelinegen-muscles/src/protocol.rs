@@ -309,6 +309,15 @@ pub struct OverlayManifestEntry {
     pub in_us: i64,
     pub out_us: i64,
     pub content_hash: String,
+    // Packed-timeline positions (OVERLAY-MANIFEST-CONTRACT.md §3): where the
+    // entry's content actually lives on the CERTIFIED artifact's own frames.
+    // Both present or both absent — like the Go producer
+    // (PipelineGen OverlayManifestEntry.Validate), a half-set pair is a
+    // malformed manifest and fails validation below.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_in_us: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_out_us: Option<i64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -355,6 +364,38 @@ impl OverlayManifest {
                     "overlay manifest entry {} content_hash must be 64-char sha256",
                     entry.item_id
                 ));
+            }
+            match (entry.artifact_in_us, entry.artifact_out_us) {
+                (Some(artifact_in), Some(artifact_out)) => {
+                    if artifact_in < 0 {
+                        return Err(format!(
+                            "overlay manifest entry {} artifact_in_us must be >= 0",
+                            entry.item_id
+                        ));
+                    }
+                    if artifact_out <= artifact_in {
+                        return Err(format!(
+                            "overlay manifest entry {} artifact_out_us must be > artifact_in_us",
+                            entry.item_id
+                        ));
+                    }
+                    if artifact_out - artifact_in > entry.out_us - entry.in_us {
+                        // Packing only shrinks the canvas (the union of real
+                        // overlay windows), so the packed span can never
+                        // outlast the entry's literal plan window.
+                        return Err(format!(
+                            "overlay manifest entry {} packed span is longer than its plan window",
+                            entry.item_id
+                        ));
+                    }
+                }
+                (None, None) => {}
+                _ => {
+                    return Err(format!(
+                        "overlay manifest entry {} artifact_in_us/artifact_out_us must be set together",
+                        entry.item_id
+                    ));
+                }
             }
         }
         Ok(())
@@ -893,5 +934,91 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("no video"));
+    }
+
+    use super::{OverlayManifest, OverlayManifestEntry, OVERLAY_MANIFEST_SCHEMA_V1};
+
+    fn manifest_entry() -> OverlayManifestEntry {
+        OverlayManifestEntry {
+            item_id: "item-01".to_string(),
+            track: 0,
+            in_us: 10_000_000,
+            out_us: 12_000_000,
+            content_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                .to_string(),
+            artifact_in_us: None,
+            artifact_out_us: None,
+        }
+    }
+
+    fn manifest(entries: Vec<OverlayManifestEntry>) -> OverlayManifest {
+        OverlayManifest {
+            schema_version: OVERLAY_MANIFEST_SCHEMA_V1.to_string(),
+            plan_id: "plan-01".to_string(),
+            video_id: "video-01".to_string(),
+            timeline_sha256: None,
+            asset: None,
+            entries,
+        }
+    }
+
+    // Wire-parity gate with the Go producer (PipelineGen
+    // OverlayManifestEntry.Validate): a packed manifest carries
+    // artifact_in_us/artifact_out_us together, both windows are positive, and
+    // the packed span never outlasts the entry's literal plan window. The
+    // plan window itself (in_us/out_us) stays verbatim and is validated
+    // independently.
+    #[test]
+    fn manifest_packed_placements_validate() {
+        let mut entry = manifest_entry();
+        entry.artifact_in_us = Some(0);
+        entry.artifact_out_us = Some(2_000_000);
+        assert!(manifest(vec![entry]).validate().is_ok());
+    }
+
+    #[test]
+    fn manifest_packed_placements_must_be_set_together() {
+        let mut half_set = manifest_entry();
+        half_set.artifact_in_us = Some(0);
+        let err = manifest(vec![half_set]).validate().unwrap_err();
+        assert!(err.contains("set together"), "unexpected error: {err}");
+
+        let mut other_half = manifest_entry();
+        other_half.artifact_out_us = Some(2_000_000);
+        let err = manifest(vec![other_half]).validate().unwrap_err();
+        assert!(err.contains("set together"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn manifest_packed_span_never_outlasts_the_plan_window() {
+        let mut entry = manifest_entry();
+        entry.artifact_in_us = Some(0);
+        entry.artifact_out_us = Some(3_000_001);
+        let err = manifest(vec![entry]).validate().unwrap_err();
+        assert!(
+            err.contains("longer than its plan window"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn manifest_packed_window_must_be_positive() {
+        let mut inverted = manifest_entry();
+        inverted.artifact_in_us = Some(2_000_000);
+        inverted.artifact_out_us = Some(2_000_000);
+        let err = manifest(vec![inverted]).validate().unwrap_err();
+        assert!(
+            err.contains("artifact_out_us must be > artifact_in_us"),
+            "unexpected error: {err}"
+        );
+
+        let mut negative = manifest_entry();
+        negative.artifact_in_us = Some(-1);
+        negative.artifact_out_us = Some(1);
+        let err = manifest(vec![negative]).validate().unwrap_err();
+        assert!(
+            err.contains("artifact_in_us must be >= 0"),
+            "unexpected error: {err}"
+        );
     }
 }

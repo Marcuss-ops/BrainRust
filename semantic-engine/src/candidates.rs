@@ -445,274 +445,40 @@ pub(crate) fn composed_query_candidates(
         .collect()
 }
 
-/// Builds compact provider queries from asserted relations first, then from
-/// source-grounded same-sentence co-mentions. A co-mention is explicitly a
-/// retrieval cue, not an assertion that the entities are related. Queries are
-/// bounded per scene and every component retains its exact source span.
+/// Builds compact, source-grounded provider queries from the visual roles in
+/// each clause and from explicit anaphoric references between scene sentences.
+/// Queries stay within evidence spans, are budgeted per scene, and never
+/// promote a retrieval composition into a verified fact.
 pub(crate) fn contextual_image_query_candidates(
+    language: &str,
     source: &str,
     sentences: &[semantic_core::SentenceSpan],
     entities: &[VisualEntity],
-    entity_ids: &[String],
-    facts: &[EntityFact],
-    co_mentions: &[semantic_core::CoMention],
 ) -> Vec<ContextualImageQuery> {
     let max_contextual_queries =
         crate::consolidate::image_query_policy().max_contextual_queries_per_scene;
-    let mut output = Vec::new();
-    let mut seen = HashSet::new();
-    let explicitly_located_entities: HashSet<String> = facts
-        .iter()
-        .filter(|fact| fact.status == "asserted" && fact.predicate == "located_in")
-        .flat_map(|fact| {
-            std::iter::once(fact.subject_entity_id.clone())
-                .chain(fact.target_entity_id.iter().cloned())
-        })
-        .collect();
-    for fact in facts {
-        if fact.status != "asserted" {
-            continue;
-        }
-        let Some(target_id) = fact.target_entity_id.as_deref() else {
-            continue;
-        };
-        let Some(subject_index) = entity_ids.iter().enumerate().find_map(|(index, identity)| {
-            let entity = entities.get(index)?;
-            (identity == &fact.subject_entity_id
-                && entity.start >= fact.evidence_start_byte
-                && entity.end <= fact.evidence_end_byte)
-                .then_some(index)
-        }) else {
-            continue;
-        };
-        let target_index = entity_ids.iter().enumerate().find_map(|(index, identity)| {
-            let entity = entities.get(index)?;
-            (identity == target_id
-                && entity.start >= fact.evidence_start_byte
-                && entity.end <= fact.evidence_end_byte)
-                .then_some(index)
-        });
-        let Some(subject) = entities.get(subject_index) else {
-            continue;
-        };
-        let target = target_index.and_then(|index| entities.get(index));
-        let target_span = if let Some(target) = target {
-            if !is_visual_query_entity(&target.r#type)
-                || (fact.predicate == "located_in" && target.r#type != "LOCATION")
-            {
-                continue;
-            }
-            (
-                target.text.as_str(),
-                target.start,
-                target.end,
-                target.r#type.as_str(),
-                if fact.predicate == "located_in" {
-                    "location"
-                } else {
-                    "related_entity"
-                },
-            )
-        } else if fact.predicate == "located_in"
-            && source.get(fact.start_byte..fact.end_byte) == Some(fact.value.as_str())
-            && fact.start_byte >= fact.evidence_start_byte
-            && fact.end_byte <= fact.evidence_end_byte
-        {
-            (
-                fact.value.as_str(),
-                fact.start_byte,
-                fact.end_byte,
-                "LOCATION",
-                "location",
-            )
-        } else {
-            continue;
-        };
-        if subject.start == target_span.1 && subject.end == target_span.2
-            || !is_visual_query_entity(&subject.r#type)
-            // A place already contained in an institution's source name is
-            // not useful as a second query component ("Comune di Torino
-            // Torino"). Keep the entity span and relation evidence intact,
-            // but do not emit a redundant image query.
-            || (subject.start < target_span.2 && target_span.1 < subject.end)
-            || !seen.insert(relation_query_key(
-                fact.sentence_index,
-                fact.subject_entity_id.as_str(),
-                target_id,
-            ))
-        {
-            continue;
-        }
-        let Some(sentence) = sentences.get(fact.sentence_index) else {
-            continue;
-        };
-        if fact.evidence_start_byte < sentence.start_byte
-            || fact.evidence_end_byte > sentence.end_byte
-        {
-            continue;
-        }
-        let Some(evidence) = source.get(fact.evidence_start_byte..fact.evidence_end_byte) else {
-            continue;
-        };
-        if evidence != fact.evidence {
-            continue;
-        }
-        let query = format!("{} {}", subject.text.trim(), target_span.0.trim());
-        if query.trim().is_empty()
-            || query.split_whitespace().count() > 7
-            || query.chars().count() > 64
-        {
-            continue;
-        }
-        output.push(ContextualImageQuery {
-            id: format!("contextual_{:03}", output.len() + 1),
-            kind: "contextual_image_query".to_string(),
-            query,
-            evidence: evidence.to_string(),
-            evidence_start_byte: fact.evidence_start_byte,
-            evidence_end_byte: fact.evidence_end_byte,
-            sentence_index: fact.sentence_index,
-            components: vec![
-                QueryComponent {
-                    kind: "entity".to_string(),
-                    component_type: subject.r#type.clone(),
-                    text: subject.text.clone(),
-                    start_byte: subject.start,
-                    end_byte: subject.end,
-                },
-                QueryComponent {
-                    kind: target_span.4.to_string(),
-                    component_type: target_span.3.to_string(),
-                    text: target_span.0.to_string(),
-                    start_byte: target_span.1,
-                    end_byte: target_span.2,
-                },
-            ],
-        });
-    }
-    let mut co_mention_candidates: Vec<(usize, usize, String, ContextualImageQuery)> = Vec::new();
-    for mention in co_mentions {
-        // Prefer the explicit location relation already extracted for an
-        // entity. A second, merely co-mentioned person/place pair in another
-        // clause of the same scene is too easy to misread as a location link.
-        if explicitly_located_entities.contains(&mention.left_id)
-            || explicitly_located_entities.contains(&mention.right_id)
-        {
-            continue;
-        }
-        let Some(sentence) = sentences.get(mention.sentence_index) else {
-            continue;
-        };
-        let Some(evidence) = source.get(sentence.start_byte..sentence.end_byte) else {
-            continue;
-        };
-        if evidence != mention.evidence {
-            continue;
-        }
-        let left_indices: Vec<usize> = entity_ids
-            .iter()
-            .enumerate()
-            .filter_map(|(index, identity)| {
-                let entity = entities.get(index)?;
-                (identity == &mention.left_id
-                    && entity.start >= sentence.start_byte
-                    && entity.end <= sentence.end_byte
-                    && is_visual_query_entity(&entity.r#type)
-                    && source.get(entity.start..entity.end) == Some(entity.text.as_str()))
-                .then_some(index)
-            })
-            .collect();
-        let right_indices: Vec<usize> = entity_ids
-            .iter()
-            .enumerate()
-            .filter_map(|(index, identity)| {
-                let entity = entities.get(index)?;
-                (identity == &mention.right_id
-                    && entity.start >= sentence.start_byte
-                    && entity.end <= sentence.end_byte
-                    && is_visual_query_entity(&entity.r#type)
-                    && source.get(entity.start..entity.end) == Some(entity.text.as_str()))
-                .then_some(index)
-            })
-            .collect();
-        let Some((left, right)) = left_indices
-            .iter()
-            .flat_map(|left| {
-                right_indices.iter().filter_map(move |right| {
-                    let a = entities.get(*left)?;
-                    let b = entities.get(*right)?;
-                    let distinct = a.start != b.start || a.end != b.end;
-                    let disjoint = a.end <= b.start || b.end <= a.start;
-                    (distinct && disjoint).then_some((*left, *right))
-                })
-            })
-            .min_by_key(|(left, right)| {
-                let a = &entities[*left];
-                let b = &entities[*right];
-                a.start.abs_diff(b.start)
-            })
-        else {
-            continue;
-        };
-        let a = &entities[left];
-        let b = &entities[right];
-        let (first, second) = contextual_entity_order(a, b);
-        let query = format!("{} {}", first.text.trim(), second.text.trim());
-        if query.split_whitespace().count() > 7 || query.chars().count() > 64 {
-            continue;
-        }
-        let key = relation_query_key(mention.sentence_index, &mention.left_id, &mention.right_id);
-        if !seen.insert(key) {
-            continue;
-        }
-        let pair_quality = image_pair_quality(&first.r#type, &second.r#type);
-        if pair_quality < 3 {
-            continue;
-        }
-        co_mention_candidates.push((
-            pair_quality,
-            first.start.abs_diff(second.start),
-            query.clone(),
-            ContextualImageQuery {
-                id: String::new(),
-                kind: "contextual_image_query".to_string(),
-                query,
-                evidence: evidence.to_string(),
-                evidence_start_byte: sentence.start_byte,
-                evidence_end_byte: sentence.end_byte,
-                sentence_index: mention.sentence_index,
-                components: vec![first, second]
-                    .into_iter()
-                    .map(|entity| QueryComponent {
-                        kind: "co_mentioned_entity".to_string(),
-                        component_type: entity.r#type.clone(),
-                        text: entity.text.clone(),
-                        start_byte: entity.start,
-                        end_byte: entity.end,
-                    })
-                    .collect(),
-            },
-        ));
-    }
-    co_mention_candidates.sort_by(|left, right| {
-        right
-            .0
-            .cmp(&left.0)
-            .then_with(|| left.1.cmp(&right.1))
-            .then_with(|| left.2.cmp(&right.2))
-            .then_with(|| left.3.sentence_index.cmp(&right.3.sentence_index))
-    });
-    for (_, _, _, candidate) in co_mention_candidates {
+    let mut output = linked_clause_visual_queries(language, source, sentences, entities);
+    for candidate in sentence_visual_slot_queries(language, source, sentences, entities) {
         if output.len() >= max_contextual_queries {
             break;
         }
-        if output
+        if !output
             .iter()
             .any(|existing| existing.query.eq_ignore_ascii_case(&candidate.query))
         {
-            continue;
+            output.push(candidate);
         }
-        output.push(candidate);
+    }
+    for candidate in inherited_scene_visual_queries(language, source, sentences, entities) {
+        if output.len() >= max_contextual_queries {
+            break;
+        }
+        if !output
+            .iter()
+            .any(|existing| existing.query.eq_ignore_ascii_case(&candidate.query))
+        {
+            output.push(candidate);
+        }
     }
     output.truncate(max_contextual_queries);
     output.sort_by_key(|candidate| candidate.sentence_index);
@@ -747,33 +513,730 @@ fn image_pair_quality(left_type: &str, right_type: &str) -> usize {
     }
 }
 
-fn contextual_entity_order<'a>(
-    left: &'a VisualEntity,
-    right: &'a VisualEntity,
-) -> (&'a VisualEntity, &'a VisualEntity) {
-    let rank = |entity_type: &str| match entity_type {
-        "PERSON" => 0,
-        "OBJECT" => 1,
-        "ORG" | "ORGANIZATION" => 2,
-        "FACILITY" => 3,
-        "LOCATION" => 4,
-        _ => 5,
-    };
-    if rank(&left.r#type) < rank(&right.r#type)
-        || (rank(&left.r#type) == rank(&right.r#type) && left.start <= right.start)
-    {
-        (left, right)
-    } else {
-        (right, left)
+/// Builds one image search composition from the visual slots in each source
+/// clause. It intentionally does not form the Cartesian product of entities:
+/// an object/product is the anchor, then only its nearby brand, actor, place,
+/// and one source-backed action cue can join it.
+fn sentence_visual_slot_queries(
+    language: &str,
+    source: &str,
+    sentences: &[semantic_core::SentenceSpan],
+    entities: &[VisualEntity],
+) -> Vec<ContextualImageQuery> {
+    let mut output = Vec::new();
+    for (sentence_index, sentence) in sentences.iter().enumerate() {
+        let Some(sentence_text) = source.get(sentence.start_byte..sentence.end_byte) else {
+            continue;
+        };
+        for (clause_start, clause_end) in visual_clause_spans(sentence_text) {
+            let absolute_start = sentence.start_byte + clause_start;
+            let absolute_end = sentence.start_byte + clause_end;
+            let Some(evidence) = source.get(absolute_start..absolute_end) else {
+                continue;
+            };
+            let comparison = is_explicit_visual_comparison(evidence, language);
+            let lower_evidence = evidence.to_lowercase();
+            let future_proposal = crate::consolidate::image_query_policy()
+                .irrealis_visual_cues
+                .iter()
+                .any(|cue| lower_evidence.contains(cue.to_lowercase().as_str()));
+            if (has_explicit_link_disclaimer(evidence, language) && !comparison)
+                || (semantic_core::relations::clause_status(evidence, &[language])
+                    != semantic_core::RelationStatus::Asserted
+                    && !comparison
+                    && !future_proposal)
+            {
+                continue;
+            }
+            let mut rows: Vec<&VisualEntity> = entities
+                .iter()
+                .filter(|entity| {
+                    entity.start >= absolute_start
+                        && entity.end <= absolute_end
+                        && source.get(entity.start..entity.end) == Some(entity.text.as_str())
+                        && is_visual_query_entity(&entity.r#type)
+                })
+                .collect();
+            rows.sort_by(|left, right| {
+                visual_slot_rank(&left.r#type)
+                    .cmp(&visual_slot_rank(&right.r#type))
+                    .then(left.start.cmp(&right.start))
+                    .then(right.end.cmp(&left.end))
+            });
+            // A typed compound owns its nested brand span. Keeping both would
+            // repeat the same product in the query.
+            rows.dedup_by(|right, left| left.start == right.start && left.end == right.end);
+            let all_rows = rows.clone();
+            rows.retain(|entity| {
+                !all_rows.iter().any(|other| {
+                    other.start <= entity.start
+                        && entity.end <= other.end
+                        && (other.start < entity.start || entity.end < other.end)
+                        && matches!(
+                            other.r#type.as_str(),
+                            "PRODUCT" | "OBJECT" | "FACILITY" | "BRAND" | "ORG" | "ORGANIZATION"
+                        )
+                })
+            });
+
+            let objects: Vec<&VisualEntity> = rows
+                .iter()
+                .copied()
+                .filter(|entity| {
+                    matches!(
+                        entity.r#type.as_str(),
+                        "PRODUCT" | "OBJECT" | "FACILITY" | "STRUCTURE"
+                    ) && !crate::consolidate::image_query_policy()
+                        .non_subject_object_terms
+                        .iter()
+                        .any(|term| entity.text.eq_ignore_ascii_case(term))
+                })
+                .collect();
+            let brands: Vec<&VisualEntity> = rows
+                .iter()
+                .copied()
+                .filter(|entity| matches!(entity.r#type.as_str(), "BRAND" | "ORG" | "ORGANIZATION"))
+                .collect();
+            let people: Vec<&VisualEntity> = rows
+                .iter()
+                .copied()
+                .filter(|entity| entity.r#type == "PERSON")
+                .filter(|entity| !is_passive_visual_owner(evidence, entity))
+                .collect();
+            let locations: Vec<&VisualEntity> = rows
+                .iter()
+                .copied()
+                .filter(|entity| entity.r#type == "LOCATION")
+                .collect();
+            let action = visual_action_component(source, absolute_start, absolute_end, evidence);
+            let mut anchors: Vec<&VisualEntity> = Vec::new();
+            if comparison && brands.len() >= 2 {
+                // A comparison can join two named makers, but a denial of
+                // collaboration never changes the comparison into a claim.
+                if let Some(object) = objects.first() {
+                    anchors.push(object);
+                }
+                anchors.extend(brands.iter().take(2).copied());
+            } else if let Some(object) = objects.first() {
+                if action.is_some() {
+                    if let Some(person) = people.first() {
+                        anchors.push(person);
+                    }
+                }
+                anchors.push(object);
+                if let Some(brand) = closest_related_brand(object, &brands) {
+                    anchors.push(brand);
+                }
+            } else if !brands.is_empty() {
+                // Brand/place and organization/place scenes still form useful
+                // visual searches when the text names no person.
+                anchors.push(brands[0]);
+                if let Some(person) = people.first().filter(|_| action.is_some()) {
+                    anchors.insert(0, person);
+                }
+            } else if locations.len() >= 2 {
+                // Only join a landmark to a location explicitly introduced
+                // with a location phrase; two landmarks listed together do
+                // not become a single scene query.
+                if let Some(place) = locations
+                    .iter()
+                    .copied()
+                    .find(|entity| has_location_anchor_cue(source, absolute_start, entity))
+                {
+                    if let Some(other_place) = locations
+                        .iter()
+                        .copied()
+                        .find(|entity| entity.start != place.start)
+                    {
+                        anchors.push(other_place);
+                        anchors.push(place);
+                    }
+                }
+            } else if let Some(person) = people.first() {
+                anchors.push(person);
+            }
+            if let Some(location) = locations.iter().min_by_key(|entity| {
+                anchors
+                    .last()
+                    .map_or(usize::MAX, |anchor| anchor.start.abs_diff(entity.start))
+            }) {
+                if !anchors
+                    .iter()
+                    .any(|anchor| anchor.start == location.start && anchor.end == location.end)
+                {
+                    anchors.push(location);
+                }
+            }
+            anchors.dedup_by(|right, left| left.start == right.start && left.end == right.end);
+            if anchors.is_empty() || (anchors.len() < 2 && action.is_none()) {
+                continue;
+            }
+            let mut components: Vec<semantic_core::QueryComponent> = anchors
+                .iter()
+                .map(|entity| semantic_core::QueryComponent {
+                    kind: visual_component_kind(&entity.r#type).to_string(),
+                    component_type: entity.r#type.clone(),
+                    text: entity.text.clone(),
+                    start_byte: entity.start,
+                    end_byte: entity.end,
+                })
+                .collect();
+            if let Some(action) = action {
+                components.push(action);
+            }
+            let query = components
+                .iter()
+                .map(|component| component.text.trim())
+                .collect::<Vec<_>>()
+                .join(" ");
+            if query.split_whitespace().count() > 7 || query.chars().count() > 64 {
+                continue;
+            }
+            output.push(ContextualImageQuery {
+                id: String::new(),
+                kind: "contextual_image_query".to_string(),
+                query,
+                evidence: evidence.to_string(),
+                evidence_start_byte: absolute_start,
+                evidence_end_byte: absolute_end,
+                sentence_index,
+                components,
+            });
+            if output.len() >= 10 {
+                return output;
+            }
+        }
+    }
+    output
+}
+
+/// Joins two adjacent clauses only when a configured simultaneous-action
+/// marker links them, the first clause names an actor, and both clauses have
+/// affirmative visual predicates. This preserves scene context without
+/// treating arbitrary same-sentence entities as related.
+fn linked_clause_visual_queries(
+    language: &str,
+    source: &str,
+    sentences: &[semantic_core::SentenceSpan],
+    entities: &[VisualEntity],
+) -> Vec<ContextualImageQuery> {
+    let policy = crate::consolidate::image_query_policy();
+    let mut output = Vec::new();
+    for (sentence_index, sentence) in sentences.iter().enumerate() {
+        let Some(sentence_text) = source.get(sentence.start_byte..sentence.end_byte) else {
+            continue;
+        };
+        let lower_sentence = sentence_text.to_lowercase();
+        if !policy
+            .linked_clause_visual_cues
+            .iter()
+            .any(|cue| lower_sentence.contains(cue.to_lowercase().as_str()))
+        {
+            continue;
+        }
+        let clauses = visual_clause_spans(sentence_text);
+        for pair in clauses.windows(2) {
+            let (left_start, left_end) = pair[0];
+            let (right_start, right_end) = pair[1];
+            let left_absolute_start = sentence.start_byte + left_start;
+            let left_absolute_end = sentence.start_byte + left_end;
+            let right_absolute_start = sentence.start_byte + right_start;
+            let right_absolute_end = sentence.start_byte + right_end;
+            let left_text = &sentence_text[left_start..left_end];
+            let right_text = &sentence_text[right_start..right_end];
+            if semantic_core::relations::clause_status(left_text, &[language])
+                != semantic_core::RelationStatus::Asserted
+                || semantic_core::relations::clause_status(right_text, &[language])
+                    != semantic_core::RelationStatus::Asserted
+                || visual_action_component(
+                    source,
+                    left_absolute_start,
+                    left_absolute_end,
+                    left_text,
+                )
+                .is_none()
+                || visual_action_component(
+                    source,
+                    right_absolute_start,
+                    right_absolute_end,
+                    right_text,
+                )
+                .is_none()
+            {
+                continue;
+            }
+            let left_entities: Vec<&VisualEntity> = entities
+                .iter()
+                .filter(|entity| {
+                    entity.start >= left_absolute_start && entity.end <= left_absolute_end
+                })
+                .collect();
+            let right_entities: Vec<&VisualEntity> = entities
+                .iter()
+                .filter(|entity| {
+                    entity.start >= right_absolute_start && entity.end <= right_absolute_end
+                })
+                .collect();
+            if !left_entities.iter().any(|entity| entity.r#type == "PERSON") {
+                continue;
+            }
+            let left_object = left_entities.iter().copied().find(|entity| {
+                matches!(entity.r#type.as_str(), "PRODUCT" | "OBJECT" | "FACILITY")
+                    && !policy
+                        .non_subject_object_terms
+                        .iter()
+                        .any(|term| entity.text.eq_ignore_ascii_case(term))
+            });
+            let right_objects: Vec<&VisualEntity> = right_entities
+                .iter()
+                .copied()
+                .filter(|entity| {
+                    matches!(
+                        entity.r#type.as_str(),
+                        "PRODUCT" | "OBJECT" | "FACILITY" | "STRUCTURE"
+                    ) && !policy
+                        .non_subject_object_terms
+                        .iter()
+                        .any(|term| entity.text.eq_ignore_ascii_case(term))
+                })
+                .collect();
+            let (Some(left_object), Some(right_object)) =
+                (left_object, right_objects.first().copied())
+            else {
+                continue;
+            };
+            let mut selected = vec![left_object];
+            if let Some(brand) = left_entities
+                .iter()
+                .copied()
+                .filter(|entity| matches!(entity.r#type.as_str(), "BRAND" | "ORG" | "ORGANIZATION"))
+                .min_by_key(|brand| left_object.start.abs_diff(brand.start))
+            {
+                selected.push(brand);
+            }
+            selected.push(right_object);
+            if let Some(additional_object) = right_objects.iter().copied().find(|entity| {
+                !selected
+                    .iter()
+                    .any(|item| item.start <= entity.start && entity.end <= item.end)
+            }) {
+                selected.push(additional_object);
+            }
+            if let Some(right_brand) = right_entities.iter().copied().find(|entity| {
+                matches!(
+                    entity.r#type.as_str(),
+                    "BRAND" | "ORG" | "ORGANIZATION" | "FACILITY"
+                ) && !selected
+                    .iter()
+                    .any(|item| item.start <= entity.start && entity.end <= item.end)
+            }) {
+                selected.push(right_brand);
+            }
+            if let Some(location) = right_entities
+                .iter()
+                .copied()
+                .find(|entity| entity.r#type == "LOCATION")
+            {
+                selected.push(location);
+            }
+            let components: Vec<semantic_core::QueryComponent> = selected
+                .iter()
+                .map(|entity| semantic_core::QueryComponent {
+                    kind: visual_component_kind(&entity.r#type).to_string(),
+                    component_type: entity.r#type.clone(),
+                    text: entity.text.clone(),
+                    start_byte: entity.start,
+                    end_byte: entity.end,
+                })
+                .collect();
+            let query = components
+                .iter()
+                .map(|component| component.text.trim())
+                .collect::<Vec<_>>()
+                .join(" ");
+            if query.split_whitespace().count() > policy.max_query_words
+                || query.chars().count() > policy.max_query_chars
+            {
+                continue;
+            }
+            output.push(ContextualImageQuery {
+                id: String::new(),
+                kind: "contextual_image_query".to_string(),
+                query,
+                evidence: sentence_text.to_string(),
+                evidence_start_byte: sentence.start_byte,
+                evidence_end_byte: sentence.end_byte,
+                sentence_index,
+                components,
+            });
+            break;
+        }
+    }
+    output
+}
+
+/// Carries only clearly referenced scene context across adjacent sentences:
+/// an event's named product/brand to "durante l'evento" and a city to an
+/// explicit "suoi monumenti" list. It does not merge arbitrary co-mentions.
+fn inherited_scene_visual_queries(
+    language: &str,
+    source: &str,
+    sentences: &[semantic_core::SentenceSpan],
+    entities: &[VisualEntity],
+) -> Vec<ContextualImageQuery> {
+    let mut output = Vec::new();
+    let policy = crate::consolidate::image_query_policy();
+    for (index, sentence) in sentences.iter().enumerate() {
+        let Some(text) = source.get(sentence.start_byte..sentence.end_byte) else {
+            continue;
+        };
+        let lower = text.to_lowercase();
+        let current_entities: Vec<&VisualEntity> = entities
+            .iter()
+            .filter(|entity| entity.start >= sentence.start_byte && entity.end <= sentence.end_byte)
+            .collect();
+        let has_scene_reference = policy
+            .scene_reference_cues
+            .iter()
+            .any(|cue| lower.contains(cue.to_lowercase().as_str()));
+        let has_anaphoric_object = current_entities.iter().any(|entity| {
+            policy
+                .anaphoric_object_terms
+                .iter()
+                .any(|term| entity.text.eq_ignore_ascii_case(term))
+        });
+        if (has_scene_reference || has_anaphoric_object)
+            && visual_action_component(source, sentence.start_byte, sentence.end_byte, text)
+                .is_some()
+        {
+            let object = current_entities
+                .iter()
+                .copied()
+                .min_by_key(|entity| match entity.r#type.as_str() {
+                    "PRODUCT" => 0,
+                    "OBJECT" | "FACILITY" => 1,
+                    _ => 2,
+                })
+                .filter(|entity| {
+                    matches!(entity.r#type.as_str(), "PRODUCT" | "OBJECT" | "FACILITY")
+                });
+            if let Some(object) = object {
+                // Search backwards for the nearest asserted event that named
+                // both an actor/organization and a visual product. The
+                // anaphor in this sentence is what licenses inheritance.
+                for prior_index in (0..index).rev().take(4) {
+                    let prior = &sentences[prior_index];
+                    let prior_text = source.get(prior.start_byte..prior.end_byte).unwrap_or("");
+                    if semantic_core::relations::clause_status(prior_text, &[language])
+                        != semantic_core::RelationStatus::Asserted
+                    {
+                        continue;
+                    }
+                    let prior_entities: Vec<&VisualEntity> = entities
+                        .iter()
+                        .filter(|entity| {
+                            entity.start >= prior.start_byte && entity.end <= prior.end_byte
+                        })
+                        .collect();
+                    let product = prior_entities.iter().copied().find(|entity| {
+                        matches!(entity.r#type.as_str(), "PRODUCT" | "OBJECT" | "FACILITY")
+                    });
+                    let brand = prior_entities.iter().copied().find(|entity| {
+                        matches!(entity.r#type.as_str(), "BRAND" | "ORG" | "ORGANIZATION")
+                    });
+                    let actor = prior_entities
+                        .iter()
+                        .copied()
+                        .find(|entity| entity.r#type == "PERSON");
+                    if (product.is_some() && (brand.is_some() || actor.is_some()))
+                        || (has_scene_reference && brand.is_some())
+                    {
+                        let mut components = Vec::new();
+                        if has_scene_reference && !has_anaphoric_object {
+                            if let Some(brand) = brand {
+                                components.push(brand);
+                            }
+                        } else if let Some(actor) = actor {
+                            components.push(actor);
+                        }
+                        if let Some(product) = product {
+                            components.push(product);
+                        }
+                        if let Some(brand) = brand.filter(|brand| {
+                            !components.iter().any(|entity| {
+                                entity.start <= brand.start && brand.end <= entity.end
+                            })
+                        }) {
+                            components.push(brand);
+                        }
+                        if let Some(location) = prior_entities
+                            .iter()
+                            .copied()
+                            .find(|entity| entity.r#type == "LOCATION")
+                        {
+                            components.push(location);
+                        }
+                        components.push(object);
+                        output.push(make_inherited_visual_query(
+                            source,
+                            prior.start_byte,
+                            sentence.end_byte,
+                            index,
+                            components,
+                        ));
+                        break;
+                    }
+                }
+            }
+        }
+
+        let has_location_reference = policy
+            .location_inheritance_cues
+            .iter()
+            .any(|cue| lower.contains(cue.to_lowercase().as_str()));
+        if has_location_reference {
+            let city = entities
+                .iter()
+                .filter(|entity| {
+                    entity.r#type == "LOCATION"
+                        && entity.end <= sentence.start_byte
+                        && sentence.start_byte.saturating_sub(entity.end) < 1200
+                })
+                .max_by_key(|entity| entity.end);
+            if let Some(city) = city {
+                for landmark in current_entities
+                    .iter()
+                    .filter(|entity| entity.r#type == "LOCATION")
+                {
+                    output.push(make_inherited_visual_query(
+                        source,
+                        city.start,
+                        sentence.end_byte,
+                        index,
+                        vec![landmark, city],
+                    ));
+                }
+            }
+        }
+    }
+    output
+}
+
+fn make_inherited_visual_query(
+    source: &str,
+    evidence_start: usize,
+    evidence_end: usize,
+    sentence_index: usize,
+    entities: Vec<&VisualEntity>,
+) -> ContextualImageQuery {
+    let components: Vec<semantic_core::QueryComponent> = entities
+        .into_iter()
+        .map(|entity| semantic_core::QueryComponent {
+            kind: visual_component_kind(&entity.r#type).to_string(),
+            component_type: entity.r#type.clone(),
+            text: entity.text.clone(),
+            start_byte: entity.start,
+            end_byte: entity.end,
+        })
+        .collect();
+    ContextualImageQuery {
+        id: String::new(),
+        kind: "contextual_image_query".to_string(),
+        query: components
+            .iter()
+            .map(|component| component.text.trim())
+            .collect::<Vec<_>>()
+            .join(" "),
+        evidence: source
+            .get(evidence_start..evidence_end)
+            .unwrap_or("")
+            .to_string(),
+        evidence_start_byte: evidence_start,
+        evidence_end_byte: evidence_end,
+        sentence_index,
+        components,
     }
 }
 
-fn relation_query_key(sentence_index: usize, left: &str, right: &str) -> (usize, String, String) {
-    if left <= right {
-        (sentence_index, left.to_string(), right.to_string())
-    } else {
-        (sentence_index, right.to_string(), left.to_string())
+fn visual_slot_rank(entity_type: &str) -> u8 {
+    match entity_type {
+        "PRODUCT" => 0,
+        "OBJECT" => 1,
+        "FACILITY" | "STRUCTURE" => 2,
+        "BRAND" | "ORG" | "ORGANIZATION" => 3,
+        "PERSON" => 4,
+        "LOCATION" => 5,
+        _ => 6,
     }
+}
+
+fn visual_component_kind(entity_type: &str) -> &'static str {
+    match entity_type {
+        "PERSON" => "entity",
+        "LOCATION" => "location",
+        "ORG" | "ORGANIZATION" | "BRAND" => "related_entity",
+        "FACILITY" | "STRUCTURE" => "facility",
+        _ => "object",
+    }
+}
+
+fn closest_related_brand<'a>(
+    object: &VisualEntity,
+    brands: &[&'a VisualEntity],
+) -> Option<&'a VisualEntity> {
+    brands
+        .iter()
+        .copied()
+        .min_by_key(|brand| object.start.abs_diff(brand.start))
+}
+
+fn is_passive_visual_owner(clause: &str, entity: &VisualEntity) -> bool {
+    let Some(relative) = clause.find(entity.text.as_str()) else {
+        return false;
+    };
+    let prefix = clause[..relative].to_lowercase();
+    crate::consolidate::image_query_policy()
+        .passive_owner_cues
+        .iter()
+        .any(|cue| prefix.contains(cue.to_lowercase().as_str()))
+}
+
+fn has_location_anchor_cue(source: &str, clause_start: usize, entity: &VisualEntity) -> bool {
+    let Some(prefix) = source.get(clause_start..entity.start) else {
+        return false;
+    };
+    let lower = prefix.to_lowercase();
+    crate::consolidate::image_query_policy()
+        .location_anchor_cues
+        .iter()
+        .any(|cue| lower.ends_with(cue.as_str()))
+}
+
+fn is_explicit_visual_comparison(clause: &str, _language: &str) -> bool {
+    let lower = clause.to_lowercase();
+    crate::consolidate::image_query_policy()
+        .comparison_cues
+        .iter()
+        .any(|cue| lower.contains(cue.to_lowercase().as_str()))
+}
+
+fn has_explicit_link_disclaimer(clause: &str, _language: &str) -> bool {
+    let lower = clause.to_lowercase();
+    crate::consolidate::image_query_policy()
+        .link_disclaimer_cues
+        .iter()
+        .any(|cue| lower.contains(cue.to_lowercase().as_str()))
+}
+
+fn visual_clause_spans(text: &str) -> Vec<(usize, usize)> {
+    let lower = text.to_lowercase();
+    let separators = &crate::consolidate::image_query_policy().visual_clause_separators;
+    let mut cuts = Vec::new();
+    for separator in separators {
+        for (start, matched) in lower.match_indices(separator.as_str()) {
+            let end = start + matched.len();
+            let left_boundary = start == 0
+                || lower[..start]
+                    .chars()
+                    .next_back()
+                    .is_some_and(char::is_whitespace);
+            let right_boundary =
+                end == lower.len() || lower[end..].chars().next().is_some_and(char::is_whitespace);
+            if left_boundary && right_boundary {
+                cuts.push((start, end));
+            }
+        }
+    }
+    cuts.sort_unstable();
+    cuts.dedup();
+    let mut spans = Vec::new();
+    let mut start = 0;
+    for (cut_start, cut_end) in cuts {
+        if start < cut_start {
+            let raw = &text[start..cut_start];
+            let left = raw.len()
+                - raw
+                    .trim_start_matches(|ch: char| ch.is_whitespace() || ch == ',')
+                    .len();
+            let right = raw
+                .trim_end_matches(|ch: char| ch.is_whitespace() || ch == ',')
+                .len();
+            if left < right {
+                spans.push((start + left, start + right));
+            }
+        }
+        start = cut_end;
+    }
+    if start < text.len() {
+        let raw = &text[start..];
+        let left = raw.len()
+            - raw
+                .trim_start_matches(|ch: char| ch.is_whitespace() || ch == ',')
+                .len();
+        let right = raw
+            .trim_end_matches(|ch: char| ch.is_whitespace() || ch == ',')
+            .len();
+        if left < right {
+            spans.push((start + left, start + right));
+        }
+    }
+    if spans.is_empty() {
+        spans.push((0, text.len()));
+    }
+    spans
+}
+
+fn visual_action_component(
+    source: &str,
+    start: usize,
+    end: usize,
+    clause: &str,
+) -> Option<semantic_core::QueryComponent> {
+    let lower = clause.to_lowercase();
+    let policy = crate::consolidate::image_query_policy();
+    // A lexical cue can describe a document action rather than an imageable
+    // event (for example, "ricorso presentato in Cassazione"). In that case
+    // retain the entities as independent candidates without adding a visual
+    // action to their composed query.
+    if policy
+        .nonvisual_action_context_phrases
+        .iter()
+        .any(|phrase| lower.contains(&phrase.to_lowercase()))
+    {
+        return None;
+    }
+    // Policy order ranks useful visual frames above incidental verbs. If two
+    // cues start at the same position, keep the longest configured phrase so
+    // "annullando con rinvio" stays intact in both query and evidence.
+    let mut selected_cue: Option<(&str, usize)> = None;
+    for cue in &policy.visual_action_cues {
+        let Some(offset) = lower.find(&cue.to_lowercase()) else {
+            continue;
+        };
+        match selected_cue {
+            None => selected_cue = Some((cue, offset)),
+            Some((selected, selected_offset))
+                if offset == selected_offset && cue.len() > selected.len() =>
+            {
+                selected_cue = Some((cue, offset));
+            }
+            _ => {}
+        }
+    }
+    let cue = selected_cue?;
+    let absolute_start = start + cue.1;
+    let absolute_end = absolute_start + cue.0.len();
+    if absolute_end > end {
+        return None;
+    }
+    let text = source.get(absolute_start..absolute_end)?.to_string();
+    Some(semantic_core::QueryComponent {
+        kind: "action".to_string(),
+        component_type: "ACTION".to_string(),
+        text,
+        start_byte: absolute_start,
+        end_byte: absolute_end,
+    })
 }
 
 fn is_visual_query_entity(entity_type: &str) -> bool {
@@ -898,33 +1361,8 @@ mod contextual_image_query_tests {
                 evidence: "Torino".into(),
             },
         ];
-        let ids = vec!["location".into(), "facility".into(), "location".into()];
-        let evidence = source[evidence_start..evidence_end].to_string();
-        let facts = vec![EntityFact {
-            id: "located".into(),
-            subject_entity_id: "facility".into(),
-            predicate: "located_in".into(),
-            value: "Torino".into(),
-            value_type: "ENTITY".into(),
-            normalized_value: None,
-            normalized_date: None,
-            target_entity_id: Some("location".into()),
-            unit: None,
-            operator: None,
-            status: "asserted".into(),
-            sentence_index: 1,
-            evidence,
-            start_byte: location_start,
-            end_byte: location_start + "Torino".len(),
-            evidence_start_byte: evidence_start,
-            evidence_end_byte: evidence_end,
-            importance: 0.0,
-            visual_concept_ids: Vec::new(),
-        }];
-
         let sentences = semantic_core::split_sentences(source, "en", None);
-        let queries =
-            contextual_image_query_candidates(source, &sentences, &entities, &ids, &facts, &[]);
+        let queries = contextual_image_query_candidates("en", source, &sentences, &entities);
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0].query, "Aurora Stadium Torino");
         for component in &queries[0].components {

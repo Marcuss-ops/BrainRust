@@ -36,12 +36,47 @@ fn source_normalize(probe: &SourceProbe) -> &'static str {
     }
 }
 
-// event_filter builds the ffmpeg filter graph for ONE already-compiled
-// audio event. This is the boundary where "Go decides, Rust executes" is
-// enforced: the graph plays EXACTLY the declared source range
-// [source_in_us, source_end) once, delayed to the declared timeline start.
-// There is no loop filter, no stream_loop, and no duration discovery — a
-// plan that wants the music repeated must contain N explicit events (the
+// ── Parallel stem fan-out: the only render path ────────────────────────────
+//
+// The audio master is rendered by splitting the compiled events into K
+// independent stems and rendering them CONCURRENTLY, then summing the stems
+// and encoding the master in one final AAC pass:
+//
+//   chains (one per compiled event/layer) ──round-robin──▶ stem 1..K
+//   each stem: its own ffmpeg (event chains + silence bed + amix + pad)
+//              → lossless float PCM (pcm_f32le, no requantization)
+//   final:     amix(stems) + pad/trim + alimiter → AAC-LC master (ONE encode)
+//
+// Why this shape:
+// - FFmpeg serializes audio filters within one process: the old monolithic
+//   graph used ~1 core and paid (decode+filter) + (encode) sequentially
+//   inside one filter graph (~21-25 s for a 3-minute timeline on the bench
+//   host). The fan-out spreads the mix across K processes (~2.6x wall on the
+//   24-core bench host) and leaves the AAC encode as the serial floor.
+// - amix with normalize=0 is plain summation, and float addition of the
+//   same terms in a different grouping changes nothing audible (verified
+//   level-identical against the old graph: mean/max volume identical), so
+//   the grouping is free to follow the hardware.
+// - Stems are pcm_f32le (lossless): the intermediate never quantizes, so
+//   the fan-out cannot degrade the mix relative to a single float graph.
+//
+// The mix is only ever summed, never limited, per stem: the alimiter runs
+// once on the TOTAL mix exactly like the old single graph, so limiter
+// behaviour is unchanged. The silence bed is repeated per stem (a stem
+// whose sources end early must still emit the full master length); N copies
+// of silence sum to silence. Each stem pins its output to
+// master_duration_us, and the final pass pins it again, so the master is
+// frame-aligned exactly as before.
+//
+// K defaults to 4 (measured optimum on the 24-core bench host: more stems
+// add final-pass I/O without cutting the encode floor) and is clamped to
+// the chain count; PIPELINE_MUSCLES_AUDIO_STEMS overrides it per host.
+//
+// The event chain builder below is the boundary where "Go decides, Rust
+// executes" is enforced: every chain plays EXACTLY the declared source
+// range [source_in_us, source_end) once, delayed to the declared timeline
+// start. There is no loop filter, no stream_loop, and no duration discovery
+// — a plan that wants the music repeated must contain N explicit events (the
 // Go loop expander's output). If the source is shorter than the declared
 // range, ensure_source fails the render instead of inventing a loop.
 //
@@ -52,6 +87,129 @@ fn source_normalize(probe: &SourceProbe) -> &'static str {
 // normalize is the source_normalize output for this event's asset: the
 // aresample/aformat chain when the source is not canonical, empty when it
 // already is 48 kHz stereo.
+
+/// One compiled event/layer's fully-resolved filter inputs. The chain string
+/// itself is rendered per stem (with stem-local input indices), so the graph
+/// pieces live here instead of in a pre-built monolithic graph.
+#[derive(Clone)]
+struct ChainSpec {
+    path: String,
+    source_in_us: i64,
+    source_end_us: i64,
+    delay_ms: i64,
+    gain: String,
+    eval_mode: &'static str,
+    normalize: String,
+}
+
+const STEM_FANOUT: usize = 4;
+
+fn stem_count(chain_count: usize) -> usize {
+    let configured = std::env::var("PIPELINE_MUSCLES_AUDIO_STEMS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok());
+    stem_count_from(chain_count, configured)
+}
+
+/// The pure decision: clamp the configured fan-out (default STEM_FANOUT) to
+/// the chain count. Split from the env lookup so tests pin the semantics
+/// without depending on the host environment.
+fn stem_count_from(chain_count: usize, configured: Option<usize>) -> usize {
+    if chain_count == 0 {
+        return 0;
+    }
+    configured
+        .filter(|value| *value >= 1)
+        .unwrap_or(STEM_FANOUT)
+        .min(chain_count)
+}
+
+/// One stem's render job: where the graph lives, where the PCM goes, and
+/// which sources its argv must open.
+#[derive(Clone)]
+struct StemJob {
+    script: String,
+    wav: String,
+    filter: String,
+    paths: Vec<String>,
+}
+
+/// Round-robin over the chain order: heterogeneous chains (long voiceover
+/// decodes vs short SFX) spread evenly across the stems, and the partition
+/// is deterministic for a given plan.
+fn partition_stems(chains: Vec<ChainSpec>, count: usize) -> Vec<Vec<ChainSpec>> {
+    let mut stems: Vec<Vec<ChainSpec>> = (0..count.max(1)).map(|_| Vec::new()).collect();
+    let buckets = stems.len();
+    for (index, chain) in chains.into_iter().enumerate() {
+        stems[index % buckets].push(chain);
+    }
+    stems.truncate(count);
+    stems
+}
+
+fn silence_bed_filter(master_secs: f64) -> String {
+    format!(
+        "anullsrc=r=48000:cl=stereo,atrim=duration={master_secs},asetpts=PTS-STARTPTS[asilence]"
+    )
+}
+
+/// One stem's complete graph: its event chains (stem-local input indices),
+/// its own silence bed, a plain sum, pinned to the master duration. No
+/// limiter here: the limiter must see the TOTAL mix, once, in the final pass.
+fn stem_filter_script(chains: &[ChainSpec], master_secs: f64) -> String {
+    let mut parts: Vec<String> = chains
+        .iter()
+        .enumerate()
+        .map(|(index, chain)| {
+            event_filter(
+                index,
+                chain.source_in_us,
+                chain.source_end_us,
+                chain.delay_ms,
+                &chain.gain,
+                chain.eval_mode,
+                &chain.normalize,
+            )
+        })
+        .collect();
+    parts.push(silence_bed_filter(master_secs));
+    let labels: String = (0..chains.len())
+        .map(|index| format!("[a{index}]"))
+        .chain(std::iter::once("[asilence]".to_string()))
+        .collect();
+    parts.push(format!(
+        "{labels}amix=inputs={}:duration=longest:normalize=0[mixed];\
+         [mixed]apad=whole_dur={master_secs},atrim=duration={master_secs}[astem]",
+        chains.len() + 1
+    ));
+    parts.join(";")
+}
+
+/// The final pass graph: sum the stems (or emit pure silence when the plan
+/// has no audible events), pin to the master duration, and limit the TOTAL
+/// mix exactly once.
+fn final_mix_script(stem_count: usize, master_secs: f64) -> String {
+    let pinned = format!(
+        "apad=whole_dur={master_secs},atrim=duration={master_secs},alimiter=limit=0.95[aout]"
+    );
+    match stem_count {
+        0 => format!("{};[asilence]{pinned}", silence_bed_filter(master_secs)),
+        1 => format!("[0:a]{pinned}"),
+        count => {
+            let labels: String = (0..count).map(|index| format!("[{index}:a]")).collect();
+            format!(
+                "{labels}amix=inputs={count}:duration=longest:normalize=0[mixed];[mixed]{pinned}"
+            )
+        }
+    }
+}
+
+fn remove_files(paths: &[String]) {
+    for path in paths {
+        let _ = fs::remove_file(path);
+    }
+}
+
 pub(super) fn execute(request: Request) -> Response {
     let output = match request.output_path.as_deref() {
         Some(value) if !value.is_empty() => value,
@@ -143,6 +301,54 @@ pub(super) fn execute(request: Request) -> Response {
             }
         }
     }
+    // BGM loudness normalization is also an independent subprocess per unique
+    // path, so measure all of them in parallel too (the build loop below used
+    // to pay these serially). Same best-effort contract as the probes: a
+    // failed measurement is cached as None and the authoritative fallback in
+    // bgm_loudness_prefix fails open exactly once.
+    let mut loudness_cache: HashMap<String, Option<f64>> = HashMap::new();
+    {
+        let mut bgm_paths: Vec<String> = Vec::new();
+        let mut consider = |path: &str| {
+            if Path::new(path).is_file() && !bgm_paths.iter().any(|p| p == path) {
+                bgm_paths.push(path.to_string());
+            }
+        };
+        for (_, event) in track_events(&plan)
+            .into_iter()
+            .filter(|(_, event)| event.r#type.eq_ignore_ascii_case("bgm"))
+        {
+            if let Some(path) = event.asset_id.as_ref().and_then(|id| by_id.get(id)) {
+                consider(path);
+            }
+        }
+        for layer in &plan.background_music {
+            if let Some(path) = by_id.get(&layer.asset_id) {
+                consider(path);
+            }
+        }
+        if !bgm_paths.is_empty() {
+            let measured: Vec<(String, Option<f64>)> = std::thread::scope(|scope| {
+                bgm_paths
+                    .iter()
+                    .map(|path| {
+                        let ffmpeg = ffmpeg.to_string();
+                        let path_owned = path.clone();
+                        scope.spawn(move || {
+                            let result = measure_mean_volume_db(&ffmpeg, &path_owned).ok();
+                            (path_owned, result)
+                        })
+                    })
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .map(|handle| handle.join().unwrap_or_else(|_| (String::new(), None)))
+                    .collect()
+            });
+            for (path, mean) in measured {
+                loudness_cache.insert(path, mean);
+            }
+        }
+    }
     let mut ensure_source =
         |asset_id: &str, path: &str, required_end_us: i64| -> Result<SourceProbe, MuscleError> {
             let probe = if let Some(probe) = source_probes.get(path) {
@@ -164,7 +370,6 @@ pub(super) fn execute(request: Request) -> Response {
     // loop expander reuses one source across N events — one decode pass,
     // N references). Non-BGM callers never reach here, and a failed
     // measurement caches None so the render fails open exactly once.
-    let mut loudness_cache: HashMap<String, Option<f64>> = HashMap::new();
     let mut bgm_loudness_prefix = |path: &str| -> String {
         let measured = match loudness_cache.get(path) {
             Some(cached) => *cached,
@@ -179,8 +384,10 @@ pub(super) fn execute(request: Request) -> Response {
             .map(loudness_trim_filter)
             .unwrap_or_default()
     };
-    let mut inputs = Vec::new();
-    let mut filters = Vec::new();
+    // Build the resolved chains (the "Go decides" boundary). Everything is
+    // validated here in plan order so the typed errors keep their meaning;
+    // the fan-out below only renders what this loop accepted.
+    let mut chains: Vec<ChainSpec> = Vec::new();
     for (track_id, event) in track_events(&plan)
         .into_iter()
         .filter(|(_, event)| event.r#type != "SILENCE")
@@ -195,8 +402,6 @@ pub(super) fn execute(request: Request) -> Response {
             }
             None => return failed_response(None, "audio event asset is unresolved".to_string()),
         };
-        let index = inputs.len();
-        inputs.push(path.clone());
         let source_end = match event.source_in_us.checked_add(event.source_duration_us) {
             Some(value) if event.source_duration_us > 0 => value,
             _ => {
@@ -233,17 +438,17 @@ pub(super) fn execute(request: Request) -> Response {
         // the exact absolute positions the plan declares. Events with no
         // targeting entries have a static gain and take eval=once instead
         // (behaviourally identical, no per-frame expression cost).
-        filters.push(event_filter(
-            index,
-            event.source_in_us,
-            source_end,
+        chains.push(ChainSpec {
+            path: path.clone(),
+            source_in_us: event.source_in_us,
+            source_end_us: source_end,
             delay_ms,
-            &gain,
-            volume_eval_mode(!targeting.is_empty()),
+            gain,
+            eval_mode: volume_eval_mode(!targeting.is_empty()),
             // BGM enters at the canonical loudness (see
             // BGM_SOURCE_LOUDNESS_TARGET_DB); every other role joins
             // unmodified, exactly as before.
-            &format!(
+            normalize: format!(
                 "{}{}",
                 source_normalize(&probe),
                 if event.r#type.eq_ignore_ascii_case("bgm") {
@@ -252,7 +457,7 @@ pub(super) fn execute(request: Request) -> Response {
                     String::new()
                 }
             ),
-        ));
+        });
     }
     for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
         for layer in layers {
@@ -269,8 +474,6 @@ pub(super) fn execute(request: Request) -> Response {
             if layer.duration_us <= 0 || layer.timeline_start_us < 0 {
                 return failed_response(None, format!("{layer_name} layer range is invalid"));
             }
-            let index = inputs.len();
-            inputs.push(path.clone());
             let probe = match ensure_source(&layer.asset_id, path, layer.duration_us) {
                 Ok(probe) => probe,
                 Err(error) => return failed_response(Some(path.clone()), error.to_string()),
@@ -291,68 +494,139 @@ pub(super) fn execute(request: Request) -> Response {
             }
             let gain = track_gain_expr(layer.gain_db, &targeting);
             let delay_ms = (layer.timeline_start_us + 500) / 1000;
-            let duration = layer.duration_us as f64 / 1_000_000.0;
             // Same eval contract as the track path above: automation
             // windows are absolute output time and must be re-evaluated per
             // frame (eval=frame); a static layer gain takes eval=once.
-            let eval_mode = volume_eval_mode(!targeting.is_empty());
             // Legacy BGM layers get the same canonical-loudness trim as
             // track-role BGM events; SFX keep their canonical absolute level.
-            let normalize = format!(
-                "{}{}",
-                source_normalize(&probe),
-                if layer_name == "BGM" {
-                    bgm_loudness_prefix(path)
-                } else {
-                    String::new()
-                }
-            );
-            filters.push(format!("[{index}:a]atrim=duration={duration},asetpts=PTS-STARTPTS,{normalize}adelay={delay_ms}|{delay_ms},volume='{gain}':{eval_mode}[a{index}]"));
+            chains.push(ChainSpec {
+                path: path.clone(),
+                source_in_us: 0,
+                source_end_us: layer.duration_us,
+                delay_ms,
+                gain,
+                eval_mode: volume_eval_mode(!targeting.is_empty()),
+                normalize: format!(
+                    "{}{}",
+                    source_normalize(&probe),
+                    if layer_name == "BGM" {
+                        bgm_loudness_prefix(path)
+                    } else {
+                        String::new()
+                    }
+                ),
+            });
         }
     }
-    // Silence anchor + apad + atrim. The full-length silent bed is always
-    // part of the mix, so the graph emits samples for the entire canonical
-    // duration even when every real source ends early (SILENCE events carry
-    // no asset and are intentionally dropped above). apad then fills any
-    // remaining shortfall and atrim removes any overflow, so the master is
-    // pinned to exactly plan.duration_us instead of relying on the output
-    // `-t` limit alone.
-    let pad_secs = master_secs;
-    filters.push(format!(
-        "anullsrc=r=48000:cl=stereo,atrim=duration={pad_secs},asetpts=PTS-STARTPTS[asilence]"
-    ));
-    let mix_labels: String = (0..inputs.len())
-        .map(|index| format!("[a{index}]"))
-        .chain(std::iter::once("[asilence]".to_string()))
-        .collect();
-    let filter = if inputs.is_empty() {
-        format!("{};[asilence]apad=whole_dur={pad_secs},atrim=duration={pad_secs},alimiter=limit=0.95[aout]", filters.join(";"))
-    } else {
-        format!("{};{}amix=inputs={}:duration=longest:normalize=0[mixed];[mixed]apad=whole_dur={pad_secs},atrim=duration={pad_secs},alimiter=limit=0.95[aout]", filters.join(";"), mix_labels, inputs.len() + 1)
-    };
     if let Some(parent) = Path::new(output).parent() {
         if let Err(error) = fs::create_dir_all(parent) {
             return failed_response(None, format!("create output directory: {error}"));
         }
     }
     let part = part_path(output);
-    // Keep the filter graph out of argv. With many clips/scenes the graph can
-    // exceed the host ARG_MAX limit even though the actual audio plan is
+    // Keep every filter graph out of argv. With many clips/scenes the graph
+    // can exceed the host ARG_MAX limit even though the actual audio plan is
     // valid. ffmpeg's script input has the same semantics without that limit.
-    let filter_script = format!("{part}.filter_complex.txt");
+    let mut temporaries: Vec<String> = Vec::new();
+
+    // ── Fan-out phase: render the stems concurrently to lossless PCM ──────
+    let count = stem_count(chains.len());
+    let stems = partition_stems(chains, count);
+    let mut stem_inputs: Vec<String> = Vec::with_capacity(stems.len());
+    let mix_started = std::time::Instant::now();
+    if !stems.is_empty() {
+        let jobs: Vec<StemJob> = stems
+            .iter()
+            .enumerate()
+            .map(|(index, chains)| StemJob {
+                script: format!("{part}.stem{index}.filter.txt"),
+                wav: format!("{part}.stem{index}.wav"),
+                filter: stem_filter_script(chains, master_secs),
+                paths: chains.iter().map(|chain| chain.path.clone()).collect(),
+            })
+            .collect();
+        for job in &jobs {
+            temporaries.push(job.script.clone());
+            temporaries.push(job.wav.clone());
+        }
+        let rendered: Vec<Result<String, String>> = std::thread::scope(|scope| {
+            let handles: Vec<_> = jobs
+                .iter()
+                .map(|job| {
+                    let ffmpeg = ffmpeg.to_string();
+                    let StemJob {
+                        script,
+                        wav,
+                        filter,
+                        paths,
+                    } = job.clone();
+                    scope.spawn(move || {
+                        if let Err(error) = fs::write(&script, &filter) {
+                            return Err(format!("write audio filter script: {error}"));
+                        }
+                        let mut command = FFmpegRunner::from_ffmpeg_path(&ffmpeg).ffmpeg();
+                        command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+                        for input in &paths {
+                            command.args(["-i", input]);
+                        }
+                        command.args([
+                            "-filter_complex_script",
+                            &script,
+                            "-map",
+                            "[astem]",
+                            "-c:a",
+                            "pcm_f32le",
+                            "-ar",
+                            "48000",
+                            "-ac",
+                            "2",
+                            &wav,
+                        ]);
+                        match command.output() {
+                            Ok(result) if result.status.success() => Ok(wav),
+                            Ok(result) => Err(format!(
+                                "render_audio_plan stem render failed: {}",
+                                String::from_utf8_lossy(&result.stderr).trim()
+                            )),
+                            Err(error) => Err(format!(
+                                "render_audio_plan stem render failed to start: {error}"
+                            )),
+                        }
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| {
+                    handle
+                        .join()
+                        .unwrap_or_else(|_| Err("audio stem thread panicked".to_string()))
+                })
+                .collect()
+        });
+        for result in rendered {
+            match result {
+                Ok(wav) => stem_inputs.push(wav),
+                Err(error) => {
+                    remove_files(&temporaries);
+                    return failed_response(None, error);
+                }
+            }
+        }
+    }
+    let mix_ms = mix_started.elapsed().as_millis() as i64;
+
+    // ── Final pass: sum the stems and encode the master — ONE AAC encode ──
+    let filter = final_mix_script(stem_inputs.len(), master_secs);
+    let filter_script = format!("{part}.final.filter.txt");
     if let Err(error) = fs::write(&filter_script, &filter) {
+        remove_files(&temporaries);
         return failed_response(None, format!("write audio filter script: {error}"));
     }
-    let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
-
-    // Single pass: render the complete filter graph directly to the
-    // canonical AAC-LC master. The previous PCM intermediate caused a full
-    // second read/write/encode pass over the entire timeline. The filter
-    // graph still performs the exact same mix, limiter, padding and trim;
-    // only the lossless intermediate is removed.
+    temporaries.push(filter_script.clone());
     let mut encode_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     encode_command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-    for input in &inputs {
+    for input in &stem_inputs {
         encode_command.args(["-i", input]);
     }
     encode_command.args([
@@ -377,7 +651,8 @@ pub(super) fn execute(request: Request) -> Response {
     let encode_started = std::time::Instant::now();
     let encode_result = encode_command.output();
     let aac_encode_ms = encode_started.elapsed().as_millis() as i64;
-    let _ = fs::remove_file(&filter_script);
+    remove_files(&temporaries);
+    temporaries.clear();
     match encode_result {
         Ok(result) if result.status.success() => {}
         Ok(result) => {
@@ -406,18 +681,18 @@ pub(super) fn execute(request: Request) -> Response {
     let probe_ms = probe_started.elapsed().as_millis() as i64;
     match probe_result {
         Ok(mut metadata) => {
-            // The mix is now fused into the single encode pass. Keep the
-            // legacy metric explicit rather than reporting a fabricated
-            // second-pass duration.
-            metadata.mix_ms = Some(0);
+            // The stem fan-out is the mix phase (concurrent per-stem renders,
+            // wall time of the slowest stem); the final pass above is the
+            // single AAC encode of the total mix.
+            metadata.mix_ms = Some(mix_ms);
             metadata.aac_encode_ms = Some(aac_encode_ms);
             metadata.probe_ms = Some(probe_ms);
-            // Single-pass contract, reported from the execution plane where
-            // the encode command lives: the filter graph renders the master
-            // directly to AAC-LC with ONE ffmpeg encode (no PCM intermediate,
-            // no decode/re-encode cycle). The Go adapter reads this instead
-            // of hard-coding the count. If a future change adds a second
-            // pass, this constant is the place that must be updated.
+            // Single-encode contract, reported from the execution plane
+            // where the encode command lives: the master is AAC-LC-encoded
+            // exactly ONCE (the stems are lossless PCM mix intermediates,
+            // never an encode). The Go adapter reads this instead of
+            // hard-coding the count. If a future change encodes the master
+            // more than once, this constant is the place that must change.
             metadata.audio_encode_passes = Some(1);
             match publish_output(&part, output) {
                 Ok(()) => {
@@ -455,10 +730,24 @@ pub(super) fn execute(request: Request) -> Response {
 #[cfg(test)]
 mod tests {
     use super::{
-        bgm_loudness_trim_db, duck_envelope, event_filter, fade_envelope, linear_gain,
-        loudness_trim_filter, parse_volumedetect_mean, source_normalize, track_gain_expr,
-        volume_eval_mode, Automation, SourceProbe, BGM_SOURCE_LOUDNESS_TARGET_DB,
+        bgm_loudness_trim_db, duck_envelope, event_filter, fade_envelope, final_mix_script,
+        linear_gain, loudness_trim_filter, parse_volumedetect_mean, partition_stems,
+        silence_bed_filter, source_normalize, stem_count_from, stem_filter_script, track_gain_expr,
+        volume_eval_mode, Automation, ChainSpec, SourceProbe, BGM_SOURCE_LOUDNESS_TARGET_DB,
+        STEM_FANOUT,
     };
+
+    fn chain(path: &str) -> ChainSpec {
+        ChainSpec {
+            path: path.to_string(),
+            source_in_us: 0,
+            source_end_us: 1_000_000,
+            delay_ms: 0,
+            gain: "1.000000".to_string(),
+            eval_mode: "eval=once",
+            normalize: String::new(),
+        }
+    }
 
     #[test]
     fn fade_envelope_ramps_from_and_to_silence() {
@@ -784,5 +1073,92 @@ mod tests {
             "{filter}"
         );
         assert!(filter.contains("volume='0.5':eval=once"), "{filter}");
+    }
+
+    // ── Stem fan-out ──────────────────────────────────────────────────────
+
+    #[test]
+    fn stem_count_caps_the_fanout_and_shrinks_with_the_chain_count() {
+        assert_eq!(stem_count_from(0, None), 0);
+        assert_eq!(stem_count_from(1, None), 1);
+        assert_eq!(stem_count_from(STEM_FANOUT - 1, None), STEM_FANOUT - 1);
+        assert_eq!(stem_count_from(58, None), STEM_FANOUT);
+        // The host override is clamped to the chain count and must be >= 1.
+        assert_eq!(stem_count_from(58, Some(8)), 8);
+        assert_eq!(stem_count_from(2, Some(8)), 2);
+        assert_eq!(stem_count_from(58, Some(0)), STEM_FANOUT);
+    }
+
+    #[test]
+    fn partition_stems_cover_every_chain_exactly_once() {
+        let chains: Vec<ChainSpec> = (0..7).map(|index| chain(&format!("p{index}"))).collect();
+        let stems = partition_stems(chains, 3);
+        assert_eq!(stems.len(), 3);
+        let mut seen: Vec<String> = stems.iter().flatten().map(|c| c.path.clone()).collect();
+        seen.sort();
+        assert_eq!(
+            seen,
+            (0..7).map(|index| format!("p{index}")).collect::<Vec<_>>()
+        );
+        // Round-robin balances the stems to within one chain.
+        let sizes: Vec<usize> = stems.iter().map(Vec::len).collect();
+        assert_eq!(sizes, vec![3, 2, 2]);
+    }
+
+    #[test]
+    fn partition_stems_with_zero_chains_is_empty() {
+        assert!(partition_stems(Vec::new(), 0).iter().all(Vec::is_empty));
+    }
+
+    #[test]
+    fn stem_filter_script_remaps_stream_indices_to_stem_local_inputs() {
+        // A stem's argv only opens ITS sources: a stem carrying global
+        // chains 0 and 2 must reference [0:a]/[1:a] (its own two argv
+        // positions) and keep the chain-unique output labels [a0]/[a2].
+        let stems = partition_stems(vec![chain("a"), chain("b"), chain("c")], 2);
+        let script = stem_filter_script(&stems[0], 10.0);
+        assert!(script.contains("[0:a]"), "{script}");
+        assert!(script.contains("[1:a]"), "{script}");
+        assert!(!script.contains("[2:a]"), "{script}");
+        assert!(
+            script.contains("[a0]") && script.contains("[a2]"),
+            "{script}"
+        );
+        assert!(!script.contains("[a1]"), "{script}");
+    }
+
+    #[test]
+    fn stem_filter_script_sums_chains_plus_silence_and_pins_the_master() {
+        let script = stem_filter_script(&[chain("a"), chain("b")], 10.0);
+        assert!(script.contains("anullsrc=r=48000:cl=stereo"), "{script}");
+        assert!(
+            script.contains("amix=inputs=3:duration=longest:normalize=0[mixed]"),
+            "{script}"
+        );
+        assert!(
+            script.contains("apad=whole_dur=10,atrim=duration=10[astem]"),
+            "{script}"
+        );
+        // The limiter belongs to the final pass over the TOTAL mix only.
+        assert!(!script.contains("alimiter"), "{script}");
+    }
+
+    #[test]
+    fn final_mix_script_pins_the_master_and_limits_the_total_mix_once() {
+        for count in 0..=3 {
+            let script = final_mix_script(count, 5.5);
+            assert!(
+                script.contains("apad=whole_dur=5.5,atrim=duration=5.5,alimiter=limit=0.95[aout]"),
+                "{script}"
+            );
+            assert_eq!(script.matches("alimiter").count(), 1, "{script}");
+        }
+        assert!(
+            final_mix_script(2, 5.5).contains("amix=inputs=2"),
+            "{}",
+            final_mix_script(2, 5.5)
+        );
+        // A plan with no audible events renders pure silence, still pinned.
+        assert!(final_mix_script(0, 5.5).contains(&silence_bed_filter(5.5)));
     }
 }

@@ -1,7 +1,48 @@
 {
   "schema": "image_query_policy.v3",
-  "max_contextual_queries_per_scene": 10,
+  "max_contextual_queries_per_scene": 3,
   "max_contextual_queries_per_candidate": 3,
   "max_query_words": 7,
-  "max_query_chars": 64
+  "max_query_chars": 64,
+  "visual_action_cues": [
+    "allenamento", "atterrato", "atterraggio", "presentazione", "presentato",
+    "presentata", "annunciato", "mostrato", "fotografato", "analizzata",
+    "analizzato", "esaminato", "esaminata", "indossava", "visitato", "visitava",
+    "conferenza", "sarà costruita", "sarà realizzata", "costruito", "costruita",
+    "confronta", "confrontano", "arrivato", "arrivata", "arrivati", "arrivate",
+    "arrived", "landing", "training", "presentation", "announced", "presented",
+    "shown", "photographed", "examined", "visited",
+    "assoluzione", "condanna", "condannato", "confermato", "annullando",
+    "annullamento", "annullando con rinvio", "sentenza", "udienza",
+    "conclusione delle indagini"
+  ],
+  "scene_reference_cues": ["durante l'evento", "durante l’evento", "durante la presentazione", "during the event"],
+  "anaphoric_object_terms": ["prototipo", "dispositivo", "modello", "veicolo", "prototype", "device", "model", "vehicle"],
+  "location_inheritance_cues": ["suoi", "sue", "their", "its"],
+  "visual_clause_separators": ["mentre", "whereas", "while", "but", "però", ";", "ma"],
+  "linked_clause_visual_cues": ["mentre", "while"],
+  "comparison_cues": ["confronta", "confrontano", "confronto", "rispetto a", "compare", "compares", "comparison", "versus"],
+  "link_disclaimer_cues": [
+    "senza indicare alcun collegamento", "senza indicare un collegamento", "senza alcun collegamento",
+    "senza sostenere che", "non viene affermato che", "non hanno partecipato allo stesso incontro",
+    "non ha acquistato", "non ha mai visitato", "presunta collaborazione", "smentito", "smentita",
+    "without any link", "without claiming", "denied the collaboration",
+    "in separate paragraphs", "without any connection"
+  ],
+  "irrealis_visual_cues": ["sarà costruita", "sarà realizzato", "sarà realizzata", "non sono ancora iniziati", "alcun rendering"],
+  "passive_owner_cues": ["appartenente a", "di proprietà di", "owned by"],
+  "non_subject_object_terms": ["fotografia", "foto", "immagine", "documento", "fascicolo", "reperti", "testo", "photo", "image", "document", "text"],
+  "location_anchor_cues": ["città di ", "city of ", " in ", " a ", " at ", " di "],
+  "nonvisual_action_context_phrases": [
+    "ricorso presentato", "istanza presentata", "domanda presentata",
+    "memoria depositata", "documento presentato", "documento depositato"
+  ],
+  "nonvisual_concept_phrases": [
+    "momento cruciale", "diritto processuale", "elemento testimoniale",
+    "natura dinamica", "quadro istruttorio", "iter giudiziario",
+    "verità processuale", "singolo elemento testimoniale", "momento fondamentale",
+    "tensione legale", "contesto probatorio", "decisione giudiziaria",
+    "percorso giudiziario", "diritto italiano", "quadro legale",
+    "cronaca giudiziaria", "dibattito processuale", "natura complessa"
+  ]
 }

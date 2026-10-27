@@ -18,3 +18,15 @@
 # libicuuc/libicui18n. Must equal ICU_MAJOR.
 RUST_ICU_MAJOR_VERSION_NUMBER = "72"
 LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu"
+
+# Optional local build acceleration (2026-10-27, not enforced so a fresh
+# checkout builds without extra tools):
+#
+#   cargo install sccache && export RUSTC_WRAPPER=sccache
+#     caches the ICU4C/UDPipe C++ compilation across rebuilds.
+#
+#   sudo apt install mold  +  RUSTFLAGS="-C link-arg=-fuse-ld=mold"
+#     links the 385M target/ directory 2-5x faster.
+#
+#   cargo install cargo-nextest && cargo nextest run --workspace
+#     parallel test runner for the visualner/semantic-engine suites.

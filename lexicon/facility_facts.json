@@ -2,7 +2,7 @@
   "schema": "lexicon.v1",
   "facility_nouns": [
     "stadio", "stadium", "estadio", "estádio", "stade", "stadion", "стадион",
-    "arena", "arène", "arenă"
+    "arena", "arène", "arenă", "stabilimento", "fabbrica", "factory", "plant"
   ],
   "location_relation_markers": [
     "si trova a", "si trova in", "situato a", "situato in", "ubicado en", "está ubicado en", "se encuentra en",

@@ -95,6 +95,27 @@ fn classify_type(
     let lower = text.to_lowercase();
     let lexicon = semantic_core::lexicon::lexicon();
     let gazetteer = &lexicon.gazetteer;
+    // A concrete noun followed by a known brand is one visual product
+    // surface, not a two-token person name. Preserve the exact source span
+    // while typing the full compound before the generic proper-name fallback.
+    if let Some((object_phrase, brand)) = lower.rsplit_once(' ') {
+        let brand = brand.trim_matches(|ch: char| !ch.is_alphanumeric());
+        let object_phrase = object_phrase.trim();
+        let has_brand =
+            contains(&gazetteer.brands, brand) || contains(&gazetteer.product_names, brand);
+        let has_object = semantic_core::lexicon::lexicon()
+            .object_terms(language)
+            .iter()
+            .any(|term| {
+                object_phrase == term
+                    || object_phrase
+                        .strip_suffix(term)
+                        .is_some_and(|prefix| prefix.ends_with(' '))
+            });
+        if has_brand && has_object {
+            return "PRODUCT".to_string();
+        }
+    }
     if contains(&gazetteer.object_words, &lower) {
         return "OBJECT".to_string();
     }

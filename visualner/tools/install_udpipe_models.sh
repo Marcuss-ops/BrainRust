@@ -15,6 +15,14 @@
 # Usage:
 #   visualner/tools/install_udpipe_models.sh [LANGUAGE ...]
 #
+# Size note (2026-10-27): the full set is ~234 MB and is only needed for
+# CI and the multilingual acceptance tests. Production Italian-only
+# deployments need just the 19 MB italian-isdt model:
+#   visualner/tools/install_udpipe_models.sh it
+# The extractor lazy-loads one model per language (pos.rs) and falls back
+# to the model-free path when a language has no file, so shipping only `it`
+# is safe for an Italian-only pipeline.
+#
 # Environment:
 #   VISUALNER_MODEL_DIR   destination directory
 #                         (default: $HOME/.local/share/visualner/models)
