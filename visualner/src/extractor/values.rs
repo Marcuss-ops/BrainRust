@@ -7,6 +7,25 @@ pub(super) struct Candidate {
     pub(super) entity_type: Option<String>,
 }
 
+/// Reject a fused subtitle artifact such as `140ome` before it can be typed as
+/// a number or promoted into a visual-name candidate. Short standard forms
+/// such as `3D`, `4K`, `5G`, and `F16` remain eligible.
+pub(super) fn has_suspicious_asr_digit_fusion(text: &str) -> bool {
+    text.split_whitespace().any(|token| {
+        let prefix_digits = token.chars().take_while(char::is_ascii_digit).count();
+        if prefix_digits < 2 {
+            return false;
+        }
+        let suffix = &token[prefix_digits..];
+        let letters = suffix.chars().filter(|ch| ch.is_alphabetic()).count();
+        letters >= 2
+            && !matches!(
+                suffix.to_ascii_lowercase().as_str(),
+                "st" | "nd" | "rd" | "th"
+            )
+    })
+}
+
 pub(super) fn classify_value_type(
     text: &str,
     gazetteer_eligible: bool,
@@ -516,6 +535,17 @@ fn month_after_day(source: &str, number_end: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_fused_subtitle_number_artifacts_without_blocking_common_codes() {
+        assert!(has_suspicious_asr_digit_fusion("140ome"));
+        assert!(has_suspicious_asr_digit_fusion(
+            "The road is 100red miles long"
+        ));
+        for code in ["3D", "4K", "5G", "F16", "2025th"] {
+            assert!(!has_suspicious_asr_digit_fusion(code), "{code}");
+        }
+    }
 
     #[test]
     fn month_before_day_handles_multibyte_punctuation_before_date() {

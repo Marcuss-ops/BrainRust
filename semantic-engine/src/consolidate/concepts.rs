@@ -16,10 +16,13 @@ const MAX_GENERIC_CONCEPTS_PER_SCENE: usize = 4;
 const MIN_CONCEPT_PRIORITY: f32 = 0.45;
 
 pub(super) fn push_visual_concepts(
+    language: &str,
     scenes: &[SceneManifest],
     identities: &BTreeMap<String, IdentityState>,
     candidates: &mut Vec<ProductionCandidate>,
 ) {
+    let document_anchor = document_topic_anchor(language, identities);
+
     // The complete concept inventory stays in `important_words`; only the
     // per-scene best few enter production.
     let mut selected: BTreeSet<String> = BTreeSet::new();
@@ -77,6 +80,9 @@ pub(super) fn push_visual_concepts(
             }
         }
     }
+    if let Some(anchor_id) = &document_anchor {
+        selected.insert(anchor_id.clone());
+    }
     for id in selected {
         let Some(identity) = identities.get(&id) else {
             continue;
@@ -84,7 +90,12 @@ pub(super) fn push_visual_concepts(
         if identity.kind != "VISUAL_CONCEPT" {
             continue;
         }
-        let priority = concept_identity_priority(identity);
+        let is_document_anchor = document_anchor.as_deref() == Some(identity.id.as_str());
+        let priority = if is_document_anchor {
+            0.93
+        } else {
+            concept_identity_priority(identity)
+        };
         if priority < MIN_CONCEPT_PRIORITY {
             continue;
         }
@@ -117,13 +128,56 @@ pub(super) fn push_visual_concepts(
             requires_media: true,
             dedup_key: format!("entity:{}:search", identity.id),
             covered_fact_ids: Vec::new(),
-            rationale: vec![
-                "the source returns to this noun phrase, giving it script-level salience"
-                    .to_string(),
-                "the phrase remains a typed visual concept, not a named identity".to_string(),
-            ],
+            rationale: if is_document_anchor {
+                vec![
+                    "global_document_anchor".to_string(),
+                    "most recurrent gazetteer-backed place across the document".to_string(),
+                    "one source-grounded establishing search anchors the narrative".to_string(),
+                ]
+            } else {
+                vec![
+                    "the source returns to this noun phrase, giving it script-level salience"
+                        .to_string(),
+                    "the phrase remains a typed visual concept, not a named identity".to_string(),
+                ]
+            },
         });
     }
+}
+
+fn document_topic_anchor(
+    language: &str,
+    identities: &BTreeMap<String, IdentityState>,
+) -> Option<String> {
+    // A topic anchor needs recurrence in multiple scenes and an exact match
+    // in the shared place index. This avoids promoting transcript stage cues
+    // or one-off names into a document-wide search.
+    let mut candidates: Vec<(&IdentityState, usize)> = identities
+        .values()
+        .filter_map(|identity| {
+            if identity.kind != "VISUAL_CONCEPT"
+                || identity.mentions.len() < 3
+                || !semantic_core::lexicon::lexicon().is_place(&identity.canonical, language)
+            {
+                return None;
+            }
+            let scene_count = identity
+                .mentions
+                .iter()
+                .map(|mention| mention.scene_id.as_str())
+                .collect::<BTreeSet<_>>()
+                .len();
+            (scene_count >= 3).then_some((identity, scene_count))
+        })
+        .collect();
+    candidates.sort_by(|(left, left_scenes), (right, right_scenes)| {
+        right_scenes
+            .cmp(left_scenes)
+            .then_with(|| right.mentions.len().cmp(&left.mentions.len()))
+            .then_with(|| left.canonical.cmp(&right.canonical))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    candidates.first().map(|(identity, _)| identity.id.clone())
 }
 
 pub(super) fn push_fact_cards(
@@ -249,6 +303,53 @@ fn is_policy_excluded_visual_concept(text: &str) -> bool {
         .nonvisual_concept_phrases
         .iter()
         .any(|phrase| normalized.contains(&phrase.to_lowercase()))
+}
+
+#[cfg(test)]
+mod document_anchor_tests {
+    use super::super::{IdentityState, MentionRef};
+    use super::document_topic_anchor;
+    use std::collections::BTreeMap;
+
+    fn identity(id: &str, surface: &str, scene_count: usize) -> IdentityState {
+        IdentityState {
+            id: id.to_string(),
+            canonical: surface.to_string(),
+            kind: "VISUAL_CONCEPT".to_string(),
+            mentions: (0..scene_count)
+                .map(|index| MentionRef {
+                    scene_id: format!("scene_{index:03}"),
+                    scene_index: index,
+                    surface: surface.to_string(),
+                    start: index * 10,
+                    end: index * 10 + surface.len(),
+                })
+                .collect(),
+            max_score: 0.3,
+        }
+    }
+
+    #[test]
+    fn recurrent_gazetteer_place_becomes_one_document_anchor() {
+        let identities = BTreeMap::from([
+            (
+                "place:toledo".to_string(),
+                identity("place:toledo", "Toledo", 15),
+            ),
+            (
+                "place:columbus".to_string(),
+                identity("place:columbus", "Columbus", 9),
+            ),
+            (
+                "concept:music".to_string(),
+                identity("concept:music", "music", 26),
+            ),
+        ]);
+        assert_eq!(
+            document_topic_anchor("en", &identities).as_deref(),
+            Some("place:toledo")
+        );
+    }
 }
 
 use super::identities::{identity_anchor, is_named_kind};

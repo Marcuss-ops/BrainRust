@@ -5,7 +5,7 @@ use crate::types::VisualEntity;
 use super::names::is_name_particle;
 use super::stopwords::is_title_word;
 use super::tokenizer::Token;
-use super::values::{classify_value_type, Candidate};
+use super::values::{classify_value_type, has_suspicious_asr_digit_fusion, Candidate};
 
 /// validate_evidence enforces NO EVIDENCE → NO ENTITY. A candidate is
 /// grounded when its byte span `[start, end)` is a verbatim substring of
@@ -28,6 +28,9 @@ pub(crate) fn validate_evidence(
     // whose text drifted from its span (e.g. due to a normalization step
     // that rewrote the surface) fails NO EVIDENCE → NO ENTITY.
     if evidence != c.text {
+        return None;
+    }
+    if has_suspicious_asr_digit_fusion(evidence) {
         return None;
     }
     // The POS model decides whether a gazetteer hit is a place name. A
