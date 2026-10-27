@@ -525,7 +525,9 @@ pub struct MediaMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio_copy_eligible: Option<bool>,
     // render_clip audio encode passes (0 = copied, 1 = exactly one certified
-    // conversion). None everywhere else.
+    // conversion) and render_audio_plan master AAC encodes (always 1: the
+    // stem fan-out mixes to lossless PCM and only the final pass encodes).
+    // None everywhere else.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio_encode_passes: Option<i32>,
     // render_clip subtitle raster stage: true when mode=burn rasterized

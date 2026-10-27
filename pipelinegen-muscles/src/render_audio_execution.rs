@@ -1109,22 +1109,21 @@ mod tests {
     fn partition_stems_with_zero_chains_is_empty() {
         assert!(partition_stems(Vec::new(), 0).iter().all(Vec::is_empty));
     }
-
     #[test]
     fn stem_filter_script_remaps_stream_indices_to_stem_local_inputs() {
         // A stem's argv only opens ITS sources: a stem carrying global
-        // chains 0 and 2 must reference [0:a]/[1:a] (its own two argv
-        // positions) and keep the chain-unique output labels [a0]/[a2].
+        // chains 0 and 2 must reference [0:a]/[1:a] — its own two argv
+        // positions — with matching stem-local output labels, never [2:a].
         let stems = partition_stems(vec![chain("a"), chain("b"), chain("c")], 2);
+        assert_eq!(stems[0].len(), 2);
         let script = stem_filter_script(&stems[0], 10.0);
-        assert!(script.contains("[0:a]"), "{script}");
-        assert!(script.contains("[1:a]"), "{script}");
+        assert!(script.contains("[0:a]atrim=start=0:end=1"), "{script}");
+        assert!(script.contains("[1:a]atrim=start=0:end=1"), "{script}");
         assert!(!script.contains("[2:a]"), "{script}");
         assert!(
-            script.contains("[a0]") && script.contains("[a2]"),
+            script.contains("[a0][a1][asilence]amix=inputs=3"),
             "{script}"
         );
-        assert!(!script.contains("[a1]"), "{script}");
     }
 
     #[test]
