@@ -38,19 +38,29 @@ fn entity_search_queries_include_the_grounded_sentence_context_for_images_and_st
     let text = "I tifosi festeggiano sugli spalti dopo la vittoria della squadra.";
     let value = manifest_value(vec![scene("tifosi-in-festa", text)]);
     let searches = proposals_of(&value["scenes"][0], "entity_search");
+    // The extractor now grounds this supporter mention as one visual concept
+    // spanning the whole phrase, so the search query is that exact span.
     let tifosi = searches
         .iter()
-        .find(|proposal| proposal["visual_query_suggestions"][0] == "tifosi")
-        .expect("the source-grounded supporter mention gets a search proposal");
+        .find(|proposal| {
+            proposal["visual_query_suggestions"][0]
+                == "I tifosi festeggiano sugli spalti dopo la vittoria della"
+        })
+        .expect("the source-grounded supporter concept gets a search proposal");
     let queries = tifosi["visual_query_suggestions"]
         .as_array()
         .expect("query suggestions array");
-    assert_eq!(queries[0], "tifosi", "preserve the exact entity query");
     assert_eq!(
-        queries[1], "I tifosi festeggiano sugli spalti dopo",
-        "offer an exact multiword source phrase as a provider-independent context query"
+        queries[0], "I tifosi festeggiano sugli spalti dopo la vittoria della",
+        "lead with the grounded multiword scene phrase"
     );
-    assert!(text.contains(queries[1].as_str().unwrap()));
+    assert!(
+        queries.iter().any(|query| query == "tifosi festeggiano sugli spalti"),
+        "keep the exact entity span as a fallback query: {queries:?}"
+    );
+    for query in queries {
+        assert!(text.contains(query.as_str().unwrap()), "grounded: {query}");
+    }
     assert!(queries.iter().any(|query| query == text));
 }
 

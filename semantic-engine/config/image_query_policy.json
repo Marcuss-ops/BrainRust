@@ -7,11 +7,12 @@
   "visual_action_cues": [
     "allenamento", "atterrato", "atterraggio", "presentazione", "presentato",
     "presentata", "annunciato", "mostrato", "fotografato", "analizzata",
-    "analizzato", "esaminato", "esaminata", "indossava", "visitato", "visitava",
+    "analizzato", "analizzati", "esaminato", "esaminata", "esaminati",
+    "indossava", "visitato", "visitava",
     "conferenza", "sarà costruita", "sarà realizzata", "costruito", "costruita",
     "confronta", "confrontano", "arrivato", "arrivata", "arrivati", "arrivate",
     "arrived", "landing", "training", "presentation", "announced", "presented",
-    "shown", "photographed", "examined", "visited",
+    "shown", "photographed", "examined", "analyzed", "visited",
     "assoluzione", "condanna", "condannato", "confermato", "annullando",
     "annullamento", "annullando con rinvio", "sentenza", "udienza",
     "conclusione delle indagini"
@@ -33,6 +34,7 @@
   "passive_owner_cues": ["appartenente a", "di proprietà di", "owned by"],
   "non_subject_object_terms": ["fotografia", "foto", "immagine", "documento", "fascicolo", "reperti", "testo", "photo", "image", "document", "text"],
   "location_anchor_cues": ["città di ", "city of ", " in ", " a ", " at ", " di "],
+  "location_preceding_subject_cues": ["'s ", " di ", " de ", " du ", " van "],
   "nonvisual_action_context_phrases": [
     "ricorso presentato", "istanza presentata", "domanda presentata",
     "memoria depositata", "documento presentato", "documento depositato"

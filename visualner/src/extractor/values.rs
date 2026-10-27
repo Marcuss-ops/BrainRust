@@ -134,8 +134,11 @@ fn classify_type(
             .map(str::to_string)
             .filter(|word| !word.is_empty())
             .collect();
+        // A hyphenated compound counts its name segments: "Prisma-Labor" is
+        // one surface word but a two-segment modifier+head name, and the
+        // marker check below reads the institutional head either way.
         let capitalized_name = text
-            .split_whitespace()
+            .split(|ch: char| ch.is_whitespace() || ch == '-')
             .filter(|word| word.chars().next().is_some_and(char::is_uppercase))
             .count()
             >= 2;

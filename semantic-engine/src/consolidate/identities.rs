@@ -193,15 +193,66 @@ pub(super) fn is_named_kind(kind: &str) -> bool {
     )
 }
 
-pub(super) fn named_priority(kind: &str, mentions: usize, score: f32) -> f32 {
+pub(super) fn named_priority(
+    kind: &str,
+    mentions: usize,
+    score: f32,
+    asserted_relations: usize,
+    asserted_facts: usize,
+) -> f32 {
+    // A weak one-off or lightly repeated extraction is inventory, not a
+    // production image search. Recurrence or an asserted link can rescue a
+    // low-confidence mention; type alone cannot.
+    if score < 0.5 && mentions < 5 && asserted_relations == 0 && asserted_facts == 0 {
+        return 0.0;
+    }
     let base = match kind {
-        "PERSON" => 0.95,
-        "ORG" | "ORGANIZATION" => 0.86,
-        "LOCATION" => 0.82,
-        "FACILITY" => 0.78,
-        "OBJECT" => 0.7,
-        "ROLE" => 0.72,
-        _ => 0.68,
+        // Type is only a small visual prior. Recurrence and asserted links
+        // carry more weight, so an incidental person does not outrank the
+        // place or facility the script is actually about.
+        "PERSON" => 0.52,
+        "ORG" | "ORGANIZATION" => 0.58,
+        "LOCATION" => 0.64,
+        "FACILITY" => 0.68,
+        "OBJECT" | "PRODUCT" | "BRAND" => 0.62,
+        "ROLE" => 0.5,
+        "EVENT" | "WORK" => 0.6,
+        _ => 0.55,
     };
-    (base + (mentions.min(8) as f32 * 0.01) + score.min(0.1)).min(0.99)
+    let recurrence = (mentions.saturating_sub(1).min(8) as f32) * 0.018;
+    let extraction_support = score.clamp(0.0, 1.0) * 0.05;
+    let relation_support = (asserted_relations.min(3) as f32) * 0.045;
+    let fact_support = (asserted_facts.min(4) as f32) * 0.035;
+    (base + recurrence + extraction_support + relation_support + fact_support).min(0.95)
+}
+
+#[cfg(test)]
+mod priority_tests {
+    use super::named_priority;
+
+    #[test]
+    fn an_incidental_person_does_not_outrank_a_central_place_or_facility() {
+        let incidental_person = named_priority("PERSON", 1, 1.0, 0, 0);
+        let recurring_location = named_priority("LOCATION", 4, 0.6, 0, 0);
+        let facility = named_priority("FACILITY", 1, 0.7, 0, 0);
+
+        assert!(recurring_location > incidental_person);
+        assert!(facility > incidental_person);
+    }
+
+    #[test]
+    fn explicit_relations_and_facts_raise_a_recurrent_subject() {
+        let isolated = named_priority("PERSON", 1, 0.8, 0, 0);
+        let grounded = named_priority("PERSON", 3, 0.8, 2, 2);
+
+        assert!(grounded > isolated);
+        assert!(grounded <= 0.95);
+    }
+
+    #[test]
+    fn weak_infrequent_identity_stays_in_inventory_without_becoming_a_search() {
+        assert_eq!(named_priority("LOCATION", 2, 0.3, 0, 0), 0.0);
+        assert!(named_priority("LOCATION", 5, 0.3, 0, 0) > 0.0);
+        assert!(named_priority("LOCATION", 1, 0.3, 1, 0) > 0.0);
+    }
 }

@@ -4,6 +4,7 @@
 //! `super::common::*`.
 
 mod common;
+mod hyphen_compounds;
 mod objects_values;
 mod orgs_concepts;
 mod persons_names;

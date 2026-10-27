@@ -192,9 +192,28 @@ pub(super) fn push_multiple_entities(
 }
 
 pub(super) fn push_named_entities(
+    scenes: &[SceneManifest],
     identities: &BTreeMap<String, IdentityState>,
     candidates: &mut Vec<ProductionCandidate>,
 ) {
+    let mut relation_support: HashMap<&str, usize> = HashMap::new();
+    let mut fact_support: HashMap<&str, usize> = HashMap::new();
+    for scene in scenes {
+        for relation in &scene.relations.asserted_relations {
+            if relation.status == semantic_core::RelationStatus::Asserted {
+                *relation_support.entry(&relation.source_id).or_default() += 1;
+                *relation_support.entry(&relation.target_id).or_default() += 1;
+            }
+        }
+        for fact in &scene.entity_facts {
+            if fact.status == "asserted" {
+                *fact_support.entry(&fact.subject_entity_id).or_default() += 1;
+                if let Some(target) = fact.target_entity_id.as_deref() {
+                    *fact_support.entry(target).or_default() += 1;
+                }
+            }
+        }
+    }
     for identity in identities.values() {
         if !is_named_kind(&identity.kind) {
             continue;
@@ -202,7 +221,16 @@ pub(super) fn push_named_entities(
         let Some(anchor) = identity_anchor(identity) else {
             continue;
         };
-        let priority = named_priority(&identity.kind, identity.mentions.len(), identity.max_score);
+        let priority = named_priority(
+            &identity.kind,
+            identity.mentions.len(),
+            identity.max_score,
+            relation_support
+                .get(identity.id.as_str())
+                .copied()
+                .unwrap_or(0),
+            fact_support.get(identity.id.as_str()).copied().unwrap_or(0),
+        );
         let mut scene_ids = BTreeSet::new();
         for mention in &identity.mentions {
             scene_ids.insert(mention.scene_id.clone());
@@ -225,8 +253,15 @@ pub(super) fn push_named_entities(
             chart_items: Vec::new(),
             temporal_surfaces: Vec::new(),
             asset_key: format!("entity:{}", identity.id),
-            queries: vec![SearchQuery::literal(anchor.surface.clone())],
-            requires_media: true,
+            // Keep weak identities available for contextual enrichment. They
+            // become a media search only when an asserted relation or a
+            // grounded visual context supports the mention.
+            queries: if priority > 0.0 {
+                vec![SearchQuery::literal(anchor.surface.clone())]
+            } else {
+                Vec::new()
+            },
+            requires_media: priority > 0.0,
             dedup_key: format!("entity:{}:search", identity.id),
             covered_fact_ids: Vec::new(),
             rationale: vec![

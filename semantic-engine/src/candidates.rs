@@ -454,10 +454,24 @@ pub(crate) fn contextual_image_query_candidates(
     source: &str,
     sentences: &[semantic_core::SentenceSpan],
     entities: &[VisualEntity],
+    entity_ids: &[String],
+    entity_facts: &[semantic_core::EntityFact],
 ) -> Vec<ContextualImageQuery> {
     let max_contextual_queries =
         crate::consolidate::image_query_policy().max_contextual_queries_per_scene;
-    let mut output = linked_clause_visual_queries(language, source, sentences, entities);
+    let mut output =
+        fact_grounded_location_queries(source, sentences, entities, entity_ids, entity_facts);
+    for candidate in linked_clause_visual_queries(language, source, sentences, entities) {
+        if output.len() >= max_contextual_queries {
+            break;
+        }
+        if !output
+            .iter()
+            .any(|existing| existing.query.eq_ignore_ascii_case(&candidate.query))
+        {
+            output.push(candidate);
+        }
+    }
     for candidate in sentence_visual_slot_queries(language, source, sentences, entities) {
         if output.len() >= max_contextual_queries {
             break;
@@ -486,6 +500,114 @@ pub(crate) fn contextual_image_query_candidates(
         candidate.id = format!("contextual_{:03}", index + 1);
     }
     output
+}
+
+fn fact_grounded_location_queries(
+    source: &str,
+    sentences: &[semantic_core::SentenceSpan],
+    entities: &[VisualEntity],
+    entity_ids: &[String],
+    facts: &[semantic_core::EntityFact],
+) -> Vec<ContextualImageQuery> {
+    let mut output = Vec::new();
+    for fact in facts {
+        if fact.predicate != "located_in"
+            || fact.status != "asserted"
+            || fact.target_entity_id.is_none()
+            || fact.value.trim().is_empty()
+        {
+            continue;
+        }
+        let Some(sentence) = sentences.get(fact.sentence_index) else {
+            continue;
+        };
+        let Some(subject) = entities.iter().enumerate().find_map(|(index, entity)| {
+            (entity_ids
+                .get(index)
+                .is_some_and(|id| id == &fact.subject_entity_id)
+                && entity.start >= sentence.start_byte
+                && entity.end <= sentence.end_byte
+                && is_visual_query_entity(&entity.r#type))
+            .then_some(entity)
+        }) else {
+            continue;
+        };
+        if fact.start_byte >= fact.end_byte
+            || source.get(fact.start_byte..fact.end_byte) != Some(fact.value.as_str())
+            || fact.evidence_start_byte >= fact.evidence_end_byte
+            || source.get(fact.evidence_start_byte..fact.evidence_end_byte)
+                != Some(fact.evidence.as_str())
+        {
+            continue;
+        }
+        let Some(location) = entities.iter().enumerate().find_map(|(index, entity)| {
+            (entity_ids.get(index).is_some_and(|id| {
+                fact.target_entity_id
+                    .as_ref()
+                    .is_some_and(|target| id == target)
+            }) && entity.r#type == "LOCATION"
+                && entity.text == fact.value
+                && entity.start == fact.start_byte
+                && entity.end == fact.end_byte)
+                .then_some(entity)
+        }) else {
+            // The same canonical place may have been extracted at a different
+            // mention. The fact's own value span is the grounded target here.
+            let components = vec![
+                visual_entity_component(subject),
+                semantic_core::QueryComponent {
+                    kind: "location".to_string(),
+                    component_type: "LOCATION".to_string(),
+                    text: fact.value.clone(),
+                    start_byte: fact.start_byte,
+                    end_byte: fact.end_byte,
+                },
+            ];
+            output.push(location_fact_query(source, fact, components));
+            continue;
+        };
+        let components = vec![
+            visual_entity_component(subject),
+            visual_entity_component(location),
+        ];
+        output.push(location_fact_query(source, fact, components));
+    }
+    output
+}
+
+fn visual_entity_component(entity: &VisualEntity) -> semantic_core::QueryComponent {
+    semantic_core::QueryComponent {
+        kind: visual_component_kind(&entity.r#type).to_string(),
+        component_type: entity.r#type.clone(),
+        text: entity.text.clone(),
+        start_byte: entity.start,
+        end_byte: entity.end,
+    }
+}
+
+fn location_fact_query(
+    source: &str,
+    fact: &semantic_core::EntityFact,
+    components: Vec<semantic_core::QueryComponent>,
+) -> ContextualImageQuery {
+    let query = components
+        .iter()
+        .map(|component| component.text.trim())
+        .collect::<Vec<_>>()
+        .join(" ");
+    ContextualImageQuery {
+        id: String::new(),
+        kind: "contextual_image_query".to_string(),
+        query,
+        evidence: source
+            .get(fact.evidence_start_byte..fact.evidence_end_byte)
+            .unwrap_or_default()
+            .to_string(),
+        evidence_start_byte: fact.evidence_start_byte,
+        evidence_end_byte: fact.evidence_end_byte,
+        sentence_index: fact.sentence_index,
+        components,
+    }
 }
 
 fn image_pair_quality(left_type: &str, right_type: &str) -> usize {
@@ -638,28 +760,36 @@ fn sentence_visual_slot_queries(
                 // Only join a landmark to a location explicitly introduced
                 // with a location phrase; two landmarks listed together do
                 // not become a single scene query.
-                if let Some(place) = locations
-                    .iter()
-                    .copied()
-                    .find(|entity| has_location_anchor_cue(source, absolute_start, entity))
-                {
-                    if let Some(other_place) = locations
+                if let Some((landmark, place)) = locations.iter().copied().find_map(|place| {
+                    locations
                         .iter()
                         .copied()
-                        .find(|entity| entity.start != place.start)
-                    {
-                        anchors.push(other_place);
-                        anchors.push(place);
-                    }
+                        .find(|landmark| {
+                            landmark.start != place.start
+                                && explicit_location_link(source, landmark, place)
+                        })
+                        .map(|landmark| (landmark, place))
+                }) {
+                    anchors.push(landmark);
+                    anchors.push(place);
                 }
             } else if let Some(person) = people.first() {
                 anchors.push(person);
             }
-            if let Some(location) = locations.iter().min_by_key(|entity| {
-                anchors
-                    .last()
-                    .map_or(usize::MAX, |anchor| anchor.start.abs_diff(entity.start))
-            }) {
+            if let Some(location) = locations
+                .iter()
+                .copied()
+                .filter(|location| {
+                    anchors
+                        .last()
+                        .is_some_and(|anchor| explicit_location_link(source, anchor, location))
+                })
+                .min_by_key(|entity| {
+                    anchors
+                        .last()
+                        .map_or(usize::MAX, |anchor| anchor.start.abs_diff(entity.start))
+                })
+            {
                 if !anchors
                     .iter()
                     .any(|anchor| anchor.start == location.start && anchor.end == location.end)
@@ -1101,15 +1231,31 @@ fn is_passive_visual_owner(clause: &str, entity: &VisualEntity) -> bool {
         .any(|cue| prefix.contains(cue.to_lowercase().as_str()))
 }
 
-fn has_location_anchor_cue(source: &str, clause_start: usize, entity: &VisualEntity) -> bool {
-    let Some(prefix) = source.get(clause_start..entity.start) else {
-        return false;
-    };
-    let lower = prefix.to_lowercase();
-    crate::consolidate::image_query_policy()
-        .location_anchor_cues
-        .iter()
-        .any(|cue| lower.ends_with(cue.as_str()))
+fn explicit_location_link(source: &str, subject: &VisualEntity, location: &VisualEntity) -> bool {
+    let policy = crate::consolidate::image_query_policy();
+    if subject.end <= location.start {
+        let Some(gap) = source.get(subject.end..location.start) else {
+            return false;
+        };
+        let lower = gap.to_lowercase();
+        let padded_gap = format!(" {} ", lower.trim());
+        return policy
+            .location_anchor_cues
+            .iter()
+            .any(|cue| padded_gap.contains(&format!(" {} ", cue.trim().to_lowercase())));
+    }
+    if location.end <= subject.start {
+        let Some(gap) = source.get(location.end..subject.start) else {
+            return false;
+        };
+        let lower = gap.to_lowercase();
+        let padded_gap = format!(" {} ", lower.trim());
+        return policy
+            .location_preceding_subject_cues
+            .iter()
+            .any(|cue| padded_gap.contains(&format!(" {} ", cue.trim().to_lowercase())));
+    }
+    false
 }
 
 fn is_explicit_visual_comparison(clause: &str, _language: &str) -> bool {
@@ -1362,7 +1508,8 @@ mod contextual_image_query_tests {
             },
         ];
         let sentences = semantic_core::split_sentences(source, "en", None);
-        let queries = contextual_image_query_candidates("en", source, &sentences, &entities);
+        let queries =
+            contextual_image_query_candidates("en", source, &sentences, &entities, &[], &[]);
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0].query, "Aurora Stadium Torino");
         for component in &queries[0].components {

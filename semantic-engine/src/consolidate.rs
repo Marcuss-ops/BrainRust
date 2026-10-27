@@ -118,7 +118,7 @@ pub fn build(
 
     push_charts(scenes, &identities, &reference_keys, &mut candidates);
     push_multiple_entities(scenes, &identities, &mut candidates);
-    push_named_entities(&identities, &mut candidates);
+    push_named_entities(scenes, &identities, &mut candidates);
     push_visual_concepts(scenes, &identities, &mut candidates);
     push_fact_cards(
         &facts,
@@ -542,6 +542,7 @@ pub(crate) struct ImageQueryPolicy {
     pub(crate) location_inheritance_cues: Vec<String>,
     pub(crate) visual_clause_separators: Vec<String>,
     pub(crate) linked_clause_visual_cues: Vec<String>,
+    pub(crate) location_preceding_subject_cues: Vec<String>,
     pub(crate) comparison_cues: Vec<String>,
     pub(crate) link_disclaimer_cues: Vec<String>,
     pub(crate) irrealis_visual_cues: Vec<String>,
@@ -565,6 +566,7 @@ impl Default for ImageQueryPolicy {
             location_inheritance_cues: Vec::new(),
             visual_clause_separators: Vec::new(),
             linked_clause_visual_cues: Vec::new(),
+            location_preceding_subject_cues: Vec::new(),
             comparison_cues: Vec::new(),
             link_disclaimer_cues: Vec::new(),
             irrealis_visual_cues: Vec::new(),

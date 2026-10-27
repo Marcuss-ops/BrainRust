@@ -23,10 +23,6 @@ pub(crate) fn to_visual_proposal(
             if text.is_empty() || is_noise_query(text) || !source.contains(text.as_str()) {
                 continue;
             }
-            if !visual_query_suggestions.iter().any(|query| query == text) {
-                visual_query_suggestions.push(text.clone());
-            }
-            queries.push(SearchQuery::literal(text.clone()));
             if candidate.kind == "entity_search" {
                 if let Some(span) =
                     semantic_core::sentences::split_sentences(source, language, None)
@@ -73,6 +69,17 @@ pub(crate) fn to_visual_proposal(
                 }
             }
         }
+    }
+    // Scene-phrase queries lead for entity searches; the exact entity span
+    // follows as a fallback.
+    for text in &candidate.entity_texts {
+        if text.is_empty() || is_noise_query(text) || !source.contains(text.as_str()) {
+            continue;
+        }
+        if !visual_query_suggestions.iter().any(|query| query == text) {
+            visual_query_suggestions.push(text.clone());
+        }
+        queries.push(SearchQuery::literal(text.clone()));
     }
     let proposal_id = format!("{scene_id}_visual_{:03}", index + 1);
     let feedback = candidate

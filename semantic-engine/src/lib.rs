@@ -260,8 +260,14 @@ fn analyze_scene_with_search(
         &analysis.numeric_facts,
         &temporal_facts,
     );
-    let contextual_image_queries =
-        contextual_image_query_candidates(language, source, &sentence_spans, &entities);
+    let contextual_image_queries = contextual_image_query_candidates(
+        language,
+        source,
+        &sentence_spans,
+        &entities,
+        &entity_ids,
+        &entity_facts,
+    );
     let bullets = bullet_candidates(source, &sentence_spans, &entities);
     let candidates = groups::build_candidates(
         source,

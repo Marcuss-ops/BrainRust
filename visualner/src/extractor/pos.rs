@@ -56,6 +56,10 @@ const FUNCTION_UPOS: &[&str] = &[
 /// later occurrence and desynchronizing the rest of the text.
 const ALIGNMENT_WINDOW: usize = 16;
 
+/// Upper bound on the model words one hyphenated compound can consume
+/// ("water" + "-" + "level" is three). Keeps the joined-form probe linear.
+const JOINED_COMPOUND_MAX_WORDS: usize = 4;
+
 /// is_stop_token reports whether a token must break a candidate phrase.
 /// Tags decide for nouns, numbers and function words. Adjectives, verbs,
 /// adverbs, auxiliaries and unknown words (X) keep the curated stopword list,
@@ -103,9 +107,39 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
         // the clitic's PRON tag would otherwise hide it.
         let mut verb_part: Option<(String, String)> = None;
         let mut consumed = word_index;
+        // A hyphenated compound is one ICU token but several model words
+        // ("water-level" -> "water" + "-" + "level"): the single-word rules
+        // below cannot tag it, and an untagged opener sinks the whole noun
+        // phrase at the visual-concept gate. Match the joined model forms
+        // against the token surface (the hyphen joiners are implicit); the
+        // first non-punctuation piece supplies the tag and a PROPN inside the
+        // compound wins, exactly like the elided-form rule below.
+        let joined = if surface.contains('-') {
+            let pieces: Vec<(String, String, String)> = words
+                .get(word_index..)
+                .unwrap_or_default()
+                .iter()
+                .take(JOINED_COMPOUND_MAX_WORDS)
+                .map(|word| {
+                    (
+                        word.form.to_lowercase(),
+                        word.upostag.clone(),
+                        word.lemma.clone(),
+                    )
+                })
+                .collect();
+            match_joined_compound(&surface, &pieces)
+        } else {
+            None
+        };
+        let joined_matched = joined.is_some();
+        if let Some((span, tag)) = joined {
+            chosen = Some(tag);
+            consumed = word_index + span;
+        }
         let mut unmatched_content = 0;
         let mut scan = word_index;
-        while scan < words.len() {
+        while !joined_matched && scan < words.len() {
             let word = &words[scan];
             let form = word.form.to_lowercase();
             if word_matches_token(&surface, &form) {
@@ -170,6 +204,36 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
             token.lemma = Some(lemma);
         }
     }
+}
+
+/// Matches a hyphenated ICU token against the consecutive model words that
+/// build it. The comparison ignores the hyphen joiners ("water-level" is
+/// "water" + "-" + "level" in the model output, but can also come as
+/// "water" + "level"), so the compound keeps a POS tag and lemma instead of
+/// staying untagged. `(form, upostag, lemma)` triples in source order; the
+/// first non-punctuation piece supplies the tag and a PROPN wins. Returns the
+/// number of consumed model words and the token tag.
+fn match_joined_compound(
+    surface: &str,
+    pieces: &[(String, String, String)],
+) -> Option<(usize, (String, String))> {
+    let target: String = surface.chars().filter(|ch| *ch != '-').collect();
+    let mut joined = String::new();
+    let mut chosen: Option<(String, String)> = None;
+    for (offset, (form, upostag, lemma)) in pieces.iter().enumerate() {
+        joined.push_str(form);
+        if upostag != "PUNCT" && (chosen.is_none() || upostag == "PROPN") {
+            chosen = Some((upostag.clone(), lemma.clone()));
+        }
+        let normalized: String = joined.chars().filter(|ch| *ch != '-').collect();
+        if normalized == target {
+            return chosen.map(|tag| (offset + 1, tag));
+        }
+        if normalized.len() > target.len() {
+            return None;
+        }
+    }
+    None
 }
 
 /// word_matches_token accepts an exact token, or a multi-character model form
