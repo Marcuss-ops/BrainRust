@@ -10,3 +10,6 @@ lexicon/tools/__pycache__/
 
 # Python bytecode from the gold-set scorer and any other helper scripts.
 __pycache__/
+
+# Local run scratch logs (2026-10-27): stdout/stderr captures, never source.
+*.log
