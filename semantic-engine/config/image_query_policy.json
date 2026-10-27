@@ -30,10 +30,24 @@
     "without any link", "without claiming", "denied the collaboration",
     "in separate paragraphs", "without any connection"
   ],
-  "irrealis_visual_cues": ["sarà costruita", "sarà realizzato", "sarà realizzata", "non sono ancora iniziati", "alcun rendering"],
+  "irrealis_visual_cues": [
+    "sarà costruita", "sarà realizzato", "sarà realizzata", "non sono ancora iniziati",
+    "proposed", "supposed to be built", "meant to be built", "will be built",
+    "construction has not started", "work has not begun", "not yet started", "alcun rendering"
+  ],
+  "irrealis_visual_evidence_cues": [
+    "rendering", "blueprint", "architectural plan", "design concept", "project illustration",
+    "rendering del progetto", "progetto illustrato"
+  ],
   "passive_owner_cues": ["appartenente a", "di proprietà di", "owned by"],
   "non_subject_object_terms": ["fotografia", "foto", "immagine", "documento", "fascicolo", "reperti", "testo", "photo", "image", "document", "text"],
-  "location_anchor_cues": ["città di ", "city of ", " in ", " a ", " at ", " di "],
+  "location_anchor_cues": [
+    "città di ", "city of ", " in ", " a ", " at ", " di ",
+    "to ", "toward ", "towards ", "verso ", "south of ", "north of "
+  ],
+  "nested_location_anchor_cues": [
+    "città di ", "city of ", " in ", " a ", " at ", " di ", ", "
+  ],
   "location_preceding_subject_cues": ["'s ", " di ", " de ", " du ", " van "],
   "nonvisual_action_context_phrases": [
     "ricorso presentato", "istanza presentata", "domanda presentata",

@@ -147,7 +147,11 @@ pub(crate) fn collect_facilities(source: &str, remaining: usize) -> Vec<VisualEn
             if next_name {
                 continue;
             }
-            for word in candidate_words {
+            // Walk outward from the head: the name is the contiguous run of
+            // title-cased words directly before it. A lowercase modifier
+            // ("kommunales Stadion") ends the run, so an earlier capitalized
+            // word ("Thema") is never pulled into the facility name.
+            for word in candidate_words.iter().rev() {
                 let cleaned = word.trim_matches(|ch: char| !ch.is_alphanumeric() && ch != '-');
                 if cleaned.chars().next().is_some_and(char::is_uppercase) {
                     let start = source[..noun_start].rfind(word).unwrap_or(noun_start);

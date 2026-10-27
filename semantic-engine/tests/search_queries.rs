@@ -38,24 +38,25 @@ fn entity_search_queries_include_the_grounded_sentence_context_for_images_and_st
     let text = "I tifosi festeggiano sugli spalti dopo la vittoria della squadra.";
     let value = manifest_value(vec![scene("tifosi-in-festa", text)]);
     let searches = proposals_of(&value["scenes"][0], "entity_search");
-    // The extractor now grounds this supporter mention as one visual concept
-    // spanning the whole phrase, so the search query is that exact span.
+    // The entity-anchored phrase is compact enough for provider search while
+    // retaining the complete sentence and exact entity as fallbacks.
     let tifosi = searches
         .iter()
         .find(|proposal| {
-            proposal["visual_query_suggestions"][0]
-                == "I tifosi festeggiano sugli spalti dopo la vittoria della"
+            proposal["visual_query_suggestions"][0] == "tifosi festeggiano sugli spalti"
         })
         .expect("the source-grounded supporter concept gets a search proposal");
     let queries = tifosi["visual_query_suggestions"]
         .as_array()
         .expect("query suggestions array");
     assert_eq!(
-        queries[0], "I tifosi festeggiano sugli spalti dopo la vittoria della",
-        "lead with the grounded multiword scene phrase"
+        queries[0], "tifosi festeggiano sugli spalti",
+        "lead with a compact phrase anchored at the visual subject"
     );
     assert!(
-        queries.iter().any(|query| query == "tifosi festeggiano sugli spalti"),
+        queries
+            .iter()
+            .any(|query| query == "tifosi festeggiano sugli spalti"),
         "keep the exact entity span as a fallback query: {queries:?}"
     );
     for query in queries {
@@ -239,6 +240,83 @@ fn contextual_image_query_is_a_grounded_subject_place_composition() {
 }
 
 #[test]
+fn contextual_production_query_inherits_a_nested_place_without_an_entity_owner() {
+    let text = "The city built a treatment plant at Collins Park in East Toledo.";
+    let manifest = analyze_script(&ScriptRequest {
+        language: "en".to_string(),
+        scenes: vec![scene("nested-place-context", text)],
+        editorial: None,
+        entity_safety_cap: 0,
+    })
+    .expect("script analysis");
+    let value = serde_json::to_value(manifest).unwrap();
+    let candidates = value["visual_consolidation"]["production_candidates"]
+        .as_array()
+        .expect("production candidates");
+    let contextual = candidates
+        .iter()
+        .find(|candidate| {
+            candidate["recipe"] == "contextual_search"
+                && candidate["title"] == "plant Collins Park East Toledo"
+        })
+        .unwrap_or_else(|| panic!("nested place context missing: {candidates:?}"));
+    let query = &contextual["queries"][0];
+    assert_eq!(query["text"], "plant Collins Park East Toledo");
+    assert_eq!(query["evidence"], text);
+    for component in query["components"].as_array().unwrap() {
+        let start = component["start_byte"].as_u64().unwrap() as usize;
+        let end = component["end_byte"].as_u64().unwrap() as usize;
+        assert_eq!(&text[start..end], component["text"].as_str().unwrap());
+    }
+}
+
+#[test]
+fn unbuilt_proposals_do_not_become_searches_for_existing_factories() {
+    let text =
+        "A proposed battery factory will be built in Michigan. Construction has not started.";
+    let manifest = analyze_script(&ScriptRequest {
+        language: "en".to_string(),
+        scenes: vec![scene("proposed-factory", text)],
+        editorial: None,
+        entity_safety_cap: 0,
+    })
+    .expect("script analysis");
+    let value = serde_json::to_value(manifest).unwrap();
+    let candidates = value["visual_consolidation"]["production_candidates"]
+        .as_array()
+        .expect("production candidates");
+    assert!(!candidates.iter().any(|candidate| {
+        candidate["recipe"] == "contextual_search"
+            && candidate["title"]
+                .as_str()
+                .is_some_and(|title| title.to_lowercase().contains("battery"))
+    }));
+}
+
+#[test]
+fn location_lists_do_not_become_one_joint_visual_query() {
+    let text = "Windsor, Canada, and Fort Wayne, Indiana are closer than Columbus.";
+    let manifest = analyze_script(&ScriptRequest {
+        language: "en".to_string(),
+        scenes: vec![scene("place-list", text)],
+        editorial: None,
+        entity_safety_cap: 0,
+    })
+    .expect("script analysis");
+    let value = serde_json::to_value(manifest).unwrap();
+    let queries = value["scenes"][0]["contextual_image_queries"]
+        .as_array()
+        .expect("contextual queries");
+    assert!(
+        !queries.iter().any(|query| {
+            query["query"] == "Windsor Fort Wayne Indiana"
+                || query["query"] == "Windsor Canada Fort Wayne Indiana"
+        }),
+        "place list should not become one joint query: {queries:?}"
+    );
+}
+
+#[test]
 fn locative_queries_require_a_locative_predicate_and_use_local_place_spans() {
     let text = "Nel 2018 il Comune di Torino affidò a Elena Conti il controllo dello Stadio Aurora. Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva 18.000 posti.";
     let value = manifest_value(vec![scene("explicit-locative", text)]);
@@ -301,15 +379,16 @@ fn visual_search_adds_a_compact_grounded_co_mention_query() {
     let search = candidates
         .iter()
         .find(|candidate| {
-            candidate["recipe"] == "entity_search" && candidate["title"] == "campioni"
+            candidate["recipe"] == "contextual_search"
+                && candidate["title"] == "campioni analizzati"
         })
-        .unwrap_or_else(|| panic!("campioni search candidate missing: {candidates:?}"));
+        .unwrap_or_else(|| panic!("contextual campioni query missing: {candidates:?}"));
     let context = search["queries"]
         .as_array()
         .unwrap()
         .iter()
         .find(|query| query["origin"] == "derived_from_source_context")
-        .unwrap_or_else(|| panic!("grounded context query missing: {}", search["queries"]));
+        .unwrap_or_else(|| panic!("grounded contextual rung missing: {}", search["queries"]));
     assert_eq!(context["illustrative"], false);
     let query = context["text"].as_str().unwrap();
     assert!(query.split_whitespace().count() <= 7, "{query}");
