@@ -134,9 +134,14 @@ fn split_elided_clitics(source_text: &str, tokens: Vec<Token>) -> Vec<Token> {
 /// token is `<two-or-more ASCII letters>'<Uppercase...>`.
 fn elided_clitic_split(source_text: &str, token: &Token) -> Option<(usize, usize)> {
     let text = source_text.get(token.start..token.end)?;
-    if text != token.text || !text.is_ascii() {
+    if text != token.text {
         return None;
     }
+    // Only the clitic itself has to be ASCII letters; the name it precedes may
+    // carry any script ("dell'Università", "dell'Abruzzo", "d'Italia" is the
+    // one-letter case that stays attached). Rejecting the whole token on a
+    // non-ASCII remainder left the name fused to its article and invisible to
+    // every name rule.
     let apostrophe = text.find(['\'', '\u{2019}'])?;
     let prefix = &text[..apostrophe];
     if prefix.len() < 2 || !prefix.bytes().all(|byte| byte.is_ascii_alphabetic()) {

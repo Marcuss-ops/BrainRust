@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use crate::types::{ExtractOptions, VisualEntity};
 
 use super::location::{is_phrase_breaking_byte, mark_contextual_locations, starts_uppercase};
-use super::names::{is_heading_surface, is_known_place, is_name_particle};
+use super::names::{is_heading_surface, is_known_place, is_name_particle, opens_organization_name};
 use super::phrases::{
     keeps_as_visual_candidate, noun_phrase_candidates, object_lexicon_candidates,
 };
@@ -285,14 +285,49 @@ fn flush_name_run(
             .map(|token| token.text.as_str())
             .collect::<Vec<&str>>()
             .join(" ");
-        let seeds_person_tokens =
-            values::institution_cue_kind(&significant_surface, language).is_none();
-        if seeds_person_tokens {
-            for token in run.iter().skip(usize::from(skip_leading_place)) {
-                if !is_stop_token(token, language) {
-                    context.person_name_tokens.insert(token.text.to_lowercase());
-                }
+        // A run that names an institution or a facility can end in the place it
+        // serves, and that place is a LOCATION of its own: "Staatsanwaltschaft
+        // Berlin", "Landgericht München", "Pengadilan Surabaya", "Università
+        // di Torino", "Stadio Aurora di Torino". A person run does not: in
+        // "Elena Messina" the place-looking token is a surname. The head is the
+        // first *substantive* token — the leading function word of "Lo Stadio
+        // Aurora di Torino" is not the head, and reading it as one would hide
+        // the facility cue and seed the city as a name fragment.
+        let head_surface = run
+            .iter()
+            .find(|token| !is_stop_token(token, language))
+            .map(|token| token.text.as_str())
+            .unwrap_or("");
+        let institution_run = values::institution_cue_kind(&significant_surface, language)
+            .is_some()
+            || opens_organization_name(head_surface, language);
+        let facility_run = values::opens_facility_name(head_surface);
+        // A facility noun also opens ordinary names: "Stadio Aurora" is a
+        // facility whose second token is part of its name, not its city, so a
+        // facility keeps its trailing place only when the language's genitive
+        // marker binds it ("di Torino"). An institution needs no marker: a
+        // court or prosecutor's office is *of* the city it names.
+        let genitive_markers = &semantic_core::lexicon::lexicon()
+            .facility
+            .bare_location_prepositions;
+        let last_significant = run
+            .iter()
+            .rposition(|token| !is_stop_token(token, language));
+        for (position, token) in run.iter().enumerate().skip(usize::from(skip_leading_place)) {
+            if is_stop_token(token, language) {
+                continue;
             }
+            let follows_genitive = position > 0
+                && genitive_markers
+                    .iter()
+                    .any(|marker| run[position - 1].text.to_lowercase() == *marker);
+            let trailing_place = (position == last_significant.unwrap_or(usize::MAX))
+                && (institution_run || (facility_run && follows_genitive))
+                && is_known_place(&token.text, language);
+            if trailing_place {
+                continue;
+            }
+            context.person_name_tokens.insert(token.text.to_lowercase());
         }
         // A surname is only claimed from an unambiguous two-word name that is
         // neither a place nor a curated institution. "Chiara Poggi" yields
@@ -338,10 +373,21 @@ fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> 
         .filter(|entity| entity.r#type == "LOCATION")
         .map(|entity| (entity.start, entity.end))
         .collect();
+    // ORG and ORGANIZATION are one contract type with two spellings, so a
+    // nested span is a fragment of the longer name in both readings
+    // ("Comune" inside "Comune di Torino").
+    let organization_spans: Vec<(usize, usize)> = entities
+        .iter()
+        .filter(|entity| matches!(entity.r#type.as_str(), "ORG" | "ORGANIZATION"))
+        .map(|entity| (entity.start, entity.end))
+        .collect();
     entities
         .into_iter()
         .filter(|entity| {
-            if !matches!(entity.r#type.as_str(), "LOCATION" | "PERSON") {
+            if !matches!(
+                entity.r#type.as_str(),
+                "LOCATION" | "PERSON" | "ORG" | "ORGANIZATION"
+            ) {
                 return true;
             }
             if entity.r#type == "LOCATION"
@@ -354,6 +400,15 @@ fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> 
             }
             if entity.r#type == "LOCATION"
                 && location_spans.iter().any(|(start, end)| {
+                    (*start, *end) != (entity.start, entity.end)
+                        && entity.start >= *start
+                        && entity.end <= *end
+                })
+            {
+                return false;
+            }
+            if matches!(entity.r#type.as_str(), "ORG" | "ORGANIZATION")
+                && organization_spans.iter().any(|(start, end)| {
                     (*start, *end) != (entity.start, entity.end)
                         && entity.start >= *start
                         && entity.end <= *end

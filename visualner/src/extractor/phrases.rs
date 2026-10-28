@@ -61,14 +61,20 @@ pub(crate) fn keeps_as_visual_candidate(
     if opens_a_clause(span[0]) {
         return false;
     }
-    // A verb inside the phrase means the candidate spans a predicate
+    // A predicate inside the phrase means the candidate spans a clause
     // ("anni sarebbe tornato"); a trailing participle is the only form that
-    // still modifies a noun ("condanna anticipata").
+    // still modifies a noun ("condanna anticipata"). An interior preposition,
+    // article or pronoun is not a clause: "Università di Torino",
+    // "Bank of England" and "Carlo il Grosso" are names, and the opener above
+    // already rejected a phrase that *starts* with a function word.
     let last = span.len() - 1;
-    let predicate_inside = span
-        .iter()
-        .enumerate()
-        .any(|(index, token)| index != last && opens_a_clause(token));
+    let predicate_inside = span.iter().enumerate().any(|(index, token)| {
+        index != last
+            && matches!(
+                token.upos.as_deref(),
+                Some("VERB" | "AUX" | "SCONJ" | "CCONJ" | "INTJ")
+            )
+    });
     if predicate_inside {
         return false;
     }
@@ -174,7 +180,7 @@ pub(crate) fn noun_phrase_candidates(
     // This prevents lower-case lead-ins such as "figures like Phil Jackson"
     // from becoming a PERSON entity; the grounded candidate is "Phil Jackson".
     let mut name_runs = proper_name_runs(tokens, bytes, language);
-    let organization_runs = organization_name_runs(tokens, language);
+    let organization_runs = organization_name_runs(tokens, bytes, language);
     name_runs.retain(|(start, end)| {
         !organization_runs
             .iter()

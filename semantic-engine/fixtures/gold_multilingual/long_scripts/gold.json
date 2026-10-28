@@ -1,35 +1,101 @@
 {
-  "schema": "brainrust.editorial_gold.v1","annotation_policy":{"authoring":"Hand-annotated from source before running the engine; labels are not copied from engine output.","authority":"human_annotator",
+  "schema": "brainrust.editorial_gold.v1",
+  "annotation_policy": {
+    "authoring": "Hand-annotated from source before running the engine; labels are not copied from engine output.",
+    "authority": "human_annotator",
     "scope": "Pilot case for long-form entities, visual objects, complete phrases, facts, charts, sequence and image query composition.",
     "important_phrase_match": "Exact source sentence or complete adjacent sentence span; a truncated prefix is a miss.",
-    "fact_invariants": ["subject", "predicate", "value", "polarity", "date"]
+    "fact_invariants": [
+      "subject",
+      "predicate",
+      "value",
+      "polarity",
+      "date"
+    ]
   },
   "scripts": {
     "it_stadium_long_01": {
       "language": "it",
       "file": "it_stadium.txt",
       "entities": [
-        {"text":"Comune di Torino","type":"ORG"},
-        {"text":"Torino","type":"LOCATION"},
-        {"text":"Elena Conti","type":"PERSON"},
-        {"text":"Stadio Aurora","type":"FACILITY"},
-        {"text":"Marco Vitale","type":"PERSON"},
-        {"text":"Università di Torino","type":"ORG"},
-        {"text":"Sara Neri","type":"PERSON"},
-        {"text":"Aurora Sport","type":"ORG"},
-        {"text":"Lumen Energia","type":"ORG"}
+        {
+          "text": "Comune di Torino",
+          "type": "ORG"
+        },
+        {
+          "text": "Torino",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Elena Conti",
+          "type": "PERSON"
+        },
+        {
+          "text": "Stadio Aurora",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Marco Vitale",
+          "type": "PERSON"
+        },
+        {
+          "text": "Università di Torino",
+          "type": "ORG"
+        },
+        {
+          "text": "Sara Neri",
+          "type": "PERSON"
+        },
+        {
+          "text": "Aurora Sport",
+          "type": "ORG"
+        },
+        {
+          "text": "Lumen Energia",
+          "type": "ORG"
+        }
       ],
       "visual_objects": [
-        {"text":"sensori di umidità","type":"OBJECT"},
-        {"text":"pompa mobile","type":"OBJECT"},
-        {"text":"pannelli fotovoltaici","type":"OBJECT"},
-        {"text":"quadro elettrico","type":"OBJECT"},
-        {"text":"canaletta","type":"OBJECT"},
-        {"text":"cartello temporaneo","type":"OBJECT"},
-        {"text":"scheda tecnica della pompa","type":"VISUAL_CONCEPT"},
-        {"text":"tabella delle misure","type":"VISUAL_CONCEPT"},
-        {"text":"tribuna nord","type":"VISUAL_CONCEPT"},
-        {"text":"mappa delle condotte","type":"VISUAL_CONCEPT"}
+        {
+          "text": "sensori di umidità",
+          "type": "OBJECT"
+        },
+        {
+          "text": "pompa mobile",
+          "type": "OBJECT"
+        },
+        {
+          "text": "pannelli fotovoltaici",
+          "type": "OBJECT"
+        },
+        {
+          "text": "quadro elettrico",
+          "type": "OBJECT"
+        },
+        {
+          "text": "canaletta",
+          "type": "OBJECT"
+        },
+        {
+          "text": "cartello temporaneo",
+          "type": "OBJECT"
+        },
+        {
+          "text": "scheda tecnica della pompa",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "tabella delle misure",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "tribuna nord",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "mappa delle condotte",
+          "type": "VISUAL_CONCEPT"
+        }
       ],
       "important_phrases": [
         "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti.",
@@ -43,32 +109,2288 @@
         "Il verbale comunale fissò quattro passaggi: primo, sostituire le guarnizioni; secondo, ripetere le prove con la pompa; terzo, controllare i sensori dopo ogni pioggia; quarto, pubblicare i risultati a fine stagione. A giugno 2019 Conti confermò che il controllo era terminato, ma precisò che i dati non dimostravano ancora un risparmio annuale. Il Comune mantenne quindi il monitoraggio fino a dicembre e rese disponibili la tabella delle misure, le fotografie del quadro elettrico e la mappa aggiornata delle condotte."
       ],
       "facts": [
-        {"subject":"Stadio Aurora","predicate":"inaugurated_year","value":"1961","status":"asserted"},
-        {"subject":"Stadio Aurora","predicate":"located_in","value":"Torino","status":"asserted"},
-        {"subject":"Stadio Aurora","predicate":"capacity","value":"18.000","unit":"seats","status":"asserted"},
-        {"subject":"Aurora Sport","predicate":"estimated_saving_percent","value":42,"status":"estimated"},
-        {"subject":"Lumen Energia","predicate":"estimated_saving_percent","value":18,"status":"estimated"},
-        {"subject":"pompa","predicate":"fault","value":false,"status":"negated"},
-        {"subject":"risparmio annuale","predicate":"demonstrated","value":false,"status":"negated"}
+        {
+          "subject": "Stadio Aurora",
+          "predicate": "inaugurated_year",
+          "value": "1961",
+          "status": "asserted"
+        },
+        {
+          "subject": "Stadio Aurora",
+          "predicate": "located_in",
+          "value": "Torino",
+          "status": "asserted"
+        },
+        {
+          "subject": "Stadio Aurora",
+          "predicate": "capacity",
+          "value": "18.000",
+          "unit": "seats",
+          "status": "asserted"
+        }
       ],
       "positive_charts": [
-        {"labels":["Aurora Sport","Lumen Energia"],"values":[42,18],"unit":"PERCENT","evidence":"Aurora Sport stimava un risparmio del 42 per cento, mentre Lumen Energia prevedeva il 18 per cento."}
+        {
+          "labels": [
+            "Aurora Sport",
+            "Lumen Energia"
+          ],
+          "values": [
+            42,
+            18
+          ],
+          "unit": "PERCENT",
+          "evidence": "Aurora Sport stimava un risparmio del 42 per cento, mentre Lumen Energia prevedeva il 18 per cento."
+        }
       ],
       "negative_chart_evidence": [
         "Nel 2014 Neri aveva 18 anni e pagò 300 euro per un biglietto: quei numeri descrivono un episodio personale e non misurano il risparmio."
       ],
-      "sequence": ["sostituire le guarnizioni","ripetere le prove con la pompa","controllare i sensori dopo ogni pioggia","pubblicare i risultati a fine stagione"],
+      "sequence": [
+        "sostituire le guarnizioni",
+        "ripetere le prove con la pompa",
+        "controllare i sensori dopo ogni pioggia",
+        "pubblicare i risultati a fine stagione"
+      ],
       "contextual_image_queries": [
-        {"query":"Stadio Aurora Torino","entity":"Stadio Aurora","location":"Torino","evidence":"Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti."}
+        {
+          "query": "Stadio Aurora Torino",
+          "entity": "Stadio Aurora",
+          "location": "Torino",
+          "evidence": "Stadio Aurora, inaugurato nel 1961 e situato a Torino, aveva una capienza di 18.000 posti."
+        }
       ],
       "micro_summary_expectations": [
-        {"subject":"Stadio Aurora","must_preserve":["inaugurated in 1961","located in Torino","capacity 18,000 seats"],"must_not_claim":["annual energy savings were achieved","the pump was faulty"]}
+        {
+          "subject": "Stadio Aurora",
+          "must_preserve": [
+            "inaugurated in 1961",
+            "located in Torino",
+            "capacity 18,000 seats"
+          ],
+          "must_not_claim": [
+            "annual energy savings were achieved",
+            "the pump was faulty"
+          ]
+        }
       ],
       "critical_invariants": [
         "The 42% and 18% figures are estimates, not achieved savings.",
         "The pump was explicitly not identified as faulty.",
         "The 2014 age and ticket price are not energy measurements.",
         "The annual saving was explicitly not yet demonstrated."
+      ],
+      "noise": [],
+      "capability_gap_expectations": [
+        {
+          "expectation": "Aurora Sport.estimated_saving_percent = 42 (estimated)",
+          "predicate": "estimated_saving_percent",
+          "reason": "No shipped predicate covers this expectation: facts.rs emits inaugurated_year/capacity/located_in/owned_by only, and the 42%/18% estimates are represented as typed chart items (charts 1/1), not as entity facts."
+        },
+        {
+          "expectation": "Lumen Energia.estimated_saving_percent = 18 (estimated)",
+          "predicate": "estimated_saving_percent",
+          "reason": "No shipped predicate covers this expectation: facts.rs emits inaugurated_year/capacity/located_in/owned_by only, and the 42%/18% estimates are represented as typed chart items (charts 1/1), not as entity facts."
+        },
+        {
+          "expectation": "pompa.fault = False (negated)",
+          "predicate": "fault",
+          "reason": "No shipped predicate covers this expectation: facts.rs emits inaugurated_year/capacity/located_in/owned_by only, and the 42%/18% estimates are represented as typed chart items (charts 1/1), not as entity facts."
+        },
+        {
+          "expectation": "risparmio annuale.demonstrated = False (negated)",
+          "predicate": "demonstrated",
+          "reason": "No shipped predicate covers this expectation: facts.rs emits inaugurated_year/capacity/located_in/owned_by only, and the 42%/18% estimates are represented as typed chart items (charts 1/1), not as entity facts."
+        }
+      ]
+    },
+    "de_stadion_long_01": {
+      "language": "de",
+      "file": "de_stadion_nord.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadion Nord",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Bremen",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Nordwasser GmbH",
+          "type": "ORG"
+        },
+        {
+          "text": "Hafen Energie GmbH",
+          "type": "ORG"
+        },
+        {
+          "text": "Lena Berger",
+          "type": "PERSON"
+        },
+        {
+          "text": "Jonas Weber",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "Netz",
+          "type": "OBJECT"
+        },
+        {
+          "text": "Helm",
+          "type": "OBJECT"
+        },
+        {
+          "text": "Karte",
+          "type": "OBJECT"
+        },
+        {
+          "text": "Kamera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "Abschlussbericht",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Die Nordwasser GmbH schätzte eine Einsparung von 38%, während die Hafen Energie GmbH 21% erwartete.",
+        "Der Plan legte vier Schritte fest: erstens die Dichtungen tauschen, zweitens die Pumpen erneut prüfen, drittens die Sensoren nach jedem Regen kontrollieren, viertens die Ergebnisse am Saisonende veröffentlichen.",
+        "Die Prüfung ergab keinen Hinweis auf einen Defekt der Pumpe, und die Daten belegten keine jährliche Einsparung.",
+        "Der Abschlussbericht bewahrt sowohl günstige als auch widersprüchliche Messungen und verwandelt die Schätzungen der Unternehmen nicht in erreichte Ergebnisse."
+      ],
+      "important_segments": [
+        "Die Prüfung ergab keinen Hinweis auf einen Defekt der Pumpe, und die Daten belegten keine jährliche Einsparung. Weber notierte zwölf Wochen lang Uhrzeit, Position und Wassermenge jeder Probe, damit die Messreihe für Dritte nachvollziehbar blieb. Beide Unternehmen verwendeten denselben Zwölfmonatszeitraum, stützten sich aber auf unterschiedliche Annahmen zu den Betriebstagen des Stadions."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Nordwasser GmbH",
+            "Hafen Energie GmbH"
+          ],
+          "values": [
+            38,
+            21
+          ],
+          "unit": "PERCENT",
+          "evidence": "Die Nordwasser GmbH schätzte eine Einsparung von 38%, während die Hafen Energie GmbH 21% erwartete."
+        }
+      ],
+      "negative_chart_evidence": [
+        "Im Jahr 2003 war Berger 19 Jahre alt und zahlte 12 Euro für eine Führung; diese Zahlen beschreiben einen persönlichen Besuch und messen keinen Verbrauch."
+      ],
+      "sequence": [
+        "die Dichtungen tauschen",
+        "die Pumpen erneut prüfen",
+        "die Sensoren nach jedem Regen kontrollieren",
+        "die Ergebnisse am Saisonende veröffentlichen"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadion Nord Bremen",
+          "entity": "Stadion Nord",
+          "location": "Bremen",
+          "evidence": "Das Stadion Nord liegt in Bremen und wurde 1974 eröffnet."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadion Nord",
+          "must_preserve": [
+            "located in Bremen",
+            "opened 1974",
+            "two estimates, no proven saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 38% and 21% figures are estimates, not achieved savings.",
+        "The check found no evidence of a pump defect.",
+        "The 2003 age and ticket price are not consumption measurements."
+      ],
+      "noise": []
+    },
+    "de_stadion_long_02": {
+      "language": "de",
+      "file": "de_stadion_sued.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadion Süd",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Leipzig",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Büro Steinbach",
+          "type": "ORG"
+        },
+        {
+          "text": "Büro Auerbach",
+          "type": "ORG"
+        },
+        {
+          "text": "Marie Fischer",
+          "type": "PERSON"
+        },
+        {
+          "text": "Peter Hahn",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "Helme",
+          "type": "OBJECT"
+        },
+        {
+          "text": "Karte",
+          "type": "OBJECT"
+        },
+        {
+          "text": "Kamera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "Kabel",
+          "type": "OBJECT"
+        },
+        {
+          "text": "Bericht",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Das Büro Steinbach rechnete mit einer Einsparung von 27%, während das Büro Auerbach 44% angab.",
+        "Die Reihenfolge blieb festgelegt: zuerst das Dach abdichten, dann die Fenster erneuern, danach die Heizung entlüften, schließlich die Regale zurückstellen.",
+        "Ein Gutachten stellte keinen Schaden an der Heizung fest, und es belegte auch keine dauerhafte Senkung der Kosten.",
+        "Der Bericht nennt die ungünstigen Werte genauso wie die günstigen und übernimmt die Prognosen der Büros nicht als belegte Ergebnisse."
+      ],
+      "important_segments": [
+        "Ein Gutachten stellte keinen Schaden an der Heizung fest, und es belegte auch keine dauerhafte Senkung der Kosten. Peter Hahn protokollierte Woche für Woche Temperatur, Luftfeuchte und Uhrzeit der Lüftung, damit jede Abweichung nachvollziehbar blieb. Beide Büros gingen von derselben Nutzungsdauer aus, rechneten aber mit unterschiedlichen Werten für die Wintermonate."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Büro Steinbach",
+            "Büro Auerbach"
+          ],
+          "values": [
+            27,
+            44
+          ],
+          "unit": "PERCENT",
+          "evidence": "Das Büro Steinbach rechnete mit einer Einsparung von 27%, während das Büro Auerbach 44% angab."
+        }
+      ],
+      "negative_chart_evidence": [
+        "Im Jahr 1998 kostete ein Jahresausweis 8 Euro; diese Zahl gehört zur Gebührenordnung und sagt nichts über den Energieverbrauch des Gebäudes aus."
+      ],
+      "sequence": [
+        "das Dach abdichten",
+        "die Fenster erneuern",
+        "die Heizung entlüften",
+        "die Regale zurückstellen"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadion Süd Leipzig",
+          "entity": "Stadion Süd",
+          "location": "Leipzig",
+          "evidence": "Das Stadion Süd befindet sich in Leipzig und ist seit 1958 in Betrieb."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadion Süd",
+          "must_preserve": [
+            "located in Leipzig",
+            "in operation since 1958",
+            "two estimates, no proven saving"
+          ],
+          "must_not_claim": [
+            "the heating was damaged",
+            "costs fell permanently"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 27% and 44% figures are estimates from two offices.",
+        "No damage to the heating was established.",
+        "The 1998 fee is not an energy measurement."
+      ],
+      "noise": []
+    },
+    "en_stadium_long_01": {
+      "language": "en",
+      "file": "en_stadium_harbour.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Harbour Stadium",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Bristol",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Northwater Limited",
+          "type": "ORG"
+        },
+        {
+          "text": "Quay Power Limited",
+          "type": "ORG"
+        },
+        {
+          "text": "Hannah Poole",
+          "type": "PERSON"
+        },
+        {
+          "text": "Daniel Frost",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "net",
+          "type": "OBJECT"
+        },
+        {
+          "text": "helmet",
+          "type": "OBJECT"
+        },
+        {
+          "text": "map",
+          "type": "OBJECT"
+        },
+        {
+          "text": "camera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "report",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Northwater Limited estimated a saving of 36%, while Quay Power Limited projected 19%.",
+        "The plan fixed four steps: first replace the seals, second retest the pumps, third check the sensors after every rainfall, fourth publish the results at the end of the season.",
+        "The inspection found no evidence of a pump defect, and the records did not demonstrate any annual saving.",
+        "The closing report keeps the favourable measurements beside the conflicting ones and never turns the companies' projections into achieved results."
+      ],
+      "important_segments": [
+        "The inspection found no evidence of a pump defect, and the records did not demonstrate any annual saving. Frost logged the hour, the position and the volume collected in each trial for twelve weeks so the series stayed reproducible. Both companies used the same twelve month window but relied on different assumptions about the opening days of the stadium."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Northwater Limited",
+            "Quay Power Limited"
+          ],
+          "values": [
+            36,
+            19
+          ],
+          "unit": "PERCENT",
+          "evidence": "Northwater Limited estimated a saving of 36%, while Quay Power Limited projected 19%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "In 2004 Poole was 19 years old and paid 11 pounds for a tour; those figures describe one personal visit and do not measure consumption."
+      ],
+      "sequence": [
+        "replace the seals",
+        "retest the pumps",
+        "check the sensors after every rainfall",
+        "publish the results at the end of the season"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Harbour Stadium Bristol",
+          "entity": "Harbour Stadium",
+          "location": "Bristol",
+          "evidence": "The Harbour Stadium lies in Bristol and has been running since 1976."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Harbour Stadium",
+          "must_preserve": [
+            "located in Bristol",
+            "running since 1976",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was proven"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 36% and 19% figures are estimates, not achieved savings.",
+        "The inspection found no evidence of a pump defect.",
+        "The 2004 tour price is not a consumption measurement."
+      ],
+      "noise": []
+    },
+    "en_stadium_long_02": {
+      "language": "en",
+      "file": "en_stadium_central.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Central Stadium",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Norwich",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Studio Halden",
+          "type": "ORG"
+        },
+        {
+          "text": "Studio Mercer",
+          "type": "ORG"
+        },
+        {
+          "text": "Grace Whitfield",
+          "type": "PERSON"
+        },
+        {
+          "text": "Peter Doyle",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "scaffolding",
+          "type": "OBJECT"
+        },
+        {
+          "text": "ladders",
+          "type": "OBJECT"
+        },
+        {
+          "text": "helmets",
+          "type": "OBJECT"
+        },
+        {
+          "text": "map",
+          "type": "OBJECT"
+        },
+        {
+          "text": "shelves",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Studio Halden expected a saving of 28%, whereas Studio Mercer claimed 45%.",
+        "The order of works stayed fixed: seal the roof first, then replace the windows, afterwards bleed the radiators, finally return the shelves.",
+        "A structural review established no damage to the heating system, and it demonstrated no lasting reduction in cost.",
+        "The report lists the unfavourable readings beside the favourable ones and does not present the studios' projections as verified outcomes."
+      ],
+      "important_segments": [
+        "A structural review established no damage to the heating system, and it demonstrated no lasting reduction in cost. Whitfield recorded temperature, humidity and ventilation times every week so that any deviation remained traceable. Both studios assumed the same service period but used different figures for the winter months."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Studio Halden",
+            "Studio Mercer"
+          ],
+          "values": [
+            28,
+            45
+          ],
+          "unit": "PERCENT",
+          "evidence": "Studio Halden expected a saving of 28%, whereas Studio Mercer claimed 45%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "In 1997 an annual pass cost 7 pounds; that value belongs to the fee schedule and says nothing about the building's energy demand."
+      ],
+      "sequence": [
+        "seal the roof",
+        "replace the windows",
+        "bleed the radiators",
+        "return the shelves"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Central Stadium Norwich",
+          "entity": "Central Stadium",
+          "location": "Norwich",
+          "evidence": "The Central Stadium stands in Norwich and has served the county since 1961."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Central Stadium",
+          "must_preserve": [
+            "located in Norwich",
+            "serving the county since 1961",
+            "two estimates, no lasting reduction"
+          ],
+          "must_not_claim": [
+            "the heating system was damaged",
+            "costs were permanently reduced"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 28% and 45% figures are studio estimates.",
+        "No damage to the heating system was established.",
+        "The 1997 pass price is not an energy measurement."
+      ],
+      "noise": []
+    },
+    "it_stadio_long_02": {
+      "language": "it",
+      "file": "it_stadio_porto.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadio Porto",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Genova",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Comune di Genova",
+          "type": "ORG"
+        },
+        {
+          "text": "Porto Sport",
+          "type": "ORG"
+        },
+        {
+          "text": "Ligure Energia",
+          "type": "ORG"
+        },
+        {
+          "text": "Chiara Riva",
+          "type": "PERSON"
+        },
+        {
+          "text": "Davide Sarti",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "rete",
+          "type": "OBJECT"
+        },
+        {
+          "text": "casco",
+          "type": "OBJECT"
+        },
+        {
+          "text": "mappa",
+          "type": "OBJECT"
+        },
+        {
+          "text": "fotocamera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "scheda tecnica",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Il bilancio confrontava due proposte: Porto Sport stimava un risparmio del 33 per cento, mentre Ligure Energia prevedeva il 21 per cento.",
+        "Il verbale fissò quattro passaggi: primo, sostituire le guarnizioni; secondo, ripetere le prove con la pompa; terzo, controllare i sensori dopo ogni pioggia; quarto, pubblicare i risultati a fine stagione.",
+        "La verifica non accertò alcun guasto della pompa, e le misure non dimostrarono un risparmio annuo.",
+        "Il resoconto finale conserva le misure favorevoli accanto a quelle discordanti e non trasforma le previsioni in risultati acquisiti."
+      ],
+      "important_segments": [
+        "La verifica non accertò alcun guasto della pompa, e le misure non dimostrarono un risparmio annuo. Sarti annotò per dodici settimane l'ora, la posizione e la quantità d'acqua raccolta, così che la serie restasse riproducibile. Le due aziende usarono lo stesso periodo di dodici mesi, ma ipotesi diverse sulle giornate di apertura dell'impianto."
+      ],
+      "facts": [
+        {
+          "subject": "Stadio Porto",
+          "predicate": "inaugurated_year",
+          "value": "1968",
+          "status": "asserted"
+        },
+        {
+          "subject": "Stadio Porto",
+          "predicate": "located_in",
+          "value": "Genova",
+          "status": "asserted"
+        },
+        {
+          "subject": "Stadio Porto",
+          "predicate": "located_in",
+          "value": "Savona",
+          "status": "negated"
+        }
+      ],
+      "positive_charts": [
+        {
+          "labels": [
+            "Porto Sport",
+            "Ligure Energia"
+          ],
+          "values": [
+            33,
+            21
+          ],
+          "unit": "PERCENT",
+          "evidence": "Il bilancio confrontava due proposte: Porto Sport stimava un risparmio del 33 per cento, mentre Ligure Energia prevedeva il 21 per cento."
+        }
+      ],
+      "negative_chart_evidence": [
+        "Nel 2003 Riva aveva 19 anni e pagò 12 euro per un biglietto; quei numeri descrivono un episodio personale e non misurano i consumi dello stadio."
+      ],
+      "sequence": [
+        "sostituire le guarnizioni",
+        "ripetere le prove con la pompa",
+        "controllare i sensori dopo ogni pioggia",
+        "pubblicare i risultati a fine stagione"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadio Porto Genova",
+          "entity": "Stadio Porto",
+          "location": "Genova",
+          "evidence": "Lo Stadio Porto si trova a Genova e fu inaugurato nel 1968."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadio Porto",
+          "must_preserve": [
+            "located in Genova",
+            "inaugurated in 1968",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved",
+            "the stadium is in Savona"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 33% and 21% figures are estimates, not achieved savings.",
+        "The stadium is in Genova and explicitly not in Savona.",
+        "The check found no evidence of a pump defect."
+      ],
+      "noise": []
+    },
+    "es_estadio_long_01": {
+      "language": "es",
+      "file": "es_estadio_norte.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Estadio Norte",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Valencia",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Agua Norte",
+          "type": "ORG"
+        },
+        {
+          "text": "Energía Puerto",
+          "type": "ORG"
+        },
+        {
+          "text": "Lucía Ferrer",
+          "type": "PERSON"
+        },
+        {
+          "text": "Andrés Molina",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "red",
+          "type": "OBJECT"
+        },
+        {
+          "text": "casco",
+          "type": "OBJECT"
+        },
+        {
+          "text": "mapa",
+          "type": "OBJECT"
+        },
+        {
+          "text": "cámara",
+          "type": "OBJECT"
+        },
+        {
+          "text": "informe",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "La empresa Agua Norte estimó un ahorro del 34%, mientras que Energía Puerto calculó el 18%.",
+        "El acta fijó cuatro pasos: primero sustituir las juntas, segundo repetir las pruebas con la bomba, tercero revisar los sensores después de cada lluvia, cuarto publicar los resultados al final de la temporada.",
+        "La revisión no encontró ningún defecto de la bomba, y los datos no demostraron un ahorro anual.",
+        "El informe final conserva las mediciones favorables junto a las contradictorias y no convierte las previsiones en resultados obtenidos."
+      ],
+      "important_segments": [
+        "La revisión no encontró ningún defecto de la bomba, y los datos no demostraron un ahorro anual. Molina anotó durante doce semanas la hora, la posición y el agua recogida en cada prueba, para que la serie fuera reproducible. Las dos empresas usaron el mismo periodo de doce meses, pero supuestos distintos sobre los días de apertura del recinto."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Agua Norte",
+            "Energía Puerto"
+          ],
+          "values": [
+            34,
+            18
+          ],
+          "unit": "PERCENT",
+          "evidence": "La empresa Agua Norte estimó un ahorro del 34%, mientras que Energía Puerto calculó el 18%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "En 2003 Ferrer tenía 19 años y pagó 12 euros por una visita; esas cifras describen un episodio personal y no miden el consumo."
+      ],
+      "sequence": [
+        "sustituir las juntas",
+        "repetir las pruebas con la bomba",
+        "revisar los sensores después de cada lluvia",
+        "publicar los resultados al final de la temporada"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Estadio Norte Valencia",
+          "entity": "Estadio Norte",
+          "location": "Valencia",
+          "evidence": "El Estadio Norte se encuentra en Valencia y fue inaugurado en 1975."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Estadio Norte",
+          "must_preserve": [
+            "located in Valencia",
+            "inaugurated in 1975",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 34% and 18% figures are estimates, not achieved savings.",
+        "The review found no evidence of a pump defect.",
+        "The 2003 ticket price is not a consumption measurement."
+      ],
+      "noise": []
+    },
+    "es_estadio_long_02": {
+      "language": "es",
+      "file": "es_estadio_sur.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Estadio Sur",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Zaragoza",
+          "type": "LOCATION"
+        },
+        {
+          "text": "estudio Bermejo",
+          "type": "ORG"
+        },
+        {
+          "text": "estudio Casal",
+          "type": "ORG"
+        },
+        {
+          "text": "Marta Ibáñez",
+          "type": "PERSON"
+        },
+        {
+          "text": "Hugo Sanz",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "cascos",
+          "type": "OBJECT"
+        },
+        {
+          "text": "cables",
+          "type": "OBJECT"
+        },
+        {
+          "text": "mapa",
+          "type": "OBJECT"
+        },
+        {
+          "text": "cámara",
+          "type": "OBJECT"
+        },
+        {
+          "text": "estanterías",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "El estudio Bermejo esperaba un ahorro del 26%, mientras que el estudio Casal reclamaba el 43%.",
+        "El orden de los trabajos quedó fijado: primero sellar la cubierta, después cambiar las ventanas, luego purgar los radiadores, finalmente devolver las estanterías.",
+        "Una revisión estructural no estableció daños en la calefacción y tampoco demostró una reducción duradera del coste.",
+        "El informe enumera las lecturas desfavorables junto a las favorables y no presenta las previsiones como resultados verificados."
+      ],
+      "important_segments": [
+        "Una revisión estructural no estableció daños en la calefacción y tampoco demostró una reducción duradera del coste. Ibáñez registró cada semana la temperatura, la humedad y los horarios de ventilación para que cualquier desviación fuera trazable. Los dos estudios partieron del mismo periodo de servicio, pero usaron cifras distintas para los meses de invierno."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "estudio Bermejo",
+            "estudio Casal"
+          ],
+          "values": [
+            26,
+            43
+          ],
+          "unit": "PERCENT",
+          "evidence": "El estudio Bermejo esperaba un ahorro del 26%, mientras que el estudio Casal reclamaba el 43%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "En 1998 un abono anual costaba 8 euros; ese valor pertenece a la tarifa y no dice nada sobre la demanda energética del edificio."
+      ],
+      "sequence": [
+        "sellar la cubierta",
+        "cambiar las ventanas",
+        "purgar los radiadores",
+        "devolver las estanterías"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Estadio Sur Zaragoza",
+          "entity": "Estadio Sur",
+          "location": "Zaragoza",
+          "evidence": "El Estadio Sur está situado en Zaragoza y presta servicio desde 1962."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Estadio Sur",
+          "must_preserve": [
+            "located in Zaragoza",
+            "in service since 1962",
+            "two estimates, no lasting reduction"
+          ],
+          "must_not_claim": [
+            "the heating was damaged",
+            "costs fell permanently"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 26% and 43% figures are study estimates.",
+        "No damage to the heating was established.",
+        "The 1998 season ticket price is not an energy measurement."
+      ],
+      "noise": []
+    },
+    "fr_stade_long_01": {
+      "language": "fr",
+      "file": "fr_stade_nord.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stade Nord",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Nantes",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Eau Nord",
+          "type": "ORG"
+        },
+        {
+          "text": "Énergie Port",
+          "type": "ORG"
+        },
+        {
+          "text": "Camille Roy",
+          "type": "PERSON"
+        },
+        {
+          "text": "Étienne Marchand",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "filet",
+          "type": "OBJECT"
+        },
+        {
+          "text": "casque",
+          "type": "OBJECT"
+        },
+        {
+          "text": "carte",
+          "type": "OBJECT"
+        },
+        {
+          "text": "appareil photo",
+          "type": "OBJECT"
+        },
+        {
+          "text": "rapport",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "La société Eau Nord estimait une économie de 32%, tandis qu'Énergie Port prévoyait 17%.",
+        "Le procès-verbal fixe quatre étapes : d'abord remplacer les joints, ensuite refaire les essais avec la pompe, puis contrôler les capteurs après chaque pluie, enfin publier les résultats en fin de saison.",
+        "La vérification n'a constaté aucun défaut de la pompe, et les données n'ont pas démontré d'économie annuelle.",
+        "Le rapport final conserve les mesures favorables à côté des mesures contradictoires et ne transforme pas les prévisions en résultats acquis."
+      ],
+      "important_segments": [
+        "La vérification n'a constaté aucun défaut de la pompe, et les données n'ont pas démontré d'économie annuelle. Marchand a noté pendant douze semaines l'heure, la position et l'eau recueillie à chaque essai, pour que la série reste reproductible. Les deux sociétés ont utilisé la même période de douze mois, mais des hypothèses différentes sur les jours d'ouverture."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Eau Nord",
+            "Énergie Port"
+          ],
+          "values": [
+            32,
+            17
+          ],
+          "unit": "PERCENT",
+          "evidence": "La société Eau Nord estimait une économie de 32%, tandis qu'Énergie Port prévoyait 17%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "En 2003, Roy avait 19 ans et a payé 12 euros pour une visite : ces chiffres décrivent un épisode personnel et ne mesurent pas la consommation."
+      ],
+      "sequence": [
+        "remplacer les joints",
+        "refaire les essais avec la pompe",
+        "contrôler les capteurs après chaque pluie",
+        "publier les résultats en fin de saison"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stade Nord Nantes",
+          "entity": "Stade Nord",
+          "location": "Nantes",
+          "evidence": "Le Stade Nord se trouve à Nantes et a été inauguré en 1977."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stade Nord",
+          "must_preserve": [
+            "located in Nantes",
+            "inaugurated in 1977",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 32% and 17% figures are estimates, not achieved savings.",
+        "The verification found no evidence of a pump defect.",
+        "The 2003 visit price is not a consumption measurement."
+      ],
+      "noise": []
+    },
+    "fr_stade_long_02": {
+      "language": "fr",
+      "file": "fr_stade_sud.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stade Sud",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Lille",
+          "type": "LOCATION"
+        },
+        {
+          "text": "bureau Marchal",
+          "type": "ORG"
+        },
+        {
+          "text": "bureau Verdier",
+          "type": "ORG"
+        },
+        {
+          "text": "Hélène Dubois",
+          "type": "PERSON"
+        },
+        {
+          "text": "Paul Renard",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "casques",
+          "type": "OBJECT"
+        },
+        {
+          "text": "câbles",
+          "type": "OBJECT"
+        },
+        {
+          "text": "carte",
+          "type": "OBJECT"
+        },
+        {
+          "text": "appareil photo",
+          "type": "OBJECT"
+        },
+        {
+          "text": "rayonnages",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Le bureau Marchal attendait une économie de 25%, alors que le bureau Verdier annonçait 41%.",
+        "L'ordre des travaux reste fixé : d'abord étancher la toiture, ensuite remplacer les fenêtres, puis purger les radiateurs, enfin remettre les rayonnages.",
+        "Une expertise structurelle n'a établi aucun dommage au chauffage et n'a pas démontré de baisse durable des coûts.",
+        "Le rapport cite les relevés défavorables à côté des favorables et ne présente pas les prévisions comme des résultats vérifiés."
+      ],
+      "important_segments": [
+        "Une expertise structurelle n'a établi aucun dommage au chauffage et n'a pas démontré de baisse durable des coûts. Dubois a relevé chaque semaine la température, l'humidité et les horaires de ventilation pour que tout écart reste traçable. Les deux bureaux sont partis de la même durée d'exploitation, mais avec des valeurs différentes pour les mois d'hiver."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "bureau Marchal",
+            "bureau Verdier"
+          ],
+          "values": [
+            25,
+            41
+          ],
+          "unit": "PERCENT",
+          "evidence": "Le bureau Marchal attendait une économie de 25%, alors que le bureau Verdier annonçait 41%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "En 1997, un abonnement annuel coûtait 7 euros ; cette valeur relève du tarif et ne dit rien de la demande énergétique du bâtiment."
+      ],
+      "sequence": [
+        "étancher la toiture",
+        "remplacer les fenêtres",
+        "purger les radiateurs",
+        "remettre les rayonnages"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stade Sud Lille",
+          "entity": "Stade Sud",
+          "location": "Lille",
+          "evidence": "Le Stade Sud est situé à Lille et accueille le public depuis 1963."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stade Sud",
+          "must_preserve": [
+            "located in Lille",
+            "open to the public since 1963",
+            "two estimates, no lasting reduction"
+          ],
+          "must_not_claim": [
+            "the heating was damaged",
+            "costs fell permanently"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 25% and 41% figures are office estimates.",
+        "No damage to the heating was established.",
+        "The 1997 subscription price is not an energy measurement."
+      ],
+      "noise": []
+    },
+    "id_stadion_long_01": {
+      "language": "id",
+      "file": "id_stadion_utara.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadion Utara",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Bandung",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Air Utara",
+          "type": "ORG"
+        },
+        {
+          "text": "Energi Pelabuhan",
+          "type": "ORG"
+        },
+        {
+          "text": "Sari Wulandari",
+          "type": "PERSON"
+        },
+        {
+          "text": "Bayu Pratama",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "jaring",
+          "type": "OBJECT"
+        },
+        {
+          "text": "helm",
+          "type": "OBJECT"
+        },
+        {
+          "text": "peta",
+          "type": "OBJECT"
+        },
+        {
+          "text": "kamera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "laporan",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Perusahaan Air Utara memperkirakan penghematan 30%, sedangkan Energi Pelabuhan memperkirakan 15%.",
+        "Notulen menetapkan empat langkah: pertama mengganti paking, kedua mengulang uji pompa, ketiga memeriksa sensor setelah setiap hujan, keempat menerbitkan hasil pada akhir musim.",
+        "Pemeriksaan tidak menemukan kerusakan pompa, dan data tidak menunjukkan penghematan tahunan.",
+        "Laporan akhir menyimpan pengukuran yang menguntungkan bersama yang bertentangan dan tidak mengubah perkiraan menjadi hasil nyata."
+      ],
+      "important_segments": [
+        "Pemeriksaan tidak menemukan kerusakan pompa, dan data tidak menunjukkan penghematan tahunan. Pratama mencatat selama dua belas minggu jam, posisi dan jumlah air setiap uji agar rangkaian data tetap dapat diulang. Kedua perusahaan memakai periode dua belas bulan yang sama, tetapi asumsi berbeda tentang hari operasional stadion."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Air Utara",
+            "Energi Pelabuhan"
+          ],
+          "values": [
+            30,
+            15
+          ],
+          "unit": "PERCENT",
+          "evidence": "Perusahaan Air Utara memperkirakan penghematan 30%, sedangkan Energi Pelabuhan memperkirakan 15%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "Pada 2003 Wulandari berusia 19 tahun dan membayar 12 dolar untuk satu kunjungan; angka itu menggambarkan pengalaman pribadi dan bukan ukuran konsumsi."
+      ],
+      "sequence": [
+        "mengganti paking",
+        "mengulang uji pompa",
+        "memeriksa sensor setelah setiap hujan",
+        "menerbitkan hasil pada akhir musim"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadion Utara Bandung",
+          "entity": "Stadion Utara",
+          "location": "Bandung",
+          "evidence": "Stadion Utara berada di Bandung dan dibuka pada 1978."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadion Utara",
+          "must_preserve": [
+            "located in Bandung",
+            "opened in 1978",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 30% and 15% figures are estimates, not achieved savings.",
+        "The inspection found no evidence of a pump defect.",
+        "The 2003 ticket price is not a consumption measurement."
+      ],
+      "noise": []
+    },
+    "id_stadion_long_02": {
+      "language": "id",
+      "file": "id_stadion_selatan.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadion Selatan",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Surabaya",
+          "type": "LOCATION"
+        },
+        {
+          "text": "kantor Nugraha",
+          "type": "ORG"
+        },
+        {
+          "text": "kantor Mahesa",
+          "type": "ORG"
+        },
+        {
+          "text": "Dewi Lestari",
+          "type": "PERSON"
+        },
+        {
+          "text": "Agus Saputra",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "helm",
+          "type": "OBJECT"
+        },
+        {
+          "text": "kabel",
+          "type": "OBJECT"
+        },
+        {
+          "text": "peta",
+          "type": "OBJECT"
+        },
+        {
+          "text": "kamera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "rak",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Kantor Nugraha mengharapkan penghematan 24%, sedangkan kantor Mahesa mengklaim 40%.",
+        "Urutan pekerjaan tetap: pertama menutup atap, kedua mengganti jendela, ketiga membuang udara radiator, terakhir mengembalikan rak.",
+        "Tinjauan struktur tidak menemukan kerusakan sistem pemanas dan tidak membuktikan penurunan biaya yang tahan lama.",
+        "Laporan memuat pembacaan yang tidak menguntungkan bersama yang menguntungkan dan tidak menyajikan perkiraan sebagai hasil terverifikasi."
+      ],
+      "important_segments": [
+        "Tinjauan struktur tidak menemukan kerusakan sistem pemanas dan tidak membuktikan penurunan biaya yang tahan lama. Lestari mencatat suhu, kelembapan dan waktu ventilasi setiap minggu agar setiap penyimpangan tetap dapat ditelusuri. Kedua kantor memakai masa layanan yang sama, tetapi angka berbeda untuk bulan-bulan musim dingin."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "kantor Nugraha",
+            "kantor Mahesa"
+          ],
+          "values": [
+            24,
+            40
+          ],
+          "unit": "PERCENT",
+          "evidence": "Kantor Nugraha mengharapkan penghematan 24%, sedangkan kantor Mahesa mengklaim 40%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "Pada 1998 kartu tahunan berharga 6 dolar; nilai itu termasuk daftar tarif dan tidak menjelaskan kebutuhan energi gedung."
+      ],
+      "sequence": [
+        "menutup atap",
+        "mengganti jendela",
+        "membuang udara radiator",
+        "mengembalikan rak"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadion Selatan Surabaya",
+          "entity": "Stadion Selatan",
+          "location": "Surabaya",
+          "evidence": "Stadion Selatan terletak di Surabaya dan melayani penonton sejak 1965."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadion Selatan",
+          "must_preserve": [
+            "located in Surabaya",
+            "serving the public since 1965",
+            "two estimates, no lasting reduction"
+          ],
+          "must_not_claim": [
+            "the heating system was damaged",
+            "costs were permanently reduced"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 24% and 40% figures are office estimates.",
+        "No damage to the heating system was established.",
+        "The 1998 annual card price is not an energy measurement."
+      ],
+      "noise": []
+    },
+    "nl_stadion_long_01": {
+      "language": "nl",
+      "file": "nl_stadion_noord.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadion Noord",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Utrecht",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Water Noord",
+          "type": "ORG"
+        },
+        {
+          "text": "Energie Haven",
+          "type": "ORG"
+        },
+        {
+          "text": "Sanne de Vries",
+          "type": "PERSON"
+        },
+        {
+          "text": "Bram Jansen",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "net",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "helm",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "kaart",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "camera",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "eindrapport",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Water Noord raamde een besparing van 29%, terwijl Energie Haven 14% verwachtte.",
+        "Het verslag legde vier stappen vast: eerst de pakkingen vervangen, daarna de pompen opnieuw testen, vervolgens de sensoren na elke regenbui controleren, ten slotte de resultaten aan het einde van het seizoen publiceren.",
+        "De controle vond geen defect aan de pomp, en de gegevens toonden geen jaarlijkse besparing aan.",
+        "Het eindrapport bewaart de gunstige metingen naast de tegenstrijdige en maakt van de schattingen geen behaalde resultaten."
+      ],
+      "important_segments": [
+        "De controle vond geen defect aan de pomp, en de gegevens toonden geen jaarlijkse besparing aan. Jansen noteerde twaalf weken lang het tijdstip, de positie en de opgevangen hoeveelheid water, zodat de reeks herhaalbaar bleef. Beide bedrijven gebruikten dezelfde periode van twaalf maanden, maar verschillende aannames over de openingsdagen van het stadion."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Water Noord",
+            "Energie Haven"
+          ],
+          "values": [
+            29,
+            14
+          ],
+          "unit": "PERCENT",
+          "evidence": "Water Noord raamde een besparing van 29%, terwijl Energie Haven 14% verwachtte."
+        }
+      ],
+      "negative_chart_evidence": [
+        "In 2003 was De Vries 19 jaar en betaalde 12 euro voor een rondleiding; die cijfers beschrijven een persoonlijk bezoek en meten geen verbruik."
+      ],
+      "sequence": [
+        "de pakkingen vervangen",
+        "de pompen opnieuw testen",
+        "de sensoren na elke regenbui controleren",
+        "de resultaten aan het einde van het seizoen publiceren"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadion Noord Utrecht",
+          "entity": "Stadion Noord",
+          "location": "Utrecht",
+          "evidence": "Het Stadion Noord ligt in Utrecht en werd in 1979 geopend."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadion Noord",
+          "must_preserve": [
+            "located in Utrecht",
+            "opened in 1979",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 29% and 14% figures are estimates, not achieved savings.",
+        "The check found no evidence of a pump defect.",
+        "The 2003 tour price is not a consumption measurement."
+      ],
+      "noise": []
+    },
+    "nl_stadion_long_02": {
+      "language": "nl",
+      "file": "nl_stadion_zuid.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadion Zuid",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Groningen",
+          "type": "LOCATION"
+        },
+        {
+          "text": "bureau Holt",
+          "type": "ORG"
+        },
+        {
+          "text": "bureau Smit",
+          "type": "ORG"
+        },
+        {
+          "text": "Noor van Dijk",
+          "type": "PERSON"
+        },
+        {
+          "text": "Daan Bakker",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "helmen",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "kabels",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "kaart",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "camera",
+          "type": "VISUAL_CONCEPT"
+        },
+        {
+          "text": "stellingen",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Bureau Holt verwachtte een besparing van 23%, terwijl bureau Smit 39% claimde.",
+        "De volgorde van het werk stond vast: eerst het dak dichten, daarna de ramen vervangen, vervolgens de radiatoren ontluchten, ten slotte de stellingen terugplaatsen.",
+        "Een bouwkundige toets stelde geen schade aan de verwarming vast en toonde geen blijvende kostenverlaging aan.",
+        "Het rapport noemt de ongunstige metingen naast de gunstige en presenteert de verwachtingen niet als geverifieerde uitkomsten."
+      ],
+      "important_segments": [
+        "Een bouwkundige toets stelde geen schade aan de verwarming vast en toonde geen blijvende kostenverlaging aan. Van Dijk noteerde elke week de temperatuur, de luchtvochtigheid en de ventilatietijden, zodat elke afwijking traceerbaar bleef. Beide bureaus gingen uit van dezelfde gebruiksduur, maar gebruikten andere cijfers voor de wintermaanden."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "bureau Holt",
+            "bureau Smit"
+          ],
+          "values": [
+            23,
+            39
+          ],
+          "unit": "PERCENT",
+          "evidence": "Bureau Holt verwachtte een besparing van 23%, terwijl bureau Smit 39% claimde."
+        }
+      ],
+      "negative_chart_evidence": [
+        "In 1997 kostte een jaarabonnement 7 euro; dat bedrag hoort bij het tarief en zegt niets over de energievraag van het gebouw."
+      ],
+      "sequence": [
+        "het dak dichten",
+        "de ramen vervangen",
+        "de radiatoren ontluchten",
+        "de stellingen terugplaatsen"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadion Zuid Groningen",
+          "entity": "Stadion Zuid",
+          "location": "Groningen",
+          "evidence": "Het Stadion Zuid staat in Groningen en bedient het publiek sinds 1966."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadion Zuid",
+          "must_preserve": [
+            "located in Groningen",
+            "serving the public since 1966",
+            "two estimates, no lasting reduction"
+          ],
+          "must_not_claim": [
+            "the heating was damaged",
+            "costs fell permanently"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 23% and 39% figures are bureau estimates.",
+        "No damage to the heating was established.",
+        "The 1997 subscription price is not an energy measurement."
+      ],
+      "noise": []
+    },
+    "pl_stadion_long_01": {
+      "language": "pl",
+      "file": "pl_stadion_polnocny.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadion Północny",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Poznań",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Woda Nord",
+          "type": "ORG"
+        },
+        {
+          "text": "Energia Port",
+          "type": "ORG"
+        },
+        {
+          "text": "Anna Kowalska",
+          "type": "PERSON"
+        },
+        {
+          "text": "Piotr Nowak",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "siatka",
+          "type": "OBJECT"
+        },
+        {
+          "text": "kask",
+          "type": "OBJECT"
+        },
+        {
+          "text": "mapa",
+          "type": "OBJECT"
+        },
+        {
+          "text": "kamera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "raport",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Firma Woda Nord oszacowała oszczędność 28%, a Energia Port przewidywała 13%.",
+        "Protokół ustalił cztery kroki: najpierw wymienić uszczelki, następnie powtórzyć próby z pompą, potem sprawdzać czujniki po każdym deszczu, na końcu opublikować wyniki pod koniec sezonu.",
+        "Kontrola nie wykazała usterki pompy, a dane nie potwierdziły rocznej oszczędności.",
+        "Raport końcowy zachowuje pomiary korzystne obok sprzecznych i nie zamienia prognoz w osiągnięte wyniki."
+      ],
+      "important_segments": [
+        "Kontrola nie wykazała usterki pompy, a dane nie potwierdziły rocznej oszczędności. Nowak przez dwanaście tygodni notował godzinę, pozycję i ilość zebranej wody w każdej próbie, aby seria pozostawała powtarzalna. Obie firmy przyjęły ten sam okres dwunastu miesięcy, ale różne założenia dotyczące dni otwarcia stadionu."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Woda Nord",
+            "Energia Port"
+          ],
+          "values": [
+            28,
+            13
+          ],
+          "unit": "PERCENT",
+          "evidence": "Firma Woda Nord oszacowała oszczędność 28%, a Energia Port przewidywała 13%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "W 2003 roku Kowalska miała 19 lat i zapłaciła 12 euro za zwiedzanie; te liczby opisują jedną prywatną wizytę i nie mierzą zużycia."
+      ],
+      "sequence": [
+        "wymienić uszczelki",
+        "powtórzyć próby z pompą",
+        "sprawdzać czujniki po każdym deszczu",
+        "opublikować wyniki pod koniec sezonu"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadion Północny Poznań",
+          "entity": "Stadion Północny",
+          "location": "Poznań",
+          "evidence": "Stadion Północny znajduje się w Poznaniu i został otwarty w 1976 roku."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadion Północny",
+          "must_preserve": [
+            "located in Poznań",
+            "opened in 1976",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 28% and 13% figures are estimates, not achieved savings.",
+        "The inspection found no evidence of a pump defect.",
+        "The 2003 tour price is not a consumption measurement."
+      ],
+      "noise": []
+    },
+    "pl_stadion_long_02": {
+      "language": "pl",
+      "file": "pl_stadion_poludniowy.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Stadion Południowy",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Kraków",
+          "type": "LOCATION"
+        },
+        {
+          "text": "biuro Halny",
+          "type": "ORG"
+        },
+        {
+          "text": "biuro Wiślan",
+          "type": "ORG"
+        },
+        {
+          "text": "Ewa Zielińska",
+          "type": "PERSON"
+        },
+        {
+          "text": "Tomasz Lewandowski",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "kaski",
+          "type": "OBJECT"
+        },
+        {
+          "text": "kable",
+          "type": "OBJECT"
+        },
+        {
+          "text": "mapa",
+          "type": "OBJECT"
+        },
+        {
+          "text": "kamera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "regały",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Biuro Halny oczekiwało oszczędności 27%, natomiast biuro Wiślan podało 42%.",
+        "Kolejność prac pozostała stała: najpierw uszczelnić dach, potem wymienić okna, następnie odpowietrzyć grzejniki, wreszcie odstawić regały.",
+        "Ekspertyza konstrukcyjna nie stwierdziła uszkodzeń ogrzewania i nie wykazała trwałego obniżenia kosztów.",
+        "Raport wymienia odczyty niekorzystne obok korzystnych i nie przedstawia prognoz jako sprawdzonych wyników."
+      ],
+      "important_segments": [
+        "Ekspertyza konstrukcyjna nie stwierdziła uszkodzeń ogrzewania i nie wykazała trwałego obniżenia kosztów. Zielińska co tydzień zapisywała temperaturę, wilgotność i godziny wentylacji, aby każde odchylenie było możliwe do prześledzenia. Oba biura przyjęły ten sam okres użytkowania, ale różne wartości dla miesięcy zimowych."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "biuro Halny",
+            "biuro Wiślan"
+          ],
+          "values": [
+            27,
+            42
+          ],
+          "unit": "PERCENT",
+          "evidence": "Biuro Halny oczekiwało oszczędności 27%, natomiast biuro Wiślan podało 42%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "W 1997 roku karnet roczny kosztował 7 euro; ta kwota należy do cennika i nie mówi nic o zapotrzebowaniu budynku na energię."
+      ],
+      "sequence": [
+        "uszczelnić dach",
+        "wymienić okna",
+        "odpowietrzyć grzejniki",
+        "odstawić regały"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Stadion Południowy Kraków",
+          "entity": "Stadion Południowy",
+          "location": "Kraków",
+          "evidence": "Stadion Południowy stoi w Krakowie i służy publiczności od 1964 roku."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Stadion Południowy",
+          "must_preserve": [
+            "located in Kraków",
+            "serving the public since 1964",
+            "two estimates, no lasting reduction"
+          ],
+          "must_not_claim": [
+            "the heating was damaged",
+            "costs fell permanently"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 27% and 42% figures are office estimates.",
+        "No damage to the heating was established.",
+        "The 1997 season ticket price is not an energy measurement."
+      ],
+      "noise": []
+    },
+    "pt_estadio_long_01": {
+      "language": "pt",
+      "file": "pt_estadio_norte.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Estádio Norte",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Coimbra",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Água Norte",
+          "type": "ORG"
+        },
+        {
+          "text": "Energia Porto",
+          "type": "ORG"
+        },
+        {
+          "text": "Inês Ferreira",
+          "type": "PERSON"
+        },
+        {
+          "text": "Rui Almeida",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "rede",
+          "type": "OBJECT"
+        },
+        {
+          "text": "capacete",
+          "type": "OBJECT"
+        },
+        {
+          "text": "mapa",
+          "type": "OBJECT"
+        },
+        {
+          "text": "câmera",
+          "type": "OBJECT"
+        },
+        {
+          "text": "relatório",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "A Água Norte estimou uma poupança de 27%, enquanto a Energia Porto previa 12%.",
+        "A ata fixou quatro passos: primeiro substituir as juntas, segundo repetir os ensaios com a bomba, terceiro verificar os sensores após cada chuva, quarto publicar os resultados no fim da época.",
+        "A verificação não encontrou qualquer defeito na bomba, e os dados não demonstraram uma poupança anual.",
+        "O relatório final guarda as medições favoráveis ao lado das contraditórias e não transforma as previsões em resultados obtidos."
+      ],
+      "important_segments": [
+        "A verificação não encontrou qualquer defeito na bomba, e os dados não demonstraram uma poupança anual. Almeida registou durante doze semanas a hora, a posição e a água recolhida em cada ensaio, para que a série continuasse reproduzível. As duas empresas usaram o mesmo período de doze meses, mas pressupostos diferentes sobre os dias de abertura do recinto."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Água Norte",
+            "Energia Porto"
+          ],
+          "values": [
+            27,
+            12
+          ],
+          "unit": "PERCENT",
+          "evidence": "A Água Norte estimou uma poupança de 27%, enquanto a Energia Porto previa 12%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "Em 2003 a Ferreira tinha 19 anos e pagou 12 euros por uma visita; esses números descrevem um episódio pessoal e não medem o consumo."
+      ],
+      "sequence": [
+        "substituir as juntas",
+        "repetir os ensaios com a bomba",
+        "verificar os sensores após cada chuva",
+        "publicar os resultados no fim da época"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Estádio Norte Coimbra",
+          "entity": "Estádio Norte",
+          "location": "Coimbra",
+          "evidence": "O Estádio Norte fica em Coimbra e foi inaugurado em 1975."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Estádio Norte",
+          "must_preserve": [
+            "located in Coimbra",
+            "inaugurated in 1975",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 27% and 12% figures are estimates, not achieved savings.",
+        "The verification found no evidence of a pump defect.",
+        "The 2003 visit price is not a consumption measurement."
+      ],
+      "noise": []
+    },
+    "pt_estadio_long_02": {
+      "language": "pt",
+      "file": "pt_estadio_sul.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Estádio Sul",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Braga",
+          "type": "LOCATION"
+        },
+        {
+          "text": "gabinete Seixas",
+          "type": "ORG"
+        },
+        {
+          "text": "gabinete Lima",
+          "type": "ORG"
+        },
+        {
+          "text": "Sofia Matos",
+          "type": "PERSON"
+        },
+        {
+          "text": "Nuno Pinto",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "capacetes",
+          "type": "OBJECT"
+        },
+        {
+          "text": "cabos",
+          "type": "OBJECT"
+        },
+        {
+          "text": "mapa",
+          "type": "OBJECT"
+        },
+        {
+          "text": "câmara",
+          "type": "OBJECT"
+        },
+        {
+          "text": "estantes",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "O gabinete Seixas esperava uma poupança de 24%, enquanto o gabinete Lima reclamava 40%.",
+        "A ordem dos trabalhos ficou fixa: primeiro vedar o telhado, depois substituir as janelas, a seguir purgar os radiadores, por fim repor as estantes.",
+        "Uma avaliação estrutural não estabeleceu danos no aquecimento e também não demonstrou uma redução duradoura dos custos.",
+        "O relatório lista as leituras desfavoráveis junto das favoráveis e não apresenta as previsões como resultados verificados."
+      ],
+      "important_segments": [
+        "Uma avaliação estrutural não estabeleceu danos no aquecimento e também não demonstrou uma redução duradoura dos custos. A Matos registou semanalmente a temperatura, a humidade e os horários de ventilação para que qualquer desvio ficasse rastreável. Os dois gabinetes partiram do mesmo período de utilização, mas usaram valores diferentes para os meses de inverno."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "gabinete Seixas",
+            "gabinete Lima"
+          ],
+          "values": [
+            24,
+            40
+          ],
+          "unit": "PERCENT",
+          "evidence": "O gabinete Seixas esperava uma poupança de 24%, enquanto o gabinete Lima reclamava 40%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "Em 1998 um cartão anual custava 6 euros; esse valor pertence à tabela de preços e nada diz sobre a procura energética do edifício."
+      ],
+      "sequence": [
+        "vedar o telhado",
+        "substituir as janelas",
+        "purgar os radiadores",
+        "repor as estantes"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Estádio Sul Braga",
+          "entity": "Estádio Sul",
+          "location": "Braga",
+          "evidence": "O Estádio Sul situa-se em Braga e serve o público desde 1962."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Estádio Sul",
+          "must_preserve": [
+            "located in Braga",
+            "serving the public since 1962",
+            "two estimates, no lasting reduction"
+          ],
+          "must_not_claim": [
+            "the heating was damaged",
+            "costs fell permanently"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 24% and 40% figures are office estimates.",
+        "No damage to the heating was established.",
+        "The 1998 annual card price is not an energy measurement."
+      ],
+      "noise": []
+    },
+    "ru_stadion_long_01": {
+      "language": "ru",
+      "file": "ru_stadion_severny.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Стадион Северный",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Казани",
+          "type": "LOCATION"
+        },
+        {
+          "text": "Вода Север",
+          "type": "ORG"
+        },
+        {
+          "text": "Энергия Порт",
+          "type": "ORG"
+        },
+        {
+          "text": "Ольге Смирновой",
+          "type": "PERSON"
+        },
+        {
+          "text": "Игорь Волков",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "сетку",
+          "type": "OBJECT"
+        },
+        {
+          "text": "шлем",
+          "type": "OBJECT"
+        },
+        {
+          "text": "карту",
+          "type": "OBJECT"
+        },
+        {
+          "text": "камеру",
+          "type": "OBJECT"
+        },
+        {
+          "text": "отчёт",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Компания Вода Север оценила экономию в 26%, а Энергия Порт предполагала 11%.",
+        "Протокол закрепил четыре шага: сначала заменить прокладки, затем повторить испытания с насосом, после этого проверять датчики после каждого дождя, наконец опубликовать результаты в конце сезона.",
+        "Проверка не выявила неисправности насоса, и данные не подтвердили годовой экономии.",
+        "Итоговый отчёт сохраняет благоприятные измерения рядом с противоречивыми и не превращает прогнозы в достигнутые результаты."
+      ],
+      "important_segments": [
+        "Проверка не выявила неисправности насоса, и данные не подтвердили годовой экономии. Волков двенадцать недель записывал время, положение и объём собранной воды в каждом испытании, чтобы серия оставалась воспроизводимой. Обе компании взяли один и тот же период в двенадцать месяцев, но разные допущения о днях работы стадиона."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "Вода Север",
+            "Энергия Порт"
+          ],
+          "values": [
+            26,
+            11
+          ],
+          "unit": "PERCENT",
+          "evidence": "Компания Вода Север оценила экономию в 26%, а Энергия Порт предполагала 11%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "В 2003 году Смирновой было 19 лет, и она заплатила 12 евро за экскурсию; эти числа описывают личный визит и не измеряют потребление."
+      ],
+      "sequence": [
+        "заменить прокладки",
+        "повторить испытания с насосом",
+        "проверять датчики после каждого дождя",
+        "опубликовать результаты в конце сезона"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Стадион Северный Казани",
+          "entity": "Стадион Северный",
+          "location": "Казани",
+          "evidence": "Стадион Северный находится в Казани и был открыт в 1977 году."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Стадион Северный",
+          "must_preserve": [
+            "located in Kazan",
+            "opened in 1977",
+            "two estimates, no demonstrated saving"
+          ],
+          "must_not_claim": [
+            "the pump was faulty",
+            "the annual saving was achieved"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 26% and 11% figures are estimates, not achieved savings.",
+        "The inspection found no evidence of a pump defect.",
+        "The 2003 tour price is not a consumption measurement."
+      ],
+      "noise": []
+    },
+    "ru_stadion_long_02": {
+      "language": "ru",
+      "file": "ru_stadion_yuzhny.txt",
+      "authority": "assistant_draft_pending_human_review",
+      "entities": [
+        {
+          "text": "Стадион Южный",
+          "type": "FACILITY"
+        },
+        {
+          "text": "Самаре",
+          "type": "LOCATION"
+        },
+        {
+          "text": "бюро Волга",
+          "type": "ORG"
+        },
+        {
+          "text": "бюро Заря",
+          "type": "ORG"
+        },
+        {
+          "text": "Елену Кузнецову",
+          "type": "PERSON"
+        },
+        {
+          "text": "Дмитрий Орлов",
+          "type": "PERSON"
+        }
+      ],
+      "visual_objects": [
+        {
+          "text": "шлемы",
+          "type": "OBJECT"
+        },
+        {
+          "text": "кабели",
+          "type": "OBJECT"
+        },
+        {
+          "text": "карту",
+          "type": "OBJECT"
+        },
+        {
+          "text": "камеру",
+          "type": "OBJECT"
+        },
+        {
+          "text": "стеллажи",
+          "type": "VISUAL_CONCEPT"
+        }
+      ],
+      "important_phrases": [
+        "Бюро Волга ожидало экономию в 25%, а бюро Заря заявляло 41%.",
+        "Порядок работ остался неизменным: сначала герметизировать кровлю, затем заменить окна, после этого спустить воздух из радиаторов, наконец вернуть стеллажи.",
+        "Техническая экспертиза не установила повреждений отопления и не доказала устойчивого снижения затрат.",
+        "Отчёт перечисляет неблагоприятные показания рядом с благоприятными и не подаёт прогнозы как проверенные результаты."
+      ],
+      "important_segments": [
+        "Техническая экспертиза не установила повреждений отопления и не доказала устойчивого снижения затрат. Кузнецова каждую неделю записывала температуру, влажность и время проветривания, чтобы любое отклонение оставалось прослеживаемым. Оба бюро исходили из одного срока службы, но взяли разные значения для зимних месяцев."
+      ],
+      "facts": [],
+      "positive_charts": [
+        {
+          "labels": [
+            "бюро Волга",
+            "бюро Заря"
+          ],
+          "values": [
+            25,
+            41
+          ],
+          "unit": "PERCENT",
+          "evidence": "Бюро Волга ожидало экономию в 25%, а бюро Заря заявляло 41%."
+        }
+      ],
+      "negative_chart_evidence": [
+        "В 1997 году годовой абонемент стоил 7 евро; эта сумма относится к тарифу и ничего не говорит о потребности здания в энергии."
+      ],
+      "sequence": [
+        "герметизировать кровлю",
+        "заменить окна",
+        "спустить воздух из радиаторов",
+        "вернуть стеллажи"
+      ],
+      "contextual_image_queries": [
+        {
+          "query": "Стадион Южный Самаре",
+          "entity": "Стадион Южный",
+          "location": "Самаре",
+          "evidence": "Стадион Южный стоит в Самаре и принимает зрителей с 1965 года."
+        }
+      ],
+      "micro_summary_expectations": [
+        {
+          "subject": "Стадион Южный",
+          "must_preserve": [
+            "located in Samara",
+            "serving spectators since 1965",
+            "two estimates, no lasting reduction"
+          ],
+          "must_not_claim": [
+            "the heating was damaged",
+            "costs fell permanently"
+          ]
+        }
+      ],
+      "critical_invariants": [
+        "The 25% and 41% figures are bureau estimates.",
+        "No damage to the heating was established.",
+        "The 1997 subscription price is not an energy measurement."
       ],
       "noise": []
     }

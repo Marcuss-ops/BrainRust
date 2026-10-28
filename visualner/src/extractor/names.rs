@@ -108,7 +108,13 @@ pub(crate) fn proper_name_runs(
             i += 1;
             continue;
         }
-        if is_stop_token(&tokens[i], language) || !starts_uppercase(&tokens[i].text) {
+        // An elided article opens the name it precedes ("dell'Università di
+        // Torino"): the capitalized segment inside the token is name evidence
+        // even though the token itself starts lowercase.
+        let opens_elided_name = elided_name_prefix_len(&tokens[i].text) > 0;
+        if !opens_elided_name
+            && (is_stop_token(&tokens[i], language) || !starts_uppercase(&tokens[i].text))
+        {
             i += 1;
             continue;
         }
@@ -155,7 +161,11 @@ pub(crate) fn proper_name_runs(
 /// late. The multilingual organization vocabulary supplies the head; the
 /// following capitalized token supplies the identity. This is a general
 /// linguistic pattern and does not depend on a specific organization name.
-pub(crate) fn organization_name_runs(tokens: &[Token], language: &str) -> Vec<(usize, usize)> {
+pub(crate) fn organization_name_runs(
+    tokens: &[Token],
+    bytes: &[u8],
+    language: &str,
+) -> Vec<(usize, usize)> {
     let key = language.split(['-', '_']).next().unwrap_or("");
     let Some(markers) = semantic_core::lexicon::lexicon()
         .gazetteer
@@ -179,15 +189,34 @@ pub(crate) fn organization_name_runs(tokens: &[Token], language: &str) -> Vec<(u
                     .iter()
                     .zip(&marker_words)
                     .any(|(actual, expected)| !actual.text.eq_ignore_ascii_case(expected))
-                || !starts_uppercase(&tokens[end].text)
-                || is_stop_token(&tokens[end], language)
             {
                 continue;
             }
-            let mut run_end = end + 1;
+            // A locative particle belongs to the institution's name when a
+            // capitalized non-stop identity follows it: "Università di
+            // Torino" names the institution, not just its city. The particle
+            // inventory is the language's curated one (`name_particles`), so
+            // a language without it keeps the tight head+name rule.
+            let mut head = end;
+            if is_name_particle(&tokens[head].text, language) {
+                head += 1;
+            }
+            if head >= tokens.len()
+                || !starts_uppercase(&tokens[head].text)
+                || is_stop_token(&tokens[head], language)
+            {
+                continue;
+            }
+            // The name continues only across whitespace: a sentence period
+            // or a comma starts a new name ("Museo Civico. Aurora Sport" is
+            // two identities, "Museo Civico" and "Aurora Sport").
+            let mut run_end = head + 1;
             while run_end < tokens.len()
                 && starts_uppercase(&tokens[run_end].text)
                 && !is_stop_token(&tokens[run_end], language)
+                && !bytes[tokens[run_end - 1].end..tokens[run_end].start]
+                    .iter()
+                    .any(|byte| is_phrase_breaking_byte(*byte))
             {
                 run_end += 1;
             }
@@ -222,6 +251,22 @@ fn name_run_continues(tokens: &[Token], bytes: &[u8], index: usize, language: &s
         && !gap_breaks(index, index + 1)
 }
 
+/// True when `text` is a curated organization head for the language
+/// ("Università", "Laboratoire", "Istituto"). Such a head names an
+/// institution even when its POS tag says common noun.
+pub(crate) fn opens_organization_name(text: &str, language: &str) -> bool {
+    let key = language.split(['-', '_']).next().unwrap_or("");
+    let Some(markers) = semantic_core::lexicon::lexicon()
+        .gazetteer
+        .organization_markers
+        .get(key)
+    else {
+        return false;
+    };
+    let head = text.to_lowercase();
+    markers.iter().any(|marker| marker == &head)
+}
+
 /// True when the gazetteer or place index recognizes `text` as a place.
 pub(crate) fn is_known_place(text: &str, language: &str) -> bool {
     semantic_core::lexicon::lexicon().is_place(text, language)
@@ -236,6 +281,13 @@ pub(crate) fn is_known_place(text: &str, language: &str) -> bool {
 pub(crate) fn opens_with_name_evidence(token: &Token, language: &str) -> bool {
     if is_stop_word(&token.text, language) {
         return false;
+    }
+    // An elided article carries the name segment inside the token
+    // ("dell'Università di Torino"): the capitalized segment is the evidence,
+    // so a trailing known place stays part of the institution instead of
+    // being split off as a clause-opener place.
+    if elided_name_prefix_len(&token.text) > 0 {
+        return true;
     }
     match token.upos.as_deref() {
         None => starts_uppercase(&token.text),
@@ -260,6 +312,13 @@ pub(crate) fn place_splits_run(
     if end - start < 2 || opens_with_name_evidence(&tokens[start], language) {
         return None;
     }
+    // An institution head keeps its trailing place even when the tagger reads
+    // the head as a common noun: "Università di Torino" names the institution,
+    // not a clause opener plus a city. The curated per-language organization
+    // vocabulary decides, so the rule is data, not a branch per institution.
+    if opens_organization_name(&tokens[start].text, language) {
+        return None;
+    }
     // The cue head is the first substantive word: a leading article the
     // tagger promoted to PROPN ("De Rechtbank") is not the institution head,
     // and the institution keeps its trailing place fused.
@@ -278,6 +337,31 @@ pub(crate) fn place_splits_run(
     // Longest known-place suffix first, so "Visita New York" splits at "New
     // York" and not at "York".
     (start + 1..end).find(|&split| is_known_place(&run_surface(tokens, split, end), language))
+}
+
+/// Byte length of an elided function prefix inside a token ("dell'Università",
+/// "l'Istituto", "d'Italia") when a capitalized name segment follows it. The
+/// article is not part of the name, so a run that starts with it starts at the
+/// name segment. Zero when there is no such prefix, which keeps "McDonald's"
+/// and every other apostrophe word intact.
+pub(crate) fn elided_name_prefix_len(text: &str) -> usize {
+    let Some(index) = text.find(['\'', '’']) else {
+        return 0;
+    };
+    let prefix = &text[..index];
+    if prefix.is_empty()
+        || !prefix
+            .chars()
+            .all(|ch| ch.is_lowercase() && ch.is_alphabetic())
+    {
+        return 0;
+    }
+    let apostrophe = text[index..].chars().next().map_or(0, char::len_utf8);
+    let after = &text[index + apostrophe..];
+    if !after.chars().next().is_some_and(char::is_uppercase) {
+        return 0;
+    }
+    index + apostrophe
 }
 
 /// The run's surface joined with single spaces, for gazetteer lookups that
@@ -387,5 +471,102 @@ pub(crate) fn candidate_from_tokens(
         start: byte_start,
         end: byte_end,
         entity_type: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tokens(words: &[(&str, Option<&str>)]) -> Vec<Token> {
+        let mut cursor = 0usize;
+        words
+            .iter()
+            .map(|(text, upos)| {
+                let start = cursor;
+                cursor += text.len() + 1;
+                Token {
+                    text: text.to_string(),
+                    start,
+                    end: start + text.len(),
+                    upos: upos.map(str::to_string),
+                    lemma: None,
+                }
+            })
+            .collect()
+    }
+
+    fn source_of(words: &[(&str, Option<&str>)]) -> String {
+        words
+            .iter()
+            .map(|(text, _)| *text)
+            .collect::<Vec<&str>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn a_locative_particle_belongs_to_the_institution_name() {
+        // "Università di Torino" names the institution, not just its city: the
+        // particle keeps the run together instead of ending it before "di".
+        let words = tokens(&[
+            ("Università", Some("PROPN")),
+            ("di", Some("ADP")),
+            ("Torino", Some("PROPN")),
+        ]);
+        let source = source_of(&[
+            ("Università", Some("PROPN")),
+            ("di", Some("ADP")),
+            ("Torino", Some("PROPN")),
+        ]);
+        assert_eq!(
+            organization_name_runs(&words, source.as_bytes(), "it"),
+            vec![(0, 3)]
+        );
+        // A lowercase continuation is not an identity: the particle rule does
+        // not fuse "Università di questo tempo".
+        let words = tokens(&[
+            ("Università", Some("PROPN")),
+            ("di", Some("ADP")),
+            ("questo", Some("DET")),
+        ]);
+        assert!(organization_name_runs(&words, source.as_bytes(), "it").is_empty());
+        // Without a particle the tight head+name rule is unchanged.
+        let words = tokens(&[("Istituto", Some("PROPN")), ("Aurora", Some("PROPN"))]);
+        let source = source_of(&[("Istituto", Some("PROPN")), ("Aurora", Some("PROPN"))]);
+        assert_eq!(
+            organization_name_runs(&words, source.as_bytes(), "it"),
+            vec![(0, 2)]
+        );
+    }
+
+    #[test]
+    fn an_organization_name_never_crosses_a_sentence_break() {
+        // "Museo Civico. Aurora Sport" is two identities: the run stops at the
+        // period instead of merging the next sentence's subject.
+        let words = tokens(&[
+            ("Museo", Some("PROPN")),
+            ("Civico", Some("PROPN")),
+            ("Aurora", Some("PROPN")),
+            ("Sport", Some("PROPN")),
+        ]);
+        let source = "Museo Civico. Aurora Sport";
+        assert_eq!(
+            organization_name_runs(&words, source.as_bytes(), "it"),
+            vec![(0, 2)]
+        );
+    }
+
+    #[test]
+    fn an_elided_article_opens_the_name_it_precedes() {
+        assert_eq!(elided_name_prefix_len("dell'Università"), 5);
+        assert_eq!(elided_name_prefix_len("l'Istituto"), 2);
+        // A one-letter lowercase clitic counts too (the name segment is what
+        // opens the name); an uppercase initial does not, so the curated
+        // "L'Aquila" keeps its own span and typing.
+        assert_eq!(elided_name_prefix_len("d'Italia"), 2);
+        assert_eq!(elided_name_prefix_len("L'Aquila"), 0);
+        // A word whose apostrophe is part of the name keeps its whole surface.
+        assert_eq!(elided_name_prefix_len("O'Brien"), 0);
+        assert_eq!(elided_name_prefix_len("McDonald's"), 0);
     }
 }

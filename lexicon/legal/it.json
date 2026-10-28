@@ -233,6 +233,14 @@
     {
       "cue": "GUP",
       "kind": "ROLE"
+    },
+    {
+      "cue": "Comune di ",
+      "kind": "ORG"
+    },
+    {
+      "cue": "Municipio di ",
+      "kind": "ORG"
     }
   ],
   "entity_alias_cues": [

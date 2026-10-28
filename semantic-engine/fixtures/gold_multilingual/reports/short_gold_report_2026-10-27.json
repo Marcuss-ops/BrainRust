@@ -118,18 +118,13 @@
       "gold": 5,
       "found": 5,
       "typed_found": 5,
-      "extracted_named": 7,
+      "extracted_named": 6,
       "correct": 6,
       "misses": [],
       "typed_misses": [],
-      "false_positives": [
-        {
-          "text": "Bukan",
-          "type": "LOCATION"
-        }
-      ],
+      "false_positives": [],
       "noise_leaks": [],
-      "queries": 79
+      "queries": 75
     },
     {
       "id": "id_b",
@@ -287,7 +282,7 @@
     }
   ],
   "recall": 1.0,
-  "precision": 0.9911504424778761,
+  "precision": 1.0,
   "leaks": 0,
   "pass": true,
   "annotation_authority": "agent-authored from linguistic judgment; NOT copied from engine output or from the filter/filler data",
@@ -361,9 +356,9 @@
       "gold_entities": 10,
       "found": 10,
       "recall": 1.0,
-      "extracted": 13,
+      "extracted": 12,
       "correct": 12,
-      "precision": 0.9230769230769231,
+      "precision": 1.0,
       "critical_errors": {
         "entity_misses": 0,
         "typed_misses": 0,

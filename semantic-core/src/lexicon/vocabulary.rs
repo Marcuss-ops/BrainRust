@@ -39,6 +39,11 @@ pub struct EntityGazetteer {
     /// Nouns that stay VISUAL_CONCEPT explicitly ("company").
     pub generic_visual_nouns: Vec<String>,
     pub company_suffixes: Vec<String>,
+    /// Commercial head nouns that close an organization name even without a
+    /// legal suffix: two capitalized tokens whose head is one of these
+    /// ("Aurora Sport", "Lumen Energia") are an organization, never a person.
+    #[serde(default)]
+    pub company_head_words: Vec<String>,
     /// Language-specific institution heads/tails that type a capitalized
     /// multiword name as an organization (e.g. "Prism Laboratory").
     #[serde(default)]

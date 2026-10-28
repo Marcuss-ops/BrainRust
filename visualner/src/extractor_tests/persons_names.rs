@@ -327,6 +327,52 @@ fn a_surname_alias_points_at_its_full_name() {
 }
 
 #[test]
+fn an_article_led_facility_name_keeps_its_city_a_place() {
+    // The facility head of "Lo Stadio Aurora di Torino" is preceded by an
+    // article. Reading the article as the head hides the facility cue, and the
+    // run then seeds the trailing city as a person-name fragment — which drops
+    // every grounded "Torino" of the scene, including the sentence-initial
+    // one that has nothing to do with the facility.
+    let source = "Torino. Lo Stadio Aurora di Torino ha 10.000 posti.";
+    let context = script_person_tokens(&[source], "it");
+    assert!(
+        !context.person_name_tokens.contains("torino"),
+        "the city must stay available as a place: {:?}",
+        context.person_name_tokens
+    );
+    let entities = extract_with_context(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 40,
+        },
+        &context,
+    )
+    .expect("italian extraction");
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Torino" && entity.r#type == "LOCATION"),
+        "the grounded city must survive the facility name: {entities:?}"
+    );
+    // The extractor keeps the facility name whole and types the head span; the
+    // engine's facility collection promotes the longer span (see
+    // semantic-engine `collect_facilities`).
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Stadio Aurora di Torino"),
+        "the facility keeps its genitive place: {entities:?}"
+    );
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Stadio Aurora" && entity.r#type == "FACILITY"),
+        "the facility head is recognized: {entities:?}"
+    );
+}
+
+#[test]
 fn a_place_surname_stays_a_person_name() {
     // "Messina" is a known place, but a run opened by a real name keeps its
     // trailing surname: splitting there would destroy every person whose

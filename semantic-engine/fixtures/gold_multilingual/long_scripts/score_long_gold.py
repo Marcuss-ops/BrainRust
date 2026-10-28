@@ -22,6 +22,15 @@ BASE = Path(__file__).resolve().parent
 DEFAULT_WORKER = BASE.parents[3] / "target" / "release" / "semantic-engine"
 NAMED_TYPES = {"PERSON", "LOCATION", "ORG", "ORGANIZATION", "WORK", "BRAND", "PRODUCT", "FACILITY", "STRUCTURE"}
 OBJECT_TYPES = {"OBJECT", "VISUAL_CONCEPT"}
+# The extractor emits both spellings for one type (a legal suffix reports
+# ORGANIZATION, an institution cue reports ORG). The gold writes the shorter
+# one, exactly as the short-gold scorer already does, so the comparison maps
+# them instead of scoring a spelling difference as a miss.
+TYPE_ALIAS = {"ORGANIZATION": "ORG"}
+
+
+def type_of(raw: str | None) -> str | None:
+    return TYPE_ALIAS.get(raw or "", raw)
 
 
 def normalize(text: str) -> str:
@@ -40,7 +49,7 @@ def unique_candidates(items: list[dict]) -> list[dict]:
     seen = set()
     output = []
     for item in items:
-        key = (normalize(item.get("text", "")), item.get("type"))
+        key = (normalize(item.get("text", "")), type_of(item.get("type")))
         if key not in seen:
             seen.add(key)
             output.append(item)
@@ -54,7 +63,7 @@ def category_score(expected: list[dict], actual: list[dict], *, typed: bool = Tr
         hit = next((index for index, item in enumerate(actual)
                     if index not in used
                     and same_surface(gold["text"], item["text"])
-                    and (not typed or gold.get("type") == item.get("type"))), None)
+                    and (not typed or type_of(gold.get("type")) == type_of(item.get("type")))), None)
         if hit is not None:
             used.add(hit)
         matches.append(hit is not None)
@@ -224,6 +233,8 @@ def score_one(worker: Worker, script_id: str, spec: dict) -> dict:
     return {
         "id": script_id,
         "language": spec["language"],
+        "annotation_authority": spec.get("authority", "unspecified"),
+        "capability_gap_expectations": spec.get("capability_gap_expectations", []),
         "words": len(source.split()),
         "named_entities": entity_score,
         "visual_objects_typed": object_exact,
@@ -341,7 +352,15 @@ def main() -> int:
     languages = sorted({row["language"] for row in results})
     authority = (gold.get("annotation_policy") or {}).get("authority", "unspecified")
     release_sized = len(results) >= 20 and len(languages) == 10
-    if authority != "human_annotator":
+    specs = gold["scripts"]
+    # A script may declare its own author: the report lists the drafts, and one
+    # draft is enough to block certification. Silence never promotes a draft.
+    draft_scripts = sorted(
+        script_id
+        for script_id, spec in specs.items()
+        if spec.get("authority", authority) != "human_annotator"
+    )
+    if draft_scripts or authority != "human_annotator":
         certification = "blocked_pending_human_review"
     elif not release_sized:
         certification = "blocked_pending_release_size"
@@ -352,7 +371,10 @@ def main() -> int:
         "scripts": results,
         "corpus": {"script_count": len(results), "language_count": len(languages), "languages": languages,
                    "word_count": words, "is_release_sized": release_sized,
-                   "annotation_authority": authority, "certification": certification},
+                   "annotation_authority": authority, "draft_scripts": draft_scripts,
+                   "draft_script_count": len(draft_scripts),
+                   "capability_gap_count": sum(len(row["capability_gap_expectations"]) for row in results),
+                   "certification": certification},
         "overall": aggregate(results),
         "per_language": per_language(results),
     }

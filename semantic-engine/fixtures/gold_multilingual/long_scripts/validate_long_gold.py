@@ -44,7 +44,12 @@ PLACEHOLDERS = ("TODO", "TBD", "FIXME", "XXX", "PLACEHOLDER", "...")
 MIN_WORDS = 250
 
 # Contract-backed scope: facility facts come from a single Italian lexicon.
-FACILITY_PREDICATES = {"inaugurated_year", "located_in", "capacity", "estimated_saving_percent"}
+# The predicate set is read from the implementation, not from the gold:
+# `facts.rs` emits exactly these four for a FACILITY subject (the marker lists
+# live in `lexicon/facility_facts.json`). A gold expectation outside this set
+# would measure the gold, not the engine -- estimates, for instance, are
+# represented as typed chart items, never as entity facts.
+FACILITY_PREDICATES = {"inaugurated_year", "located_in", "capacity", "owned_by"}
 FACILITY_PREDICATE_LANGUAGES = {"it"}
 
 REQUIRED_CATEGORIES = (
@@ -106,10 +111,29 @@ def check_scalar_annotations(script_id: str, spec: dict, errors: list[str], warn
         if any(marker in str(fact["subject"]) for marker in PLACEHOLDERS):
             errors.append(f"{script_id}: fact subject placeholder {fact['subject']!r}")
         language = spec.get("language")
-        if fact["predicate"] in FACILITY_PREDICATES and language not in FACILITY_PREDICATE_LANGUAGES:
+        if fact["predicate"] not in FACILITY_PREDICATES:
+            errors.append(
+                f"{script_id}: fact predicate {fact['predicate']!r} is outside the contract "
+                f"{sorted(FACILITY_PREDICATES)}; declare it under capability_gap_expectations instead "
+                "of scoring it as an engine miss"
+            )
+            continue
+        if language not in FACILITY_PREDICATE_LANGUAGES:
             errors.append(
                 f"{script_id}: fact predicate {fact['predicate']!r} is only contract-backed for "
                 f"{sorted(FACILITY_PREDICATE_LANGUAGES)} (lexicon/facility_facts.json), not {language!r}"
+            )
+
+    # A declared gap is an expectation the shipped contract cannot express. It
+    # is never scored: the point is to name the missing capability, not to
+    # charge the engine for a label the contract excludes.
+    for gap in spec.get("capability_gap_expectations", []):
+        if not isinstance(gap, dict) or not gap.get("expectation") or not gap.get("reason"):
+            errors.append(f"{script_id}: capability_gap_expectations entry needs expectation and reason")
+        elif gap.get("predicate") in FACILITY_PREDICATES:
+            errors.append(
+                f"{script_id}: capability gap {gap.get('expectation')!r} uses a contract predicate; "
+                "it belongs in `facts` and must be scored"
             )
 
     for chart in spec.get("positive_charts", []):
@@ -150,11 +174,29 @@ def validate(gold: dict, errors: list[str], warnings: list[str]) -> dict:
         return {}
 
     vocab = object_vocabulary()
-    stats = {"scripts": 0, "words": 0, "categories": {key: 0 for key in CATEGORY_KEYS}, "languages": set()}
+    stats = {
+        "scripts": 0,
+        "words": 0,
+        "categories": {key: 0 for key in CATEGORY_KEYS},
+        "languages": set(),
+        "draft_scripts": [],
+        "capability_gaps": 0,
+    }
     for script_id, spec in sorted(scripts.items()):
         if not isinstance(spec, dict):
             errors.append(f"{script_id}: script spec must be an object")
             continue
+        # A script may declare its own author. The policy block is the default
+        # for specs written before this check existed; a draft is never
+        # promoted to human-authored by silence.
+        script_authority = spec.get("authority", authority)
+        if script_authority not in AUTHORITIES:
+            errors.append(
+                f"{script_id}: authority must be one of {sorted(AUTHORITIES)}, found {script_authority!r}"
+            )
+        elif script_authority != "human_annotator":
+            stats["draft_scripts"].append(script_id)
+        stats["capability_gaps"] += len(spec.get("capability_gap_expectations", []))
         language = spec.get("language")
         if language not in CORPUS_LANGUAGES:
             errors.append(f"{script_id}: language {language!r} outside {sorted(CORPUS_LANGUAGES)}")
@@ -198,7 +240,9 @@ def validate(gold: dict, errors: list[str], warnings: list[str]) -> dict:
     stats["language_count"] = len(stats["languages"])
     stats["release_sized"] = stats["scripts"] >= 20 and stats["language_count"] == 10
     stats["authority"] = authority
-    if authority != "human_annotator":
+    stats["draft_scripts"] = sorted(stats["draft_scripts"])
+    # Only human-authored labels over a release-sized corpus certify the gate.
+    if stats["draft_scripts"] or authority != "human_annotator":
         stats["certification"] = "blocked_pending_human_review"
     elif not stats["release_sized"]:
         stats["certification"] = "blocked_pending_release_size"

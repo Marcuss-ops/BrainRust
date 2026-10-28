@@ -3,7 +3,7 @@
   "totals": {
     "PASS": 100
   },
-  "duration_seconds": 431.55,
+  "duration_seconds": 406.0,
   "cases": [
     {
       "id": "it-01-transport",
@@ -24,9 +24,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0688,
+      "replay_seconds": 0.0849,
       "replay_identical": true,
-      "seconds": 7.28
+      "seconds": 6.95
     },
     {
       "id": "it-02-stadium",
@@ -35,21 +35,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 429,
-      "visual_concepts": 333,
+      "entities": 437,
+      "visual_concepts": 332,
       "dates": 5,
       "bullets": 54,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 396,
-      "co_mentions": 31,
+      "search_proposals": 404,
+      "co_mentions": 42,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0734,
+      "replay_seconds": 0.0718,
       "replay_identical": true,
-      "seconds": 4.38
+      "seconds": 4.15
     },
     {
       "id": "it-03-hospital",
@@ -58,21 +58,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 471,
+      "entities": 480,
       "visual_concepts": 358,
       "dates": 5,
       "bullets": 57,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 424,
-      "co_mentions": 37,
+      "search_proposals": 433,
+      "co_mentions": 48,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0712,
+      "replay_seconds": 0.0799,
       "replay_identical": true,
-      "seconds": 4.17
+      "seconds": 4.12
     },
     {
       "id": "it-04-energy",
@@ -93,9 +93,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0585,
+      "replay_seconds": 0.0645,
       "replay_identical": true,
-      "seconds": 4.26
+      "seconds": 4.18
     },
     {
       "id": "it-05-school",
@@ -116,9 +116,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0655,
+      "replay_seconds": 0.0709,
       "replay_identical": true,
-      "seconds": 4.3
+      "seconds": 4.21
     },
     {
       "id": "it-06-museum",
@@ -139,9 +139,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0488,
+      "replay_seconds": 0.0507,
       "replay_identical": true,
-      "seconds": 4.09
+      "seconds": 4.03
     },
     {
       "id": "it-07-flood",
@@ -150,21 +150,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 468,
-      "visual_concepts": 359,
+      "entities": 476,
+      "visual_concepts": 358,
       "dates": 5,
       "bullets": 53,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 423,
-      "co_mentions": 43,
+      "search_proposals": 431,
+      "co_mentions": 55,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0553,
+      "replay_seconds": 0.0592,
       "replay_identical": true,
-      "seconds": 4.19
+      "seconds": 4.25
     },
     {
       "id": "it-08-agriculture",
@@ -173,21 +173,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 433,
+      "entities": 442,
       "visual_concepts": 332,
       "dates": 5,
       "bullets": 57,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 390,
-      "co_mentions": 31,
+      "search_proposals": 399,
+      "co_mentions": 42,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0505,
+      "replay_seconds": 0.0552,
       "replay_identical": true,
-      "seconds": 4.07
+      "seconds": 4.2
     },
     {
       "id": "it-09-budget",
@@ -208,9 +208,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0653,
+      "replay_seconds": 0.0651,
       "replay_identical": true,
-      "seconds": 4.38
+      "seconds": 4.29
     },
     {
       "id": "it-10-digital",
@@ -231,9 +231,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.065,
+      "replay_seconds": 0.0487,
       "replay_identical": true,
-      "seconds": 4.32
+      "seconds": 4.23
     },
     {
       "id": "en-01-transport",
@@ -254,9 +254,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.08,
+      "replay_seconds": 0.0504,
       "replay_identical": true,
-      "seconds": 5.64
+      "seconds": 5.36
     },
     {
       "id": "en-02-stadium",
@@ -277,9 +277,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0404,
+      "replay_seconds": 0.0434,
       "replay_identical": true,
-      "seconds": 4.05
+      "seconds": 3.63
     },
     {
       "id": "en-03-hospital",
@@ -300,9 +300,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.059,
+      "replay_seconds": 0.0539,
       "replay_identical": true,
-      "seconds": 4.01
+      "seconds": 3.78
     },
     {
       "id": "en-04-energy",
@@ -323,9 +323,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0486,
+      "replay_seconds": 0.05,
       "replay_identical": true,
-      "seconds": 3.89
+      "seconds": 3.73
     },
     {
       "id": "en-05-school",
@@ -346,9 +346,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0453,
+      "replay_seconds": 0.0469,
       "replay_identical": true,
-      "seconds": 3.85
+      "seconds": 3.69
     },
     {
       "id": "en-06-museum",
@@ -369,9 +369,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.052,
+      "replay_seconds": 0.0529,
       "replay_identical": true,
-      "seconds": 3.95
+      "seconds": 3.77
     },
     {
       "id": "en-07-flood",
@@ -392,9 +392,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0494,
+      "replay_seconds": 0.0547,
       "replay_identical": true,
-      "seconds": 3.75
+      "seconds": 3.77
     },
     {
       "id": "en-08-agriculture",
@@ -415,9 +415,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.04,
+      "replay_seconds": 0.046,
       "replay_identical": true,
-      "seconds": 3.83
+      "seconds": 3.68
     },
     {
       "id": "en-09-budget",
@@ -438,9 +438,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0485,
+      "replay_seconds": 0.0549,
       "replay_identical": true,
-      "seconds": 3.83
+      "seconds": 3.77
     },
     {
       "id": "en-10-digital",
@@ -461,9 +461,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0511,
+      "replay_seconds": 0.0628,
       "replay_identical": true,
-      "seconds": 3.76
+      "seconds": 3.8
     },
     {
       "id": "es-01-transport",
@@ -472,21 +472,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 489,
+      "entities": 482,
       "visual_concepts": 393,
       "dates": 5,
-      "bullets": 59,
+      "bullets": 52,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 448,
+      "search_proposals": 441,
       "co_mentions": 12,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0609,
+      "replay_seconds": 0.0488,
       "replay_identical": true,
-      "seconds": 6.26
+      "seconds": 6.04
     },
     {
       "id": "es-02-stadium",
@@ -495,21 +495,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 469,
+      "entities": 472,
       "visual_concepts": 379,
       "dates": 5,
-      "bullets": 54,
+      "bullets": 47,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 435,
-      "co_mentions": 18,
+      "search_proposals": 438,
+      "co_mentions": 31,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0468,
+      "replay_seconds": 0.053,
       "replay_identical": true,
-      "seconds": 3.57
+      "seconds": 3.41
     },
     {
       "id": "es-03-hospital",
@@ -518,21 +518,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 508,
+      "entities": 514,
       "visual_concepts": 408,
       "dates": 5,
-      "bullets": 60,
+      "bullets": 56,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 462,
-      "co_mentions": 15,
+      "search_proposals": 468,
+      "co_mentions": 28,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0486,
+      "replay_seconds": 0.0481,
       "replay_identical": true,
-      "seconds": 3.78
+      "seconds": 3.39
     },
     {
       "id": "es-04-energy",
@@ -541,21 +541,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 503,
+      "entities": 496,
       "visual_concepts": 388,
       "dates": 5,
-      "bullets": 74,
+      "bullets": 68,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 443,
+      "search_proposals": 436,
       "co_mentions": 21,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0561,
+      "replay_seconds": 0.0494,
       "replay_identical": true,
-      "seconds": 3.65
+      "seconds": 3.47
     },
     {
       "id": "es-05-school",
@@ -564,21 +564,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 474,
+      "entities": 477,
       "visual_concepts": 384,
       "dates": 5,
-      "bullets": 56,
+      "bullets": 49,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 436,
-      "co_mentions": 12,
+      "search_proposals": 439,
+      "co_mentions": 25,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0584,
+      "replay_seconds": 0.0537,
       "replay_identical": true,
-      "seconds": 3.88
+      "seconds": 3.45
     },
     {
       "id": "es-06-museum",
@@ -587,21 +587,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 496,
+      "entities": 492,
       "visual_concepts": 410,
       "dates": 5,
-      "bullets": 50,
+      "bullets": 46,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 465,
+      "search_proposals": 461,
       "co_mentions": 21,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0533,
+      "replay_seconds": 0.0445,
       "replay_identical": true,
-      "seconds": 3.85
+      "seconds": 3.5
     },
     {
       "id": "es-07-flood",
@@ -610,21 +610,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 489,
+      "entities": 491,
       "visual_concepts": 390,
       "dates": 5,
-      "bullets": 59,
+      "bullets": 52,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 448,
-      "co_mentions": 15,
+      "search_proposals": 450,
+      "co_mentions": 27,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": false,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0549,
+      "replay_seconds": 0.0482,
       "replay_identical": true,
-      "seconds": 3.47
+      "seconds": 3.4
     },
     {
       "id": "es-08-agriculture",
@@ -633,21 +633,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 475,
+      "entities": 478,
       "visual_concepts": 379,
       "dates": 5,
-      "bullets": 57,
+      "bullets": 50,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 430,
-      "co_mentions": 18,
+      "search_proposals": 433,
+      "co_mentions": 31,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0507,
+      "replay_seconds": 0.0468,
       "replay_identical": true,
-      "seconds": 3.56
+      "seconds": 3.39
     },
     {
       "id": "es-09-budget",
@@ -656,21 +656,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 524,
+      "entities": 520,
       "visual_concepts": 408,
       "dates": 5,
-      "bullets": 65,
+      "bullets": 62,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 466,
+      "search_proposals": 462,
       "co_mentions": 18,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0588,
+      "replay_seconds": 0.052,
       "replay_identical": true,
-      "seconds": 3.66
+      "seconds": 3.43
     },
     {
       "id": "es-10-digital",
@@ -679,21 +679,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 480,
+      "entities": 483,
       "visual_concepts": 388,
       "dates": 5,
-      "bullets": 53,
+      "bullets": 46,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 443,
-      "co_mentions": 21,
+      "search_proposals": 446,
+      "co_mentions": 34,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0458,
+      "replay_seconds": 0.0521,
       "replay_identical": true,
-      "seconds": 3.67
+      "seconds": 3.5
     },
     {
       "id": "pt-01-transport",
@@ -714,9 +714,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0499,
+      "replay_seconds": 0.0526,
       "replay_identical": true,
-      "seconds": 5.27
+      "seconds": 4.86
     },
     {
       "id": "pt-02-stadium",
@@ -737,9 +737,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0599,
+      "replay_seconds": 0.0559,
       "replay_identical": true,
-      "seconds": 3.61
+      "seconds": 3.32
     },
     {
       "id": "pt-03-hospital",
@@ -760,9 +760,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0718,
+      "replay_seconds": 0.0505,
       "replay_identical": true,
-      "seconds": 3.84
+      "seconds": 3.35
     },
     {
       "id": "pt-04-energy",
@@ -783,9 +783,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0578,
+      "replay_seconds": 0.0478,
       "replay_identical": true,
-      "seconds": 4.02
+      "seconds": 3.42
     },
     {
       "id": "pt-05-school",
@@ -806,9 +806,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0513,
+      "replay_seconds": 0.0439,
       "replay_identical": true,
-      "seconds": 3.75
+      "seconds": 3.41
     },
     {
       "id": "pt-06-museum",
@@ -829,9 +829,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0583,
+      "replay_seconds": 0.0465,
       "replay_identical": true,
-      "seconds": 3.75
+      "seconds": 3.45
     },
     {
       "id": "pt-07-flood",
@@ -852,9 +852,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": false,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0527,
+      "replay_seconds": 0.0528,
       "replay_identical": true,
-      "seconds": 3.68
+      "seconds": 3.42
     },
     {
       "id": "pt-08-agriculture",
@@ -875,9 +875,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0654,
+      "replay_seconds": 0.0647,
       "replay_identical": true,
-      "seconds": 3.7
+      "seconds": 3.38
     },
     {
       "id": "pt-09-budget",
@@ -898,9 +898,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": false,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0935,
+      "replay_seconds": 0.0448,
       "replay_identical": true,
-      "seconds": 3.67
+      "seconds": 3.33
     },
     {
       "id": "pt-10-digital",
@@ -921,9 +921,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0521,
+      "replay_seconds": 0.0511,
       "replay_identical": true,
-      "seconds": 3.55
+      "seconds": 3.41
     },
     {
       "id": "fr-01-transport",
@@ -944,9 +944,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0741,
+      "replay_seconds": 0.0481,
       "replay_identical": true,
-      "seconds": 6.68
+      "seconds": 6.01
     },
     {
       "id": "fr-02-stadium",
@@ -967,9 +967,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0656,
+      "replay_seconds": 0.0505,
       "replay_identical": true,
-      "seconds": 4.28
+      "seconds": 3.68
     },
     {
       "id": "fr-03-hospital",
@@ -990,9 +990,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.046,
+      "replay_seconds": 0.0498,
       "replay_identical": true,
-      "seconds": 4.32
+      "seconds": 3.72
     },
     {
       "id": "fr-04-energy",
@@ -1013,9 +1013,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0541,
+      "replay_seconds": 0.041,
       "replay_identical": true,
-      "seconds": 4.07
+      "seconds": 3.83
     },
     {
       "id": "fr-05-school",
@@ -1036,9 +1036,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.041,
+      "replay_seconds": 0.0422,
       "replay_identical": true,
-      "seconds": 4.37
+      "seconds": 3.81
     },
     {
       "id": "fr-06-museum",
@@ -1059,9 +1059,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0603,
+      "replay_seconds": 0.0502,
       "replay_identical": true,
-      "seconds": 4.24
+      "seconds": 3.92
     },
     {
       "id": "fr-07-flood",
@@ -1082,9 +1082,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": false,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0493,
+      "replay_seconds": 0.0449,
       "replay_identical": true,
-      "seconds": 4.14
+      "seconds": 3.87
     },
     {
       "id": "fr-08-agriculture",
@@ -1105,9 +1105,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0435,
+      "replay_seconds": 0.0466,
       "replay_identical": true,
-      "seconds": 4.05
+      "seconds": 3.67
     },
     {
       "id": "fr-09-budget",
@@ -1128,9 +1128,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0475,
+      "replay_seconds": 0.045,
       "replay_identical": true,
-      "seconds": 4.06
+      "seconds": 3.74
     },
     {
       "id": "fr-10-digital",
@@ -1151,9 +1151,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0427,
+      "replay_seconds": 0.0423,
       "replay_identical": true,
-      "seconds": 4.01
+      "seconds": 3.82
     },
     {
       "id": "de-01-transport",
@@ -1174,9 +1174,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": false,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0588,
+      "replay_seconds": 0.0552,
       "replay_identical": true,
-      "seconds": 6.33
+      "seconds": 6.21
     },
     {
       "id": "de-02-stadium",
@@ -1197,9 +1197,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0581,
+      "replay_seconds": 0.0572,
       "replay_identical": true,
-      "seconds": 4.41
+      "seconds": 4.11
     },
     {
       "id": "de-03-hospital",
@@ -1220,9 +1220,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0582,
+      "replay_seconds": 0.0524,
       "replay_identical": true,
-      "seconds": 4.29
+      "seconds": 4.22
     },
     {
       "id": "de-04-energy",
@@ -1243,9 +1243,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0717,
+      "replay_seconds": 0.05,
       "replay_identical": true,
-      "seconds": 4.3
+      "seconds": 4.03
     },
     {
       "id": "de-05-school",
@@ -1266,9 +1266,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0572,
+      "replay_seconds": 0.054,
       "replay_identical": true,
-      "seconds": 4.15
+      "seconds": 3.96
     },
     {
       "id": "de-06-museum",
@@ -1289,9 +1289,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": false,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0621,
+      "replay_seconds": 0.059,
       "replay_identical": true,
-      "seconds": 4.22
+      "seconds": 3.98
     },
     {
       "id": "de-07-flood",
@@ -1312,9 +1312,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0548,
+      "replay_seconds": 0.0591,
       "replay_identical": true,
-      "seconds": 4.17
+      "seconds": 3.94
     },
     {
       "id": "de-08-agriculture",
@@ -1335,9 +1335,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0517,
+      "replay_seconds": 0.0576,
       "replay_identical": true,
-      "seconds": 4.11
+      "seconds": 3.98
     },
     {
       "id": "de-09-budget",
@@ -1358,9 +1358,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0531,
+      "replay_seconds": 0.0519,
       "replay_identical": true,
-      "seconds": 4.12
+      "seconds": 3.94
     },
     {
       "id": "de-10-digital",
@@ -1381,9 +1381,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0736,
+      "replay_seconds": 0.0532,
       "replay_identical": true,
-      "seconds": 4.2
+      "seconds": 3.96
     },
     {
       "id": "nl-01-transport",
@@ -1404,9 +1404,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0527,
+      "replay_seconds": 0.0477,
       "replay_identical": true,
-      "seconds": 5.72
+      "seconds": 5.45
     },
     {
       "id": "nl-02-stadium",
@@ -1427,9 +1427,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0507,
+      "replay_seconds": 0.0485,
       "replay_identical": true,
-      "seconds": 3.88
+      "seconds": 3.66
     },
     {
       "id": "nl-03-hospital",
@@ -1450,9 +1450,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.046,
+      "replay_seconds": 0.0499,
       "replay_identical": true,
-      "seconds": 3.85
+      "seconds": 3.74
     },
     {
       "id": "nl-04-energy",
@@ -1473,9 +1473,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0428,
+      "replay_seconds": 0.0484,
       "replay_identical": true,
-      "seconds": 3.86
+      "seconds": 3.73
     },
     {
       "id": "nl-05-school",
@@ -1496,9 +1496,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0502,
+      "replay_seconds": 0.0507,
       "replay_identical": true,
-      "seconds": 3.81
+      "seconds": 3.61
     },
     {
       "id": "nl-06-museum",
@@ -1519,9 +1519,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0498,
+      "replay_seconds": 0.0547,
       "replay_identical": true,
-      "seconds": 3.88
+      "seconds": 3.72
     },
     {
       "id": "nl-07-flood",
@@ -1542,9 +1542,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.051,
+      "replay_seconds": 0.0497,
       "replay_identical": true,
-      "seconds": 3.83
+      "seconds": 3.89
     },
     {
       "id": "nl-08-agriculture",
@@ -1565,9 +1565,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0433,
+      "replay_seconds": 0.0462,
       "replay_identical": true,
-      "seconds": 3.86
+      "seconds": 3.82
     },
     {
       "id": "nl-09-budget",
@@ -1588,9 +1588,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.048,
+      "replay_seconds": 0.0572,
       "replay_identical": true,
-      "seconds": 3.77
+      "seconds": 3.75
     },
     {
       "id": "nl-10-digital",
@@ -1611,9 +1611,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0464,
+      "replay_seconds": 0.0457,
       "replay_identical": true,
-      "seconds": 3.93
+      "seconds": 3.69
     },
     {
       "id": "pl-01-transport",
@@ -1634,9 +1634,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.1404,
+      "replay_seconds": 0.0541,
       "replay_identical": true,
-      "seconds": 6.89
+      "seconds": 6.59
     },
     {
       "id": "pl-02-stadium",
@@ -1645,21 +1645,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 538,
-      "visual_concepts": 428,
+      "entities": 543,
+      "visual_concepts": 421,
       "dates": 5,
       "bullets": 72,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 489,
-      "co_mentions": 22,
+      "search_proposals": 494,
+      "co_mentions": 37,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0833,
+      "replay_seconds": 0.0578,
       "replay_identical": true,
-      "seconds": 4.45
+      "seconds": 3.93
     },
     {
       "id": "pl-03-hospital",
@@ -1668,21 +1668,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 584,
-      "visual_concepts": 476,
+      "entities": 593,
+      "visual_concepts": 473,
       "dates": 5,
       "bullets": 71,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 535,
-      "co_mentions": 10,
+      "search_proposals": 544,
+      "co_mentions": 25,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0612,
+      "replay_seconds": 0.0667,
       "replay_identical": true,
-      "seconds": 4.23
+      "seconds": 4.0
     },
     {
       "id": "pl-04-energy",
@@ -1703,9 +1703,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0781,
+      "replay_seconds": 0.0582,
       "replay_identical": true,
-      "seconds": 4.27
+      "seconds": 3.95
     },
     {
       "id": "pl-05-school",
@@ -1726,9 +1726,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0537,
+      "replay_seconds": 0.058,
       "replay_identical": true,
-      "seconds": 4.22
+      "seconds": 4.07
     },
     {
       "id": "pl-06-museum",
@@ -1749,9 +1749,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0645,
+      "replay_seconds": 0.0609,
       "replay_identical": true,
-      "seconds": 4.44
+      "seconds": 4.18
     },
     {
       "id": "pl-07-flood",
@@ -1760,21 +1760,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 534,
-      "visual_concepts": 419,
+      "entities": 538,
+      "visual_concepts": 411,
       "dates": 5,
       "bullets": 76,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 482,
-      "co_mentions": 7,
+      "search_proposals": 486,
+      "co_mentions": 23,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0547,
+      "replay_seconds": 0.0607,
       "replay_identical": true,
-      "seconds": 4.23
+      "seconds": 4.01
     },
     {
       "id": "pl-08-agriculture",
@@ -1783,21 +1783,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 532,
-      "visual_concepts": 428,
+      "entities": 537,
+      "visual_concepts": 421,
       "dates": 5,
       "bullets": 71,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 483,
-      "co_mentions": 22,
+      "search_proposals": 488,
+      "co_mentions": 37,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0546,
+      "replay_seconds": 0.054,
       "replay_identical": true,
-      "seconds": 4.27
+      "seconds": 3.99
     },
     {
       "id": "pl-09-budget",
@@ -1818,9 +1818,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0624,
+      "replay_seconds": 0.0609,
       "replay_identical": true,
-      "seconds": 4.2
+      "seconds": 4.01
     },
     {
       "id": "pl-10-digital",
@@ -1841,9 +1841,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0567,
+      "replay_seconds": 0.0728,
       "replay_identical": true,
-      "seconds": 4.35
+      "seconds": 4.11
     },
     {
       "id": "ru-01-transport",
@@ -1864,9 +1864,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0604,
+      "replay_seconds": 0.0693,
       "replay_identical": true,
-      "seconds": 8.94
+      "seconds": 8.32
     },
     {
       "id": "ru-02-stadium",
@@ -1887,9 +1887,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0623,
+      "replay_seconds": 0.0578,
       "replay_identical": true,
-      "seconds": 4.78
+      "seconds": 4.13
     },
     {
       "id": "ru-03-hospital",
@@ -1898,21 +1898,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 611,
+      "entities": 623,
       "visual_concepts": 494,
       "dates": 5,
       "bullets": 72,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 549,
-      "co_mentions": 7,
+      "search_proposals": 561,
+      "co_mentions": 22,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0749,
+      "replay_seconds": 0.0743,
       "replay_identical": true,
-      "seconds": 4.39
+      "seconds": 4.27
     },
     {
       "id": "ru-04-energy",
@@ -1933,9 +1933,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.086,
+      "replay_seconds": 0.0711,
       "replay_identical": true,
-      "seconds": 6.74
+      "seconds": 4.26
     },
     {
       "id": "ru-05-school",
@@ -1956,9 +1956,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0587,
+      "replay_seconds": 0.0662,
       "replay_identical": true,
-      "seconds": 4.12
+      "seconds": 4.25
     },
     {
       "id": "ru-06-museum",
@@ -1979,9 +1979,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.1055,
+      "replay_seconds": 0.0673,
       "replay_identical": true,
-      "seconds": 4.5
+      "seconds": 4.17
     },
     {
       "id": "ru-07-flood",
@@ -2002,9 +2002,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0577,
+      "replay_seconds": 0.0667,
       "replay_identical": true,
-      "seconds": 4.65
+      "seconds": 4.3
     },
     {
       "id": "ru-08-agriculture",
@@ -2013,21 +2013,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 547,
+      "entities": 559,
       "visual_concepts": 437,
       "dates": 5,
       "bullets": 64,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 485,
-      "co_mentions": 20,
+      "search_proposals": 497,
+      "co_mentions": 35,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0617,
+      "replay_seconds": 0.0596,
       "replay_identical": true,
-      "seconds": 5.02
+      "seconds": 4.41
     },
     {
       "id": "ru-09-budget",
@@ -2048,9 +2048,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0765,
+      "replay_seconds": 0.0837,
       "replay_identical": true,
-      "seconds": 4.45
+      "seconds": 4.24
     },
     {
       "id": "ru-10-digital",
@@ -2071,9 +2071,9 @@
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0591,
+      "replay_seconds": 0.0696,
       "replay_identical": true,
-      "seconds": 4.36
+      "seconds": 4.47
     },
     {
       "id": "id-01-transport",
@@ -2082,21 +2082,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 511,
-      "visual_concepts": 364,
+      "entities": 561,
+      "visual_concepts": 414,
       "dates": 5,
       "bullets": 64,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 440,
+      "search_proposals": 490,
       "co_mentions": 35,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0508,
+      "replay_seconds": 0.0549,
       "replay_identical": true,
-      "seconds": 4.68
+      "seconds": 4.61
     },
     {
       "id": "id-02-stadium",
@@ -2105,21 +2105,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 500,
-      "visual_concepts": 374,
+      "entities": 540,
+      "visual_concepts": 414,
       "dates": 5,
       "bullets": 66,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 448,
+      "search_proposals": 488,
       "co_mentions": 42,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0551,
+      "replay_seconds": 0.0541,
       "replay_identical": true,
-      "seconds": 3.45
+      "seconds": 3.14
     },
     {
       "id": "id-03-hospital",
@@ -2128,21 +2128,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 527,
-      "visual_concepts": 396,
+      "entities": 574,
+      "visual_concepts": 443,
       "dates": 5,
       "bullets": 64,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 471,
+      "search_proposals": 518,
       "co_mentions": 33,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0675,
+      "replay_seconds": 0.0644,
       "replay_identical": true,
-      "seconds": 3.24
+      "seconds": 3.14
     },
     {
       "id": "id-04-energy",
@@ -2151,21 +2151,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 504,
-      "visual_concepts": 370,
+      "entities": 554,
+      "visual_concepts": 420,
       "dates": 5,
       "bullets": 68,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 449,
+      "search_proposals": 499,
       "co_mentions": 48,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0545,
+      "replay_seconds": 0.0518,
       "replay_identical": true,
-      "seconds": 3.23
+      "seconds": 3.11
     },
     {
       "id": "id-05-school",
@@ -2174,21 +2174,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 514,
-      "visual_concepts": 381,
+      "entities": 554,
+      "visual_concepts": 421,
       "dates": 5,
       "bullets": 60,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 447,
+      "search_proposals": 487,
       "co_mentions": 33,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0611,
+      "replay_seconds": 0.0598,
       "replay_identical": true,
-      "seconds": 3.3
+      "seconds": 3.09
     },
     {
       "id": "id-06-museum",
@@ -2197,21 +2197,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 533,
-      "visual_concepts": 392,
+      "entities": 580,
+      "visual_concepts": 439,
       "dates": 5,
       "bullets": 71,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 469,
+      "search_proposals": 516,
       "co_mentions": 48,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0619,
+      "replay_seconds": 0.0564,
       "replay_identical": true,
-      "seconds": 3.41
+      "seconds": 3.11
     },
     {
       "id": "id-07-flood",
@@ -2220,21 +2220,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 499,
-      "visual_concepts": 364,
+      "entities": 549,
+      "visual_concepts": 414,
       "dates": 5,
       "bullets": 63,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 440,
+      "search_proposals": 490,
       "co_mentions": 35,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0562,
+      "replay_seconds": 0.054,
       "replay_identical": true,
-      "seconds": 3.23
+      "seconds": 3.08
     },
     {
       "id": "id-08-agriculture",
@@ -2243,21 +2243,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 494,
-      "visual_concepts": 374,
+      "entities": 534,
+      "visual_concepts": 414,
       "dates": 5,
       "bullets": 65,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 442,
+      "search_proposals": 482,
       "co_mentions": 42,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.0519,
+      "replay_seconds": 0.0624,
       "replay_identical": true,
-      "seconds": 3.16
+      "seconds": 3.12
     },
     {
       "id": "id-09-budget",
@@ -2266,21 +2266,21 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 537,
-      "visual_concepts": 396,
+      "entities": 584,
+      "visual_concepts": 443,
       "dates": 5,
       "bullets": 65,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 481,
+      "search_proposals": 528,
       "co_mentions": 41,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": true,
-      "replay_seconds": 0.0555,
+      "replay_seconds": 0.0553,
       "replay_identical": true,
-      "seconds": 3.15
+      "seconds": 3.07
     },
     {
       "id": "id-10-digital",
@@ -2289,35 +2289,35 @@
       "status": "PASS",
       "problems": [],
       "review": [],
-      "entities": 517,
-      "visual_concepts": 370,
+      "entities": 567,
+      "visual_concepts": 420,
       "dates": 5,
       "bullets": 69,
       "micro_summaries": 0,
       "groups": 1,
       "charts": 1,
-      "search_proposals": 449,
+      "search_proposals": 499,
       "co_mentions": 48,
       "contextual_image_queries": 0,
       "expected_object_exact_phrase": true,
       "expected_object_typed_head": false,
-      "replay_seconds": 0.054,
+      "replay_seconds": 0.0612,
       "replay_identical": true,
-      "seconds": 3.27
+      "seconds": 3.12
     }
   ],
   "performance": {
     "input_words": 203254,
-    "throughput_words_per_second": 470.99,
-    "latency_p50_seconds": 4.09,
-    "latency_p95_seconds": 6.33,
+    "throughput_words_per_second": 500.63,
+    "latency_p50_seconds": 3.83,
+    "latency_p95_seconds": 6.01,
     "cache_replay_count": 100,
     "cache_replay_identical_count": 100,
-    "cache_replay_latency_p50_seconds": 0.0561,
-    "cache_replay_latency_p95_seconds": 0.08,
-    "worker_peak_rss_kb": 1697472,
-    "worker_peak_vmsize_kb": 2224872,
-    "worker_cpu_seconds": 420.42,
-    "worker_cpu_cores_average": 0.974
+    "cache_replay_latency_p50_seconds": 0.054,
+    "cache_replay_latency_p95_seconds": 0.0718,
+    "worker_peak_rss_kb": 1704820,
+    "worker_peak_vmsize_kb": 2224860,
+    "worker_cpu_seconds": 398.27,
+    "worker_cpu_cores_average": 0.981
   }
 }

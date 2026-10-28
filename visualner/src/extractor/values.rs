@@ -72,6 +72,19 @@ pub(super) fn classify_value_type(
     )
 }
 
+/// True when `text` is a curated facility head ("Stadio", "Stadion",
+/// "Estádio"). A facility name keeps a trailing known place as its nested
+/// place ("Stadio Aurora di Torino"), exactly like an institution name.
+/// The noun list is language-independent data (`facility_facts.json`).
+pub(super) fn opens_facility_name(text: &str) -> bool {
+    let head = text.to_lowercase();
+    semantic_core::lexicon::lexicon()
+        .facility
+        .facility_nouns
+        .iter()
+        .any(|noun| noun == &head)
+}
+
 /// The kind of the curated institution or role cue that opens `text`, if any
 /// ("Corte di Cassazione" -> ORG, "GUP" -> ROLE). The vocabulary is the shared
 /// legal pack's, so a new court is a data entry, never a code branch.
@@ -148,7 +161,12 @@ fn classify_type(
     }
     let language_key = language.split(['-', '_']).next().unwrap_or("");
     if let Some(markers) = gazetteer.organization_markers.get(language_key) {
-        let words: Vec<String> = lower
+        // An elided article is not part of the head: "l'Istituto di Ricerca"
+        // is the institution "Istituto", so the marker reads the surface
+        // after the clitic.
+        let head = &text[super::names::elided_name_prefix_len(text).min(text.len())..];
+        let head_lower = head.to_lowercase();
+        let words: Vec<String> = head_lower
             .split(|ch: char| !ch.is_alphanumeric())
             .map(str::to_string)
             .filter(|word| !word.is_empty())
@@ -156,7 +174,7 @@ fn classify_type(
         // A hyphenated compound counts its name segments: "Prisma-Labor" is
         // one surface word but a two-segment modifier+head name, and the
         // marker check below reads the institutional head either way.
-        let capitalized_name = text
+        let capitalized_name = head
             .split(|ch: char| ch.is_whitespace() || ch == '-')
             .filter(|word| word.chars().next().is_some_and(char::is_uppercase))
             .count()
@@ -255,6 +273,23 @@ fn classify_type(
     let case_is_evidence = lexicon
         .language_profiles
         .uppercase_is_name_evidence(language);
+    // A curated commercial head word closes an organization name even when no
+    // legal suffix does: "Aurora Sport" and "Lumen Energia" are companies in
+    // the same way "Nordwasser GmbH" is, and a two-token title case run would
+    // otherwise satisfy the person rule. The head list is data
+    // (`entity_gazetteer.json.company_head_words`), so a new head is an entry,
+    // never a code branch, and a surname never appears in it.
+    let head_word = lower
+        .split_whitespace()
+        .last()
+        .unwrap_or("")
+        .trim_matches(|ch: char| !ch.is_alphanumeric());
+    if text.split_whitespace().count() >= 2
+        && title_tokens >= 2
+        && contains(&gazetteer.company_head_words, head_word)
+    {
+        return "ORGANIZATION".to_string();
+    }
     if case_is_evidence
         && name_evidence
         && title_tokens >= 2
@@ -652,6 +687,30 @@ mod tests {
             classify_type("Fondazione", true, false, true, "it"),
             "VISUAL_CONCEPT",
             "a bare generic noun does not identify an organization"
+        );
+    }
+
+    #[test]
+    fn a_curated_commercial_head_closes_an_organization_name() {
+        // Two capitalized tokens with no legal suffix would satisfy the person
+        // rule; a curated commercial head makes the same shape an
+        // organization, while a real name keeps its type.
+        for name in ["Aurora Sport", "Lumen Energia", "Nordwasser Energie"] {
+            assert_eq!(
+                classify_type(name, true, false, true, "it"),
+                "ORGANIZATION",
+                "commercial head should type {name} as an organization"
+            );
+        }
+        assert_eq!(
+            classify_type("Elena Conti", true, false, true, "it"),
+            "PERSON"
+        );
+        // The head is matched as a whole word: a longer word that merely ends
+        // with one of the commercial heads stays a person name.
+        assert_eq!(
+            classify_type("Elena Sportiva", true, false, true, "it"),
+            "PERSON"
         );
     }
 

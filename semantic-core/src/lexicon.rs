@@ -243,6 +243,18 @@ impl Lexicon {
         }
         let lower = surface.to_lowercase();
         let key = language.split(['-', '_']).next().unwrap_or("");
+        // A function word of the text's own language is not a place, whatever
+        // the index says: the index is matched case-insensitively, so a
+        // sentence-initial function word that also names a town elsewhere
+        // would be typed as that town (Indonesian "Bukan" means "not" and is
+        // also a city in Iran). Only a single-token surface is refused, so a
+        // compound name keeps its open-class words ("Great Smoky Mountains").
+        if !lower.contains(char::is_whitespace)
+            && crate::language_packs::get(language)
+                .is_some_and(|pack| pack.is_function_word(&lower))
+        {
+            return false;
+        }
         if self
             .place_ambiguities
             .get(key)
