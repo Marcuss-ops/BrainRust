@@ -13,8 +13,10 @@ use serde::Serialize;
 /// One grounded numeric-value fact. `value` is parsed only when the surface
 /// is unambiguous for the scene language (`25%`, `$1,200`, `12,5% euro`); a
 /// scaled quantity such as `2 million` carries no raw value instead of a
-/// guessed one. The killer rule is inherited: surface == evidence == source
-/// slice at `[start_byte, end_byte)`.
+/// guessed one. VisualNER also emits spelled quantities ("sedici anni",
+/// "cinque consulenze") with the value resolved by the locale's ICU RBNF
+/// rules; the surface stays the exact source slice. The killer rule is
+/// inherited: surface == evidence == source slice at `[start_byte, end_byte)`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NumericFact {
     /// Exact source form (e.g. "25%").

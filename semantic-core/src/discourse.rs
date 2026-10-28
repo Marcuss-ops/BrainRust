@@ -153,6 +153,40 @@ mod tests {
                 "Aurora mencatat 41% dibandingkan dengan 15% pada kelompok Lumen.",
                 "dibandingkan dengan",
             ),
+            (
+                "Aurora schätzte 41%, während Lumen 15% erwartete.",
+                "während",
+            ),
+            ("Aurora estimated 41%, while Lumen projected 15%.", "while"),
+            ("Aurora expected 41%, whereas Lumen claimed 15%.", "whereas"),
+            (
+                "Aurora estimó 41%, mientras que Lumen calculó el 15%.",
+                "mientras que",
+            ),
+            (
+                "Aurora estimait 41%, tandis qu'Énergie Port prévoyait 15%.",
+                "tandis",
+            ),
+            (
+                "Aurora attendait 41%, alors que le bureau Lumen annonçait 15%.",
+                "alors que",
+            ),
+            (
+                "Aurora memperkirakan 41%, sedangkan Lumen memperkirakan 15%.",
+                "sedangkan",
+            ),
+            (
+                "Aurora raamde 41%, terwijl Lumen 15% verwachtte.",
+                "terwijl",
+            ),
+            (
+                "Biuro Aurora oczekiwało 41%, natomiast biuro Lumen podało 15%.",
+                "natomiast",
+            ),
+            (
+                "A Aurora estimou 41%, enquanto a Lumen previa 15%.",
+                "enquanto",
+            ),
         ] {
             let (start, end) =
                 comparison_cue(text).unwrap_or_else(|| panic!("missing cue in {text}"));

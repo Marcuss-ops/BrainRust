@@ -141,6 +141,15 @@ fn ambiguous_location_cue(tokens: &[Token], token_index: usize) -> bool {
 /// vocabulary and the capitalization guard apply, so the model-free path keeps
 /// its behavior.
 pub(super) fn is_place_name(token: &Token, surface: &str, language: &str, cased: bool) -> bool {
+    // A common noun after a geographic cue is not a toponym: "seit 1958 in
+    // Betrieb" is not a place, and German capitalizes every noun so the cue
+    // plus a capital is not name evidence there. A known place keeps its type
+    // even when the tagger calls it a common noun (Turkish city names), and
+    // without a model every tag is `None`, so this guard only fires on model
+    // evidence.
+    if token.upos.as_deref() == Some("NOUN") && !lexicon().is_place(surface, language) {
+        return false;
+    }
     // An exact, capitalized GeoNames match remains useful even when UDPipe
     // calls a name a common noun (for example Turkish city names). The shared
     // place lookup applies its own orthographic guard, while institution
@@ -269,4 +278,45 @@ pub(super) fn gap_has_period(gap: &[u8]) -> bool {
 /// "feta cheese" together while splitting "tomatoes, feta".
 pub(super) fn is_phrase_breaking_byte(b: u8) -> bool {
     b == b'\n' || b == b'\r' || !b.is_ascii_whitespace()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn token(text: &str, upos: Option<&str>) -> Token {
+        Token {
+            text: text.to_string(),
+            start: 0,
+            end: text.len(),
+            upos: upos.map(str::to_string),
+            lemma: None,
+        }
+    }
+
+    #[test]
+    fn a_tagged_common_noun_after_a_cue_is_not_a_place() {
+        // German capitalizes every noun, so the cue plus a capital is not name
+        // evidence: "seit 1958 in Betrieb" must not become a LOCATION, while
+        // the city in "in Leipzig" stays one. A known place survives a NOUN
+        // tag because the tagger mislabels some toponyms.
+        assert!(!is_place_name(
+            &token("Betrieb", Some("NOUN")),
+            "Betrieb",
+            "de",
+            true
+        ));
+        assert!(is_place_name(
+            &token("Leipzig", Some("PROPN")),
+            "Leipzig",
+            "de",
+            true
+        ));
+        assert!(is_place_name(
+            &token("Bremen", Some("NOUN")),
+            "Bremen",
+            "de",
+            true
+        ));
+    }
 }

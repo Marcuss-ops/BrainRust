@@ -445,6 +445,12 @@ fn explicit_facility_location_queries_are_supported_across_corpus_languages() {
         ("pl", "Stadion Aurora znajduje się w Torino."),
         ("ru", "Стадион Aurora находится в Torino."),
         ("id", "Stadion Aurora berada di Torino."),
+        ("en", "The Harbour Stadium lies in Bristol."),
+        ("en", "The Central Stadium stands in Norwich."),
+        ("es", "El Estadio Sur está situado en Zaragoza."),
+        ("nl", "Het Stadion Zuid staat in Groningen."),
+        ("pl", "Stadion Południowy stoi w Tokio."),
+        ("pt", "O Estádio Sul situa-se em Braga."),
     ];
 
     for (language, text) in cases {

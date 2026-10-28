@@ -3,7 +3,7 @@
 use crate::types::VisualEntity;
 
 use super::names::is_name_particle;
-use super::stopwords::is_title_word;
+use super::stopwords::{is_stop_word, is_title_word};
 use super::tokenizer::Token;
 use super::values::{classify_value_type, has_suspicious_asr_digit_fusion, Candidate};
 
@@ -150,12 +150,56 @@ pub(crate) fn validate_evidence(
     {
         entity_type = "PERSON".to_string();
     }
-    Some(VisualEntity {
-        text: c.text.clone(),
-        r#type: entity_type,
-        score: 0.0,
-        start: c.start,
-        end: c.end,
-        evidence: evidence.to_string(),
-    })
+    Some(trim_leading_determiner(
+        VisualEntity {
+            text: c.text.clone(),
+            r#type: entity_type,
+            score: 0.0,
+            start: c.start,
+            end: c.end,
+            evidence: evidence.to_string(),
+        },
+        tokens,
+        source_text,
+        language,
+    ))
+}
+
+/// A determiner is not part of an organization's or facility's own name
+/// ("The Harbour Stadium", "Das Stadion Süd", "Lo Stadio Aurora"). The
+/// extractor can tag a sentence-initial article as part of a title-case run
+/// when the tagger mislabels it, so the identity is re-anchored at the first
+/// substantive token. Locations keep their surface ("The Hague" is a place
+/// name); evidence is re-sliced from the source, so grounding is preserved.
+fn trim_leading_determiner(
+    mut entity: VisualEntity,
+    tokens: &[Token],
+    source_text: &str,
+    language: &str,
+) -> VisualEntity {
+    if !matches!(entity.r#type.as_str(), "ORG" | "ORGANIZATION" | "FACILITY") {
+        return entity;
+    }
+    while let Some(token) = tokens.iter().find(|token| token.start == entity.start) {
+        if token.end >= entity.end {
+            break;
+        }
+        if token.upos.as_deref() != Some("DET") && !is_stop_word(&token.text, language) {
+            break;
+        }
+        let mut next = token.end;
+        while next < entity.end && source_text.as_bytes()[next].is_ascii_whitespace() {
+            next += 1;
+        }
+        let Some(text) = source_text.get(next..entity.end) else {
+            break;
+        };
+        if text.split_whitespace().count() < 2 {
+            break;
+        }
+        entity.start = next;
+        entity.text = text.to_string();
+        entity.evidence = text.to_string();
+    }
+    entity
 }

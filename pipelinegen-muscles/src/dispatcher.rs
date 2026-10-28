@@ -51,6 +51,12 @@ pub fn process(request: Request) -> Response {
         Operation::RenderAudioPlan => render_audio::execute(request),
         Operation::MuxAudioCopy => crate::transform::execute(request, Operation::MuxAudioCopy),
         Operation::AssembleCopy => crate::transform::execute(request, Operation::AssembleCopy),
+        Operation::ProjectOverlayManifest => {
+            crate::transform::execute(request, Operation::ProjectOverlayManifest)
+        }
+        Operation::ExtractTimelineWindow => {
+            crate::transform::execute(request, Operation::ExtractTimelineWindow)
+        }
     };
     if !response.ok {
         response.operation = operation.as_str().to_string();
@@ -129,6 +135,7 @@ mod tests {
             green_screen_similarity: None,
             green_screen_blend: None,
             overlay_manifest: None,
+            timeline_window: None,
             input_paths: Some(vec!["/tmp/in.mp4".to_string()]),
             no_transitions: None,
             clip_duration_sec: None,

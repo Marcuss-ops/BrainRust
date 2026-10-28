@@ -170,7 +170,7 @@ def source_grounding(scene: dict, source: str) -> list[str]:
     return problems
 
 
-def score_one(worker: Worker, script_id: str, spec: dict) -> dict:
+def score_one(worker: Worker, script_id: str, spec: dict, default_authority: str) -> dict:
     source = (BASE / spec["file"]).read_text(encoding="utf-8").strip()
     request = {"operation": "analyze_script", "language": spec["language"],
                "scenes": [{"scene_id": script_id, "text": source}]}
@@ -233,7 +233,7 @@ def score_one(worker: Worker, script_id: str, spec: dict) -> dict:
     return {
         "id": script_id,
         "language": spec["language"],
-        "annotation_authority": spec.get("authority", "unspecified"),
+        "annotation_authority": spec.get("authority", default_authority),
         "capability_gap_expectations": spec.get("capability_gap_expectations", []),
         "words": len(source.split()),
         "named_entities": entity_score,
@@ -338,6 +338,7 @@ def main() -> int:
     args = parser.parse_args()
     gold = json.loads((BASE / "gold.json").read_text(encoding="utf-8"))
     specs = gold["scripts"]
+    authority = (gold.get("annotation_policy") or {}).get("authority", "unspecified")
     if not args.worker.exists():
         parser.error(f"worker not found: {args.worker}")
     worker = Worker(args.worker)
@@ -345,12 +346,11 @@ def main() -> int:
         health = worker.request({"operation": "health"}, 30)
         if not health.get("ok"):
             raise RuntimeError(f"worker health check failed: {health}")
-        results = [score_one(worker, key, spec) for key, spec in sorted(specs.items())]
+        results = [score_one(worker, key, spec, authority) for key, spec in sorted(specs.items())]
     finally:
         worker.close()
     words = sum(row["words"] for row in results)
     languages = sorted({row["language"] for row in results})
-    authority = (gold.get("annotation_policy") or {}).get("authority", "unspecified")
     release_sized = len(results) >= 20 and len(languages) == 10
     specs = gold["scripts"]
     # A script may declare its own author: the report lists the drafts, and one

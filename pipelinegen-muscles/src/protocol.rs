@@ -47,6 +47,8 @@ pub enum Operation {
     RenderAudioPlan,
     MuxAudioCopy,
     AssembleCopy,
+    ProjectOverlayManifest,
+    ExtractTimelineWindow,
 }
 
 impl Operation {
@@ -72,6 +74,8 @@ impl Operation {
             Self::RenderAudioPlan => "render_audio_plan",
             Self::MuxAudioCopy => "mux_audio_copy",
             Self::AssembleCopy => "assemble_copy",
+            Self::ProjectOverlayManifest => "project_overlay_manifest",
+            Self::ExtractTimelineWindow => "extract_timeline_window",
         }
     }
 }
@@ -122,6 +126,11 @@ pub struct Request {
     pub effects: Option<Vec<RenderEffect>>,
     pub overlays: Option<Vec<RenderOverlay>>,
     pub overlay_manifest: Option<OverlayManifest>,
+    /// Manifest window reference for `extract_timeline_window` — the
+    /// `scene.clip.{timeline_item_id,in_us,out_us}` wire of the final worker
+    /// handoff (OVERLAY-MANIFEST-CONTRACT.md §4): one entry of the manifest,
+    /// optionally narrowed to a plan sub-window.
+    pub timeline_window: Option<TimelineWindowRef>,
     pub max_duration_sec: Option<f64>,
     /// Typed compiled audio plan (compiled-audio-plan.v1/v2). A malformed
     /// plan fails request parsing fail-closed instead of travelling as
@@ -254,7 +263,70 @@ impl Request {
                 }
                 Ok(())
             }
+            Operation::ProjectOverlayManifest => {
+                require_source()?;
+                require_output()?;
+                if self.input_paths.as_ref().is_none_or(|paths| paths.len() != 1) {
+                    return Err(MuscleError::generic(
+                        "exactly one artifact input is required",
+                    ));
+                }
+                if self.overlay_manifest.is_none() {
+                    return Err(MuscleError::generic("overlay_manifest is required"));
+                }
+                Ok(())
+            }
+            Operation::ExtractTimelineWindow => {
+                require_source()?;
+                require_output()?;
+                if self.overlay_manifest.is_none() {
+                    return Err(MuscleError::generic("overlay_manifest is required"));
+                }
+                match self.timeline_window.as_ref() {
+                    None => {
+                        Err(MuscleError::generic("timeline_window is required"))
+                    }
+                    Some(window) => window.validate().map_err(MuscleError::generic),
+                }
+            }
         }
+    }
+}
+
+/// Manifest window reference (`scene.clip.{timeline_item_id,in_us,out_us}`):
+/// one manifest entry, optionally narrowed to a plan sub-window. The
+/// sub-window maps through the entry's packed offset like any §3 window.
+#[derive(Clone, Debug, Deserialize)]
+pub struct TimelineWindowRef {
+    pub timeline_item_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_us: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub out_us: Option<i64>,
+}
+
+impl TimelineWindowRef {
+    fn validate(&self) -> Result<(), String> {
+        if self.timeline_item_id.trim().is_empty() {
+            return Err("timeline_window timeline_item_id is required".to_string());
+        }
+        match (self.in_us, self.out_us) {
+            (Some(in_us), Some(out_us)) => {
+                if in_us < 0 {
+                    return Err("timeline_window in_us must be >= 0".to_string());
+                }
+                if out_us <= in_us {
+                    return Err("timeline_window out_us must be > in_us".to_string());
+                }
+            }
+            (None, None) => {}
+            _ => {
+                return Err(
+                    "timeline_window in_us/out_us must be set together".to_string(),
+                );
+            }
+        }
+        Ok(())
     }
 }
 
@@ -302,6 +374,21 @@ pub struct OverlayManifestAsset {
     pub duration_ms: i64,
 }
 
+// Spatial projection of an entry (OVERLAY-MANIFEST-CONTRACT.md §3.2,
+// TICKET-PARADIGM-ALPHA-LAYER-HUD.md A1): the pixel rect on the plan canvas
+// where the entry's content draws. Absent = full-canvas (the classic path).
+// All four values live in one object, so a half-set rect cannot be expressed
+// on the wire; a rect with a non-positive size or a negative origin is a
+// malformed manifest and fails validation below (fail-closed, like the Go
+// producer PipelineGen ManifestPlacement validation).
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct OverlayManifestPlacement {
+    pub x_px: i64,
+    pub y_px: i64,
+    pub w_px: i64,
+    pub h_px: i64,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OverlayManifestEntry {
     pub item_id: String,
@@ -309,6 +396,10 @@ pub struct OverlayManifestEntry {
     pub in_us: i64,
     pub out_us: i64,
     pub content_hash: String,
+    // Spatial projection (§3.2): both present or both absent is not
+    // expressible — the object is all-or-nothing. Absent = full-canvas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placement: Option<OverlayManifestPlacement>,
     // Packed-timeline positions (OVERLAY-MANIFEST-CONTRACT.md §3): where the
     // entry's content actually lives on the CERTIFIED artifact's own frames.
     // Both present or both absent — like the Go producer
@@ -393,6 +484,20 @@ impl OverlayManifest {
                 _ => {
                     return Err(format!(
                         "overlay manifest entry {} artifact_in_us/artifact_out_us must be set together",
+                        entry.item_id
+                    ));
+                }
+            }
+            if let Some(placement) = &entry.placement {
+                if placement.x_px < 0 || placement.y_px < 0 {
+                    return Err(format!(
+                        "overlay manifest entry {} placement x_px/y_px must be >= 0",
+                        entry.item_id
+                    ));
+                }
+                if placement.w_px <= 0 || placement.h_px <= 0 {
+                    return Err(format!(
+                        "overlay manifest entry {} placement w_px/h_px must be > 0",
                         entry.item_id
                     ));
                 }
@@ -938,7 +1043,9 @@ mod tests {
             .contains("no video"));
     }
 
-    use super::{OverlayManifest, OverlayManifestEntry, OVERLAY_MANIFEST_SCHEMA_V1};
+    use super::{
+        OverlayManifest, OverlayManifestEntry, OverlayManifestPlacement, OVERLAY_MANIFEST_SCHEMA_V1,
+    };
 
     fn manifest_entry() -> OverlayManifestEntry {
         OverlayManifestEntry {
@@ -948,8 +1055,18 @@ mod tests {
             out_us: 12_000_000,
             content_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
                 .to_string(),
+            placement: None,
             artifact_in_us: None,
             artifact_out_us: None,
+        }
+    }
+
+    fn placement() -> OverlayManifestPlacement {
+        OverlayManifestPlacement {
+            x_px: 40,
+            y_px: 800,
+            w_px: 800,
+            h_px: 150,
         }
     }
 
@@ -1000,6 +1117,97 @@ mod tests {
         assert!(
             err.contains("longer than its plan window"),
             "unexpected error: {err}"
+        );
+    }
+
+    // Wire-parity gate with the Go producer (PipelineGen
+    // ManifestPlacement.Validate): a rect-projected entry carries a positive
+    // size and a non-negative origin; an absent rect means full-canvas and is
+    // always valid. The rect is placement metadata and must not gate the
+    // entry's plan window validation.
+    #[test]
+    fn manifest_spatial_placement_validates() {
+        let mut entry = manifest_entry();
+        entry.placement = Some(placement());
+        assert!(manifest(vec![entry]).validate().is_ok());
+
+        let mut full_canvas = manifest_entry();
+        full_canvas.placement = None;
+        assert!(manifest(vec![full_canvas]).validate().is_ok());
+    }
+
+    #[test]
+    fn manifest_spatial_placement_size_must_be_positive() {
+        let mut zero_width = manifest_entry();
+        zero_width.placement = Some(OverlayManifestPlacement {
+            w_px: 0,
+            ..placement()
+        });
+        let err = manifest(vec![zero_width]).validate().unwrap_err();
+        assert!(
+            err.contains("w_px/h_px must be > 0"),
+            "unexpected error: {err}"
+        );
+
+        let mut negative_height = manifest_entry();
+        negative_height.placement = Some(OverlayManifestPlacement {
+            h_px: -1,
+            ..placement()
+        });
+        let err = manifest(vec![negative_height]).validate().unwrap_err();
+        assert!(
+            err.contains("w_px/h_px must be > 0"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn manifest_spatial_placement_origin_must_be_non_negative() {
+        let mut negative_x = manifest_entry();
+        negative_x.placement = Some(OverlayManifestPlacement {
+            x_px: -1,
+            ..placement()
+        });
+        let err = manifest(vec![negative_x]).validate().unwrap_err();
+        assert!(
+            err.contains("x_px/y_px must be >= 0"),
+            "unexpected error: {err}"
+        );
+
+        let mut negative_y = manifest_entry();
+        negative_y.placement = Some(OverlayManifestPlacement {
+            y_px: -1,
+            ..placement()
+        });
+        let err = manifest(vec![negative_y]).validate().unwrap_err();
+        assert!(
+            err.contains("x_px/y_px must be >= 0"),
+            "unexpected error: {err}"
+        );
+    }
+
+    // A half-set rect cannot be expressed on the wire: the object is
+    // all-or-nothing, so a partial placement fails deserialization instead of
+    // validating with zero-filled fields (fail-closed at parse time).
+    #[test]
+    fn manifest_spatial_placement_is_all_or_nothing_on_the_wire() {
+        let wire = serde_json::json!({
+            "schema_version": OVERLAY_MANIFEST_SCHEMA_V1,
+            "plan_id": "plan-01",
+            "video_id": "video-01",
+            "entries": [{
+                "item_id": "item-01",
+                "track": 0,
+                "in_us": 10_000_000,
+                "out_us": 12_000_000,
+                "content_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "placement": { "x_px": 40, "y_px": 800 }
+            }]
+        });
+        let parsed: Result<OverlayManifest, _> = serde_json::from_value(wire);
+        assert!(
+            parsed.is_err(),
+            "a partial placement must fail parsing, not default to zero fields"
         );
     }
 

@@ -181,8 +181,8 @@ fn filler_sentences_are_never_bullets() {
 
 #[test]
 fn important_segments_stay_on_linguistic_boundaries() {
-    // The selected passages are 2–5 sentences, grounded, non-overlapping,
-    // and cut at canonical linguistic boundaries.
+    // Every qualifying passage is 2–5 sentences, grounded, retained (no
+    // candidate cap) and cut at canonical linguistic boundaries.
     let text = "Chiara Poggi viveva a Pavia. Il 13 agosto 2007 il caso cambiò. \
                 La Procura di Pavia aprì un'indagine. Alberto Stasi fu rinviato \
                 a giudizio. Non è così. Il processo iniziò nel 2009.";
@@ -190,8 +190,8 @@ fn important_segments_stay_on_linguistic_boundaries() {
     let scene_value = &value["scenes"][0];
     let segments = scene_value["important_segments"].as_array().unwrap();
     assert!(
-        !segments.is_empty() && segments.len() <= 3,
-        "select a compact set of passages: {segments:?}"
+        segments.len() > 3,
+        "no candidate cap: overlapping passages stay available to the planner: {segments:?}"
     );
 
     let spans = semantic_core::split_sentences(text, "it", None);
@@ -223,8 +223,10 @@ fn important_segments_stay_on_linguistic_boundaries() {
         assert_eq!(segment["kind"], "important_segment");
         ends.push((start_byte, end_byte));
     }
-    // The selected editorial passages do not compete over the same source.
-    assert!(ends.windows(2).all(|pair| pair[0].1 <= pair[1].0));
+    // Every passage is unique and emitted in source order.
+    let unique: std::collections::BTreeSet<_> = ends.iter().copied().collect();
+    assert_eq!(unique.len(), ends.len(), "duplicate passages: {ends:?}");
+    assert!(ends.windows(2).all(|pair| pair[0].0 <= pair[1].0));
     // Deterministic replay: the same request yields the same segments.
     let again = manifest_value(vec![scene("segmenti", text)]);
     assert_eq!(

@@ -208,16 +208,19 @@ fn numeric_facts(
         })
         .collect();
     for candidate in spelled {
-        // Only a spelled quantity that states its unit is a bar. A bare
-        // spelled count is a duration or a tally ("ten years", "dieci anni")
-        // and charting it would plot a number the sentence never measured.
-        if !matches!(candidate.entity_type, "PERCENT" | "MONEY") {
+        // The ICU RBNF scanner already resolved and typed spelled numbers:
+        // "sedici anni" and "cinque consulenze" arrive here as NUMBER with
+        // their value, spelled percentages/money as PERCENT/MONEY. Dates and
+        // ordinals are a different projection and must not be duplicated.
+        if !matches!(candidate.entity_type, "NUMBER" | "PERCENT" | "MONEY") {
             continue;
         }
-        // A spelled year is already a date: it must never become a bar.
+        // A spelled date component ("ventiquattro" in "ventiquattro maggio")
+        // is owned by the temporal projection. Compare spans, not containment:
+        // a candidate may cover only the day token inside a longer date.
         if temporal_facts
             .iter()
-            .any(|fact| fact.start_byte <= candidate.start && candidate.end <= fact.end_byte)
+            .any(|fact| candidate.start < fact.end_byte && fact.start_byte < candidate.end)
         {
             continue;
         }
@@ -367,6 +370,17 @@ fn chart_points(
 ) -> Vec<ChartPoint> {
     numeric_facts
         .iter()
+        // A spelled NUMBER ("sedici anni", "cinque consulenze") is a grounded
+        // fact but not a chart point: without a written unit or digit the
+        // sentence measured a duration/tally, not a plotted quantity. Spelled
+        // PERCENT/MONEY keep their existing chart behavior.
+        .filter(|fact| {
+            fact.kind != "NUMBER"
+                || fact
+                    .surface
+                    .chars()
+                    .any(|character| character.is_ascii_digit())
+        })
         .filter_map(|fact| {
             let value = fact
                 .value
@@ -457,6 +471,87 @@ mod tests {
         // projection owns it, so the numeric projection must not duplicate
         // it (one fact, one projection).
         assert!(!surfaces.contains(&"2024"), "facts: {surfaces:?}");
+    }
+
+    #[test]
+    fn spelled_quantities_are_numeric_facts_but_not_chart_points() {
+        let text = "Stasi è stato condannato a sedici anni di reclusione; il deposito di cinque consulenze difensive.";
+        let analysis = analyze(
+            text,
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 8,
+            },
+        )
+        .unwrap();
+        let facts: Vec<(&str, Option<f64>, &str)> = analysis
+            .numeric_facts
+            .iter()
+            .map(|fact| (fact.surface.as_str(), fact.value, fact.kind.as_str()))
+            .collect();
+        assert!(
+            facts.contains(&("sedici", Some(16.0), "NUMBER")),
+            "facts: {facts:?}"
+        );
+        assert!(
+            facts.contains(&("cinque", Some(5.0), "NUMBER")),
+            "facts: {facts:?}"
+        );
+        // The same values must not become bars: a spelled duration/tally has
+        // no written unit that makes it a comparable chart value.
+        assert!(
+            analysis.chart_points.is_empty(),
+            "{:?}",
+            analysis.chart_points
+        );
+
+        let en = analyze(
+            "sixteen years and five reports.",
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 8,
+            },
+        )
+        .unwrap();
+        let en_facts: Vec<(&str, Option<f64>)> = en
+            .numeric_facts
+            .iter()
+            .map(|fact| (fact.surface.as_str(), fact.value))
+            .collect();
+        assert!(
+            en_facts.contains(&("sixteen years", Some(16.0))),
+            "{en_facts:?}"
+        );
+        assert!(en_facts.contains(&("five", Some(5.0))), "{en_facts:?}");
+    }
+
+    #[test]
+    fn spelled_date_parts_do_not_become_numeric_facts() {
+        let text = "Il ventiquattro maggio duemilaventicinque si chiude la fase.";
+        let analysis = analyze(
+            text,
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 8,
+            },
+        )
+        .unwrap();
+        assert!(
+            analysis
+                .temporal_facts
+                .iter()
+                .any(|fact| fact.normalized.as_deref() == Some("2025-05-24")),
+            "temporal: {:?}",
+            analysis.temporal_facts
+        );
+        assert!(
+            analysis
+                .numeric_facts
+                .iter()
+                .all(|fact| !matches!(fact.value, Some(24.0 | 2025.0))),
+            "numeric: {:?}",
+            analysis.numeric_facts
+        );
     }
 
     #[test]

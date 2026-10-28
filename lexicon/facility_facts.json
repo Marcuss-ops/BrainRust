@@ -9,9 +9,16 @@
     "localizado em", "está localizado em", "situé à", "est situé à", "se trouve à",
     "liegt in", "befindet sich in", "ligt in", "bevindt zich in", "znajduje się w", "leży w",
     "находится в", "расположен в", "расположен на", "está situado em", "fica em",
-    "is located in", "located in", "based in", "is situated in", "situated in", "is located at",
-    "berada di", "terletak di"
-  ],
+    "is located in", "located in", "based in", "is situated in", "situated in", "is located at",  "berada di",
+  "terletak di",
+  "lies in",
+  "stands in",
+  "está situado en",
+  "staat in",
+  "stoi w",
+  "situa-se em",
+  "стоит в"
+ ],
   "bare_location_prepositions": ["di", "de", "of", "van"],
   "inauguration_markers": [
     "inaugur",

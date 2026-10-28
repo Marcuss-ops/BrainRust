@@ -147,6 +147,23 @@ pub(crate) fn collect_facilities(source: &str, remaining: usize) -> Vec<VisualEn
             if next_name {
                 continue;
             }
+            // A leading determiner is not part of the name ("The Harbour
+            // Stadium" names Harbour Stadium): drop it before the run is read,
+            // or the sentence-initial article would be absorbed whenever the
+            // same facility is mentioned again. The article list above is the
+            // single source of determiners.
+            let first_name = candidate_words
+                .iter()
+                .position(|word| {
+                    !articles.contains(
+                        &word
+                            .trim_matches(|ch: char| !ch.is_alphanumeric())
+                            .to_lowercase()
+                            .as_str(),
+                    )
+                })
+                .unwrap_or(candidate_words.len());
+            let candidate_words = &candidate_words[first_name..];
             // Walk outward from the head: the name is the contiguous run of
             // title-cased words directly before it. A lowercase modifier
             // ("kommunales Stadion") ends the run, so an earlier capitalized

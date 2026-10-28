@@ -142,13 +142,17 @@ pub(crate) fn phrase_candidates(
 /// Grounded multi-sentence passages for planners that treat a passage as one
 /// editorial unit. A window is 2–5 consecutive sentences cut at the canonical
 /// segmenter's boundaries (linguistic boundaries, never mid-sentence), and it
-/// is anchored when its first and its last sentence each carry at least one
-/// grounded signal and every sentence in it is substantive. The score is the
-/// shared sentence salience (`semantic_core::bullets`) averaged over the
-/// window, so bullets and segments rank with one weight table. A bounded
-/// greedy interval selection keeps at most three non-overlapping passages per
-/// scene; every selected passage remains contiguous and source-grounded.
-/// A scene without signals keeps an empty collection.
+/// is grounded when at least one sentence carries a grounded signal and every
+/// sentence in it is substantive. A concluding sentence often carries context
+/// rather than a new signal ("Il Comune mantenne quindi il monitoraggio…"), so
+/// requiring a signal at both ends would drop the complete passage. The score
+/// is the shared sentence salience (`semantic_core::bullets`) averaged over the
+/// window, so bullets and segments rank with one weight table. Every grounded
+/// window is retained in source order without a score threshold: overlay
+/// selection belongs to PipelineGen, and a BrainRust cap would silently discard
+/// valid passages before the planner can compare them. Every passage remains
+/// contiguous and source-grounded. A scene without signals keeps an empty
+/// collection.
 pub(crate) fn segment_candidates(
     source: &str,
     sentences: &[semantic_core::SentenceSpan],
@@ -157,7 +161,6 @@ pub(crate) fn segment_candidates(
 ) -> Vec<ImportantSegment> {
     const MIN_LEN: usize = 2;
     const MAX_LEN: usize = 5;
-    const MIN_EDITORIAL_SCORE: f32 = 0.4;
 
     let signals: Vec<semantic_core::bullets::BulletSignal> = entities
         .iter()
@@ -235,34 +238,15 @@ pub(crate) fn segment_candidates(
                 0.0
             };
             let score = (editorial_score + sequence_bonus).min(1.0);
-            if score >= MIN_EDITORIAL_SCORE {
-                windows.push((score, start, end));
-            }
+            windows.push((score, start, end));
         }
     }
-    windows.sort_by(|a, b| {
-        b.0.total_cmp(&a.0)
-            .then_with(|| (b.2 - b.1).cmp(&(a.2 - a.1)))
-            .then_with(|| a.1.cmp(&b.1))
-    });
-    const MAX_SEGMENTS_PER_SCENE: usize = 3;
-    let mut selected: Vec<(f32, usize, usize)> = Vec::new();
-    for window in windows {
-        if selected.len() == MAX_SEGMENTS_PER_SCENE {
-            break;
-        }
-        let (_, start, end) = window;
-        if selected
-            .iter()
-            .any(|(_, prior_start, prior_end)| start <= *prior_end && *prior_start <= end)
-        {
-            continue;
-        }
-        selected.push(window);
-    }
-    selected.sort_by_key(|(_, start, end)| (*start, *end));
+    // Keep every complete, grounded window. Overlay selection belongs to
+    // PipelineGen; a BrainRust candidate cap would silently discard valid
+    // passages before the planner can compare them.
+    windows.sort_by_key(|(_, start, end)| (*start, *end));
 
-    selected
+    windows
         .into_iter()
         .enumerate()
         .filter_map(|(index, (score, start, end))| {

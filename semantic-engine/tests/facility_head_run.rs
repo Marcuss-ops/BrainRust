@@ -22,3 +22,37 @@ fn head_first_facility_does_not_absorb_earlier_capitalized_word() {
         "Thema was absorbed into a facility: {entities:?}"
     );
 }
+
+// Regression: a sentence-initial determiner was absorbed when the same
+// head-first facility had already been mentioned, producing "The Harbour
+// Stadium" and a query with the article. The name keeps its grounded span
+// without the determiner, and the fact-grounded query uses that name.
+#[test]
+fn head_first_facility_drops_a_leading_determiner() {
+    let text =
+        "They reviewed the renovation of the Harbour Stadium. The Harbour Stadium lies in Bristol.";
+    let value = manifest_value(vec![scene("en-harbour", text)]);
+    let scene = &value["scenes"][0];
+    let facilities: Vec<&str> = scene["entities"]
+        .as_array()
+        .expect("entities array")
+        .iter()
+        .filter(|entity| entity["type"] == "FACILITY")
+        .filter_map(|entity| entity["text"].as_str())
+        .collect();
+    assert!(
+        facilities.contains(&"Harbour Stadium"),
+        "facility name missing: {facilities:?}"
+    );
+    assert!(
+        !facilities.iter().any(|name| name.starts_with("The ")),
+        "determiner absorbed into the facility name: {facilities:?}"
+    );
+    let queries: Vec<&str> = scene["contextual_image_queries"]
+        .as_array()
+        .expect("queries array")
+        .iter()
+        .filter_map(|query| query["query"].as_str())
+        .collect();
+    assert_eq!(queries, vec!["Harbour Stadium Bristol"]);
+}

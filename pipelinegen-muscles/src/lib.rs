@@ -27,6 +27,7 @@ pub mod error;
 #[cfg(test)]
 mod golden;
 mod gpu;
+mod manifest_projection;
 pub mod overlay_fingerprint;
 pub mod preflight;
 mod probe;

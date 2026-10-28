@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 #[path = "transform_assemble.rs"]
 mod assemble;
+#[path = "transform_manifest.rs"]
+mod manifest;
 #[path = "transform_merge.rs"]
 mod merge;
 #[path = "transform_mux.rs"]
@@ -137,6 +139,8 @@ pub(crate) fn execute(request: Request, operation: Operation) -> Response {
         Operation::MergeInputs => merge::execute(request),
         Operation::MuxAudioCopy => mux::execute(request),
         Operation::AssembleCopy => assemble::execute(request),
+        Operation::ProjectOverlayManifest => manifest::execute_projection(request),
+        Operation::ExtractTimelineWindow => manifest::execute_window(request),
         Operation::Normalize
         | Operation::CutCopy
         | Operation::CutAndNormalize
