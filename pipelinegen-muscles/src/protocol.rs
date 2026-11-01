@@ -125,7 +125,7 @@ pub struct Request {
     pub font: Option<String>,
     pub effects: Option<Vec<RenderEffect>>,
     pub overlays: Option<Vec<RenderOverlay>>,
-    pub overlay_manifest: Option<OverlayManifest>,
+    pub overlay_manifest: Option<OverlayManifestWire>,
     /// Manifest window reference for `extract_timeline_window` — the
     /// `scene.clip.{timeline_item_id,in_us,out_us}` wire of the final worker
     /// handoff (OVERLAY-MANIFEST-CONTRACT.md §4): one entry of the manifest,
@@ -266,13 +266,18 @@ impl Request {
             Operation::ProjectOverlayManifest => {
                 require_source()?;
                 require_output()?;
-                if self.input_paths.as_ref().is_none_or(|paths| paths.len() != 1) {
+                let manifest = self
+                    .overlay_manifest
+                    .as_ref()
+                    .ok_or_else(|| MuscleError::generic("overlay_manifest is required"))?;
+                if self
+                    .input_paths
+                    .as_ref()
+                    .is_none_or(|paths| paths.len() != manifest.manifests().len())
+                {
                     return Err(MuscleError::generic(
-                        "exactly one artifact input is required",
+                        "one artifact input per manifest is required",
                     ));
-                }
-                if self.overlay_manifest.is_none() {
-                    return Err(MuscleError::generic("overlay_manifest is required"));
                 }
                 Ok(())
             }
@@ -283,9 +288,7 @@ impl Request {
                     return Err(MuscleError::generic("overlay_manifest is required"));
                 }
                 match self.timeline_window.as_ref() {
-                    None => {
-                        Err(MuscleError::generic("timeline_window is required"))
-                    }
+                    None => Err(MuscleError::generic("timeline_window is required")),
                     Some(window) => window.validate().map_err(MuscleError::generic),
                 }
             }
@@ -321,9 +324,7 @@ impl TimelineWindowRef {
             }
             (None, None) => {}
             _ => {
-                return Err(
-                    "timeline_window in_us/out_us must be set together".to_string(),
-                );
+                return Err("timeline_window in_us/out_us must be set together".to_string());
             }
         }
         Ok(())
@@ -366,7 +367,9 @@ pub const OVERLAY_MANIFEST_SCHEMA_V1: &str = "pipelinegen.overlay-manifest.v1";
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OverlayManifestAsset {
     pub asset_id: String,
+    #[serde(default)]
     pub drive_file_id: String,
+    #[serde(default)]
     pub url: String,
     pub sha256: String,
     pub size_bytes: i64,
@@ -409,6 +412,74 @@ pub struct OverlayManifestEntry {
     pub artifact_in_us: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_out_us: Option<i64>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
+pub enum OverlayManifestWire {
+    Set(OverlayManifestSet),
+    Single(OverlayManifest),
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct OverlayManifestSet {
+    pub schema_version: String,
+    pub manifests: Vec<OverlayManifest>,
+}
+
+impl OverlayManifestWire {
+    pub fn manifests(&self) -> Vec<&OverlayManifest> {
+        match self {
+            Self::Single(manifest) => vec![manifest],
+            Self::Set(set) => set.manifests.iter().collect(),
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if let Self::Set(set) = self {
+            if set.schema_version != "pipelinegen.overlay-manifest-set.v1"
+                || set.manifests.is_empty()
+            {
+                return Err("invalid or empty overlay manifest set".to_string());
+            }
+        }
+        let mut items = std::collections::HashSet::new();
+        let mut contents = std::collections::HashSet::new();
+        for manifest in self.manifests() {
+            manifest.validate()?;
+            if let Self::Set(_) = self {
+                let asset = manifest
+                    .asset
+                    .as_ref()
+                    .ok_or("multi-artifact manifest requires an asset")?;
+                if asset.asset_id.trim().is_empty()
+                    || asset.sha256.len() != 64
+                    || !asset.sha256.bytes().all(|b| b.is_ascii_hexdigit())
+                    || asset.size_bytes <= 0
+                    || asset.frame_count <= 0
+                    || asset.duration_ms <= 0
+                {
+                    return Err("multi-artifact manifest has invalid asset facts".to_string());
+                }
+                if manifest
+                    .timeline_sha256
+                    .as_deref()
+                    .is_none_or(|hash| !hash.eq_ignore_ascii_case(&asset.sha256))
+                {
+                    return Err("manifest timeline SHA-256 does not match asset".to_string());
+                }
+            }
+            for entry in &manifest.entries {
+                if matches!(self, Self::Set(_))
+                    && (!items.insert(&entry.item_id)
+                        || !contents.insert(entry.content_hash.to_ascii_lowercase()))
+                {
+                    return Err("duplicate item or content across overlay manifests".to_string());
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1079,6 +1150,40 @@ mod tests {
             asset: None,
             entries,
         }
+    }
+
+    #[test]
+    fn multi_artifact_set_requires_certification_and_unique_ownership() {
+        use super::{OverlayManifestAsset, OverlayManifestSet, OverlayManifestWire};
+        let hash = "a".repeat(64);
+        let mut first = manifest(vec![manifest_entry()]);
+        first.timeline_sha256 = Some(hash.clone());
+        first.asset = Some(OverlayManifestAsset {
+            asset_id: "one".into(),
+            drive_file_id: String::new(),
+            url: String::new(),
+            sha256: hash,
+            size_bytes: 1,
+            frame_count: 48,
+            duration_ms: 2000,
+        });
+        let mut second = first.clone();
+        second.entries[0].item_id = "item-02".into();
+        second.entries[0].content_hash = "b".repeat(64);
+        let mut wire = OverlayManifestWire::Set(OverlayManifestSet {
+            schema_version: "pipelinegen.overlay-manifest-set.v1".into(),
+            manifests: vec![first, second],
+        });
+        assert!(wire.validate().is_ok());
+        if let OverlayManifestWire::Set(set) = &mut wire {
+            set.manifests[1].entries[0].item_id = "item-01".into();
+        }
+        assert!(wire.validate().is_err());
+        if let OverlayManifestWire::Set(set) = &mut wire {
+            set.manifests[1].entries[0].item_id = "item-02".into();
+            set.manifests[1].asset = None;
+        }
+        assert!(wire.validate().is_err());
     }
 
     // Wire-parity gate with the Go producer (PipelineGen

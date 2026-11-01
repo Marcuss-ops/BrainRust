@@ -321,3 +321,59 @@ fn parallel_segments_concatenate_into_the_full_timeline() {
         );
     }
 }
+
+#[test]
+fn multi_manifest_projection_matches_single_artifact_projection() {
+    assert!(
+        ffmpeg_available(),
+        "ffmpeg is required for projection parity"
+    );
+    let dir = work_dir("multi-manifest-projection");
+    let fixture = make_fixture(&dir);
+    let digest = sha256(&fixture);
+    let size = fs::metadata(&fixture).unwrap().len();
+    let entry = |id: &str, start: i64, end: i64, hash: &str| {
+        json!({
+            "item_id": id, "track": 0, "in_us": start, "out_us": end,
+            "content_hash": hash.repeat(64)
+        })
+    };
+    let manifest = |entries: Value| {
+        json!({
+            "schema_version": "pipelinegen.overlay-manifest.v1", "plan_id": "plan",
+            "video_id": "video", "timeline_sha256": digest,
+            "asset": {"asset_id": "fixture", "sha256": digest, "size_bytes": size,
+                      "frame_count": 60, "duration_ms": 2000}, "entries": entries
+        })
+    };
+    let single = manifest(json!([
+        entry("a", 0, 500000, "a"),
+        entry("b", 1000000, 1500000, "b")
+    ]));
+    let set = json!({"schema_version": "pipelinegen.overlay-manifest-set.v1", "manifests": [
+        manifest(json!([entry("a", 0, 500000, "a")])),
+        manifest(json!([entry("b", 1000000, 1500000, "b")]))
+    ]});
+    let project = |wire: Value, inputs: Vec<String>, output: &Path| -> Result<(), String> {
+        render(
+            json!({"version":"mediaexec.v1", "operation":"project_overlay_manifest",
+            "source_path": fixture, "input_paths": inputs, "output_path": output,
+            "overlay_manifest": wire, "codec":"libx264", "preset":"ultrafast", "crf":18,
+            "width":WIDTH, "height":HEIGHT, "fps_num":FPS, "fps_den":1,
+            "keyframe_interval":15, "audio_codec":"aac", "audio_bitrate":"128k",
+            "sample_rate":48000, "channels":2 }),
+        )
+    };
+    let path = fixture.to_string_lossy().to_string();
+    let single_out = dir.join("single.mp4");
+    let multi_out = dir.join("multi.mp4");
+    project(single, vec![path.clone()], &single_out).unwrap();
+    project(set.clone(), vec![path.clone(), path.clone()], &multi_out).unwrap();
+    assert_eq!(frame_count(&single_out), 60);
+    assert_eq!(frame_count(&multi_out), 60);
+    assert_eq!(sha256(&single_out), sha256(&multi_out));
+    let mut tampered = set;
+    tampered["manifests"][1]["asset"]["sha256"] = json!("f".repeat(64));
+    tampered["manifests"][1]["timeline_sha256"] = json!("f".repeat(64));
+    assert!(project(tampered, vec![path.clone(), path], &dir.join("bad.mp4")).is_err());
+}

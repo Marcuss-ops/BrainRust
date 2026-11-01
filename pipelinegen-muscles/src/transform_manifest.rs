@@ -20,7 +20,7 @@
 //! master has any (overlay segments are silent; the final audio enters once
 //! at `mux_audio_copy`), and fail closed on any manifest inconsistency.
 
-use crate::artifact::{failed_response, part_path};
+use crate::artifact::{failed_response, part_path, sha256_file};
 use crate::encoder::append_video_options;
 use crate::manifest_projection::{
     merge_pieces, resolve_entry, resolve_sub_window, us_to_frame_ceil, us_to_frame_floor,
@@ -37,7 +37,7 @@ use std::path::Path;
 /// master with that entry's artifact window. `source_path` is the master,
 /// `input_paths[0]` is the certified overlay artifact.
 pub(super) fn execute_projection(request: Request) -> Response {
-    let (master, artifact, output) = match projection_inputs(&request) {
+    let (master, artifacts, output) = match projection_inputs(&request) {
         Ok(values) => values,
         Err(response) => return *response,
     };
@@ -57,35 +57,117 @@ pub(super) fn execute_projection(request: Request) -> Response {
         Ok(meta) => meta,
         Err(error) => return failed_response(Some(master), error),
     };
-    let artifact_meta = match probe_file(&ffprobe, &artifact) {
-        Ok(meta) => meta,
-        Err(error) => return failed_response(Some(artifact), error),
-    };
-    if let Err(error) = same_frame_grid(&master_meta, &artifact_meta) {
-        return failed_response(Some(master), error);
-    }
-    if !master_meta.has_video || !artifact_meta.has_video {
+    if !master_meta.has_video {
         return failed_response(
             Some(master),
-            "manifest projection requires a video master and a video artifact".to_string(),
+            "manifest projection requires a video master".to_string(),
         );
     }
     let (fps_num, fps_den) = (master_meta.fps_num, master_meta.fps_den);
     let master_frames = frame_count(&master_meta, fps_num, fps_den);
-    let artifact_frames = frame_count(&artifact_meta, fps_num, fps_den);
-
-    // §3: resolve every entry to frames, then merge into disjoint runs.
-    let mut pieces = Vec::with_capacity(manifest.entries.len());
-    for entry in &manifest.entries {
-        match resolve_entry(entry, fps_num, fps_den, artifact_frames, master_frames) {
-            Ok(piece) => pieces.push(piece),
+    let mut runs = Vec::new();
+    for (index, (manifest, artifact)) in
+        manifest.manifests().into_iter().zip(&artifacts).enumerate()
+    {
+        if let Some(asset) = manifest.asset.as_ref().filter(|_| {
+            matches!(
+                &request.overlay_manifest,
+                Some(crate::protocol::OverlayManifestWire::Set(_))
+            )
+        }) {
+            match fs::metadata(artifact) {
+                Ok(metadata) if metadata.len() == asset.size_bytes as u64 => {}
+                Ok(_) => {
+                    return failed_response(
+                        Some(artifact.clone()),
+                        "overlay artifact size mismatch".to_string(),
+                    )
+                }
+                Err(error) => return failed_response(Some(artifact.clone()), error.to_string()),
+            }
+            match sha256_file(artifact) {
+                Ok(actual) if actual.eq_ignore_ascii_case(&asset.sha256) => {}
+                Ok(_) => {
+                    return failed_response(
+                        Some(artifact.clone()),
+                        "overlay artifact SHA-256 mismatch".to_string(),
+                    )
+                }
+                Err(error) => return failed_response(Some(artifact.clone()), error.to_string()),
+            }
+        } else if matches!(
+            &request.overlay_manifest,
+            Some(crate::protocol::OverlayManifestWire::Set(_))
+        ) {
+            return failed_response(
+                Some(artifact.clone()),
+                "multi-artifact manifest requires certified asset".to_string(),
+            );
+        }
+        let meta = match probe_file(&ffprobe, artifact) {
+            Ok(meta) => meta,
+            Err(error) => return failed_response(Some(artifact.clone()), error),
+        };
+        if !meta.has_video {
+            return failed_response(
+                Some(artifact.clone()),
+                "manifest artifact has no video".to_string(),
+            );
+        }
+        if let Err(error) = same_frame_grid(&master_meta, &meta) {
+            return failed_response(Some(artifact.clone()), error);
+        }
+        if matches!(
+            &request.overlay_manifest,
+            Some(crate::protocol::OverlayManifestWire::Set(_))
+        ) {
+            let Some(asset) = manifest.asset.as_ref() else {
+                return failed_response(
+                    Some(artifact.clone()),
+                    "multi-artifact manifest requires certified asset".to_string(),
+                );
+            };
+            if frame_count(&meta, fps_num, fps_den) != asset.frame_count {
+                return failed_response(
+                    Some(artifact.clone()),
+                    "overlay artifact frame count mismatch".to_string(),
+                );
+            }
+        }
+        let mut pieces = Vec::new();
+        for entry in &manifest.entries {
+            if entry.placement.is_some() {
+                return failed_response(
+                    Some(artifact.clone()),
+                    "spatial placement is unsupported".to_string(),
+                );
+            }
+            match resolve_entry(
+                entry,
+                fps_num,
+                fps_den,
+                frame_count(&meta, fps_num, fps_den),
+                master_frames,
+            ) {
+                Ok(piece) => pieces.push(piece),
+                Err(error) => return failed_response(Some(master), error),
+            }
+        }
+        match merge_pieces(pieces) {
+            Ok(pieces) => runs.extend(pieces.into_iter().map(|piece| (index + 1, piece))),
             Err(error) => return failed_response(Some(master), error),
         }
     }
-    let runs = match merge_pieces(pieces) {
-        Ok(runs) => runs,
-        Err(error) => return failed_response(Some(master), error),
-    };
+    runs.sort_by_key(|(_, piece)| (piece.master_start, piece.master_end));
+    if runs
+        .windows(2)
+        .any(|pair| pair[1].1.master_start < pair[0].1.master_end)
+    {
+        return failed_response(
+            Some(master),
+            "overlapping manifest windows across artifacts".to_string(),
+        );
+    }
 
     // Whole-master coverage: master passthrough outside the runs, artifact
     // frames inside. Every segment keeps the master frame count, so a copied
@@ -94,7 +176,10 @@ pub(super) fn execute_projection(request: Request) -> Response {
     let part = part_path(&output);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-    command.args(["-i", &master, "-i", &artifact]);
+    command.args(["-i", &master]);
+    for artifact in &artifacts {
+        command.args(["-i", artifact]);
+    }
     let filter = match projection_filter(&segments, &profile) {
         Ok(filter) => filter,
         Err(error) => return failed_response(Some(master), error),
@@ -136,10 +221,7 @@ pub(super) fn execute_window(request: Request) -> Response {
     let output = match request.output_path.as_deref() {
         Some(path) if !path.is_empty() => path.to_string(),
         _ => {
-            return failed_response(
-                Some(artifact),
-                "output_path is required".to_string(),
-            );
+            return failed_response(Some(artifact), "output_path is required".to_string());
         }
     };
     if let Some(parent) = Path::new(&output).parent() {
@@ -159,11 +241,18 @@ pub(super) fn execute_window(request: Request) -> Response {
             return failed_response(Some(artifact), "timeline_window is required".to_string());
         }
     };
-    let entry = match manifest
-        .entries
-        .iter()
-        .find(|entry| entry.item_id == window.timeline_item_id)
-    {
+    let owner = manifest.manifests().into_iter().find(|manifest| {
+        manifest
+            .entries
+            .iter()
+            .any(|entry| entry.item_id == window.timeline_item_id)
+    });
+    let entry = match owner.and_then(|manifest| {
+        manifest
+            .entries
+            .iter()
+            .find(|entry| entry.item_id == window.timeline_item_id)
+    }) {
         Some(entry) => entry,
         None => {
             return failed_response(
@@ -175,13 +264,38 @@ pub(super) fn execute_window(request: Request) -> Response {
             );
         }
     };
-    let (in_us, out_us) = match (window.in_us, window.out_us) {
-        (Some(in_us), Some(out_us)) => {
-            match resolve_sub_window(entry, in_us, out_us) {
-                Ok(span) => span,
-                Err(error) => return failed_response(Some(artifact), error),
+    if matches!(
+        &request.overlay_manifest,
+        Some(crate::protocol::OverlayManifestWire::Set(_))
+    ) {
+        if let Some(asset) = owner.and_then(|manifest| manifest.asset.as_ref()) {
+            match fs::metadata(&artifact) {
+                Ok(metadata) if metadata.len() == asset.size_bytes as u64 => {}
+                Ok(_) => {
+                    return failed_response(
+                        Some(artifact),
+                        "timeline artifact size mismatch".to_string(),
+                    )
+                }
+                Err(error) => return failed_response(Some(artifact), error.to_string()),
+            }
+            match sha256_file(&artifact) {
+                Ok(actual) if actual.eq_ignore_ascii_case(&asset.sha256) => {}
+                Ok(_) => {
+                    return failed_response(
+                        Some(artifact),
+                        "timeline artifact SHA-256 mismatch".to_string(),
+                    )
+                }
+                Err(error) => return failed_response(Some(artifact), error.to_string()),
             }
         }
+    }
+    let (in_us, out_us) = match (window.in_us, window.out_us) {
+        (Some(in_us), Some(out_us)) => match resolve_sub_window(entry, in_us, out_us) {
+            Ok(span) => span,
+            Err(error) => return failed_response(Some(artifact), error),
+        },
         _ => (
             entry.artifact_in_us.unwrap_or(entry.in_us),
             entry.artifact_out_us.unwrap_or(entry.out_us),
@@ -244,7 +358,7 @@ pub(super) fn execute_window(request: Request) -> Response {
 
 /// Shared prologue for the projection: master + exactly one artifact input,
 /// output required, output directory created.
-fn projection_inputs(request: &Request) -> Result<(String, String, String), Box<Response>> {
+fn projection_inputs(request: &Request) -> Result<(String, Vec<String>, String), Box<Response>> {
     let master = match request.source_path.as_deref() {
         Some(path) if !path.is_empty() && Path::new(path).is_file() => path.to_string(),
         Some(path) => {
@@ -256,18 +370,19 @@ fn projection_inputs(request: &Request) -> Result<(String, String, String), Box<
         None => return Err(Box::new(failed_response(None, "source_path is required"))),
     };
     let inputs = request.input_paths.clone().unwrap_or_default();
-    if inputs.len() != 1 {
+    if inputs.is_empty() {
         return Err(Box::new(failed_response(
             Some(master),
-            "exactly one artifact input is required",
+            "artifact inputs are required",
         )));
     }
-    let artifact = inputs[0].clone();
-    if !Path::new(&artifact).is_file() {
-        return Err(Box::new(failed_response(
-            Some(master),
-            format!("source file is not readable: {artifact}"),
-        )));
+    for artifact in &inputs {
+        if !Path::new(artifact).is_file() {
+            return Err(Box::new(failed_response(
+                Some(master),
+                format!("source file is not readable: {artifact}"),
+            )));
+        }
     }
     let output = match request.output_path.as_deref() {
         Some(path) if !path.is_empty() => path.to_string(),
@@ -286,7 +401,7 @@ fn projection_inputs(request: &Request) -> Result<(String, String, String), Box<
             )));
         }
     }
-    Ok((master, artifact, output))
+    Ok((master, inputs, output))
 }
 
 fn same_frame_grid(master: &MediaMetadata, artifact: &MediaMetadata) -> Result<(), String> {
@@ -317,10 +432,10 @@ struct Segment {
 /// Walk the merged runs over `[0, master_frames)`, alternating master
 /// passthrough and artifact replacement. Runs are disjoint and sorted
 /// (merge_pieces), so the coverage is complete and non-overlapping.
-fn coverage_segments(runs: &[ProjectionPiece], master_frames: i64) -> Vec<Segment> {
+fn coverage_segments(runs: &[(usize, ProjectionPiece)], master_frames: i64) -> Vec<Segment> {
     let mut segments = Vec::new();
     let mut cursor = 0;
-    for run in runs {
+    for (input, run) in runs {
         if run.master_start > cursor {
             segments.push(Segment {
                 input: 0,
@@ -329,7 +444,7 @@ fn coverage_segments(runs: &[ProjectionPiece], master_frames: i64) -> Vec<Segmen
             });
         }
         segments.push(Segment {
-            input: 1,
+            input: *input,
             start_frame: run.artifact_start,
             end_frame: run.artifact_end(),
         });
