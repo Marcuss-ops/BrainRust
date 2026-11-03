@@ -32,8 +32,8 @@ use std::thread;
 /// Before concat -c copy, the AssemblyCompatibilityGate:
 ///   1. Probes every input clip concurrently (one ffprobe per file).
 ///   2. Verifies every probe matches the per-input CopyCertification.
-///   3. Enforces cross-input identity: all contract_ids identical, all
-///      stream_signature_sha256 values identical.
+///   3. Enforces cross-input identity: all contract_ids identical and all
+///      video avcC (SPS/PPS) hashes identical.
 ///   4. Fails hard with ASSEMBLY_INPUT_CONTRACT_MISMATCH on any difference.
 ///      There is deliberately NO re-encode fallback — the assembler is copy-only.
 pub(super) fn execute(request: Request) -> Response {
@@ -209,10 +209,8 @@ fn probe_all_inputs_concurrent(
 /// Gate order:
 ///   1. Per-input contract verification (each input matches its certification).
 ///   2. Cross-input contract_id identity (all inputs share the same contract).
-///   3. Cross-input stream_signature_sha256 identity (all signatures match,
-///      when present — legacy certs without signatures still pass if contract
-///      IDs match and per-input verification passes).
-///   4. Exact media-fact identity: every probe dimension compared rationally
+///   3. Exact media-fact identity, including the video avcC (SPS/PPS) hash.
+///   4. Every probe dimension compared rationally
 ///      (no float epsilon on FPS, SAR, timebase).
 ///
 /// Fail-closed: ANY mismatch → ASSEMBLY_INPUT_CONTRACT_MISMATCH.
@@ -258,17 +256,7 @@ fn assembly_compatibility_gate(
         }
     }
 
-    // 3. Cross-input stream_signature_sha256 identity.
-    if let Some(ref sig) = cert.stream_signature_sha256 {
-        if !sig.is_empty() {
-            // When signatures are present, all inputs must share the same one.
-            // We already verified each input matches its cert; now check the
-            // signatures commute: all certs must carry identical signature.
-            // (The Go-side gate already validated this before dispatching.)
-        }
-    }
-
-    // 4. Exact media-fact identity between all inputs.
+    // 3. Exact media-fact identity between all inputs.
     for (i, probe) in probes.iter().enumerate().skip(1) {
         if probe.has_video != first.has_video {
             return Err(MuscleError::generic(format!(
@@ -293,6 +281,12 @@ fn assembly_compatibility_gate(
             return Err(MuscleError::generic(format!(
                 "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} video_codec {:?} != {:?}",
                 i, probe.video_codec, first.video_codec
+            )));
+        }
+        if probe.video_extradata_sha256 != first.video_extradata_sha256 {
+            return Err(MuscleError::generic(format!(
+                "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} video extradata {:?} != {:?}",
+                i, probe.video_extradata_sha256, first.video_extradata_sha256
             )));
         }
         if probe.pixel_format != first.pixel_format {
@@ -371,6 +365,7 @@ mod tests {
             channel_layout: Some("stereo".to_string()),
             audio_bitrate: Some(192000),
             audio_extradata_sha256: None,
+            video_extradata_sha256: Some(TEST_EXTRADATA.to_string()),
             start_pts: Some(0),
             has_video: true,
             has_audio: true,
@@ -397,6 +392,8 @@ mod tests {
         }
     }
 
+    const TEST_EXTRADATA: &str = "7201ce80a2b2b32a0c1a89501851099f267c1767d59ff799db744f72032aae5a";
+
     fn canonical_cert() -> CopyCertification {
         CopyCertification {
             copy_eligible: true,
@@ -410,10 +407,7 @@ mod tests {
             closed_gop: Some(true),
             first_frame_keyframe: Some(true),
             contract_id: Some(VELOX_ASSEMBLY_READY_V1.to_string()),
-            stream_signature_sha256: Some(
-                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
-            ),
-            video_extradata_sha256: None,
+            video_extradata_sha256: Some(TEST_EXTRADATA.to_string()),
             audio_extradata_sha256: None,
         }
     }
@@ -464,6 +458,17 @@ mod tests {
         let err = assembly_compatibility_gate(&cert, &probes).unwrap_err();
         assert!(err.contains("ASSEMBLY_INPUT_CONTRACT_MISMATCH"));
         assert!(err.contains("geometry") && err.contains("1280x720"));
+    }
+
+    #[test]
+    fn gate_extradata_mismatch_fails() {
+        let cert = canonical_cert();
+        let mut bad = canonical_probe();
+        bad.video_extradata_sha256 = Some("00".repeat(32));
+        let probes = vec![canonical_probe(), bad];
+        let err = assembly_compatibility_gate(&cert, &probes).unwrap_err();
+        assert!(err.contains("ASSEMBLY_INPUT_CONTRACT_MISMATCH"));
+        assert!(err.contains("extradata"));
     }
 
     #[test]

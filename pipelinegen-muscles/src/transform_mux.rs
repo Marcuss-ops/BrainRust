@@ -149,6 +149,8 @@ pub(super) fn execute(request: Request) -> Response {
         "copy",
         "-c:a",
         "copy",
+        "-video_track_timescale",
+        "90000",
         "-movflags",
         "+faststart",
         &part,

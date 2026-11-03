@@ -104,6 +104,7 @@ pub(crate) fn validate_output(
         "json",
         "-show_format",
         "-show_streams",
+        "-show_data",
         path,
     ]);
     let output = command
@@ -205,6 +206,35 @@ fn format_level(level: i32) -> String {
     }
 }
 
+// hash_ffprobe_extradata hashes the DECODED avcC bytes, not ffprobe's ASCII
+// hex dump. ffprobe prints the dump as offset-prefixed lines with a printable
+// column; hashing the text would produce a different identity from the Go
+// producer and the assembler would reject every correct input.
+fn hash_ffprobe_extradata(dump: &str) -> Option<String> {
+    let mut raw = Vec::new();
+    for line in dump.lines() {
+        let Some((_, payload)) = line.split_once(':') else {
+            continue;
+        };
+        let hex_part = payload.trim_start().split("  ").next().unwrap_or("");
+        for word in hex_part.split_whitespace() {
+            if word.len() % 2 != 0 {
+                return None;
+            }
+            let mut index = 0;
+            while index < word.len() {
+                let byte = u8::from_str_radix(&word[index..index + 2], 16).ok()?;
+                raw.push(byte);
+                index += 2;
+            }
+        }
+    }
+    if raw.is_empty() {
+        return None;
+    }
+    hash_hex(&raw).ok()
+}
+
 fn hash_hex(bytes: &[u8]) -> Result<String, MuscleError> {
     let mut command = Command::new("sha256sum");
     let output = command
@@ -274,6 +304,7 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Mus
         "json",
         "-show_format",
         "-show_streams",
+        "-show_data",
         path,
     ]);
     let output = command
@@ -374,7 +405,7 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Mus
         closed_gop: video.and_then(|stream| stream.closed_captions),
         video_extradata_sha256: video
             .and_then(|stream| stream.extradata.as_deref())
-            .and_then(|value| hash_hex(value.as_bytes()).ok()),
+            .and_then(hash_ffprobe_extradata),
         format_name: probe.format.format_name.clone(),
         stream_count,
         video_stream_count,
@@ -429,4 +460,26 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Mus
         encode_ms: None,
         audio_mux_ms: None,
     })
+}
+
+#[cfg(test)]
+mod extradata_tests {
+    use super::hash_ffprobe_extradata;
+
+    // ffprobe prints avcC as an offset-prefixed hex dump with a printable
+    // column. The identity must be SHA-256 of the decoded bytes, exactly as
+    // the Go producer and the RenderingGen profiler compute it.
+    #[test]
+    fn hashes_decoded_avcc_bytes() {
+        let dump = "\n00000000: 0164 0028  .d.(\n";
+        assert_eq!(
+            hash_ffprobe_extradata(dump).as_deref(),
+            Some("fb65b97698978545528e2d21234bc971d759ed4602b0af9b14aa89492dd2c096")
+        );
+    }
+
+    #[test]
+    fn rejects_missing_dump() {
+        assert!(hash_ffprobe_extradata("").is_none());
+    }
 }

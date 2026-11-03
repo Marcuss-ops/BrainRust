@@ -755,7 +755,7 @@ pub struct CutItem {
 ///
 /// Assembly-ready gate fields (added Wave 5, Aug 2026):
 ///   - contract_id: MUST be "VELOX_ASSEMBLY_READY_V1"
-///   - stream_signature_sha256: all inputs in a batch MUST share identical signature
+///   - video_extradata_sha256: all inputs in a batch MUST share the exact avcC identity
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct CopyCertification {
     pub copy_eligible: bool,
@@ -773,10 +773,6 @@ pub struct CopyCertification {
     /// every cert that reaches execution carries the canonical identity.
     #[serde(default)]
     pub contract_id: Option<String>,
-    /// Stream signature SHA-256 fingerprint (canonical JSON of all video+audio+layout facts).
-    /// Empty on legacy certifications; gate enforces it when present on all inputs.
-    #[serde(default)]
-    pub stream_signature_sha256: Option<String>,
     #[serde(default)]
     pub video_extradata_sha256: Option<String>,
     #[serde(default)]
@@ -809,6 +805,17 @@ impl CopyCertification {
                 "fps_num/fps_den are required",
             ));
         }
+        if self
+            .video_extradata_sha256
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .is_empty()
+        {
+            return Err(MuscleError::certification_required(
+                "video_extradata_sha256 is required for every copy certification",
+            ));
+        }
         if self.contract_id.as_deref() == Some(VELOX_ASSEMBLY_READY_V2) {
             if self.width != Some(1920) || self.height != Some(1080) {
                 return Err(MuscleError::output_contract_mismatch(
@@ -828,18 +835,13 @@ impl CopyCertification {
                 ));
             }
             if self
-                .video_extradata_sha256
+                .audio_extradata_sha256
                 .as_deref()
                 .unwrap_or("")
                 .is_empty()
-                || self
-                    .audio_extradata_sha256
-                    .as_deref()
-                    .unwrap_or("")
-                    .is_empty()
             {
                 return Err(MuscleError::certification_required(
-                    "V2 requires audio/video extradata hashes",
+                    "V2 requires an audio extradata hash",
                 ));
             }
         }
@@ -882,6 +884,12 @@ impl CopyCertification {
             return Err(MuscleError::copy_certification_violation(format!(
                 "fps {}/{} != certified {}/{}",
                 metadata.fps_num, metadata.fps_den, expected_num, expected_den
+            )));
+        }
+        if metadata.video_extradata_sha256.as_deref() != self.video_extradata_sha256.as_deref() {
+            return Err(MuscleError::copy_certification_violation(format!(
+                "video extradata {:?} != certified {:?}",
+                metadata.video_extradata_sha256, self.video_extradata_sha256
             )));
         }
         if self.contract_id.as_deref() == Some(VELOX_ASSEMBLY_READY_V2) {
@@ -927,11 +935,11 @@ impl CopyCertification {
             {
                 return Err(MuscleError::output_contract_mismatch("V2 audio properties"));
             }
-            if metadata.video_extradata_sha256.as_deref() != self.video_extradata_sha256.as_deref()
-                || metadata.audio_extradata_sha256.as_deref()
-                    != self.audio_extradata_sha256.as_deref()
+            if metadata.audio_extradata_sha256.as_deref() != self.audio_extradata_sha256.as_deref()
             {
-                return Err(MuscleError::output_contract_mismatch("extradata hash"));
+                return Err(MuscleError::output_contract_mismatch(
+                    "V2 audio extradata hash",
+                ));
             }
         }
         if !copy_codec_matches(
@@ -965,6 +973,8 @@ mod tests {
     use crate::error::ErrorCode;
     use crate::protocol::MediaMetadata;
 
+    const TEST_EXTRADATA: &str = "7201ce80a2b2b32a0c1a89501851099f267c1767d59ff799db744f72032aae5a";
+
     fn certified() -> CopyCertification {
         CopyCertification {
             copy_eligible: true,
@@ -978,8 +988,7 @@ mod tests {
             closed_gop: Some(true),
             first_frame_keyframe: Some(true),
             contract_id: None,
-            stream_signature_sha256: None,
-            video_extradata_sha256: None,
+            video_extradata_sha256: Some(TEST_EXTRADATA.to_string()),
             audio_extradata_sha256: None,
         }
     }
@@ -1006,6 +1015,7 @@ mod tests {
             start_pts: None,
             has_video: true,
             has_audio: false,
+            video_extradata_sha256: Some(TEST_EXTRADATA.to_string()),
             mix_ms: None,
             aac_encode_ms: None,
             probe_ms: None,
@@ -1072,6 +1082,10 @@ mod tests {
                 first_frame_keyframe: None,
                 ..certified()
             },
+            CopyCertification {
+                video_extradata_sha256: None,
+                ..certified()
+            },
         ] {
             assert!(cert.validate().is_err(), "expected certification to fail");
         }
@@ -1096,6 +1110,14 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("fps"));
+
+        let mut wrong_extradata = metadata();
+        wrong_extradata.video_extradata_sha256 = Some("00".repeat(32));
+        assert!(cert
+            .verify_metadata(&wrong_extradata)
+            .unwrap_err()
+            .to_string()
+            .contains("extradata"));
 
         let mut wrong_codec = metadata();
         wrong_codec.video_codec = Some("hevc".to_string());
