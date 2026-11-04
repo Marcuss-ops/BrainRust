@@ -90,21 +90,30 @@ pub(super) fn opens_facility_name(text: &str) -> bool {
 /// legal pack's, so a new court is a data entry, never a code branch.
 pub(super) fn institution_cue_kind(text: &str, language: &str) -> Option<String> {
     let pack = semantic_core::legal_packs::get(language)?;
-    // The cue head is the first *substantive* word: a leading article or
-    // particle ("De Rechtbank") is not the institution's head. The POS
-    // tagger may promote such a word to PROPN inside a name context, so the
-    // skip cannot rely on the tag; the curated function inventory decides.
-    let head = text
+    // The cue head is the first or last *substantive* word: a leading
+    // article or particle ("De Rechtbank") is not the institution's head,
+    // and Italian inverts the same office ("Suprema Corte" / "Corte
+    // Suprema"). The POS tagger may promote such a word to PROPN inside a
+    // name context, so the skip cannot rely on the tag; the curated
+    // function inventory decides.
+    let words: Vec<String> = text
         .split_whitespace()
-        .find(|word| !super::stopwords::is_stop_word(word, language))?
-        .to_lowercase();
+        .filter(|word| !super::stopwords::is_stop_word(word, language))
+        .map(|word| {
+            word.trim_matches(|ch: char| !ch.is_alphanumeric())
+                .to_lowercase()
+        })
+        .filter(|word| !word.is_empty())
+        .collect();
+    let first = words.first()?;
+    let last = words.last()?;
     pack.entity_cues
         .iter()
         .find(|cue| {
-            cue.cue
-                .split_whitespace()
-                .next()
-                .is_some_and(|word| word.to_lowercase() == head)
+            cue.cue.split_whitespace().next().is_some_and(|word| {
+                let head = word.to_lowercase();
+                head == *first || head == *last
+            })
         })
         .map(|cue| cue.kind.clone())
 }
@@ -263,6 +272,18 @@ fn classify_type(
         }
         return "VISUAL_CONCEPT".to_string();
     }
+    // An acronym-led compound is evidence or an office, not a person: "DNA
+    // di Chiara" is a biological trace and "GUP di Pavia" is a court
+    // office. The acronym carries no name evidence, so the generic
+    // title-case fallback below must not promote the phrase.
+    let opens_with_acronym = text
+        .split_whitespace()
+        .next()
+        .map(|word| {
+            let letters: Vec<char> = word.chars().filter(|ch| ch.is_alphabetic()).collect();
+            (2..=5).contains(&letters.len()) && letters.iter().all(|ch| ch.is_uppercase())
+        })
+        .unwrap_or(false);
     // Capitalization is name evidence only where the orthography makes it
     // meaningful: not in Han/Arabic/Thai (no case), and not in German (every
     // noun is capitalized, so "Die Neue Halle" is not a person).
@@ -292,6 +313,7 @@ fn classify_type(
     }
     if case_is_evidence
         && name_evidence
+        && !opens_with_acronym
         && title_tokens >= 2
         && text.split_whitespace().count() >= 2
     {
@@ -304,6 +326,7 @@ fn classify_type(
     // evidence of PERSON and the surface stays a visual concept.
     if lexicon.language_profiles.capitalized_nouns(language)
         && proper_noun
+        && !opens_with_acronym
         && text.split_whitespace().count() >= 2
     {
         return "PERSON".to_string();
@@ -660,6 +683,27 @@ mod tests {
             "ORG"
         );
         assert_eq!(classify_type("Procura", true, false, true, "it"), "ORG");
+    }
+
+    #[test]
+    fn inverted_institutions_are_orgs_and_acronym_compounds_are_not_people() {
+        // Italian inverts the office: "Suprema Corte" is the same institution
+        // as "Corte Suprema" and must not fall through to the person rule.
+        assert_eq!(
+            classify_type("Suprema Corte", true, false, true, "it"),
+            "ORG"
+        );
+        // An acronym-led compound is evidence, not a name: "DNA di Chiara"
+        // must not become a PERSON.
+        assert_eq!(
+            classify_type("DNA di Chiara", true, false, true, "it"),
+            "VISUAL_CONCEPT"
+        );
+        // A real name keeps its person type.
+        assert_eq!(
+            classify_type("Alberto Stasi", true, false, true, "it"),
+            "PERSON"
+        );
     }
 
     #[test]

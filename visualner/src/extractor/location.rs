@@ -164,27 +164,13 @@ pub(super) fn is_place_name(token: &Token, surface: &str, language: &str, cased:
     !is_institution_name(surface, language)
 }
 
-/// True when the surface opens with the head word of a curated institution or
-/// role cue ("Corte di Cassazione", "Procura di ", "Cassazione", "GUP"). The
-/// vocabulary is the legal pack's, so a new court is a data entry.
+/// True when the surface names a curated institution or role ("Corte di
+/// Cassazione", "Suprema Corte", "Procura di Pavia", "GUP"). One owner:
+/// the institution-cue classifier in `values`, so a new court is a data
+/// entry and a surface cannot be an office for one caller and a person for
+/// another.
 fn is_institution_name(text: &str, language: &str) -> bool {
-    let Some(pack) = semantic_core::legal_packs::get(language) else {
-        return false;
-    };
-    let head = text
-        .split_whitespace()
-        .next()
-        .unwrap_or(text)
-        .to_lowercase();
-    if head.is_empty() {
-        return false;
-    }
-    pack.entity_cues.iter().any(|cue| {
-        cue.cue
-            .split_whitespace()
-            .next()
-            .is_some_and(|word| word.to_lowercase() == head)
-    })
+    super::values::institution_cue_kind(text, language).is_some()
 }
 
 /// Short all-caps surfaces are acronyms (DNA, GUP, ANSA), never place names

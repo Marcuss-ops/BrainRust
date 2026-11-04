@@ -94,9 +94,10 @@ fn institutions_are_orgs_and_never_places_or_people() {
     // legal cues decide the kind, and a common noun promoted by its position
     // ("Udienza Preliminare") is not a person either.
     let source = "In Cassazione si discute il ricorso. La Procura ha aperto un \
-                  fascicolo. Davanti alla Corte Suprema si discute ancora. Il \
-                  Giudice dell'Udienza Preliminare ha deciso, e la città di Pavia \
-                  resta il luogo del fatto.";
+                  fascicolo. Davanti alla Corte Suprema si discute ancora. La \
+                  Suprema Corte ha annullato la decisione. Il Giudice \
+                  dell'Udienza Preliminare ha deciso, e la città di Pavia resta \
+                  il luogo del fatto.";
     let entities = extract(
         source,
         &ExtractOptions {
@@ -106,7 +107,7 @@ fn institutions_are_orgs_and_never_places_or_people() {
     )
     .unwrap();
     let find = |name: &str| entities.iter().find(|entity| entity.text == name);
-    for office in ["Cassazione", "Procura", "Corte Suprema"] {
+    for office in ["Cassazione", "Procura", "Corte Suprema", "Suprema Corte"] {
         let entity = find(office).unwrap_or_else(|| panic!("{office} missing: {entities:?}"));
         assert_eq!(entity.r#type, "ORG", "{office} must be an organization");
     }
@@ -114,6 +115,7 @@ fn institutions_are_orgs_and_never_places_or_people() {
         "Cassazione",
         "Procura",
         "Corte Suprema",
+        "Suprema Corte",
         "Udienza Preliminare",
     ] {
         assert!(
@@ -132,6 +134,26 @@ fn institutions_are_orgs_and_never_places_or_people() {
         find("Pavia").map(|entity| entity.r#type.as_str()),
         Some("LOCATION"),
         "a real place after the same kind of cue stays a place: {entities:?}"
+    );
+}
+
+#[test]
+fn acronym_compounds_are_not_people() {
+    // "DNA di Chiara" is a trace mentioned in the text, not a person: the
+    // acronym opens the surface and carries no name evidence.
+    let entities = extract(
+        "Il DNA di Chiara è stato analizzato durante le indagini.",
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 20,
+        },
+    )
+    .unwrap();
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| entity.r#type == "PERSON" && entity.text.contains("DNA")),
+        "an acronym compound must not be a person: {entities:?}"
     );
 }
 
