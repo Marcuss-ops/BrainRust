@@ -352,6 +352,7 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Mus
         .map(parse_frame_rate_rational)
         .unwrap_or((0, 0));
     Ok(MediaMetadata {
+        audio_edits: Vec::new(),
         duration_sec,
         bitrate: probe
             .format

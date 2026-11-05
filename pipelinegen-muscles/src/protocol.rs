@@ -643,6 +643,8 @@ pub struct MediaMetadata {
     pub video_stream_count: u32,
     #[serde(default)]
     pub audio_stream_count: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio_edits: Vec<AudioEditMetadata>,
     #[serde(default)]
     pub fps_num: u32,
     #[serde(default)]
@@ -727,6 +729,14 @@ pub struct MediaMetadata {
     pub encode_ms: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio_mux_ms: Option<i64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AudioEditMetadata {
+    pub source_start_us: i64,
+    pub source_end_us: i64,
+    pub output_start_us: i64,
+    pub output_end_us: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
