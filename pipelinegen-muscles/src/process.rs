@@ -168,6 +168,15 @@ impl ProcessCommand {
         self.runner
             .run_with_handler(&self.program, &self.args, on_line)
     }
+
+    /// Hands the built argv to a raw `Command` for callers that must `spawn`
+    /// and supervise the child themselves (the FIFO audio path: encoder and
+    /// producers have to run concurrently, so `output()` cannot be used).
+    /// The process-group contract is preserved, so the runner's timeout tree
+    /// kill still reaches this child.
+    pub(crate) fn into_command(self) -> std::process::Command {
+        process_command(&self.program, &self.args)
+    }
 }
 
 pub(crate) struct FFmpegRunner {

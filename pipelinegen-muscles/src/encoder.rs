@@ -81,11 +81,13 @@ fn build_video_args(
         "-vsync".to_string(),
         "cfr".to_string(),
         // Assembly-ready H.264 contract: explicit profile/level, no B
-        // frames, closed GOP, and an IDR keyframe at PTS 0.
+        // frames, closed GOP, and an IDR keyframe at PTS 0. Level 4.0 is the
+        // level_idc the certified avcC carries; leaving it to a higher level
+        // changes the SPS while every nominal fact stays equal.
         "-profile:v".to_string(),
         "high".to_string(),
         "-level:v".to_string(),
-        "4.1".to_string(),
+        "4.0".to_string(),
         "-bf".to_string(),
         "0".to_string(),
         "-flags".to_string(),
@@ -110,6 +112,27 @@ fn build_video_args(
         args.extend(["-crf".to_string(), policy.crf.to_string()]);
     }
     args.extend(["-g".to_string(), gop.to_string()]);
+    args.extend([
+        // The certified avcC is a libx264 High 4.0 SPS/PPS: a fixed closed-GOP
+        // cadence (no scene-cut keyframes), one reference frame and the bt709
+        // VUI. Leaving any of these to the preset changes the SPS/PPS while
+        // codec, profile, level and geometry stay equal — the exact mismatch
+        // that makes `concat -c copy` mix parameter sets across segments.
+        "-keyint_min".to_string(),
+        gop.to_string(),
+        "-sc_threshold".to_string(),
+        "0".to_string(),
+        "-refs".to_string(),
+        "1".to_string(),
+        "-color_primaries".to_string(),
+        "bt709".to_string(),
+        "-color_trc".to_string(),
+        "bt709".to_string(),
+        "-colorspace".to_string(),
+        "bt709".to_string(),
+        "-color_range".to_string(),
+        "tv".to_string(),
+    ]);
     Ok(args)
 }
 
@@ -212,13 +235,21 @@ mod tests {
         assert!(pair(&args, "-vsync", "cfr"));
         assert!(pair(&args, "-g", "48"));
         assert!(pair(&args, "-profile:v", "high"));
-        assert!(pair(&args, "-level:v", "4.1"));
+        assert!(pair(&args, "-level:v", "4.0"));
         assert!(pair(&args, "-bf", "0"));
         assert!(pair(&args, "-flags", "+cgop"));
         assert!(pair(&args, "-force_key_frames", "0"));
         assert!(pair(&args, "-r", "24/1"));
         assert!(pair(&args, "-map_metadata", "-1"));
         assert!(pair(&args, "-map_chapters", "-1"));
+        // The SPS/PPS identity: fixed cadence, one reference, bt709 VUI.
+        assert!(pair(&args, "-keyint_min", "48"));
+        assert!(pair(&args, "-sc_threshold", "0"));
+        assert!(pair(&args, "-refs", "1"));
+        assert!(pair(&args, "-color_primaries", "bt709"));
+        assert!(pair(&args, "-color_trc", "bt709"));
+        assert!(pair(&args, "-colorspace", "bt709"));
+        assert!(pair(&args, "-color_range", "tv"));
         assert!(!args.iter().any(|arg| arg == "-rc" || arg == "-cq"));
     }
 
@@ -238,11 +269,14 @@ mod tests {
         assert!(pair(&args, "-cq", "23"));
         assert!(pair(&args, "-g", "60"));
         assert!(pair(&args, "-profile:v", "high"));
-        assert!(pair(&args, "-level:v", "4.1"));
+        assert!(pair(&args, "-level:v", "4.0"));
         assert!(pair(&args, "-bf", "0"));
         assert!(pair(&args, "-flags", "+cgop"));
         assert!(pair(&args, "-force_key_frames", "0"));
         assert!(pair(&args, "-r", "24/1"));
+        assert!(pair(&args, "-keyint_min", "60"));
+        assert!(pair(&args, "-sc_threshold", "0"));
+        assert!(pair(&args, "-refs", "1"));
         assert!(!args.iter().any(|arg| arg == "-crf"));
     }
 

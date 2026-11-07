@@ -185,8 +185,14 @@ fn cut_one(
         .args(["-i", source])
         .args(["-t", &duration.to_string()])
         .args(["-map", "0:v:0?"]);
+    // A stock clip is a packet-copy input of the assembly: its SAR must be
+    // 1:1 like every other fragment, even when the source pixels are already
+    // on the delivery grid. Non-square source pixels otherwise survive the
+    // cut and the assembly gate rejects the clip after it was published.
     if !gpu_cut {
-        command.args(["-vf", &format!("scale={}:{:}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{}", profile.width, profile.height, profile.width, profile.height, profile.fps_num, profile.fps_den)]);
+        command.args(["-vf", &format!("scale={}:{:}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{},setsar=1", profile.width, profile.height, profile.width, profile.height, profile.fps_num, profile.fps_den)]);
+    } else {
+        command.args(["-vf", "setsar=1"]);
     }
     if !no_audio {
         command.args(["-map", "0:a:0?"]);

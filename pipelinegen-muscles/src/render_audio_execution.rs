@@ -44,7 +44,7 @@ fn source_normalize(probe: &SourceProbe) -> &'static str {
 //
 //   chains (one per compiled event/layer) ──round-robin──▶ stem 1..K
 //   each stem: its own ffmpeg (event chains + silence bed + amix + pad)
-//              → lossless float PCM (pcm_f32le, no requantization)
+//              → raw float PCM (f32le) streamed into a FIFO
 //   final:     amix(stems) + pad/trim + alimiter → AAC-LC master (ONE encode)
 //
 // Why this shape:
@@ -69,7 +69,7 @@ fn source_normalize(probe: &SourceProbe) -> &'static str {
 // frame-aligned exactly as before.
 //
 // K defaults to 4 (measured optimum on the 24-core bench host: more stems
-// add final-pass I/O without cutting the encode floor) and is clamped to
+// add FIFO streams without cutting the encode floor) and is clamped to
 // the chain count; PIPELINE_MUSCLES_AUDIO_STEMS overrides it per host.
 //
 // The event chain builder below is the boundary where "Go decides, Rust
@@ -124,12 +124,12 @@ fn stem_count_from(chain_count: usize, configured: Option<usize>) -> usize {
         .min(chain_count)
 }
 
-/// One stem's render job: where the graph lives, where the PCM goes, and
-/// which sources its argv must open.
+/// One stem's render job: where the graph lives, the FIFO its raw float PCM
+/// streams into, and which sources its argv must open.
 #[derive(Clone)]
 struct StemJob {
     script: String,
-    wav: String,
+    sink: String,
     filter: String,
     paths: Vec<String>,
 }
@@ -215,6 +215,48 @@ fn final_mix_script(stem_count: usize, master_secs: f64) -> String {
 fn remove_files(paths: &[String]) {
     for path in paths {
         let _ = fs::remove_file(path);
+    }
+}
+
+/// Create the FIFO a stem streams into. `mkfifo` is a coreutils binary on
+/// every Linux host this worker runs on, and the workspace denies `unsafe`,
+/// so there is no in-process libc call to make here.
+fn make_fifo(path: &str) -> Result<(), String> {
+    let status = std::process::Command::new("mkfifo")
+        .args(["-m", "600", path])
+        .status()
+        .map_err(|error| format!("create audio fifo: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("create audio fifo: mkfifo failed for {path}"))
+    }
+}
+
+/// Wait for a child with a deadline. The streaming path cannot use
+/// `output()`: a producer blocked on `open()` of a FIFO whose reader died
+/// would wait forever, and the outer supervisor's timeout is minutes away.
+fn wait_child(
+    mut child: std::process::Child,
+    deadline: std::time::Instant,
+    label: &str,
+) -> Result<std::process::Output, String> {
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|error| format!("{label}: wait failed: {error}"))
+            }
+            Ok(None) => {}
+            Err(error) => return Err(format!("{label}: wait failed: {error}")),
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!("{label} timed out"));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }
 
@@ -537,92 +579,38 @@ pub(super) fn execute(request: Request) -> Response {
     // valid. ffmpeg's script input has the same semantics without that limit.
     let mut temporaries: Vec<String> = Vec::new();
 
-    // ── Fan-out phase: render the stems concurrently to lossless PCM ──────
+    // ── Fan-out phase: render the stems concurrently into FIFOs ──────────
     let count = stem_count(chains.len());
     let stems = partition_stems(chains, count);
     let mut stem_inputs: Vec<String> = Vec::with_capacity(stems.len());
+    let jobs: Vec<StemJob> = stems
+        .iter()
+        .enumerate()
+        .map(|(index, chains)| StemJob {
+            script: format!("{part}.stem{index}.filter.txt"),
+            sink: format!("{part}.stem{index}.f32.fifo"),
+            filter: stem_filter_script(chains, master_secs),
+            paths: chains.iter().map(|chain| chain.path.clone()).collect(),
+        })
+        .collect();
+    for job in &jobs {
+        temporaries.push(job.script.clone());
+        temporaries.push(job.sink.clone());
+        stem_inputs.push(job.sink.clone());
+    }
     let mix_started = std::time::Instant::now();
-    if !stems.is_empty() {
-        let jobs: Vec<StemJob> = stems
-            .iter()
-            .enumerate()
-            .map(|(index, chains)| StemJob {
-                script: format!("{part}.stem{index}.filter.txt"),
-                wav: format!("{part}.stem{index}.wav"),
-                filter: stem_filter_script(chains, master_secs),
-                paths: chains.iter().map(|chain| chain.path.clone()).collect(),
-            })
-            .collect();
-        for job in &jobs {
-            temporaries.push(job.script.clone());
-            temporaries.push(job.wav.clone());
-        }
-        let rendered: Vec<Result<String, String>> = std::thread::scope(|scope| {
-            let handles: Vec<_> = jobs
-                .iter()
-                .map(|job| {
-                    let ffmpeg = ffmpeg.to_string();
-                    let StemJob {
-                        script,
-                        wav,
-                        filter,
-                        paths,
-                    } = job.clone();
-                    scope.spawn(move || {
-                        if let Err(error) = fs::write(&script, &filter) {
-                            return Err(format!("write audio filter script: {error}"));
-                        }
-                        let mut command = FFmpegRunner::from_ffmpeg_path(&ffmpeg).ffmpeg();
-                        command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-                        for input in &paths {
-                            command.args(["-i", input]);
-                        }
-                        command.args([
-                            "-filter_complex_script",
-                            &script,
-                            "-map",
-                            "[astem]",
-                            "-c:a",
-                            "pcm_f32le",
-                            "-ar",
-                            "48000",
-                            "-ac",
-                            "2",
-                            &wav,
-                        ]);
-                        match command.output() {
-                            Ok(result) if result.status.success() => Ok(wav),
-                            Ok(result) => Err(format!(
-                                "render_audio_plan stem render failed: {}",
-                                String::from_utf8_lossy(&result.stderr).trim()
-                            )),
-                            Err(error) => Err(format!(
-                                "render_audio_plan stem render failed to start: {error}"
-                            )),
-                        }
-                    })
-                })
-                .collect();
-            handles
-                .into_iter()
-                .map(|handle| {
-                    handle
-                        .join()
-                        .unwrap_or_else(|_| Err("audio stem thread panicked".to_string()))
-                })
-                .collect()
-        });
-        for result in rendered {
-            match result {
-                Ok(wav) => stem_inputs.push(wav),
-                Err(error) => {
-                    remove_files(&temporaries);
-                    return failed_response(None, error);
-                }
-            }
+    for job in &jobs {
+        if let Err(error) = make_fifo(&job.sink) {
+            remove_files(&temporaries);
+            return failed_response(None, error);
         }
     }
-    let mix_ms = mix_started.elapsed().as_millis() as i64;
+
+    // The encoder is spawned BEFORE the producers: it opens the FIFOs (which
+    // blocks until each writer opens its end) and consumes the raw float PCM
+    // as it is produced. Spawning in the other order would deadlock, and the
+    // old file-based shape paid a 3 × 450 MB write plus the same read back
+    // inside the encode for data the encoder can consume in one pass.
 
     // ── Final pass: sum the stems and encode the master — ONE AAC encode ──
     let filter = final_mix_script(stem_inputs.len(), master_secs);
@@ -635,7 +623,16 @@ pub(super) fn execute(request: Request) -> Response {
     let mut encode_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     encode_command.args(["-hide_banner", "-loglevel", "error", "-y"]);
     for input in &stem_inputs {
-        encode_command.args(["-i", input]);
+        encode_command.args([
+            "-f",
+            "f32le",
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
+            "-i",
+            input.as_str(),
+        ]);
     }
     encode_command.args([
         "-filter_complex_script",
@@ -656,30 +653,118 @@ pub(super) fn execute(request: Request) -> Response {
         &master_secs.to_string(),
         &part,
     ]);
+    let mut encode_command = encode_command.into_command();
+    encode_command
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
     let encode_started = std::time::Instant::now();
-    let encode_result = encode_command.output();
-    let aac_encode_ms = encode_started.elapsed().as_millis() as i64;
-    remove_files(&temporaries);
-    temporaries.clear();
-    match encode_result {
-        Ok(result) if result.status.success() => {}
-        Ok(result) => {
-            let _ = fs::remove_file(&part);
-            return failed_response(
-                None,
-                format!(
-                    "render_audio_plan encode failed: {}",
-                    String::from_utf8_lossy(&result.stderr).trim()
-                ),
-            );
-        }
+    let mut encode_child = match encode_command.spawn() {
+        Ok(child) => child,
         Err(error) => {
-            let _ = fs::remove_file(&part);
+            remove_files(&temporaries);
             return failed_response(
                 None,
                 format!("render_audio_plan encode failed to start: {error}"),
             );
         }
+    };
+
+    let mut writers: Vec<std::process::Child> = Vec::with_capacity(jobs.len());
+    for job in &jobs {
+        if let Err(error) = fs::write(&job.script, &job.filter) {
+            let _ = encode_child.kill();
+            for writer in &mut writers {
+                let _ = writer.kill();
+            }
+            remove_files(&temporaries);
+            return failed_response(None, format!("write audio filter script: {error}"));
+        }
+        let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
+        command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+        for input in &job.paths {
+            command.args(["-i", input]);
+        }
+        command.args([
+            "-filter_complex_script",
+            &job.script,
+            "-map",
+            "[astem]",
+            "-c:a",
+            "pcm_f32le",
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
+            "-f",
+            "f32le",
+            job.sink.as_str(),
+        ]);
+        let mut command = command.into_command();
+        command
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped());
+        match command.spawn() {
+            Ok(child) => writers.push(child),
+            Err(error) => {
+                let _ = encode_child.kill();
+                for writer in &mut writers {
+                    let _ = writer.kill();
+                }
+                remove_files(&temporaries);
+                return failed_response(
+                    None,
+                    format!("render_audio_plan stem render failed to start: {error}"),
+                );
+            }
+        }
+    }
+    // Safety net, not a budget: the encode drains the FIFOs at ~34x realtime.
+    let encode_deadline = std::time::Instant::now()
+        + std::time::Duration::from_secs(master_secs.max(0.0) as u64 / 10 + 180);
+    let encode_output = wait_child(encode_child, encode_deadline, "render_audio_plan encode");
+    let aac_encode_ms = encode_started.elapsed().as_millis() as i64;
+    // With the encoder gone a producer can only be blocked in open(): 30s
+    // covers the normal close path and bounds the pathological one.
+    let writer_deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let mut writer_error: Option<String> = None;
+    for writer in writers {
+        match wait_child(writer, writer_deadline, "render_audio_plan stem render") {
+            Ok(output) if output.status.success() => {}
+            Ok(output) => {
+                if writer_error.is_none() {
+                    writer_error = Some(format!(
+                        "render_audio_plan stem render failed: {}",
+                        String::from_utf8_lossy(&output.stderr).trim()
+                    ));
+                }
+            }
+            Err(error) => {
+                if writer_error.is_none() {
+                    writer_error = Some(error);
+                }
+            }
+        }
+    }
+    // mix_ms measures the producer wall, which now overlaps the encode by
+    // construction; total_ms (measured by the caller) remains the wall.
+    let mix_ms = mix_started.elapsed().as_millis() as i64;
+    remove_files(&temporaries);
+    temporaries.clear();
+    let encode_result = match encode_output {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(output) => Err(format!(
+            "render_audio_plan encode failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = encode_result {
+        let _ = fs::remove_file(&part);
+        return failed_response(None, error);
+    }
+    if let Some(error) = writer_error {
+        let _ = fs::remove_file(&part);
+        return failed_response(None, error);
     }
 
     // Probe the encoded master, then attach the stage timings to the
