@@ -48,6 +48,7 @@ struct TimelineGroup<'a> {
     scene_index: usize,
     scene_id: String,
     covered: BTreeSet<String>,
+    date_keys: BTreeSet<String>,
     preference: u8,
 }
 
@@ -884,36 +885,6 @@ fn enrich_contextual_search_queries(
                             && candidate.end_byte <= component.end_byte)
                 })
         });
-        let candidate_kind = candidate
-            .entity_ids
-            .first()
-            .and_then(|id| {
-                entities_by_span
-                    .iter()
-                    .find_map(|((scene, entity_id, _, _), entity)| {
-                        (scene == &candidate.scene_id && entity_id == id)
-                            .then_some(entity.kind.as_str())
-                    })
-            })
-            .unwrap_or("");
-        let unlinked_person_in_visual_scene = candidate_kind == "PERSON"
-            && !contexts.is_empty()
-            && !contexts.iter().any(|context| {
-                context.components.iter().any(|component| {
-                    identity_by_span
-                        .get(&(
-                            candidate.scene_id.clone(),
-                            component.start_byte,
-                            component.end_byte,
-                        ))
-                        .is_some_and(|id| id == identity)
-                })
-            });
-        if unlinked_person_in_visual_scene {
-            candidate.requires_media = false;
-            candidate.queries.clear();
-            continue;
-        }
         if covered_by_context && !owns_any_context {
             // One contextual event gets one provider request. Its named
             // subjects remain in the manifest, but do not each issue a
@@ -1097,6 +1068,8 @@ pub(crate) struct ImageQueryPolicy {
     pub(crate) nested_location_anchor_cues: Vec<String>,
     pub(crate) nonvisual_action_context_phrases: Vec<String>,
     pub(crate) nonvisual_concept_phrases: Vec<String>,
+    pub(crate) concrete_visual_subject_cues: Vec<String>,
+    pub(crate) renderable_pair_cues: Vec<String>,
 }
 
 impl Default for ImageQueryPolicy {
@@ -1123,6 +1096,8 @@ impl Default for ImageQueryPolicy {
             nested_location_anchor_cues: Vec::new(),
             nonvisual_action_context_phrases: Vec::new(),
             nonvisual_concept_phrases: Vec::new(),
+            concrete_visual_subject_cues: Vec::new(),
+            renderable_pair_cues: Vec::new(),
         }
     }
 }

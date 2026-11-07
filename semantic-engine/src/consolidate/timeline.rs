@@ -92,7 +92,18 @@ pub(super) fn timeline_groups<'a>(
                     covered.insert(fact.id.clone());
                 }
             }
-            if covered.is_empty() {
+            let date_keys: BTreeSet<String> = group
+                .members
+                .iter()
+                .filter_map(|member| {
+                    let date = member.normalized_date.as_deref()?;
+                    Some(format!(
+                        "{}:{}:{}",
+                        scene.scene_id, member.sentence_index, date
+                    ))
+                })
+                .collect();
+            if covered.is_empty() && date_keys.is_empty() {
                 continue;
             }
             groups.push(TimelineGroup {
@@ -100,6 +111,7 @@ pub(super) fn timeline_groups<'a>(
                 scene_index,
                 scene_id: scene.scene_id.clone(),
                 covered,
+                date_keys,
                 preference,
             });
         }
@@ -125,6 +137,10 @@ pub(super) fn selected_timeline_groups(
                 .covered
                 .iter()
                 .any(|fact| group.covered.contains(fact))
+                || existing
+                    .date_keys
+                    .iter()
+                    .any(|date_key| group.date_keys.contains(date_key))
         }) {
             continue;
         }
@@ -149,13 +165,11 @@ pub(super) fn push_timeline(
         return;
     };
     let covered: Vec<String> = group.covered.iter().cloned().collect();
+    let dedup_key = timeline_dedup_key(&covered, &group.date_keys);
     let mut entity_ids = BTreeSet::new();
     for fact in facts.iter().filter(|fact| group.covered.contains(&fact.id)) {
         entity_ids.insert(fact.subject_entity_id.clone());
-        representations.insert(
-            fact.id.clone(),
-            (timeline_dedup_key(&covered), "timeline".to_string()),
-        );
+        representations.insert(fact.id.clone(), (dedup_key.clone(), "timeline".to_string()));
     }
     let mut temporal_surfaces = Vec::new();
     for member in &group.group.members {
@@ -186,14 +200,22 @@ pub(super) fn push_timeline(
         asset_key: format!("timeline:{}", group.group.id),
         queries: Vec::new(),
         requires_media: false,
-        dedup_key: timeline_dedup_key(&covered),
+        dedup_key,
         covered_fact_ids: covered.clone(),
         rationale: vec![
-            format!(
-                "one {} composition represents {} canonical facts",
-                group.group.group_type,
-                covered.len()
-            ),
+            if covered.is_empty() {
+                format!(
+                    "one {} composition represents {} dated events",
+                    group.group.group_type,
+                    group.group.members.len()
+                )
+            } else {
+                format!(
+                    "one {} composition represents {} canonical facts",
+                    group.group.group_type,
+                    covered.len()
+                )
+            },
             "duplicate or nested timelines over the same facts are suppressed".to_string(),
         ],
     });
@@ -217,6 +239,13 @@ pub(super) fn push_timeline(
     }
 }
 
-fn timeline_dedup_key(covered: &[String]) -> String {
-    format!("timeline:{}", covered.join(","))
+fn timeline_dedup_key(covered: &[String], date_keys: &BTreeSet<String>) -> String {
+    if covered.is_empty() {
+        format!(
+            "timeline:dates:{}",
+            date_keys.iter().cloned().collect::<Vec<_>>().join(",")
+        )
+    } else {
+        format!("timeline:facts:{}", covered.join(","))
+    }
 }

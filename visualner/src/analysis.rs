@@ -111,8 +111,32 @@ pub fn analyze_with_context(
     options: &ExtractOptions,
     context: &crate::extractor::ScriptContext,
 ) -> Result<Analysis, String> {
-    let (entities, spelled_candidates) =
-        crate::extractor::extract_with_context_and_spellout(source_text, options, context)?;
+    analyze_with_context_mode(source_text, options, context, false)
+}
+
+/// Same analysis while retaining every distinct grounded entity mention for
+/// identity resolution. The semantic engine uses this mode; standalone
+/// extraction keeps its compact one-row-per-identity result by default.
+pub fn analyze_with_context_preserving_mentions(
+    source_text: &str,
+    options: &ExtractOptions,
+    context: &crate::extractor::ScriptContext,
+) -> Result<Analysis, String> {
+    analyze_with_context_mode(source_text, options, context, true)
+}
+
+fn analyze_with_context_mode(
+    source_text: &str,
+    options: &ExtractOptions,
+    context: &crate::extractor::ScriptContext,
+    preserve_mentions: bool,
+) -> Result<Analysis, String> {
+    let extract = if preserve_mentions {
+        crate::extractor::extract_with_context_and_spellout_preserving_mentions
+    } else {
+        crate::extractor::extract_with_context_and_spellout
+    };
+    let (entities, spelled_candidates) = extract(source_text, options, context)?;
     // One canonical segmenter for every extractor (semantic-core).
     let sentences = split_sentences(source_text, &options.language, None);
     let entity_sentence: Vec<Option<usize>> = entities

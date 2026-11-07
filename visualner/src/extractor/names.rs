@@ -28,10 +28,14 @@ fn curated_name_index() -> &'static BTreeMap<String, Vec<Vec<String>>> {
             .chain(gazetteer.persons.iter())
             .chain(gazetteer.brands.iter())
             .chain(gazetteer.product_names.iter())
-            .chain(gazetteer.locations.iter());
+            .chain(gazetteer.locations.iter())
+            .chain(gazetteer.typed_entities.values().flatten());
         let mut index: BTreeMap<String, Vec<Vec<String>>> = BTreeMap::new();
         for name in names {
-            let words: Vec<String> = name.split_whitespace().map(str::to_string).collect();
+            let words: Vec<String> = name
+                .split_whitespace()
+                .map(str::to_lowercase)
+                .collect();
             let Some(first) = words.first().cloned() else {
                 continue;
             };

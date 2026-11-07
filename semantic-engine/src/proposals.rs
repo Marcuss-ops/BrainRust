@@ -18,7 +18,11 @@ pub(crate) fn to_visual_proposal(
     // query is emitted only by the relation-grounded contextual-query path.
     let mut visual_query_suggestions: Vec<String> = Vec::new();
     let mut queries: Vec<SearchQuery> = Vec::new();
-    if !candidate.entity_texts.is_empty() {
+    // Each grounded identity has one `entity_search` candidate per scene.
+    // Cards and co-mention layouts reuse that asset; emitting the same exact
+    // query again for each presentation proposal inflated retrieval feedback
+    // without creating a distinct search opportunity.
+    if candidate.kind == "entity_search" && !candidate.entity_texts.is_empty() {
         for text in &candidate.entity_texts {
             if text.is_empty() || is_noise_query(text) || !source.contains(text.as_str()) {
                 continue;
@@ -61,14 +65,16 @@ pub(crate) fn to_visual_proposal(
     }
     // Scene-phrase queries lead for entity searches; the exact entity span
     // follows as a fallback.
-    for text in &candidate.entity_texts {
-        if text.is_empty() || is_noise_query(text) || !source.contains(text.as_str()) {
-            continue;
+    if candidate.kind == "entity_search" {
+        for text in &candidate.entity_texts {
+            if text.is_empty() || is_noise_query(text) || !source.contains(text.as_str()) {
+                continue;
+            }
+            if !visual_query_suggestions.iter().any(|query| query == text) {
+                visual_query_suggestions.push(text.clone());
+            }
+            queries.push(SearchQuery::literal(text.clone()));
         }
-        if !visual_query_suggestions.iter().any(|query| query == text) {
-            visual_query_suggestions.push(text.clone());
-        }
-        queries.push(SearchQuery::literal(text.clone()));
     }
     let proposal_id = format!("{scene_id}_visual_{:03}", index + 1);
     let feedback = candidate

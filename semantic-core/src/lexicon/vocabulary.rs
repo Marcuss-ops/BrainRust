@@ -50,6 +50,11 @@ pub struct EntityGazetteer {
     pub organization_markers: BTreeMap<String, Vec<String>>,
     pub brands: Vec<String>,
     pub locations: Vec<String>,
+    /// Explicit multiword names with a known semantic type. This outranks the
+    /// capitalization-based PERSON fallback (for example, "Trump Tower" is a
+    /// facility and "Federal Reserve" is an organization).
+    #[serde(default)]
+    pub typed_entities: BTreeMap<String, Vec<String>>,
     /// GeoNames places; empty when the index is disabled by an override.
     #[serde(default)]
     pub places: Vec<Place>,

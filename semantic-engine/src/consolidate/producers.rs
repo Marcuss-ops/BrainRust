@@ -221,8 +221,9 @@ pub(super) fn push_named_entities(
         let Some(anchor) = identity_anchor(identity) else {
             continue;
         };
-        let priority = named_priority(
+        let priority = named_priority_for_surface(
             &identity.kind,
+            &identity.canonical,
             identity.mentions.len(),
             identity.max_score,
             relation_support
@@ -303,5 +304,5 @@ pub(super) fn push_named_entities(
     }
 }
 
-use super::identities::{identity_anchor, is_named_kind, named_priority};
+use super::identities::{identity_anchor, is_named_kind, named_priority_for_surface};
 use super::IdentityState;

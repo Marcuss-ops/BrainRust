@@ -9,6 +9,9 @@ use semantic_core::{Candidate, ConsolidatedFact, ProductionCandidate, SceneManif
 /// capped; this bound only stops thousands of generic nouns from becoming
 /// production candidates. The complete list stays in `important_words`.
 const MAX_GENERIC_CONCEPTS_PER_SCENE: usize = 4;
+/// Concrete cutaway subjects may enter production on a single grounded
+/// mention, but have a small document-wide lane of their own.
+const MAX_CONCRETE_CONCEPTS_PER_DOCUMENT: usize = 4;
 
 /// Below this deterministic specificity score a generic phrase is inventory
 /// only. A scene whose nouns are all abstract gets no stock-image search
@@ -26,6 +29,7 @@ pub(super) fn push_visual_concepts(
     // The complete concept inventory stays in `important_words`; only the
     // per-scene best few enter production.
     let mut selected: BTreeSet<String> = BTreeSet::new();
+    let mut selected_concrete = 0;
     for scene in scenes {
         let named_spans: Vec<(usize, usize)> = scene
             .entities
@@ -60,18 +64,31 @@ pub(super) fn push_visual_concepts(
                 .then_with(|| left.start_byte.cmp(&right.start_byte))
         });
         let mut scene_selected = BTreeSet::new();
-        for concept in concepts
-            .into_iter()
-            // A visual concept becomes a production search only when the
-            // script independently returns to it. This corpus-level signal
-            // is language-neutral and replaces lists of abstract nouns.
-            .filter(|concept| {
-                identities
-                    .get(&concept.id)
-                    .is_some_and(|identity| identity.mentions.len() >= 2)
-            })
-            .filter(|concept| concept_priority(concept) >= MIN_CONCEPT_PRIORITY)
-        {
+        for concept in concepts {
+            let concrete = is_concrete_visual_subject(&concept.text);
+            // A small, explicit vocabulary admits useful one-off cutaways
+            // under its own document-wide cap, independent of recurrent
+            // abstract concepts selected for this scene.
+            if concrete {
+                if selected_concrete < MAX_CONCRETE_CONCEPTS_PER_DOCUMENT
+                    && selected.insert(concept.id.clone())
+                {
+                    selected_concrete += 1;
+                }
+                continue;
+            }
+
+            // Other visual concepts need script-level recurrence and remain
+            // under the per-scene salience cap.
+            let recurrent = identities
+                .get(&concept.id)
+                .is_some_and(|identity| identity.mentions.len() >= 2);
+            if !recurrent {
+                continue;
+            }
+            if concept_priority(concept) < MIN_CONCEPT_PRIORITY {
+                continue;
+            }
             if scene_selected.insert(concept.id.clone()) {
                 selected.insert(concept.id.clone());
                 if scene_selected.len() >= MAX_GENERIC_CONCEPTS_PER_SCENE {
@@ -93,6 +110,8 @@ pub(super) fn push_visual_concepts(
         let is_document_anchor = document_anchor.as_deref() == Some(identity.id.as_str());
         let priority = if is_document_anchor {
             0.93
+        } else if is_concrete_visual_subject(&identity.canonical) {
+            concept_identity_priority(identity).max(0.62)
         } else {
             concept_identity_priority(identity)
         };
@@ -133,6 +152,11 @@ pub(super) fn push_visual_concepts(
                     "global_document_anchor".to_string(),
                     "most recurrent gazetteer-backed place across the document".to_string(),
                     "one source-grounded establishing search anchors the narrative".to_string(),
+                ]
+            } else if is_concrete_visual_subject(&identity.canonical) {
+                vec![
+                    "grounded concrete visual subject".to_string(),
+                    "selected through the bounded concrete-concept lane".to_string(),
                 ]
             } else {
                 vec![
@@ -303,6 +327,14 @@ fn is_policy_excluded_visual_concept(text: &str) -> bool {
         .nonvisual_concept_phrases
         .iter()
         .any(|phrase| normalized.contains(&phrase.to_lowercase()))
+}
+
+fn is_concrete_visual_subject(text: &str) -> bool {
+    let normalized = text.to_lowercase();
+    crate::consolidate::image_query_policy()
+        .concrete_visual_subject_cues
+        .iter()
+        .any(|cue| normalized.contains(&cue.to_lowercase()))
 }
 
 use super::identities::{identity_anchor, is_named_kind};

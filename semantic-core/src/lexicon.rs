@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 /// Version of the lexicon tables. Bump whenever a table changes semantics.
-pub const LEXICON_VERSION: &str = "lexicon.v4";
+pub const LEXICON_VERSION: &str = "lexicon.v5";
 
 /// Environment variable naming a directory of overriding table files.
 pub const LEXICON_DIR_ENV: &str = "SEMANTIC_LEXICON_DIR";

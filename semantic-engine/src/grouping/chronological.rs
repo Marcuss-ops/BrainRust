@@ -121,6 +121,18 @@ pub(crate) fn sequence_timeline_candidates(
             .filter_map(|member| member.normalized_date.clone())
             .collect();
         surfaces.dedup();
+        // Prefer the timeline grounded in dated event sentences over a
+        // separate editorial sentence that merely says "timeline with 2016,
+        // 2020 and 2024". Both carry the same dates, but only the chronology
+        // describes what happened at each point.
+        out.retain(|candidate| {
+            if candidate.kind != "timeline" {
+                return true;
+            }
+            let mut existing = candidate.temporal_surfaces.clone();
+            existing.dedup();
+            existing != surfaces
+        });
         // The fragments of this same progression are the timelines of its own
         // sentences; the complete sequence replaces them instead of repeating
         // them (one timeline per scene).

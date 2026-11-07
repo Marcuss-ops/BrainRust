@@ -44,7 +44,9 @@ pub mod spellout;
 pub mod temporal;
 pub mod types;
 
-pub use analysis::{analyze, analyze_with_context, Analysis};
+pub use analysis::{
+    analyze, analyze_with_context, analyze_with_context_preserving_mentions, Analysis,
+};
 pub use extractor::is_heading_surface;
 pub use extractor::model_path;
 pub use extractor::{extract, extract_with_context, script_person_tokens, ScriptContext};

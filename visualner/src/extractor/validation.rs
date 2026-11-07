@@ -177,8 +177,23 @@ fn trim_leading_determiner(
     source_text: &str,
     language: &str,
 ) -> VisualEntity {
-    if !matches!(entity.r#type.as_str(), "ORG" | "ORGANIZATION" | "FACILITY") {
+    if !matches!(
+        entity.r#type.as_str(),
+        "ORG" | "ORGANIZATION" | "FACILITY" | "STRUCTURE"
+    ) {
         return entity;
+    }
+    // Normalize an elided article joined to a named structure by ICU
+    // tokenization ("l'Air Force One") while keeping the grounded name span.
+    if let Some(prefix) = tokens.iter().find(|token| token.start == entity.start) {
+        let prefix_len = super::names::elided_name_prefix_len(&prefix.text);
+        if prefix_len > 0 && entity.start + prefix_len < entity.end {
+            entity.start += prefix_len;
+            if let Some(name) = source_text.get(entity.start..entity.end) {
+                entity.text = name.to_string();
+                entity.evidence = name.to_string();
+            }
+        }
     }
     while let Some(token) = tokens.iter().find(|token| token.start == entity.start) {
         if token.end >= entity.end {

@@ -45,7 +45,7 @@ use semantic_core::{
     SceneManifest, SearchFeedbackEntry, SearchQuery, SemanticGroup, SemanticGroupMember,
     SemanticManifest, VisualProposal,
 };
-use visualner::{analyze_with_context, ExtractOptions, TemporalFact, VisualEntity};
+use visualner::{ExtractOptions, TemporalFact, VisualEntity};
 
 use groups::{is_visual_entity as is_visual_subject, VisualCandidate};
 use identity_lookup::IdentityLookup;
@@ -105,38 +105,39 @@ fn analyze_scene_with_search(
         // editorial top-N belongs to the planner.
         entity_count: safety_cap,
     };
-    let mut analysis = match analyze_with_context(&scene.text, &options, context) {
-        Ok(analysis) => analysis,
-        Err(reason) => {
-            return (
-                SceneManifest {
-                    scene_id: scene.scene_id.clone(),
-                    status: "rejected",
-                    reason: Some(reason),
-                    entities: Vec::new(),
-                    identities: Vec::new(),
-                    relations: RelationView::default(),
-                    numeric_facts: Vec::new(),
-                    temporal_facts: Vec::new(),
-                    entity_facts: Vec::new(),
-                    bullets: Vec::new(),
-                    short_phrases: Vec::new(),
-                    long_phrases: Vec::new(),
-                    quotes: Vec::new(),
-                    important_words: Vec::new(),
-                    important_segments: Vec::new(),
-                    composed_image_queries: Vec::new(),
-                    contextual_image_queries: Vec::new(),
-                    visual_proposals: Vec::new(),
-                    semantic_groups: Vec::new(),
-                    micro_summaries: Vec::new(),
-                    rejected_items: 0,
-                },
-                Vec::new(),
-                Vec::new(),
-            );
-        }
-    };
+    let mut analysis =
+        match visualner::analyze_with_context_preserving_mentions(&scene.text, &options, context) {
+            Ok(analysis) => analysis,
+            Err(reason) => {
+                return (
+                    SceneManifest {
+                        scene_id: scene.scene_id.clone(),
+                        status: "rejected",
+                        reason: Some(reason),
+                        entities: Vec::new(),
+                        identities: Vec::new(),
+                        relations: RelationView::default(),
+                        numeric_facts: Vec::new(),
+                        temporal_facts: Vec::new(),
+                        entity_facts: Vec::new(),
+                        bullets: Vec::new(),
+                        short_phrases: Vec::new(),
+                        long_phrases: Vec::new(),
+                        quotes: Vec::new(),
+                        important_words: Vec::new(),
+                        important_segments: Vec::new(),
+                        composed_image_queries: Vec::new(),
+                        contextual_image_queries: Vec::new(),
+                        visual_proposals: Vec::new(),
+                        semantic_groups: Vec::new(),
+                        micro_summaries: Vec::new(),
+                        rejected_items: 0,
+                    },
+                    Vec::new(),
+                    Vec::new(),
+                );
+            }
+        };
 
     let source = scene.text.as_str();
     // One canonical segmentation per scene. Every downstream builder consumes

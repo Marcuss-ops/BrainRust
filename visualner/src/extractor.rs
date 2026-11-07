@@ -43,6 +43,7 @@ pub use model::model_path;
 pub use names::is_heading_surface;
 pub use numeric::{numeric_value_spans, NumericSpan};
 pub(crate) use pipeline::extract_with_context_and_spellout;
+pub(crate) use pipeline::extract_with_context_and_spellout_preserving_mentions;
 pub use pipeline::{extract, extract_with_context, script_person_tokens, ScriptContext};
 
 #[cfg(test)]

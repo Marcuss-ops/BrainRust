@@ -1,5 +1,5 @@
 {
-  "schema": "image_query_policy.v3",
+  "schema": "image_query_policy.v5",
   "max_contextual_queries_per_scene": 3,
   "max_contextual_queries_per_candidate": 3,
   "max_query_words": 7,
@@ -60,5 +60,19 @@
     "tensione legale", "contesto probatorio", "decisione giudiziaria",
     "percorso giudiziario", "diritto italiano", "quadro legale",
     "cronaca giudiziaria", "dibattito processuale", "natura complessa"
+  ],
+  "concrete_visual_subject_cues": [
+    "container", "porti", "porto", "fabbriche", "fabbrica",
+    "mercati finanziari", "borsa", "inflazione", "prezzi al supermercato",
+    "banconote", "dazi commerciali", "commercio internazionale",
+    "shipping containers", "container ports", "factories", "financial markets",
+    "stock market", "inflation", "supermarket prices", "banknotes",
+    "trade tariffs", "international trade"
+  ],
+  "renderable_pair_cues": [
+    "contro", "affront", "confront", "incontr", "riunione con",
+    "versus", "against", "met with", "meet with", "meeting with",
+    "interviewed", "interview with", "debated", "debate with",
+    "compared with", "in comparison with"
   ]
 }

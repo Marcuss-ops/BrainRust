@@ -193,6 +193,7 @@ pub(super) fn is_named_kind(kind: &str) -> bool {
     )
 }
 
+#[cfg(test)]
 pub(super) fn named_priority(
     kind: &str,
     mentions: usize,
@@ -200,10 +201,60 @@ pub(super) fn named_priority(
     asserted_relations: usize,
     asserted_facts: usize,
 ) -> f32 {
+    named_priority_with_curation(
+        kind,
+        mentions,
+        score,
+        asserted_relations,
+        asserted_facts,
+        false,
+    )
+}
+
+pub(super) fn named_priority_for_surface(
+    kind: &str,
+    surface: &str,
+    mentions: usize,
+    score: f32,
+    asserted_relations: usize,
+    asserted_facts: usize,
+) -> f32 {
+    let gazetteer = &semantic_core::lexicon::lexicon().gazetteer;
+    let curated = gazetteer
+        .typed_entities
+        .values()
+        .any(|names| names.iter().any(|name| name.eq_ignore_ascii_case(surface)))
+        || gazetteer
+            .locations
+            .iter()
+            .chain(gazetteer.brands.iter())
+            .chain(gazetteer.product_names.iter())
+            .chain(gazetteer.works.iter())
+            .chain(gazetteer.persons.iter())
+            .any(|name| name.eq_ignore_ascii_case(surface));
+    named_priority_with_curation(
+        kind,
+        mentions,
+        score,
+        asserted_relations,
+        asserted_facts,
+        curated,
+    )
+}
+
+fn named_priority_with_curation(
+    kind: &str,
+    mentions: usize,
+    score: f32,
+    asserted_relations: usize,
+    asserted_facts: usize,
+    curated: bool,
+) -> f32 {
     // A weak one-off or lightly repeated extraction is inventory, not a
     // production image search. Recurrence or an asserted link can rescue a
-    // low-confidence mention; type alone cannot.
-    if score < 0.5 && mentions < 5 && asserted_relations == 0 && asserted_facts == 0 {
+    // low-confidence mention. An exact curated name can stand alone without
+    // a recurrence or asserted relation.
+    if !curated && score < 0.5 && mentions < 5 && asserted_relations == 0 && asserted_facts == 0 {
         return 0.0;
     }
     let base = match kind {

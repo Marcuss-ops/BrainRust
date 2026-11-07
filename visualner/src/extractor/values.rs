@@ -36,12 +36,16 @@ pub(super) fn classify_value_type(
     if text.is_empty() {
         return "VISUAL_CONCEPT".to_string();
     }
-    if text.chars().any(|c| matches!(c, '$' | '£' | '€' | '¥')) || {
-        let lower = text.to_lowercase();
-        ["dollar", "euro", "pound", "yen"]
-            .iter()
-            .any(|unit| lower.contains(unit))
-    } {
+    let currency_words = [
+        "dollar", "dollars", "dollaro", "dollari", "dólar", "dólares", "dolares", "euro",
+        "euros", "pound", "pounds", "libra", "libras", "yen", "yenes", "iene", "usd", "eur",
+        "gbp", "jpy",
+    ];
+    let has_currency_word = text
+        .split(|ch: char| !ch.is_alphanumeric())
+        .map(str::to_lowercase)
+        .any(|word| currency_words.contains(&word.as_str()));
+    if text.chars().any(|c| matches!(c, '$' | '£' | '€' | '¥')) || has_currency_word {
         return "MONEY".to_string();
     }
     if text.contains('%') || text.to_lowercase().contains("percent") {
@@ -215,6 +219,13 @@ fn classify_type(
     if contains(&gazetteer.locations, &lower) {
         return "LOCATION".to_string();
     }
+    // Exact, curated multiword names outrank title-case person guessing. This
+    // covers buildings and institutions whose names look like people, while
+    // keeping the knowledge in the versioned lexicon rather than growing a
+    // chain of code exceptions.
+    if let Some(kind) = curated_typed_entity(text) {
+        return kind;
+    }
     let facility_head = lexicon
         .facility
         .facility_nouns
@@ -332,6 +343,44 @@ fn classify_type(
         return "PERSON".to_string();
     }
     "VISUAL_CONCEPT".to_string()
+}
+
+/// Exact type for a curated multiword entity. The same lookup is applied after
+/// contextual cues so those cues cannot split one known name into conflicting
+/// identities (for example, one FACILITY and one LOCATION for Trump Tower).
+pub(super) fn curated_typed_entity(text: &str) -> Option<String> {
+    let lower = text.to_lowercase();
+    semantic_core::lexicon::lexicon()
+        .gazetteer
+        .typed_entities
+        .iter()
+        .find(|(kind, names)| {
+            matches!(
+                kind.as_str(),
+                "FACILITY"
+                    | "STRUCTURE"
+                    | "LOCATION"
+                    | "ORGANIZATION"
+                    | "ORG"
+                    | "BRAND"
+                    | "PRODUCT"
+                    | "WORK"
+            ) && names.iter().any(|name| {
+                let name_lower = name.to_lowercase();
+                if name_lower != lower {
+                    return false;
+                }
+                let letters: Vec<char> = name.chars().filter(|ch| ch.is_alphabetic()).collect();
+                let is_acronym = (2..=5).contains(&letters.len())
+                    && letters.iter().all(|ch| ch.is_uppercase());
+                !is_acronym
+                    || text
+                        .chars()
+                        .filter(|ch| ch.is_alphabetic())
+                        .all(|ch| ch.is_uppercase())
+            })
+        })
+        .map(|(kind, _)| kind.clone())
 }
 
 // Scale words, units and currencies live in the shared lexicon

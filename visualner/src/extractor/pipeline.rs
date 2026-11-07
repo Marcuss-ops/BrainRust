@@ -56,6 +56,23 @@ pub(crate) fn extract_with_context_and_spellout(
     options: &ExtractOptions,
     context: &ScriptContext,
 ) -> Result<(Vec<VisualEntity>, Vec<crate::spellout::WordNumberCandidate>), String> {
+    extract_with_context_and_spellout_mode(source_text, options, context, false)
+}
+
+pub(crate) fn extract_with_context_and_spellout_preserving_mentions(
+    source_text: &str,
+    options: &ExtractOptions,
+    context: &ScriptContext,
+) -> Result<(Vec<VisualEntity>, Vec<crate::spellout::WordNumberCandidate>), String> {
+    extract_with_context_and_spellout_mode(source_text, options, context, true)
+}
+
+fn extract_with_context_and_spellout_mode(
+    source_text: &str,
+    options: &ExtractOptions,
+    context: &ScriptContext,
+    preserve_mentions: bool,
+) -> Result<(Vec<VisualEntity>, Vec<crate::spellout::WordNumberCandidate>), String> {
     let language = options.language.trim();
     if language.is_empty() {
         return Err("VisualNER language is required".to_string());
@@ -80,6 +97,14 @@ pub(crate) fn extract_with_context_and_spellout(
     }
     candidates.extend(value_candidates(source_text));
     mark_contextual_locations(&mut candidates, &tokens, source_text, language);
+    // Explicitly typed names outrank contextual guesses on the same surface.
+    // This prevents one mention from registering once as a facility and again
+    // as a nearby location just because a relation cue appeared in its sentence.
+    for candidate in &mut candidates {
+        if let Some(kind) = values::curated_typed_entity(&candidate.text) {
+            candidate.entity_type = Some(kind);
+        }
+    }
     let spelled_candidates = crate::spellout::candidates(source_text, language)?;
     let spelled_ranges: Vec<(usize, usize, String)> = spelled_candidates
         .iter()
@@ -122,7 +147,7 @@ pub(crate) fn extract_with_context_and_spellout(
         .filter(|entity| structurally_specific_visual_concept(entity, &tokens))
         .map(score_entity)
         .collect();
-    let mut scored = drop_name_fragments(scored, context);
+    let mut scored = drop_name_fragments(scored, context, source_text);
     // Rank: highest score first; ties broken by earliest start offset so
     // the order is deterministic across 100/100 runs.
     scored.sort_by(|a, b| {
@@ -146,13 +171,28 @@ pub(crate) fn extract_with_context_and_spellout(
     // String allocations per extraction call.
     let mut unique: Vec<VisualEntity> = Vec::with_capacity(scored.len());
     let mut index_by_key: HashMap<String, usize> = HashMap::with_capacity(scored.len());
+    let mut mention_spans: HashMap<String, Vec<VisualEntity>> = HashMap::new();
+    let mut seen_spans: HashMap<String, BTreeSet<(usize, usize)>> = HashMap::new();
     for entity in scored {
-        let key = entity_identity_key(&entity);
+        let key = extraction_identity_key(&entity, context);
+        if seen_spans
+            .entry(key.clone())
+            .or_default()
+            .insert((entity.start, entity.end))
+        {
+            mention_spans
+                .entry(key.clone())
+                .or_default()
+                .push(entity.clone());
+        }
         if let Some(&existing_idx) = index_by_key.get(&key) {
-            // Prefer the shorter non-possessive surface when both mentions
-            // occur; otherwise retain the first deterministic evidence span.
+            // The representative controls ranking and query text. Keep all
+            // distinct evidence spans separately for the semantic manifest.
             let existing = &mut unique[existing_idx];
-            if existing.r#type == "PERSON" && entity.text.len() < existing.text.len() {
+            if existing.r#type == "PERSON"
+                && !is_canonical_person_surface(existing, context)
+                && is_canonical_person_surface(&entity, context)
+            {
                 *existing = entity;
             }
             continue;
@@ -160,10 +200,48 @@ pub(crate) fn extract_with_context_and_spellout(
         index_by_key.insert(key, unique.len());
         unique.push(entity);
     }
-    Ok((
-        reserve_numeric_slots(unique, options.top_n()),
-        spelled_candidates,
-    ))
+    let selected = reserve_numeric_slots(unique, options.top_n());
+    if !preserve_mentions {
+        return Ok((selected, spelled_candidates));
+    }
+    let selected_keys: BTreeSet<String> = selected
+        .iter()
+        .map(|entity| extraction_identity_key(entity, context))
+        .collect();
+    let mut mentions: Vec<VisualEntity> = mention_spans
+        .into_iter()
+        .filter(|(key, _)| selected_keys.contains(key))
+        .flat_map(|(_, mentions)| mentions)
+        .collect();
+    mentions.sort_by(|a, b| {
+        named_entity_rank(a)
+            .cmp(&named_entity_rank(b))
+            .then(
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
+            .then(a.start.cmp(&b.start))
+            .then(a.text.cmp(&b.text))
+    });
+    Ok((mentions, spelled_candidates))
+}
+
+fn extraction_identity_key(entity: &VisualEntity, context: &ScriptContext) -> String {
+    if entity.r#type == "PERSON" && entity.text.split_whitespace().count() == 1 {
+        if let Some(canonical) = context.person_surnames.get(&entity.text.to_lowercase()) {
+            return format!("PERSON:{}", canonical.to_lowercase());
+        }
+    }
+    entity_identity_key(entity)
+}
+
+fn is_canonical_person_surface(entity: &VisualEntity, context: &ScriptContext) -> bool {
+    entity.r#type == "PERSON"
+        && context
+            .person_surnames
+            .get(&entity.text.to_lowercase())
+            .is_none()
 }
 
 /// Generic visual concepts are useful phrase inventory only when they form a
@@ -190,7 +268,13 @@ fn structurally_specific_visual_concept(entity: &VisualEntity, tokens: &[Token])
     let starts_as_noun_phrase = span
         .first()
         .is_some_and(|token| matches!(token.upos.as_deref(), Some("NOUN" | "PROPN" | "ADJ")));
-    has_nominal_head && starts_as_noun_phrase
+    let ends_as_phrase = span.last().is_some_and(|token| {
+        !matches!(
+            token.upos.as_deref(),
+            Some("ADV" | "ADP" | "AUX" | "CCONJ" | "DET" | "INTJ" | "PRON" | "SCONJ" | "VERB")
+        )
+    });
+    has_nominal_head && starts_as_noun_phrase && ends_as_phrase
 }
 
 /// Collects the tokens of every multi-token capitalized run in the script.
@@ -302,6 +386,18 @@ fn flush_name_run(
             .is_some()
             || opens_organization_name(head_surface, language);
         let facility_run = values::opens_facility_name(head_surface);
+        // Alias evidence is seeded only after the run survives typed-name
+        // checks. Otherwise "Trump Tower" contributes a competing pseudo-
+        // surname `Trump`, making a later `Trump` ambiguous instead of an
+        // alias of Donald Trump.
+        if values::curated_typed_entity(&significant_surface).is_some()
+            || is_known_place(&significant_surface, language)
+            || institution_run
+            || facility_run
+        {
+            run.clear();
+            return;
+        }
         // A facility noun also opens ordinary names: "Stadio Aurora" is a
         // facility whose second token is part of its name, not its city, so a
         // facility keeps its trailing place only when the language's genitive
@@ -336,7 +432,10 @@ fn flush_name_run(
             .iter()
             .filter(|token| !is_stop_token(token, language))
             .collect();
-        if significant_tokens.len() == 2 {
+        // Only a true two-token name contributes a surname alias. Counting
+        // substantive tokens alone let a sentence-initial common noun plus a
+        // particle (for example, "Immagini di Trump") compete with "Donald Trump".
+        if run.len() == 2 && significant_tokens.len() == 2 {
             let first = significant_tokens[0].text.as_str();
             let last = significant_tokens[1].text.as_str();
             let surface = run
@@ -362,7 +461,11 @@ fn flush_name_run(
 /// a one-token place whose surface is a token of a person name stated
 /// elsewhere, and a mention fully contained in a longer PERSON mention of the
 /// same scene. The longer, better-typed mention owns the identity.
-fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> Vec<VisualEntity> {
+fn drop_name_fragments(
+    entities: Vec<VisualEntity>,
+    context: &ScriptContext,
+    source_text: &str,
+) -> Vec<VisualEntity> {
     let person_spans: Vec<(usize, usize)> = entities
         .iter()
         .filter(|entity| entity.r#type == "PERSON")
@@ -381,9 +484,35 @@ fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> 
         .filter(|entity| matches!(entity.r#type.as_str(), "ORG" | "ORGANIZATION"))
         .map(|entity| (entity.start, entity.end))
         .collect();
+    let curated_structure_spans: Vec<(usize, usize)> = entities
+        .iter()
+        .filter(|entity| matches!(entity.r#type.as_str(), "FACILITY" | "STRUCTURE"))
+        .map(|entity| (entity.start, entity.end))
+        .collect();
+    let curated_compounds: Vec<(usize, usize)> = entities
+        .iter()
+        .filter(|entity| {
+            entity.text.split_whitespace().count() > 1
+                && values::curated_typed_entity(&entity.text).is_some()
+        })
+        .map(|entity| (entity.start, entity.end))
+        .collect();
     entities
         .into_iter()
         .filter(|entity| {
+            if curated_compounds.iter().any(|(owner_start, owner_end)| {
+                (*owner_start, *owner_end) != (entity.start, entity.end)
+                    && entity.start >= *owner_start
+                    && entity.end <= *owner_end
+                    && !typed_compound_links_location(
+                        *owner_start,
+                        *owner_end,
+                        entity,
+                        source_text,
+                    )
+            }) {
+                return false;
+            }
             if !matches!(
                 entity.r#type.as_str(),
                 "LOCATION" | "PERSON" | "ORG" | "ORGANIZATION"
@@ -416,6 +545,15 @@ fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> 
             {
                 return false;
             }
+            if entity.r#type == "PERSON"
+                && curated_structure_spans.iter().any(|(start, end)| {
+                    (*start, *end) != (entity.start, entity.end)
+                        && entity.start >= *start
+                        && entity.end <= *end
+                })
+            {
+                return false;
+            }
             !person_spans.iter().any(|(start, end)| {
                 (*start, *end) != (entity.start, entity.end)
                     && entity.start >= *start
@@ -423,6 +561,26 @@ fn drop_name_fragments(entities: Vec<VisualEntity>, context: &ScriptContext) -> 
             })
         })
         .collect()
+}
+
+fn typed_compound_links_location(
+    owner_start: usize,
+    _owner_end: usize,
+    entity: &VisualEntity,
+    source_text: &str,
+) -> bool {
+    if entity.r#type != "LOCATION" || entity.start <= owner_start {
+        return false;
+    }
+    let Some(prefix) = source_text.get(owner_start..entity.start) else {
+        return false;
+    };
+    let prefix = prefix.trim_end().to_lowercase();
+    semantic_core::lexicon::lexicon()
+        .facility
+        .bare_location_prepositions
+        .iter()
+        .any(|cue| prefix.ends_with(cue))
 }
 
 /// entities (NUMBER/PERCENT/MONEY). Without this, a low cap ranks every value

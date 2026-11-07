@@ -75,7 +75,11 @@ fn entity_searches(
         .iter()
         .enumerate()
         .filter_map(|(index, entity)| {
-            (is_visual_entity(entity) || entity.r#type == "VISUAL_CONCEPT").then_some(index)
+            // Generic concepts remain in the semantic inventory and enter the
+            // production plan through the recurrence/salience gate. Emitting
+            // a raw image search for every phrase (including fragments) makes
+            // the proposal stream noisy and bypasses that editorial gate.
+            is_visual_entity(entity).then_some(index)
         })
         .collect();
     let mut seen = HashSet::new();
@@ -128,14 +132,15 @@ fn multiple_entities(
         indices.dedup();
         let mut seen_identities = HashSet::new();
         indices.retain(|&index| seen_identities.insert(identities.id_of(index)));
-        if indices.len() < 2 {
+        // A long co-mention is a semantic topic, not a frame. Individual
+        // entity searches already preserve coverage; only an explicit pair
+        // can become a side-by-side composition without inventing a collage.
+        if indices.len() != 2 {
             continue;
         }
-        let layout = if indices.len() == 2 {
-            "side_by_side"
-        } else {
-            "grid"
-        };
+        if !has_renderable_pair_cue(&bullet.text) {
+            continue;
+        }
         out.push(VisualCandidate {
             kind: "multiple_entities",
             sentence_index: bullet.sentence_index,
@@ -144,13 +149,21 @@ fn multiple_entities(
             entity_indices: indices,
             chart_items: Vec::new(),
             temporal_surfaces: Vec::new(),
-            suggested_layout: Some(layout),
+            suggested_layout: Some("side_by_side"),
             requires_verified_images: true,
             evidence: bullet.text.clone(),
             start: bullet.start,
             end: bullet.end,
         });
     }
+}
+
+fn has_renderable_pair_cue(sentence: &str) -> bool {
+    let normalized = sentence.to_lowercase();
+    crate::consolidate::image_query_policy()
+        .renderable_pair_cues
+        .iter()
+        .any(|cue| normalized.contains(&cue.to_lowercase()))
 }
 
 fn charts(
