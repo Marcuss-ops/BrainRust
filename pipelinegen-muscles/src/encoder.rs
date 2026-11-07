@@ -4,6 +4,22 @@ use crate::error::MuscleError;
 use crate::process::ProcessCommand;
 use crate::protocol::Request;
 
+/// The MP4 video track timescale every assembly-ready fragment pins.
+///
+/// Together with the profile/level, `-refs 1`, `-bf 0`, the closed fixed GOP
+/// and the bt709/tv VUI below, this is the Rust side of the PipelineGen
+/// `CanonicalVideoProfileRevision` (`velox-avc1-high40-ref1-bt709-v1`),
+/// whose exact avcC SHA-256 is pinned by the Go assembly contract. A change
+/// to any of these facts must bump that revision there and in every cache key.
+///
+/// The delivery contract describes a 1/90000 video timebase. Without this
+/// muxer flag FFmpeg writes the frame-rate timescale instead (1/12288 for
+/// 24 fps), so the fragment reinforces the same nominal profile while its
+/// timestamps no longer match the assembly contract. It is a muxer option,
+/// not an encoder option: the avcC bytes are unchanged, which is exactly why
+/// the nominal probe alone cannot catch the drift.
+const CANONICAL_VIDEO_TIMESCALE: u32 = 90_000;
+
 /// The only builder allowed to emit video encoder arguments.
 ///
 /// The Go application owns the resolved policy values. Rust owns only the
@@ -96,6 +112,8 @@ fn build_video_args(
         "0".to_string(),
         "-r".to_string(),
         format!("{}/{}", profile.fps_num, profile.fps_den),
+        "-video_track_timescale".to_string(),
+        CANONICAL_VIDEO_TIMESCALE.to_string(),
     ];
     if nvenc {
         // NVENC quality is controlled by CQ under VBR. CRF is a libx264
@@ -240,6 +258,7 @@ mod tests {
         assert!(pair(&args, "-flags", "+cgop"));
         assert!(pair(&args, "-force_key_frames", "0"));
         assert!(pair(&args, "-r", "24/1"));
+        assert!(pair(&args, "-video_track_timescale", "90000"));
         assert!(pair(&args, "-map_metadata", "-1"));
         assert!(pair(&args, "-map_chapters", "-1"));
         // The SPS/PPS identity: fixed cadence, one reference, bt709 VUI.
@@ -274,6 +293,7 @@ mod tests {
         assert!(pair(&args, "-flags", "+cgop"));
         assert!(pair(&args, "-force_key_frames", "0"));
         assert!(pair(&args, "-r", "24/1"));
+        assert!(pair(&args, "-video_track_timescale", "90000"));
         assert!(pair(&args, "-keyint_min", "60"));
         assert!(pair(&args, "-sc_threshold", "0"));
         assert!(pair(&args, "-refs", "1"));

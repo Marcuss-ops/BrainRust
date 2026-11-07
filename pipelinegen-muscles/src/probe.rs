@@ -39,6 +39,7 @@ struct ProbeStream {
     channels: Option<u32>,
     profile: Option<String>,
     level: Option<i32>,
+    refs: Option<u32>,
     time_base: Option<String>,
     sample_aspect_ratio: Option<String>,
     color_range: Option<String>,
@@ -143,6 +144,27 @@ pub(crate) fn validate_output(
             .is_none_or(|fps| (fps - profile.fps_float()).abs() > 0.5)
     {
         return Err(MuscleError::generic("canonical video profile violation"));
+    }
+    // The assembly contract is a bitstream identity, not a codec name. Every
+    // fact below changes either the SPS/PPS or the timestamps that
+    // `concat -c copy` reuses from the first segment, while the nominal
+    // geometry can stay identical. A cached cut written before this gate is
+    // rejected here and re-encoded by the caller, which is the cache
+    // invalidation the encoder-profile change requires.
+    if video.profile.as_deref() != Some("High")
+        || video.level != Some(40)
+        || video.refs != Some(1)
+        || video.has_b_frames.unwrap_or(1) != 0
+        || video.time_base.as_deref() != Some("1/90000")
+        || video.sample_aspect_ratio.as_deref() != Some("1:1")
+        || video.color_range.as_deref() != Some("tv")
+        || video.color_space.as_deref() != Some("bt709")
+        || video.color_transfer.as_deref() != Some("bt709")
+        || video.color_primaries.as_deref() != Some("bt709")
+    {
+        return Err(MuscleError::generic(
+            "canonical H.264 bitstream violation (High 4.0, refs 1, no B-frames, 1/90000, 1:1 SAR, bt709/tv required)",
+        ));
     }
     let audio = probe
         .streams
