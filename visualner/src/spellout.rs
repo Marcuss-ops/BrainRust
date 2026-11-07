@@ -18,6 +18,11 @@ pub(crate) struct WordNumberCandidate {
     pub end: usize,
     pub value: f64,
     pub entity_type: &'static str,
+    /// True when the candidate already includes a unit suffix or is
+    /// immediately followed by an open-class noun ("sedici anni", "cinque
+    /// consulenze", "five reports"). A bare count ("quarantadue dei
+    /// tecnici") stays false: it is not a measurement.
+    pub has_unit: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -353,6 +358,8 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
                 end: candidate_end,
                 value,
                 entity_type: classified_type,
+                has_unit: candidate_end > end
+                    || next_token_is_open_class(source, candidate_end, language),
             });
             // Prefer a suffix-extended quantity; otherwise continue so the
             // longest complete number phrase wins for this token start.
@@ -586,6 +593,33 @@ fn quantity_suffix(source: &str, end: usize) -> Option<(&'static str, &'static s
                 .nth(suffix.chars().count())
                 .is_none_or(|next| !next.is_alphanumeric())
     })
+}
+
+/// True when the token immediately after `end` is an open-class word, which
+/// makes it a unit for the preceding spelled quantity. A preposition or
+/// article from the language pack means the number is a bare count ("quaranta
+/// dei tecnici"), not a measurement. Without a pack the check fails closed:
+/// an unprovable unit never enters the numeric projection.
+fn next_token_is_open_class(source: &str, end: usize, language: &str) -> bool {
+    let Some(tail) = source.get(end..) else {
+        return false;
+    };
+    let tail = tail.trim_start();
+    let Some(first) = tail.chars().next() else {
+        return false;
+    };
+    if !first.is_alphanumeric() {
+        return false;
+    }
+    let word_end = tail
+        .char_indices()
+        .find(|(_, character)| !character.is_alphanumeric())
+        .map(|(index, _)| index)
+        .unwrap_or(tail.len());
+    let word = tail[..word_end].to_lowercase();
+    semantic_core::language_packs::get(language)
+        .map(|pack| !pack.is_stopword(&word))
+        .unwrap_or(false)
 }
 
 fn extend_quantity(source: &str, end: usize, default_type: &'static str) -> (usize, &'static str) {

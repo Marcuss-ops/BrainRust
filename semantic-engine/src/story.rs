@@ -266,10 +266,13 @@ fn fact_node(scene_id: &str, fact: &EntityFact) -> StoryNode {
 ///
 /// A fact is covered when a proposal *presents* its content: a chart of the
 /// fact's exact value span, or a timeline (including the one-event date card)
-/// over a fact that carries a date. An `entity_search` proposal is an asset
-/// query and an `entity_card` presents the subject rather than the claim, so
-/// neither masks an uncovered fact; sharing a sentence is not a representation
-/// either, and a timeline never covers a fact that has no date.
+/// over a fact that carries a date. A sentence length is the one undated
+/// measurement a timeline can present: it belongs to a dated event the same
+/// timeline already covers in its sentence ("a 16-year sentence" is part of
+/// the 2014 conviction, not a separate step). An `entity_search` proposal is
+/// an asset query and an `entity_card` presents the subject rather than the
+/// claim, so neither masks an uncovered fact; sharing a sentence alone is not
+/// a representation either.
 pub fn build_visual_coverage(scenes: &[SceneManifest]) -> VisualCoverage {
     // Only a chart or a timeline presents a fact's own content. A card or a
     // co-mention presents the subject, which is why it does not count: else
@@ -291,7 +294,17 @@ pub fn build_visual_coverage(scenes: &[SceneManifest]) -> VisualCoverage {
                     && fact.normalized_date.is_some()
                     && proposal.start_byte <= fact.start_byte
                     && fact.end_byte <= proposal.end_byte;
-                if (charts_value || covers_date)
+                let covers_event_measurement = proposal.proposal_type == "timeline"
+                    && fact.predicate == "sentence_length"
+                    && proposal.start_byte <= fact.start_byte
+                    && fact.end_byte <= proposal.end_byte
+                    && scene.entity_facts.iter().any(|dated| {
+                        dated.sentence_index == fact.sentence_index
+                            && dated.normalized_date.is_some()
+                            && dated.start_byte >= proposal.start_byte
+                            && dated.end_byte <= proposal.end_byte
+                    });
+                if (charts_value || covers_date || covers_event_measurement)
                     && !proposal_types
                         .iter()
                         .any(|kind| kind == &proposal.proposal_type)

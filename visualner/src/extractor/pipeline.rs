@@ -189,9 +189,18 @@ fn extract_with_context_and_spellout_mode(
             // The representative controls ranking and query text. Keep all
             // distinct evidence spans separately for the semantic manifest.
             let existing = &mut unique[existing_idx];
-            if existing.r#type == "PERSON"
-                && !is_canonical_person_surface(existing, context)
-                && is_canonical_person_surface(&entity, context)
+            // A possessive mention is the same identity as its stem, but it is
+            // not the person's surface in the manifest: prefer "Donald Trump"
+            // when the first representative was "Donald Trump's".
+            let prefer_non_possessive = existing
+                .text
+                .strip_suffix("'s")
+                .or_else(|| existing.text.strip_suffix("’s"))
+                .is_some_and(|stem| stem == entity.text);
+            if prefer_non_possessive
+                || (existing.r#type == "PERSON"
+                    && !is_canonical_person_surface(existing, context)
+                    && is_canonical_person_surface(&entity, context))
             {
                 *existing = entity;
             }
@@ -238,10 +247,9 @@ fn extraction_identity_key(entity: &VisualEntity, context: &ScriptContext) -> St
 
 fn is_canonical_person_surface(entity: &VisualEntity, context: &ScriptContext) -> bool {
     entity.r#type == "PERSON"
-        && context
+        && !context
             .person_surnames
-            .get(&entity.text.to_lowercase())
-            .is_none()
+            .contains_key(&entity.text.to_lowercase())
 }
 
 /// Generic visual concepts are useful phrase inventory only when they form a
@@ -504,12 +512,7 @@ fn drop_name_fragments(
                 (*owner_start, *owner_end) != (entity.start, entity.end)
                     && entity.start >= *owner_start
                     && entity.end <= *owner_end
-                    && !typed_compound_links_location(
-                        *owner_start,
-                        *owner_end,
-                        entity,
-                        source_text,
-                    )
+                    && !typed_compound_links_location(*owner_start, *owner_end, entity, source_text)
             }) {
                 return false;
             }

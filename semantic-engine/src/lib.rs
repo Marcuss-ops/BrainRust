@@ -216,7 +216,32 @@ fn analyze_scene_with_search(
         &known_person_surnames,
         language,
     );
-    let (entities, rejected_entities) = retain_grounded_entities(source, analysis.entities);
+    let (mut entities, rejected_entities) = retain_grounded_entities(source, analysis.entities);
+    // Preserving mentions keeps a nested facility surface such as "Aurora"
+    // alongside "Stadio Aurora". The maximal span names the venue, so the
+    // fragment must not get its own identity, fact or query. Other types may
+    // legitimately nest (an acronym inside "RIS di Parma", a place inside an
+    // organization), so only facilities collapse.
+    let mut keep = vec![true; entities.len()];
+    for (index, entity) in entities.iter().enumerate() {
+        if !keep[index] || entity.r#type != "FACILITY" {
+            continue;
+        }
+        for (other_index, other) in entities.iter().enumerate() {
+            if index != other_index
+                && keep[other_index]
+                && other.r#type == "FACILITY"
+                && other.start <= entity.start
+                && entity.end <= other.end
+                && (other.start < entity.start || entity.end < other.end)
+            {
+                keep[index] = false;
+                break;
+            }
+        }
+    }
+    let mut keep = keep.into_iter();
+    entities.retain(|_| keep.next().unwrap_or(true));
     let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
 
     let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context);

@@ -239,6 +239,13 @@ fn numeric_facts(
         if !matches!(candidate.entity_type, "NUMBER" | "PERCENT" | "MONEY") {
             continue;
         }
+        // A bare spelled count is not a measurement: "quarantadue dei
+        // tecnici" names no unit. Only a candidate that carries a unit
+        // ("sedici anni") or is followed by an open-class noun ("cinque
+        // consulenze", "five reports") enters the numeric projection.
+        if candidate.entity_type == "NUMBER" && !candidate.has_unit {
+            continue;
+        }
         // A spelled date component ("ventiquattro" in "ventiquattro maggio")
         // is owned by the temporal projection. Compare spans, not containment:
         // a candidate may cover only the day token inside a longer date.

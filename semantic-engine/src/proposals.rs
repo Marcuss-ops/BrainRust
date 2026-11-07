@@ -63,9 +63,12 @@ pub(crate) fn to_visual_proposal(
             }
         }
     }
-    // Scene-phrase queries lead for entity searches; the exact entity span
-    // follows as a fallback.
-    if candidate.kind == "entity_search" {
+    // Every presentation proposal carries the exact grounded subject query so
+    // a card or layout can be resolved without a second lookup. Only the
+    // entity_search proposal owns retrieval feedback entries: duplicating the
+    // same query for each presentation inflated feedback without creating a
+    // distinct search opportunity.
+    if !candidate.entity_texts.is_empty() {
         for text in &candidate.entity_texts {
             if text.is_empty() || is_noise_query(text) || !source.contains(text.as_str()) {
                 continue;
@@ -73,7 +76,9 @@ pub(crate) fn to_visual_proposal(
             if !visual_query_suggestions.iter().any(|query| query == text) {
                 visual_query_suggestions.push(text.clone());
             }
-            queries.push(SearchQuery::literal(text.clone()));
+            if candidate.kind == "entity_search" {
+                queries.push(SearchQuery::literal(text.clone()));
+            }
         }
     }
     let proposal_id = format!("{scene_id}_visual_{:03}", index + 1);

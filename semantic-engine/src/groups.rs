@@ -75,11 +75,11 @@ fn entity_searches(
         .iter()
         .enumerate()
         .filter_map(|(index, entity)| {
-            // Generic concepts remain in the semantic inventory and enter the
-            // production plan through the recurrence/salience gate. Emitting
-            // a raw image search for every phrase (including fragments) makes
-            // the proposal stream noisy and bypasses that editorial gate.
-            is_visual_entity(entity).then_some(index)
+            // Every grounded visual mention keeps a retrieval opportunity,
+            // including an open-class concept: the planner still owns
+            // admission, so suppressing the proposal would silently drop a
+            // subject the caller can picture and search.
+            (is_visual_entity(entity) || entity.r#type == "VISUAL_CONCEPT").then_some(index)
         })
         .collect();
     let mut seen = HashSet::new();

@@ -37,9 +37,8 @@ pub(super) fn classify_value_type(
         return "VISUAL_CONCEPT".to_string();
     }
     let currency_words = [
-        "dollar", "dollars", "dollaro", "dollari", "dólar", "dólares", "dolares", "euro",
-        "euros", "pound", "pounds", "libra", "libras", "yen", "yenes", "iene", "usd", "eur",
-        "gbp", "jpy",
+        "dollar", "dollars", "dollaro", "dollari", "dólar", "dólares", "dolares", "euro", "euros",
+        "pound", "pounds", "libra", "libras", "yen", "yenes", "iene", "usd", "eur", "gbp", "jpy",
     ];
     let has_currency_word = text
         .split(|ch: char| !ch.is_alphanumeric())
@@ -371,8 +370,8 @@ pub(super) fn curated_typed_entity(text: &str) -> Option<String> {
                     return false;
                 }
                 let letters: Vec<char> = name.chars().filter(|ch| ch.is_alphabetic()).collect();
-                let is_acronym = (2..=5).contains(&letters.len())
-                    && letters.iter().all(|ch| ch.is_uppercase());
+                let is_acronym =
+                    (2..=5).contains(&letters.len()) && letters.iter().all(|ch| ch.is_uppercase());
                 !is_acronym
                     || text
                         .chars()
