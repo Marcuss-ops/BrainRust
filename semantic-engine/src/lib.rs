@@ -15,6 +15,7 @@
 pub mod cache;
 mod chart_rules;
 pub mod consolidate;
+pub mod discourse;
 pub mod groups;
 pub mod identity_lookup;
 pub mod legal;
@@ -67,8 +68,9 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
     semantic_core::AnalyzerVersions {
         visualner: "visualner".to_string(),
         semantic_core: env!("CARGO_PKG_VERSION").to_string(),
-        phrase_impact: "phrase_impact+editorial-selection-v3+image-query-fanout-v3+chart-gate-v1"
-            .to_string(),
+        phrase_impact:
+            "phrase_impact+editorial-selection-v3+image-query-fanout-v3+chart-gate-v1+discourse-v1"
+                .to_string(),
         lexicon: semantic_core::lexicon::LEXICON_VERSION.to_string(),
     }
 }
@@ -448,6 +450,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
 
     let story_graph = story::build_story_graph(&scenes);
     let visual_coverage = story::build_visual_coverage(&scenes);
+    let discourse = discourse::build(language, &request.scenes, &scenes);
     let visual_consolidation = consolidate::build(
         language,
         &request.scenes,
@@ -487,6 +490,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         scenes,
         story_graph,
         visual_coverage,
+        discourse,
         visual_consolidation,
         search_feedback: semantic_core::SearchFeedback {
             entries: search_entries,

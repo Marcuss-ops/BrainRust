@@ -24,21 +24,44 @@ Canonical status: [`docs/tickets/README.md`](docs/tickets/README.md). Tickets
 |---|---|---|
 | Formatting | `cargo fmt --all -- --check` | `0` |
 | Lints | `RUST_ICU_MAJOR_VERSION_NUMBER=70 cargo clippy --workspace --all-targets -- -D warnings` | `0` |
-| Workspace tests | `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models cargo test --workspace -j 2` | **628 passed, 0 failed, 1 ignored**, 40 test binaries |
+| Workspace tests | `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models cargo test --workspace -j 2` | **645 passed, 0 failed, 1 ignored**, 41 test binaries |
 | Release worker | `cargo build --release -p semantic-engine` | `0` |
 | Canonical render integration | `cargo test -p pipelinegen-muscles --test canonical_render_segments` | 4/4 passed |
 | Go policy packages | `go test ./internal/capabilities/entities ./internal/capabilities/images/entitycatalog ./internal/capabilities/scripts/adapters -count=1` in `refactored` | pass |
 | Long-script RSS | 20 long scripts, analysed once and replayed once | peak 1,418,300 KiB; P50 0.403 s; P95 3.600 s |
 
-Evidence log: `BrainRust/.tmp/audit-full-tests.log`. RSS report:
-`BrainRust/.tmp/ticket06-long-script-rss.json`. The 628 count includes the new
-NDJSON failure/ceiling tests, imagecatalog canonical/manifest-reuse tests,
-completeness wire tests and the canonical render integration suite.
+Evidence log: `BrainRust/.tmp/discourse-final-tests.log`. RSS report:
+`BrainRust/.tmp/ticket06-long-script-rss.json`. The 645 count includes the
+prior audit suites plus the 13 discourse integration tests and the
+language-scoped reference unit tests.
 
 This closeout does **not** satisfy the independent editorial gold set (ticket
 08), multimodal pgvector association (ticket 10), Gate B's human annotations or
 Gate D's provider/deployment measurements. Those remain open and must not be
 reported as certified.
+
+## Discourse continuity — 2026-11-11
+
+Ticket: [`docs/tickets/TICKET-11-discourse-continuity.md`](docs/tickets/TICKET-11-discourse-continuity.md).
+Contract: [`docs/operations/discourse.md`](docs/operations/discourse.md).
+
+- [x] Additive `discourse.v1` projection in `semantic_manifest.v2`; older
+  manifests decode with an empty projection.
+- [x] Explicit names and surname aliases resolve through the shared identity
+  registry with exact source spans.
+- [x] Pronouns and role nominals resolve only with a unique compatible
+  antecedent; ambiguous references keep every candidate id and no target.
+- [x] Quoted speech is never attributed to the narrator.
+- [x] Entity threads record `starts`, `continues` and `returns` across scenes.
+- [x] Scene continuity reports deterministic entity-id overlap, not a claimed
+  topic probability.
+- [x] Tests cover a twenty-sentence return, same-surname people, two-person
+  ambiguity, role ambiguity, plural pairs, quoted speech, legacy decode and
+  ten-language cue detection.
+
+Not claimed by this slice: subjectless-verb ellipsis, generated entity-centric
+prose, narrative-importance scoring and visual asset reuse. Calibrated
+editorial quality still requires the independent human gold set in ticket 08.
 
 ## Gate A — Stability
 

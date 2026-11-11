@@ -11,6 +11,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::identity::CanonicalIdentity;
+use crate::narrative::DiscourseProjection;
 use crate::numbers::NumericFact;
 use crate::relations::RelationView;
 
@@ -857,6 +858,10 @@ pub struct SemanticManifest {
     pub story_graph: StoryGraph,
     /// Which grounded facts a scene's proposals already represent.
     pub visual_coverage: VisualCoverage,
+    /// Additive entity-continuity projection. Older manifests decode with an
+    /// empty projection; older consumers may ignore it.
+    #[serde(default)]
+    pub discourse: DiscourseProjection,
     /// Selective production view: canonical facts, deduplicated candidates,
     /// query budgets and explicit coverage reasons.
     pub visual_consolidation: VisualConsolidation,

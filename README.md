@@ -67,7 +67,15 @@ outcome (`normalized_value`) from the ISO ordering date
 (`normalized_date`); `semantic-engine::micro` projects asserted facts into
 fact-backed micro phrases and chronological or comparison groups without
 rewriting `not convicted` as innocence. Every retained visual entity gets a
-source-grounded search query.
+source-grounded search query. The manifest also carries an additive
+`discourse.v1` projection: explicit names, surname aliases, pronouns and role
+nominals are resolved only with a unique compatible antecedent; otherwise they
+are reported as `ambiguous` or `unresolved` with candidate ids. Entity threads
+record `starts`/`continues`/`returns` beats, and `scene_continuity` reports the
+deterministic entity-id overlap between scenes. This is continuity evidence,
+not a calibrated topic or coreference probability. Subjectless-verb ellipsis
+and generated entity-centric prose are not part of this version. See
+[`docs/operations/discourse.md`](docs/operations/discourse.md).
 Bullet candidates and their editorial salience come from one shared
 `semantic-core::bullets` implementation; the editorial ranking combines that
 score with embedding importance and owns duplicate/novelty selection. The

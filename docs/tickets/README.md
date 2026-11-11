@@ -4,7 +4,7 @@ Canonical status for the 2026-11-11 architecture audit and its ten-PR roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-11. **8 DONE, 0 PARTIAL, 2 BLOCKED.**
+Last verified: 2026-11-11. **9 DONE, 0 PARTIAL, 2 BLOCKED.**
 
 Status vocabulary:
 
@@ -27,23 +27,24 @@ Status vocabulary:
 | [08](TICKET-08-editorial-gold-set.md) | P1 | BLOCKED | Requires independent human annotations; no such dataset ships here. |
 | [09](TICKET-09-hotspot-contraction.md) | P2 | DONE | Source preparation extracted; duplicate cache fingerprint removed; remaining splits would be cosmetic. |
 | [10](TICKET-10-multimodal-pgvector.md) | P2 | BLOCKED | Requires SigLIP/pgvector, a schema and a calibrated held-out dataset. |
+| [11](TICKET-11-discourse-continuity.md) | P0 | DONE (deterministic core) | Additive `discourse.v1` references, ambiguity, threads and scene continuity. |
 
 ## Verification — 2026-11-11
 
 - `cargo fmt --all -- --check` — clean.
 - `cargo clippy --workspace --all-targets -- -D warnings` — clean.
 - `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models RUST_ICU_MAJOR_VERSION_NUMBER=70
-  cargo test --workspace -j 2` — **628 passed, 0 failed, 1 ignored** across 40
-  test binaries. Log: `BrainRust/.tmp/audit-full-tests.log`.
+  cargo test --workspace -j 2` — **645 passed, 0 failed, 1 ignored** across 41
+  test binaries. Log: `BrainRust/.tmp/discourse-final-tests.log`.
 - `cargo build --release -p semantic-engine` — clean.
 - `cargo test -p pipelinegen-muscles --test canonical_render_segments` — 4/4.
 - `go test ./internal/capabilities/entities
   ./internal/capabilities/images/entitycatalog
   ./internal/capabilities/scripts/adapters -count=1` — pass in `refactored`.
 
-The 628 count includes the new NDJSON write-failure/ceiling tests, the expanded
-imagecatalog canonical/manifest-reuse tests, the completeness wire tests and
-the canonical render integration suite.
+The 645 count includes the prior audit suites plus the 13 discourse integration
+tests and the language-scoped reference unit tests. `discourse.v1` is additive:
+older manifests decode with an empty projection.
 
 ## External residuals
 

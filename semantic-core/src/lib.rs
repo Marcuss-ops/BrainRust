@@ -34,6 +34,7 @@ pub mod language_packs;
 pub mod legal_packs;
 pub mod lexicon;
 pub mod manifest;
+pub mod narrative;
 pub mod numbers;
 pub mod phrase_impact;
 pub mod relations;
@@ -52,6 +53,10 @@ pub use manifest::{
     SearchQuery, SearchRetry, SemanticGroup, SemanticGroupMember, SemanticManifest, StoryEdge,
     StoryGraph, StoryNode, VisualConsolidation, VisualCoverage, VisualProposal, SCHEMA_VERSION,
     VISUAL_CONSOLIDATION_SCHEMA,
+};
+pub use narrative::{
+    DiscourseCounts, DiscourseProjection, DiscourseReference, EntityThread, SceneContinuity,
+    ThreadBeat, DISCOURSE_SCHEMA,
 };
 pub use numbers::{parse_unambiguous_value, values_are_comparable, NumericFact};
 pub use relations::{AssertedRelation, CoMention, RelationStatus, RelationView};
