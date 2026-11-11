@@ -15,11 +15,17 @@ Qdrant state, or load credentials. Those responsibilities remain behind the
 existing Go application and infrastructure ports until a separate migration
 contract is approved.
 
-The workspace now has two deliberately separate execution boundaries:
+The workspace has deliberately separate execution boundaries:
 
 - `semantic-engine` is the dedicated CPU-only text-analysis worker. One
   `analyze_script` request carries all scenes and returns the versioned
   `semantic_manifest.v2`; it does not search for assets or perform media I/O.
+- `imagecatalog` is the image-only association planner. It consumes a snapshot
+  of the **existing** `entity_image_catalog_*` rows plus an optional semantic
+  annotation sidecar keyed by `candidate_id`, reuses the semantic engine's
+  grounded queries and returns deterministic per-scene image decisions. It
+  does not open PipelineGen's database, download assets, render, or create a
+  second catalog. Video, stock clips and SFX are out of scope.
 - `pipelinegen-muscles` remains the media executor. It owns FFmpeg-related
   operations and must not become the semantic engine's dependency. The
   standalone Phrase Impact and Scene Intelligence compatibility workers were

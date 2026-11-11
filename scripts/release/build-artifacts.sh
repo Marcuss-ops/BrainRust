@@ -27,7 +27,7 @@ cargo build --release --locked --workspace
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
-for bin in pipelinegen-muscles visualner mediasampler semantic-engine; do
+for bin in pipelinegen-muscles visualner mediasampler semantic-engine imagecatalog; do
     [ -x "target/release/$bin" ] || die "missing release binary: target/release/$bin"
     install -m 0755 "target/release/$bin" "$OUT/$bin"
 done
@@ -38,7 +38,7 @@ ldd "$OUT/visualner" | grep -q "libicuuc.so.$major" \
 
 (
     cd "$OUT"
-    sha256sum pipelinegen-muscles visualner mediasampler semantic-engine > sha256sums.txt
+    sha256sum pipelinegen-muscles visualner mediasampler semantic-engine imagecatalog > sha256sums.txt
 )
 rustc -vV > "$OUT/TOOLCHAIN"
 printf '%s\n' "$major" > "$OUT/ICU_MAJOR"

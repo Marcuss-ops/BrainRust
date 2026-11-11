@@ -1,0 +1,938 @@
+{
+  "entities": [
+    {
+      "canonical_entity_id": "person:alberto-stasi",
+      "entity_type": "PERSON",
+      "canonical_name": "Alberto Stasi"
+    },
+    {
+      "canonical_entity_id": "person:andrea-sempio",
+      "entity_type": "PERSON",
+      "canonical_name": "Andrea Sempio"
+    },
+    {
+      "canonical_entity_id": "person:chiara-poggi",
+      "entity_type": "PERSON",
+      "canonical_name": "Chiara Poggi"
+    },
+    {
+      "canonical_entity_id": "person:tribunale-di-vigevano-and-generic-evidence-archive",
+      "entity_type": "PERSON",
+      "canonical_name": "Tribunale di Vigevano and generic evidence archive"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": 23256,
+      "canonical_entity_id": "person:andrea-sempio",
+      "provider": "duckduckgo",
+      "rank": 3,
+      "source_url": "https://livesicilia.it/wp-content/uploads/2025/11/Andrea-Sempio.jpg",
+      "source_page_url": "https://livesicilia.it/wp-content/uploads/2025/11/Andrea-Sempio.jpg",
+      "thumbnail_url": "https://livesicilia.it/wp-content/uploads/2025/11/Andrea-Sempio.jpg",
+      "width": 3072,
+      "height": 2050,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "Ollama visual verification did not find one clear person",
+      "last_seen_at": "2026-10-26 15:42:26"
+    },
+    {
+      "candidate_id": 23264,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 6,
+      "source_url": "https://static.sky.it/editorialimages/1b82132382da2570c0142f689b692c0f8924e94c/skytg24/it/cronaca/approfondimenti/delitto-garlasco-omicidio-chiara-poggi-storia/hero_garlasco_ansa.jpg?im=Resize",
+      "source_page_url": "https://static.sky.it/editorialimages/1b82132382da2570c0142f689b692c0f8924e94c/skytg24/it/cronaca/approfondimenti/delitto-garlasco-omicidio-chiara-poggi-storia/hero_garlasco_ansa.jpg?im=Resize",
+      "thumbnail_url": "https://static.sky.it/editorialimages/1b82132382da2570c0142f689b692c0f8924e94c/skytg24/it/cronaca/approfondimenti/delitto-garlasco-omicidio-chiara-poggi-storia/hero_garlasco_ansa.jpg?im=Resize",
+      "width": 0,
+      "height": 0,
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 1.0,
+      "technical_score": 0.0,
+      "quality_reason": "explicit PERSON entity matches canonical identity",
+      "last_seen_at": "2026-11-10 17:35:04"
+    },
+    {
+      "candidate_id": 23268,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 7,
+      "source_url": "https://media-assets.vanityfair.it/photos/67d1449a6bcd5133fd1b6670/16:9/w_2560%2Cc_limit/IPA_Agency_IPA1244516.jpg",
+      "source_page_url": "",
+      "thumbnail_url": "https://media-assets.vanityfair.it/photos/67d1449a6bcd5133fd1b6670/16:9/w_2560%2Cc_limit/IPA_Agency_IPA1244516.jpg",
+      "width": 0,
+      "height": 0,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source URL does not establish canonical PERSON identity \"Chiara Poggi\"",
+      "last_seen_at": "2026-11-10 17:01:13"
+    },
+    {
+      "candidate_id": 23294,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 7,
+      "source_url": "https://static.sky.it/editorialimages/2ae90e45dbbef33797ecfd7fdc378bed4f67e3dd/skytg24/it/cronaca/2025/03/13/chiara-poggi-andrea-sempio-delitto-garlasco-indagini-news/sempio_poggi_ansa_ipa2jpg.jpg?im=Resize=(832",
+      "source_page_url": "https://static.sky.it/editorialimages/2ae90e45dbbef33797ecfd7fdc378bed4f67e3dd/skytg24/it/cronaca/2025/03/13/chiara-poggi-andrea-sempio-delitto-garlasco-indagini-news/sempio_poggi_ansa_ipa2jpg.jpg?im=Resize=(832",
+      "thumbnail_url": "https://static.sky.it/editorialimages/2ae90e45dbbef33797ecfd7fdc378bed4f67e3dd/skytg24/it/cronaca/2025/03/13/chiara-poggi-andrea-sempio-delitto-garlasco-indagini-news/sempio_poggi_ansa_ipa2jpg.jpg?im=Resize=(832",
+      "width": 0,
+      "height": 0,
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 1.0,
+      "technical_score": 0.0,
+      "quality_reason": "explicit PERSON entity matches canonical identity",
+      "last_seen_at": "2026-11-10 17:35:41"
+    },
+    {
+      "candidate_id": 23296,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 1,
+      "source_url": "https://media.liberoquotidiano.it/GXLBgr1AIvmi3JSViqOOIF9NMAmOOlGxFTIXL_mm87k/width:3840/quality:90/aW1hZ2VzLzIwMjUvMDcvMTIvMDkzMzA3NjYwLTRiNDVmOWE0LTRkOWItNDJiNi05ZTQ5LTAyOGIyYmY1YWQzYy5qcGc.webp",
+      "source_page_url": "",
+      "thumbnail_url": "https://media.liberoquotidiano.it/GXLBgr1AIvmi3JSViqOOIF9NMAmOOlGxFTIXL_mm87k/width:3840/quality:90/aW1hZ2VzLzIwMjUvMDcvMTIvMDkzMzA3NjYwLTRiNDVmOWE0LTRkOWItNDJiNi05ZTQ5LTAyOGIyYmY1YWQzYy5qcGc.webp",
+      "width": 0,
+      "height": 0,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source URL does not establish canonical PERSON identity \"Chiara Poggi\"",
+      "last_seen_at": "2026-11-10 17:13:37"
+    },
+    {
+      "candidate_id": 23298,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 1,
+      "source_url": "https://media.liberoquotidiano.it/BY13ZNCeOEjryEpcJE-bubTk3mC17B_A6sXtGc70s2U/width:3840/quality:90/aW1hZ2VzLzIwMjYvMDMvMDYvMTQwMDE0NTI3LTAwODM5ZWFjLTFmMWQtNGVjZS1iNDk1LTc4ZGFmNWM3OWI4YS5qcGc.webp",
+      "source_page_url": "",
+      "thumbnail_url": "https://media.liberoquotidiano.it/BY13ZNCeOEjryEpcJE-bubTk3mC17B_A6sXtGc70s2U/width:3840/quality:90/aW1hZ2VzLzIwMjYvMDMvMDYvMTQwMDE0NTI3LTAwODM5ZWFjLTFmMWQtNGVjZS1iNDk1LTc4ZGFmNWM3OWI4YS5qcGc.webp",
+      "width": 1955,
+      "height": 1500,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source URL does not establish canonical PERSON identity \"Chiara Poggi\"",
+      "last_seen_at": "2026-11-10 17:35:35"
+    },
+    {
+      "candidate_id": 23302,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 14,
+      "source_url": "https://cdn.ultimenotizieflash.com/wp-content/uploads/2026/01/14091513/ultime-notizie-omicidio-chiara-poggi.jpg",
+      "source_page_url": "",
+      "thumbnail_url": "https://cdn.ultimenotizieflash.com/wp-content/uploads/2026/01/14091513/ultime-notizie-omicidio-chiara-poggi.jpg",
+      "width": 1920,
+      "height": 1080,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 1.0,
+      "quality_reason": "visual verification failed: all models skipped by circuit breaker",
+      "last_seen_at": "2026-11-10 17:13:43"
+    },
+    {
+      "candidate_id": 23304,
+      "canonical_entity_id": "person:alberto-stasi",
+      "provider": "duckduckgo",
+      "rank": 1,
+      "source_url": "https://media.liberoquotidiano.it/ulScRSrXDV3sNejEtWn2UCHF5MZfHln7oJciHQBrD6o/width:3840/quality:90/aW1hZ2VzLzIwMjYvMDQvMzAvMTM0MTIxMzE5LTM1MGQwNjg0LWYyYTctNDhkYi04MWI2LWJlZWYwZDQ0N2QwZC5qcGc.webp",
+      "source_page_url": "",
+      "thumbnail_url": "https://media.liberoquotidiano.it/ulScRSrXDV3sNejEtWn2UCHF5MZfHln7oJciHQBrD6o/width:3840/quality:90/aW1hZ2VzLzIwMjYvMDQvMzAvMTM0MTIxMzE5LTM1MGQwNjg0LWYyYTctNDhkYi04MWI2LWJlZWYwZDQ0N2QwZC5qcGc.webp",
+      "width": 1950,
+      "height": 1500,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source URL does not establish canonical PERSON identity \"Alberto Stasi\"",
+      "last_seen_at": "2026-11-10 17:35:26"
+    },
+    {
+      "candidate_id": 23462,
+      "canonical_entity_id": "person:alberto-stasi",
+      "provider": "duckduckgo",
+      "rank": 3,
+      "source_url": "https://mam-e.it/wp-content/uploads/2025/04/alberto_stasi_garlasco_garlasco_ipa.webp",
+      "source_page_url": "https://mam-e.it/wp-content/uploads/2025/04/alberto_stasi_garlasco_garlasco_ipa.webp",
+      "thumbnail_url": "https://mam-e.it/wp-content/uploads/2025/04/alberto_stasi_garlasco_garlasco_ipa.webp",
+      "width": 1920,
+      "height": 1092,
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 0.95,
+      "technical_score": 0.0,
+      "quality_reason": "canonical identity appears in source URL; Ollama visual verification confirmed one dominant subject and no collage",
+      "last_seen_at": "2026-11-10 17:35:32"
+    },
+    {
+      "candidate_id": 23528,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 3,
+      "source_url": "https://tg24.sky.it/assets/images/1675ef346b3d3eb53ff581d7ea270e12d56a5f16/skytg24/it/cronaca/approfondimenti/delitto-garlasco-protagonisti-omicidio-chiara-poggi/garlasco_persone_ansa.jpg?im=FitAndFill=(832",
+      "source_page_url": "https://tg24.sky.it/assets/images/1675ef346b3d3eb53ff581d7ea270e12d56a5f16/skytg24/it/cronaca/approfondimenti/delitto-garlasco-protagonisti-omicidio-chiara-poggi/garlasco_persone_ansa.jpg?im=FitAndFill=(832",
+      "thumbnail_url": "https://tg24.sky.it/assets/images/1675ef346b3d3eb53ff581d7ea270e12d56a5f16/skytg24/it/cronaca/approfondimenti/delitto-garlasco-protagonisti-omicidio-chiara-poggi/garlasco_persone_ansa.jpg?im=FitAndFill=(832",
+      "width": 2080,
+      "height": 1302,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "pixel geometry detected multiple aligned photo panels",
+      "last_seen_at": "2026-11-09 20:07:05"
+    },
+    {
+      "candidate_id": 34357,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 4,
+      "source_url": "https://www.lidentita.it/wp-content/uploads/sites/8/2026/05/delitto-chiara-poggi.jpg",
+      "source_page_url": "https://www.lidentita.it/wp-content/uploads/sites/8/2026/05/delitto-chiara-poggi.jpg",
+      "thumbnail_url": "https://www.lidentita.it/wp-content/uploads/sites/8/2026/05/delitto-chiara-poggi.jpg",
+      "width": 0,
+      "height": 0,
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 1.0,
+      "technical_score": 0.0,
+      "quality_reason": "explicit PERSON entity matches canonical identity",
+      "last_seen_at": "2026-11-10 17:35:37"
+    },
+    {
+      "candidate_id": 34464,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 5,
+      "source_url": "https://static.sky.it/editorialimages/2ae90e45dbbef33797ecfd7fdc378bed4f67e3dd/skytg24/it/cronaca/2025/03/13/chiara-poggi-andrea-sempio-delitto-garlasco-indagini-news/sempio_poggi_ansa_ipa2jpg.jpg?im=Resize=(750",
+      "source_page_url": "https://static.sky.it/editorialimages/2ae90e45dbbef33797ecfd7fdc378bed4f67e3dd/skytg24/it/cronaca/2025/03/13/chiara-poggi-andrea-sempio-delitto-garlasco-indagini-news/sempio_poggi_ansa_ipa2jpg.jpg?im=Resize=(750",
+      "thumbnail_url": "https://static.sky.it/editorialimages/2ae90e45dbbef33797ecfd7fdc378bed4f67e3dd/skytg24/it/cronaca/2025/03/13/chiara-poggi-andrea-sempio-delitto-garlasco-indagini-news/sempio_poggi_ansa_ipa2jpg.jpg?im=Resize=(750",
+      "width": 0,
+      "height": 0,
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 1.0,
+      "technical_score": 0.0,
+      "quality_reason": "explicit PERSON entity matches canonical identity",
+      "last_seen_at": "2026-11-10 17:36:03"
+    },
+    {
+      "candidate_id": 34757,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 8,
+      "source_url": "https://www.dire.it/wp-content/uploads/2025/03/andrea-sempio-chiara-poggi-alberto-stasi.jpg",
+      "source_page_url": "https://www.dire.it/wp-content/uploads/2025/03/andrea-sempio-chiara-poggi-alberto-stasi.jpg",
+      "thumbnail_url": "https://www.dire.it/wp-content/uploads/2025/03/andrea-sempio-chiara-poggi-alberto-stasi.jpg",
+      "width": 0,
+      "height": 0,
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 1.0,
+      "technical_score": 0.0,
+      "quality_reason": "explicit PERSON entity matches canonical identity",
+      "last_seen_at": "2026-11-10 17:35:07"
+    },
+    {
+      "candidate_id": 49875,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 1,
+      "source_url": "https://crm-img.stcrm.it/images/48318299/2000x/chiara-poggi.webp",
+      "source_page_url": "https://crm-img.stcrm.it/images/48318299/2000x/chiara-poggi.webp",
+      "thumbnail_url": "https://crm-img.stcrm.it/images/48318299/2000x/chiara-poggi.webp",
+      "width": 2000,
+      "height": 1121,
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 0.95,
+      "technical_score": 0.0,
+      "quality_reason": "canonical identity appears in source URL; Ollama visual verification confirmed one dominant subject and no collage",
+      "last_seen_at": "2026-11-10 17:34:57"
+    },
+    {
+      "candidate_id": 49960,
+      "canonical_entity_id": "person:chiara-poggi",
+      "provider": "duckduckgo",
+      "rank": 2,
+      "source_url": "https://cdn-img.mowmag.com/images/44613473/2000x/chiara-poggi.jpg?quality=75&format=webp&width=2000",
+      "source_page_url": "https://cdn-img.mowmag.com/images/44613473/2000x/chiara-poggi.jpg?quality=75&format=webp&width=2000",
+      "thumbnail_url": "https://cdn-img.mowmag.com/images/44613473/2000x/chiara-poggi.jpg?quality=75&format=webp&width=2000",
+      "width": 2000,
+      "height": 1125,
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 0.95,
+      "technical_score": 0.0,
+      "quality_reason": "canonical identity appears in source URL; Ollama visual verification confirmed one dominant subject and no collage",
+      "last_seen_at": "2026-11-10 17:34:59"
+    },
+    {
+      "candidate_id": 54133,
+      "canonical_entity_id": "person:tribunale-di-vigevano-and-generic-evidence-archive",
+      "provider": "duckduckgo",
+      "rank": 8,
+      "source_url": "https://www.giurisprudenzapenale.com/wp-content/uploads/2024/03/Ex-Maternita_facciata-via-DAzeglio-1.jpg",
+      "source_page_url": "https://www.giurisprudenzapenale.com/2025/03/11/sentenze-delitto-garlasco/",
+      "thumbnail_url": "https://www.giurisprudenzapenale.com/wp-content/uploads/2024/03/Ex-Maternita_facciata-via-DAzeglio-1.jpg",
+      "width": 0,
+      "height": 0,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source URL does not establish canonical PERSON identity \"Tribunale di Vigevano and generic evidence archive\"",
+      "last_seen_at": "2026-11-10 17:12:59"
+    },
+    {
+      "candidate_id": 54138,
+      "canonical_entity_id": "person:tribunale-di-vigevano-and-generic-evidence-archive",
+      "provider": "duckduckgo",
+      "rank": 28,
+      "source_url": "https://www.gedistatic.it/content/gnn/img/laprovinciapavese/2022/10/11/113903810-5ce093b1-c0df-40e6-a679-787af456bdcd.jpg",
+      "source_page_url": "https://laprovinciapavese.gelocal.it/pavia/cronaca/2014/10/14/news/tribunale-di-vigevano-gli-archivi-lasciati-indietro-1.10116582",
+      "thumbnail_url": "https://www.gedistatic.it/content/gnn/img/laprovinciapavese/2022/10/11/113903810-5ce093b1-c0df-40e6-a679-787af456bdcd.jpg",
+      "width": 1920,
+      "height": 1080,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source URL does not establish canonical PERSON identity \"Tribunale di Vigevano and generic evidence archive\"",
+      "last_seen_at": "2026-11-10 17:13:27"
+    },
+    {
+      "candidate_id": 54143,
+      "canonical_entity_id": "person:tribunale-di-vigevano-and-generic-evidence-archive",
+      "provider": "duckduckgo",
+      "rank": 30,
+      "source_url": "https://www.araldolomellino.it/wp-content/uploads/2025/10/18-tribunale-2.png",
+      "source_page_url": "https://www.araldolomellino.it/territorio/vigevano/vigevano-il-tribunale-e-una-necessita/",
+      "thumbnail_url": "https://www.araldolomellino.it/wp-content/uploads/2025/10/18-tribunale-2.png",
+      "width": 2028,
+      "height": 1350,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source filename names tribunale png, not requested person Tribunale di Vigevano and generic evidence archive",
+      "last_seen_at": "2026-11-10 16:16:05"
+    },
+    {
+      "candidate_id": 54149,
+      "canonical_entity_id": "person:tribunale-di-vigevano-and-generic-evidence-archive",
+      "provider": "duckduckgo",
+      "rank": 32,
+      "source_url": "https://www.araldolomellino.it/wp-content/uploads/2024/12/Palazzo_del_tribunale_pavia-scaled.jpg",
+      "source_page_url": "https://www.araldolomellino.it/territorio/vigevano/vigevano-caso-ceffa-arriva-lordinanza-di-custodia-cautelare-per-limprenditore-righini/",
+      "thumbnail_url": "https://www.araldolomellino.it/wp-content/uploads/2024/12/Palazzo_del_tribunale_pavia-scaled.jpg",
+      "width": 2560,
+      "height": 2023,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source URL does not establish canonical PERSON identity \"Tribunale di Vigevano and generic evidence archive\"",
+      "last_seen_at": "2026-11-10 16:16:14"
+    },
+    {
+      "candidate_id": 54153,
+      "canonical_entity_id": "person:tribunale-di-vigevano-and-generic-evidence-archive",
+      "provider": "duckduckgo",
+      "rank": 34,
+      "source_url": "https://www.giurisprudenzapenale.com/wp-content/uploads/2016/04/20160327_122801.jpg",
+      "source_page_url": "https://www.giurisprudenzapenale.com/2025/03/11/sentenze-delitto-garlasco/",
+      "thumbnail_url": "https://www.giurisprudenzapenale.com/wp-content/uploads/2016/04/20160327_122801.jpg",
+      "width": 4032,
+      "height": 3024,
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.0,
+      "technical_score": 0.0,
+      "quality_reason": "image source URL does not establish canonical PERSON identity \"Tribunale di Vigevano and generic evidence archive\"",
+      "last_seen_at": "2026-11-10 16:16:19"
+    }
+  ],
+  "materializations": [
+    {
+      "candidate_id": 23256,
+      "asset_id": "ad3f4f84fd445239ed0eb3212c51a748970e76304357708558006e50ffdde170",
+      "content_sha256": "dc40c97b0f6838f902144fe96bf6f3d444ad2c3e1429b1cdfebfa101145c9054",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1_7Po9E99O3Se4YYig5pUXc8yMUyEH74T/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-10-22T09:27:16Z",
+      "last_verified_at": "2026-10-22T09:27:16Z"
+    },
+    {
+      "candidate_id": 23264,
+      "asset_id": "0f3a5d8a83a891f84154cce86c28d2dc6117736c83551dee24968f8f4a853559",
+      "content_sha256": "fe5a6444c00829666147bae329d67395c2256aec2996926097cc2593ecae956e",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1ztQNlj0YPMlG1Zn6gVpo6c4vhIimJ9ek/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:35:04Z",
+      "last_verified_at": "2026-11-10T17:35:04Z"
+    },
+    {
+      "candidate_id": 23268,
+      "asset_id": "Delitto di Garlasco, i genitori di Chiara Poggi: «Era inimmaginabile ...",
+      "content_sha256": "8a835ecd2b36e973711c87c014ea7d3780b1efcb0cbdc720e61792d10a44f380",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1Y6CzqPZOdqrtQSaJqxRanMplEb7U8hZD/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:01:13Z",
+      "last_verified_at": "2026-11-10T17:01:13Z"
+    },
+    {
+      "candidate_id": 23294,
+      "asset_id": "380bf84bcd667ce81bccde0960fda4093539f616dce19620f867567241f0fef1",
+      "content_sha256": "1c7176bc016f450378188a9a4fcf3c8fa8334ee2aa36f93b9c28603d3159c2fe",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1VXhOFejkNiyv3LS3B2AddBbR78AloxMJ/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:35:41Z",
+      "last_verified_at": "2026-11-10T17:35:41Z"
+    },
+    {
+      "candidate_id": 23296,
+      "asset_id": "Chiara Poggi, \"in vendita le foto dell'autopsia\": la mano dietro l ...",
+      "content_sha256": "d5263b024d1a76f49e2d83e104f5073973ba3247956c4066f1c1e7bd1f946dce",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1T3cJBPnBlSRh4mA_s7MfIeKGTUspbo8d/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:13:37Z",
+      "last_verified_at": "2026-11-10T17:13:37Z"
+    },
+    {
+      "candidate_id": 23298,
+      "asset_id": "dcd197c06fcad1f7a38714dcbbabd7956a72f5cef4777605141ec2ae4fff36a4",
+      "content_sha256": "b065a8b45b53e5ea513d2e2072a02b85cd7f08eba5e0b5e648969fbf29a7a1e8",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1uD1FfdkC4CED2pb-N6-Em_bu3TviBbEf/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:35:35Z",
+      "last_verified_at": "2026-11-10T17:35:35Z"
+    },
+    {
+      "candidate_id": 23302,
+      "asset_id": "54c54f081269b2302ea7e3792c3c8cbde49887d7778aeac67fe58a34fe106d5e",
+      "content_sha256": "d0ff7181aeb39c0e7dd557f689d4b8dcd9ca09ce472cd745b50cd7288e421aa0",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1M2H3SuScoq46g9aGQV0Ab3BqMAMxEXAP/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:13:43Z",
+      "last_verified_at": "2026-11-10T17:13:43Z"
+    },
+    {
+      "candidate_id": 23304,
+      "asset_id": "fd9aaf0345b62405d13b4e90048e37032901bac9ca3ce999ece68860bbeec596",
+      "content_sha256": "1c7407f5eac25eee0042d6a1a7e8e9aba654882f5dfd39044d68665e71af4178",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1dKv0L5J__tux3j947FJH46Q6u_HzlUCR/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:35:26Z",
+      "last_verified_at": "2026-11-10T17:35:26Z"
+    },
+    {
+      "candidate_id": 23462,
+      "asset_id": "a848ab184114b7de3c735c0e42f0a7caa6b0ac31f96179e86629ae2a02411b60",
+      "content_sha256": "ba4c63708845525a9cbc48f9becff908a42b83aee3a83f0ea69ab7caea67e458",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1txQvZ2vzlE7PlvssdbHUi1ZpDmNMXpF-/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:35:32Z",
+      "last_verified_at": "2026-11-10T17:35:32Z"
+    },
+    {
+      "candidate_id": 23528,
+      "asset_id": "0087103002a2860fdf9850da34923446e5ed7bc0fd8eaa0a59bf66da90c2b8f0",
+      "content_sha256": "36602038ea507954ec0f64d10667dd8a65c1954304202bc07ba7d7a79ec87cc9",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1f5AXolaTUFY76vzdGxt0SCg4RK8HY5qQ/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-09T20:07:05Z",
+      "last_verified_at": "2026-11-09T20:07:05Z"
+    },
+    {
+      "candidate_id": 34357,
+      "asset_id": "3aed4c31885b398056e7bd4366b152de778fb5bcd5f820e2ac5559ea024e52b5",
+      "content_sha256": "e9fc484e7f6b883bc131568e06bca9d7812f529dad03659ab37dd8a7fbacaff5",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1TOlJ0K8_z0hdzVruWz2UQ64CFSaS-wAa/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:35:37Z",
+      "last_verified_at": "2026-11-10T17:35:37Z"
+    },
+    {
+      "candidate_id": 34464,
+      "asset_id": "ae3bdb6b4465515dcf73951324edb8ae93470758ec7a3614b1d9562b089449bf",
+      "content_sha256": "1c7176bc016f450378188a9a4fcf3c8fa8334ee2aa36f93b9c28603d3159c2fe",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1UXfRi3JN_Dv0FoV-yQQLeOPVMts7HR7D/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:36:03Z",
+      "last_verified_at": "2026-11-10T17:36:03Z"
+    },
+    {
+      "candidate_id": 34757,
+      "asset_id": "769b3e80c5b191208e2048f49ed446f94fcf30394d2047fa1fd383a9e64bdae6",
+      "content_sha256": "12ad330437afa5991918a9221630313b90ee48824f3e4257b2e9a20f7a8d8929",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/19YsBi-15kaQeoLksjiZb1c8fPqZWdsHP/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:35:07Z",
+      "last_verified_at": "2026-11-10T17:35:07Z"
+    },
+    {
+      "candidate_id": 49875,
+      "asset_id": "40e90cfc600fb6d7bb819aacc7f916c361fec11b57b65bad26af917e5c2a14df",
+      "content_sha256": "ea00453efd4897209480cb55e33ebf801497e6be4d4c9a090aa2fd5839340196",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1dhnhFQcyZGL6KST7GSIBczpGnknCISMi/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:34:57Z",
+      "last_verified_at": "2026-11-10T17:34:57Z"
+    },
+    {
+      "candidate_id": 49960,
+      "asset_id": "e039c138b002a78333ef79cd415e809d0ff42a9f8708866ab416b450374970c2",
+      "content_sha256": "9764690871e62b988673ac113c9746383a79acb03787736bd561186375afca5f",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/10rF7buFMPnrjf6Ht9AlskXlTZjBaumW8/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:34:59Z",
+      "last_verified_at": "2026-11-10T17:34:59Z"
+    },
+    {
+      "candidate_id": 54133,
+      "asset_id": "607465227f9fa6868321462c341cac7e5331b3413542a4325717c3794b020765",
+      "content_sha256": "5680c134c2fcb631671823c288dd74bc681b2437a45a324f8589b901e4c7f4d2",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1ARfDHA2aucIlElOQWSZvTg6i7ShuZUVu/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:12:59Z",
+      "last_verified_at": "2026-11-10T17:12:59Z"
+    },
+    {
+      "candidate_id": 54138,
+      "asset_id": "aa18aeadcdae61101889305d867040cb492587004e8024a3b8917207b33786ae",
+      "content_sha256": "f4abfb342ada8e84650be1918559a7842112cd7e7d949200878fd9a1f90b0b90",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1o_KJXaFypsM5to6UAJKJMv3OFF4_5PhD/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T17:13:27Z",
+      "last_verified_at": "2026-11-10T17:13:27Z"
+    },
+    {
+      "candidate_id": 54143,
+      "asset_id": "f80867e200b0b942a951031bd4f8848220c464291f217701df913c34dd89bb90",
+      "content_sha256": "564e45834c2072276e2e54526b213dd21638d05493e5d94f9eddeaae1728b19c",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1OUujlwuAA12SzZNk_AShM8jzKhwiC0Rh/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T16:16:05Z",
+      "last_verified_at": "2026-11-10T16:16:05Z"
+    },
+    {
+      "candidate_id": 54149,
+      "asset_id": "0c50faa5883efa0fa2b14cfade8fda4f4ef0f1e09f74d73978919e73fe7cb8d9",
+      "content_sha256": "b4cb11a4de97f454ac2ad81e3bd80a8669ca0d0ee92256d9c578288b1130559e",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1GE7B5y9QjhwtwGjExTKwTEdd3BM5PzIt/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T16:16:14Z",
+      "last_verified_at": "2026-11-10T16:16:14Z"
+    },
+    {
+      "candidate_id": 54153,
+      "asset_id": "Delitto di Garlasco (omicidio di Chiara Poggi): le sentenze del GUP del ...",
+      "content_sha256": "1f5d34d5bf0762296706ba7381948919631074d826432e1abf4c54db345ae4dd",
+      "drive_file_id": "",
+      "drive_link": "https://drive.google.com/file/d/1bcvRO9kA1nDL-eaTeU9J6plHNpo1lBLa/view?usp=drivesdk",
+      "status": "materialized",
+      "materialized_at": "2026-11-10T16:16:19Z",
+      "last_verified_at": "2026-11-10T16:16:19Z"
+    }
+  ],
+  "annotations": [
+    {
+      "candidate_id": 23256,
+      "description": "Ritratto ravvicinato di Andrea Sempio mentre parla ai giornalisti all'aperto; accanto a lui una donna con gli occhiali e un microfono.",
+      "subjects": [
+        "person:andrea-sempio"
+      ],
+      "tags": [
+        "andrea-sempio",
+        "ritratto",
+        "giornalisti",
+        "microfoni",
+        "esterno"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23256; source URL downloaded and inspected; matches Sempio in 23294/23528/34357/34757"
+    },
+    {
+      "candidate_id": 23264,
+      "description": "Composito giornalistico con il ritratto di Chiara Poggi, un uomo con gli occhiali, la casa dei Poggi e un dettaglio di impronte sul pavimento.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "composito",
+        "casa",
+        "impronte",
+        "garlasco"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23264; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23268,
+      "description": "Donna con capelli biondo-castani e sciarpa blu che parla ai giornalisti davanti a un edificio; non è Chiara Poggi. L'etichetta del catalogo è errata.",
+      "subjects": [],
+      "tags": [
+        "donna",
+        "giornalisti",
+        "microfoni",
+        "intervista",
+        "etichetta-errata"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23268; visually different from the Chiara Poggi portraits in 23296/23298/49960"
+    },
+    {
+      "candidate_id": 23294,
+      "description": "Composito con un primo piano di Andrea Sempio, un carabiniere in uniforme e un ritaglio di Chiara Poggi in basso a destra.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "andrea-sempio",
+        "chiara-poggi",
+        "composito",
+        "carabiniere",
+        "garlasco"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23294; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23296,
+      "description": "Ritratto frontale di Chiara Poggi con capelli castani e occhi chiari, sfondo urbano sfocato.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "ritratto",
+        "primo-piano",
+        "sfondo-urbano"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23296; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23298,
+      "description": "Ritratto ravvicinato di Chiara Poggi con capelli scuri e occhi azzurri, sfondo scuro.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "ritratto",
+        "primo-piano",
+        "sfondo-scuro"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23298; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23302,
+      "description": "Chiara Poggi ripresa mentre cammina all'aperto con una maglia a righe; immagine da servizio televisivo.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "servizio-televisivo",
+        "esterno",
+        "maglia-a-righe"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23302; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23304,
+      "description": "Ritratto di Alberto Stasi in interno, camicia scura e sguardo verso la camera.",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "alberto-stasi",
+        "ritratto",
+        "interno"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23304; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23462,
+      "description": "Ritratto di Alberto Stasi in una stanza con pareti gialle, maglia nera con colletto.",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "alberto-stasi",
+        "ritratto",
+        "pareti-gialle"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23462; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23528,
+      "description": "Composito con Andrea Sempio tra i giornalisti, un ritratto di Chiara Poggi, un ritratto di Alberto Stasi, la casa dei Poggi e immagini del memoriale.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi",
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "composito",
+        "chiara-poggi",
+        "alberto-stasi",
+        "andrea-sempio",
+        "casa",
+        "memoriale"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23528; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 34357,
+      "description": "Trittico di ritratti: Andrea Sempio a sinistra, Chiara Poggi al centro, Alberto Stasi a destra.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi",
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "trittico",
+        "chiara-poggi",
+        "alberto-stasi",
+        "andrea-sempio",
+        "ritratti"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 34357; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 34464,
+      "description": "Composito con un primo piano di Andrea Sempio, un carabiniere in uniforme e un ritaglio di Chiara Poggi in basso a destra; stesso contenuto di 23294.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "andrea-sempio",
+        "chiara-poggi",
+        "composito",
+        "carabiniere",
+        "duplicato"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 34464; same SHA-256 as candidate 23294"
+    },
+    {
+      "candidate_id": 34757,
+      "description": "Trittico televisivo: Andrea Sempio a sinistra, Chiara Poggi al centro, Alberto Stasi a destra, con la scritta 'La verità di Alberto Stasi'.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi",
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "trittico",
+        "chiara-poggi",
+        "alberto-stasi",
+        "andrea-sempio",
+        "tv",
+        "sovrimpressione"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 34757; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 49875,
+      "description": "Donna castana in maglia nera davanti a una libreria con poster e cartoline; l'identità con Chiara Poggi non è confermata visivamente.",
+      "subjects": [],
+      "tags": [
+        "donna",
+        "libreria",
+        "poster",
+        "identita-non-confermata"
+      ],
+      "depiction": "photograph",
+      "identity_status": "unverified",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 49875; source URL downloaded and inspected; not used as a solo portrait without further verification"
+    },
+    {
+      "candidate_id": 49960,
+      "description": "Ritratto di Chiara Poggi con un bicchiere e una cannuccia, capelli castani e sorriso, sfondo scuro.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "ritratto",
+        "bicchiere",
+        "sorriso",
+        "sfondo-scuro"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 49960; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54133,
+      "description": "Facciata di un edificio pubblico arancione con bandiere italiane; immagine di contesto giudiziario, non un ritratto di persona.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "edificio",
+        "bandiere",
+        "contesto",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54133; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54138,
+      "description": "Interno di un ufficio con scatole e faldoni; archivio e contesto giudiziario, nessuna persona identificabile.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "ufficio",
+        "archivio",
+        "scatole",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54138; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54143,
+      "description": "Facciata di un edificio storico con portone ad arco; contesto giudiziario, non un ritratto di persona.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "edificio",
+        "portone",
+        "contesto",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54143; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54149,
+      "description": "Edificio giudiziario visto dall'esterno, facciata lunga con finestre; nessuna persona identificabile.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "edificio",
+        "facciata",
+        "contesto",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54149; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54153,
+      "description": "Grande palazzo istituzionale con facciata decorata; contesto giudiziario, nessuna persona identificabile.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "palazzo",
+        "facciata",
+        "contesto",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54153; source URL downloaded and inspected"
+    }
+  ]
+}

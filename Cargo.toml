@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["pipelinegen-muscles", "visualner", "semantic-core", "semantic-engine", "mediasampler", "ndjson-stdio"]
+members = ["pipelinegen-muscles", "visualner", "semantic-core", "semantic-engine", "mediasampler", "imagecatalog", "ndjson-stdio"]
 
 # Single source of truth for shared dependency versions. Member crates
 # reference these with `serde = { workspace = true }` so a version bump

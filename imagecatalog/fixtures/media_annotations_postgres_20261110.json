@@ -1,0 +1,1697 @@
+{
+  "schema_version": "image_annotations.v1",
+  "generated_at": "2026-11-10T00:00:00Z",
+  "source": "postgres.media_assets.metadata_json.description",
+  "annotations": [
+    {
+      "candidate_id": 1,
+      "description": "Dwayne Johnson",
+      "subjects": [
+        "person:dwayne-the-rock-johnson"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=entity-image-1216; sha256=912c558b1f42d537bde8a26ddcaa079fbbd45938b3b6368484ea107d546841d7"
+    },
+    {
+      "candidate_id": 3,
+      "description": "Dwayne The Rock Johnson",
+      "subjects": [
+        "person:dwayne-the-rock-johnson"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=537372ef553c42bb98eaa0bf6cffa0e71b42b3d283d2e169cbbeea52e6407e33; sha256=946ca033bbe5d113ae0640b2f43d615fd4610fce87085c4b7e48ac9bacd37ba6"
+    },
+    {
+      "candidate_id": 101,
+      "description": "Michael Jordan",
+      "subjects": [
+        "person:michael-jordan"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=22a1056819da962c358823ba066a8a63615b73fb8cd06ffcd6a6af7c1132e771; sha256=0fc45e827359475d3c30449d6d9359d9af7fdd1a917f1072229a2806340d645b"
+    },
+    {
+      "candidate_id": 115,
+      "description": "When Michael Jordan spoke about basketball, he etched across decades all subsequent greatness must merely recounting memories",
+      "subjects": [
+        "person:michael-jordan"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=a3cfdccefc695d05bc5114d1a4ca3eb23e8a8c9d4a91ffc5049fededd4523466; sha256=ee78ec7f1f687f99da8698fa856b3838309375710599a72af1e3ec30edd7d707"
+    },
+    {
+      "candidate_id": 117,
+      "description": "short statement Michael Jordan discussed",
+      "subjects": [
+        "person:michael-jordan"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=474f7af87ddc2aaaddd5b570323cb1cf3a16d278a1102ffabad7153e94749020; sha256=4c5415f95554080dce99154cf4195b6233249eb0fa1220b1c8e22c106f67b884"
+    },
+    {
+      "candidate_id": 328,
+      "description": "while Johann Sebastian Bach influenced music",
+      "subjects": [
+        "person:while-johann-sebastian-bach-influenced-music"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=0b491847f47f3cdeb5a7b68a72e07386ce2b5141b9d45a8271eb4f6c9406f001; sha256=c615d35ae892f42367b08eb97015a075720835821ab1c68e9804e0d16f2c2dbd"
+    },
+    {
+      "candidate_id": 346,
+      "description": "LeBron James",
+      "subjects": [
+        "person:lebron-james"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=f25fbae1da81c9b84e6cf4a030569c7626adc41206ae9641135a1318d92341ab; sha256=813e2c46a012509dc2763a103ae50c3d10d1b839104ecd56adc99f4a81aca4d0"
+    },
+    {
+      "candidate_id": 392,
+      "description": "Johann Sebastian Bach",
+      "subjects": [
+        "person:johann-sebastian-bach"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=faeb2befc79a1c06ca01844426a0e3d815e2202d8b76688e6f7fe2744065f982; sha256=f606eb14eba25c0d4ee5b24e5e1ed0dac7909b6089f4a9f0135329ff8f1f30fb"
+    },
+    {
+      "candidate_id": 1026,
+      "description": "Donald Trump",
+      "subjects": [
+        "person:donald-trump"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=a3410a9d1b7190dc87b292ea6a5bf6aa3c748305a98deece7bbc5845402baa8b; sha256=12623a7efa42ce3d3f794f097b654393fee6e534a4a686ec999b23a6417f65de"
+    },
+    {
+      "candidate_id": 1028,
+      "description": "Donald Trump",
+      "subjects": [
+        "person:donald-trump"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=7c66876197108c5d4ad3443145c7669e478565815904a690cf559c6c51e404a4; sha256=9925f18a8fa5f9285b56c4e5ce4b1cfd6c8a4427114394d5ed3653dfa65af74d"
+    },
+    {
+      "candidate_id": 1051,
+      "description": "United States",
+      "subjects": [
+        "person:united-states"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=50aa4891adb257e691601ac919cf91db6e7bf9bc4664562ea592267d0c7515a2; sha256=bc8eca9d3a807a7a16c642aae80017242c6b48a2ad1a16b32342f6b937d88d5b"
+    },
+    {
+      "candidate_id": 1216,
+      "description": "Dwayne Johnson",
+      "subjects": [
+        "person:dwayne-johnson"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=entity-image-1216; sha256=912c558b1f42d537bde8a26ddcaa079fbbd45938b3b6368484ea107d546841d7"
+    },
+    {
+      "candidate_id": 2325,
+      "description": "More remarkably, her vision extended beyond mere numbers. Ada Lovelace speculated that such programs could operate with \"other things,\" suggesting capabilities far beyond arithmetic.",
+      "subjects": [
+        "person:groundbreaking-work-solidifies-ada-lovelace-s-place"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=e203fb68838607f6ba2d1927529eef3d714ba6e74e0f838185414cd9e56ec832; sha256=f566ac09950a12a661d139025a45b0a2b58fd6278113d25358a1a69d2a4fd9a0"
+    },
+    {
+      "candidate_id": 23256,
+      "description": "Andrea Sempio servizio televisivo ritratto",
+      "subjects": [
+        "person:andrea-sempio"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=ad3f4f84fd445239ed0eb3212c51a748970e76304357708558006e50ffdde170; sha256=dc40c97b0f6838f902144fe96bf6f3d444ad2c3e1429b1cdfebfa101145c9054"
+    },
+    {
+      "candidate_id": 23264,
+      "description": "Chiara Poggi",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=0f3a5d8a83a891f84154cce86c28d2dc6117736c83551dee24968f8f4a853559; sha256=fe5a6444c00829666147bae329d67395c2256aec2996926097cc2593ecae956e"
+    },
+    {
+      "candidate_id": 23268,
+      "description": "Chiara Poggi dichiarazioni foto avvocato Garlasco",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Delitto di Garlasco, i genitori di Chiara Poggi: «Era inimmaginabile ...; sha256=8a835ecd2b36e973711c87c014ea7d3780b1efcb0cbdc720e61792d10a44f380"
+    },
+    {
+      "candidate_id": 23294,
+      "description": "Chiara Poggi",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=ae3bdb6b4465515dcf73951324edb8ae93470758ec7a3614b1d9562b089449bf; sha256=1c7176bc016f450378188a9a4fcf3c8fa8334ee2aa36f93b9c28603d3159c2fe"
+    },
+    {
+      "candidate_id": 23296,
+      "description": "Chiara Poggi single-person portrait headshot photo",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Chiara Poggi, \"in vendita le foto dell'autopsia\": la mano dietro l ...; sha256=d5263b024d1a76f49e2d83e104f5073973ba3247956c4066f1c1e7bd1f946dce"
+    },
+    {
+      "candidate_id": 23298,
+      "description": "Chiara Poggi single-person portrait headshot photo",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=dcd197c06fcad1f7a38714dcbbabd7956a72f5cef4777605141ec2ae4fff36a4; sha256=b065a8b45b53e5ea513d2e2072a02b85cd7f08eba5e0b5e648969fbf29a7a1e8"
+    },
+    {
+      "candidate_id": 23302,
+      "description": "Chiara Poggi servizio televisivo ritratto",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=54c54f081269b2302ea7e3792c3c8cbde49887d7778aeac67fe58a34fe106d5e; sha256=d0ff7181aeb39c0e7dd557f689d4b8dcd9ca09ce472cd745b50cd7288e421aa0"
+    },
+    {
+      "candidate_id": 23304,
+      "description": "Alberto Stasi single-person portrait headshot photo",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=fd9aaf0345b62405d13b4e90048e37032901bac9ca3ce999ece68860bbeec596; sha256=1c7407f5eac25eee0042d6a1a7e8e9aba654882f5dfd39044d68665e71af4178"
+    },
+    {
+      "candidate_id": 23320,
+      "description": "Andrea Sempio single-person portrait headshot photo",
+      "subjects": [
+        "person:andrea-sempio"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=6303f0b90ce0ab781583b495d1a69fb3d6566d9481c6ec8dbeb4c00325e831ae; sha256=08bdd2a9a99d08ea4caaf6a5daf9165d34fee5f5240a0f565cdb0ea8514fb6c0"
+    },
+    {
+      "candidate_id": 23412,
+      "description": "Alberto Stasi dichiarazioni foto avvocato Garlasco",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Delitto di Garlasco: sicuri che lo scoop (di Giletti) sia la chat tra ...; sha256=c7ba6ec883f4a88003815b7d755f4c769111d24d512caa3445fb4dc332dc5a07"
+    },
+    {
+      "candidate_id": 23462,
+      "description": "Alberto Stasi",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=a848ab184114b7de3c735c0e42f0a7caa6b0ac31f96179e86629ae2a02411b60; sha256=ba4c63708845525a9cbc48f9becff908a42b83aee3a83f0ea69ab7caea67e458"
+    },
+    {
+      "candidate_id": 23518,
+      "description": "Alberto Stasi single-person portrait headshot photo",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=22c8e4245100a17cf150938d23179fe128bf6f540c15c61d9142d46f653cf5bd; sha256=3f560333af4c24a397399ae9894213cc2d5c6d26e1734e010f9c0a518e0daba2"
+    },
+    {
+      "candidate_id": 23528,
+      "description": "Chiara Poggi single-person portrait headshot photo",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Chi è Andrea Sempio, l'amico del fratello di Chiara Poggi indagato per ...; sha256=36602038ea507954ec0f64d10667dd8a65c1954304202bc07ba7d7a79ec87cc9"
+    },
+    {
+      "candidate_id": 23582,
+      "description": "Chiara Poggi foto udienza tribunale Garlasco",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=entity-image-23582; sha256=12e34a266ec9dd5f66cb30b5a4cc6ec094e6986bba4b897cbd1c33d11183f58f"
+    },
+    {
+      "candidate_id": 23652,
+      "description": "Alberto Stasi single-person portrait headshot photo",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Alberto Stasi, prime ore di semilibertà: \"Aperitivo? No, ecco cosa ...; sha256=60c6ac1afecf0ecd9e2c54425ee703df22e7f0b35bccc08461abcdf7fa53bfc2"
+    },
+    {
+      "candidate_id": 25946,
+      "description": "Alberto Stasi foto intervista",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=ec06720cfc7f6d72cfb3e87a5d924781245c719f0c8f4ab2bb66871259986a2e; sha256=16a0648c6090883da03fba6b77198baad10ef109c80a0c47b3612cc591d19a7a"
+    },
+    {
+      "candidate_id": 25947,
+      "description": "Chiara Poggi",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=769b3e80c5b191208e2048f49ed446f94fcf30394d2047fa1fd383a9e64bdae6; sha256=12ad330437afa5991918a9221630313b90ee48824f3e4257b2e9a20f7a8d8929"
+    },
+    {
+      "candidate_id": 28891,
+      "description": "Roma",
+      "subjects": [
+        "person:roma"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Triumph of St. Ignatius of Loyola, ceiling fresco by Andrea Pozzo.jpg; sha256=9e24811f308db420fafb5c4d48d89605cc80f69d6bc8948c46ac2d0f75e1ab5a"
+    },
+    {
+      "candidate_id": 31186,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Montinari Milano.jpg; sha256=5749ad2ba33e8f29137a7bda3e163ec7e7b2d06b3c2538e3635980d9c1592f75"
+    },
+    {
+      "candidate_id": 31187,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=17e75fe9bac975523da1a4e3ae2c309838cc7c9234d36821fbb1cc3c39e4537c; sha256=2ef200a0989da1f90ef996958ab0290151dc3e012ad91a4accbd9c85ef57e179"
+    },
+    {
+      "candidate_id": 31247,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Mailand Gemeinden : Löwenberger Land - CRLKS; sha256=c72e3fe471494f6bb57549091b55b0e97408b6d8a832c579be284e559992090d"
+    },
+    {
+      "candidate_id": 32070,
+      "description": "Alberto Stasi servizio televisivo ritratto",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=38258ef3521597078031abaf79b53e1b95deca433b467c1ae52ff40c5aa2104f; sha256=4da61dccd544d526444976d54300bc8c18691c435a8272c7f4fa05c9d0eb9925"
+    },
+    {
+      "candidate_id": 34250,
+      "description": "Alberto Stasi foto udienza tribunale Garlasco",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=33d1f0d8b43abdf7a4bda63c9b06630ebe7a76e7631e5266810eadcd78f4bec4; sha256=ede080e2a7fa7ad2ae8828c277a2a2f649832578df543a4d069304304b7c033e"
+    },
+    {
+      "candidate_id": 34311,
+      "description": "Alberto Stasi dichiarazioni foto avvocato Garlasco",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=0f071298a865bd883d3f1d296f51860c7c06267979e9cc3474c70f16d66955ee; sha256=ec42926bf85da6018a451ce5cec368fdfc26ca936d6e0eca0c02aa820d116da9"
+    },
+    {
+      "candidate_id": 34357,
+      "description": "Chiara Poggi",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=3aed4c31885b398056e7bd4366b152de778fb5bcd5f820e2ac5559ea024e52b5; sha256=e9fc484e7f6b883bc131568e06bca9d7812f529dad03659ab37dd8a7fbacaff5"
+    },
+    {
+      "candidate_id": 34362,
+      "description": "Chiara Poggi servizio televisivo ritratto",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=bd1a77471267dd7aaf54647d9f4edc16b6e729d6be5a2044a8e5d03909dba561; sha256=0b484443d2df7fd899d0c07c549560f6f22f54ad7ca9792efbe51912a3d5b0a8"
+    },
+    {
+      "candidate_id": 34363,
+      "description": "Alberto Stasi dichiarazioni foto avvocato Garlasco",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Delitto Garlasco, Alberto Stasi: 'Emerga la verità ancora nascosta ...; sha256=dcd228e3aa02322ba97ec28f94447bacc54b24032f355a62991d3e1bdbc2ffd7"
+    },
+    {
+      "candidate_id": 34369,
+      "description": "Alberto Stasi single-person portrait headshot photo",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=ca9447c1e48314b078fad58737ac463cd4cb739661a998916b8b80e29a83dfd6; sha256=170bee3c90499de2de6d0e7c692470a456e3f65509ecb3c4921f604354f3c799"
+    },
+    {
+      "candidate_id": 34377,
+      "description": "Andrea Sempio foto intervista",
+      "subjects": [
+        "person:andrea-sempio"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=10488cb5edea87d77e07140e53ec886171ec1b5f2c7f81e87dcc0c88e7a3d249; sha256=f124e9dd7d704f7bdaed6d36a2ab92555ebb1712670e3c997260abde99581f87"
+    },
+    {
+      "candidate_id": 34464,
+      "description": "Chiara Poggi",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=ae3bdb6b4465515dcf73951324edb8ae93470758ec7a3614b1d9562b089449bf; sha256=1c7176bc016f450378188a9a4fcf3c8fa8334ee2aa36f93b9c28603d3159c2fe"
+    },
+    {
+      "candidate_id": 34648,
+      "description": "Chiara Poggi servizio televisivo ritratto",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=0c352ee4950a6db47325b37e2a364739dc7c94a4ffbcf1047ad70afb5cb245d0; sha256=f84a0213b2306b3ca3adcc2e70947a480ce1b165f2b904f755f4bd1ff68a2694"
+    },
+    {
+      "candidate_id": 34757,
+      "description": "Chiara Poggi",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=769b3e80c5b191208e2048f49ed446f94fcf30394d2047fa1fd383a9e64bdae6; sha256=12ad330437afa5991918a9221630313b90ee48824f3e4257b2e9a20f7a8d8929"
+    },
+    {
+      "candidate_id": 34930,
+      "description": "Alberto Stasi dichiarazioni foto avvocato Garlasco",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=c75452b329dee04232823110cd233fea2cc29584648b82d8d1df05a87f4cb259; sha256=038f284665e0ca6e0812693a7f922633268ce8a29c71eadd5cd9e359cdac4a16"
+    },
+    {
+      "candidate_id": 34966,
+      "description": "Chiara Poggi single-person portrait headshot photo",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=7e7486bd83b6b8c8e3fc0ca8cebad7e3c68715e88af35ce6483a38d69a4dcd1d; sha256=3665800f39fea2791cb7584a34a226a69462258d6691ca590fca53f5756736b0"
+    },
+    {
+      "candidate_id": 35692,
+      "description": "Chiara Poggi foto intervista",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=ec98236a01eea104f5f7fa8daf91e8f1319f9aecdce838cdb96dbe9848b9cdb7; sha256=6831ab8b05094a4ffc65fbe47370e447cb73778a51c17d2d85de91c6732b53c1"
+    },
+    {
+      "candidate_id": 35713,
+      "description": "Chiara Poggi servizio televisivo ritratto",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=8a0c5432e97e1b2e846907e2f4a66a8d754c3d43fe4ff879fb095df75fe971a6; sha256=f30989e5dd48163b139094d389131c31672b5aeb345f3ba00d9a46688f0172ae"
+    },
+    {
+      "candidate_id": 36201,
+      "description": "Alberto Stasi foto intervista",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=c213103544d7d803f12839777c9a65a24e037dbf7d5b729a02788685e30259ba; sha256=5bfa437e78344a44127e073469fe4044643043c8221359646838b428823e014f"
+    },
+    {
+      "candidate_id": 36228,
+      "description": "Chiara Poggi dichiarazioni foto avvocato Garlasco",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=a04801da3841df9d8106fab854295d43365b80a447265f78915b5496da21adcd; sha256=b2a4eca33db6b685c14075d0d28f29449c9c263f69f11d1aca691b593349ae69"
+    },
+    {
+      "candidate_id": 44951,
+      "description": "Alberto Stasi foto udienza tribunale Garlasco",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=c019cd0992564511a5bacbe31aaa508df92852fb9d380f02c4f287a67d868c6e; sha256=c259d29b02ec3daf92f2e15c58a55ffe166cda7e1365cf38b151f9c646ca1eb8"
+    },
+    {
+      "candidate_id": 45682,
+      "description": "Alberto Stasi foto udienza tribunale Garlasco",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=b61b4eff197f2f5a4e38dbf3b28139612610cd0c0fca847eb2f91b0512ef7227; sha256=b517e4f56dfa2686922086f8c83a62c9d03a5ecc5acf801430a33eca735ae553"
+    },
+    {
+      "candidate_id": 49875,
+      "description": "Chiara Poggi",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=40e90cfc600fb6d7bb819aacc7f916c361fec11b57b65bad26af917e5c2a14df; sha256=ea00453efd4897209480cb55e33ebf801497e6be4d4c9a090aa2fd5839340196"
+    },
+    {
+      "candidate_id": 49880,
+      "description": "Alberto Stasi foto intervista",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=6f2476a480f2981f5b7397e5061b161bad870c7046ac5ddc5488b7926ff163bc; sha256=23e8284bb8df5ead19cd9f4583b563a62c7f03330b377d146f23040ab7dd4a9d"
+    },
+    {
+      "candidate_id": 49899,
+      "description": "Andrea Sempio dichiarazioni foto avvocato Garlasco",
+      "subjects": [
+        "person:andrea-sempio"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=a9b11e51dc8c9b62e6e42fc881aa712f37f33049a15b0768a677ae0a9d1d324b; sha256=1509d90ce78c4cc06834b724143ec354df97d9c20bef21319bfe807ea62c407b"
+    },
+    {
+      "candidate_id": 49908,
+      "description": "Alberto Stasi single-person portrait headshot photo",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=06acad430ca6e8af5e699f2f5a4b6f5cedf08458bd8cb3817241cf693aef3d9a; sha256=034317b318cd093e713018c74176b03a90e1e58a7c40582ff077e34b5953a440"
+    },
+    {
+      "candidate_id": 49960,
+      "description": "Chiara Poggi",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=e039c138b002a78333ef79cd415e809d0ff42a9f8708866ab416b450374970c2; sha256=9764690871e62b988673ac113c9746383a79acb03787736bd561186375afca5f"
+    },
+    {
+      "candidate_id": 51882,
+      "description": "Solo Un foto intervista",
+      "subjects": [
+        "person:solo-un"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Solo un milagro por persona – At work – Batch 39.jpg; sha256=600bbde37870485337b0d9fedaeb8b2ed3b81935ecac9ce882a1d24f7b4c3829"
+    },
+    {
+      "candidate_id": 52475,
+      "description": "Andrea Sempio servizio televisivo ritratto",
+      "subjects": [
+        "person:andrea-sempio"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=1216c3f65b0df66249bc914cdcf762881f17f4d7afe01bbf61ccaf98c0b73a4d; sha256=c424199d7eb3b19c17818be586a5ad5fea25f686883713ad68bcbac9cdbb307e"
+    },
+    {
+      "candidate_id": 54131,
+      "description": "Milan Court of Assizes of Appeal and forensic DNA laboratory",
+      "subjects": [
+        "person:milan-court-of-assizes-of-appeal-and-forensic-dna-laboratory"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=f0d7885bf3ae9df6da0d8e4763a89b7181bce056f9a4aca4a804c4b2fabe9893; sha256=c5079245f7e49cfc4e79a5bf42870933dcf7a9362a74685583d71420c8d80a2b"
+    },
+    {
+      "candidate_id": 54133,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=607465227f9fa6868321462c341cac7e5331b3413542a4325717c3794b020765; sha256=5680c134c2fcb631671823c288dd74bc681b2437a45a324f8589b901e4c7f4d2"
+    },
+    {
+      "candidate_id": 54137,
+      "description": "Milan Court of Assizes of Appeal and forensic DNA laboratory",
+      "subjects": [
+        "person:milan-court-of-assizes-of-appeal-and-forensic-dna-laboratory"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=cba12ae9dced9e79020537161f0d5e411f636c9db8cf70afe3a0bdd72beb3480; sha256=39adaf5122891b060e8f4860de6e033fd439df7dd486a4afac8c2c8ba725100c"
+    },
+    {
+      "candidate_id": 54138,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=aa18aeadcdae61101889305d867040cb492587004e8024a3b8917207b33786ae; sha256=f4abfb342ada8e84650be1918559a7842112cd7e7d949200878fd9a1f90b0b90"
+    },
+    {
+      "candidate_id": 54143,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=f80867e200b0b942a951031bd4f8848220c464291f217701df913c34dd89bb90; sha256=564e45834c2072276e2e54526b213dd21638d05493e5d94f9eddeaae1728b19c"
+    },
+    {
+      "candidate_id": 54149,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=0c50faa5883efa0fa2b14cfade8fda4f4ef0f1e09f74d73978919e73fe7cb8d9; sha256=b4cb11a4de97f454ac2ad81e3bd80a8669ca0d0ee92256d9c578288b1130559e"
+    },
+    {
+      "candidate_id": 54152,
+      "description": "Milan Court of Assizes of Appeal and forensic DNA laboratory",
+      "subjects": [
+        "person:milan-court-of-assizes-of-appeal-and-forensic-dna-laboratory"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=fc62f82489b3e916f26d87d3133daedbde4ccaa264e1e89254c9b5e8cf57216f; sha256=5dca881038340582844b51b2523205b2c4facbf37f147688311365f3742ee2e9"
+    },
+    {
+      "candidate_id": 54153,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Delitto di Garlasco (omicidio di Chiara Poggi): le sentenze del GUP del ...; sha256=1f5d34d5bf0762296706ba7381948919631074d826432e1abf4c54db345ae4dd"
+    },
+    {
+      "candidate_id": 54159,
+      "description": "Milan Court of Assizes of Appeal and forensic DNA laboratory",
+      "subjects": [
+        "person:milan-court-of-assizes-of-appeal-and-forensic-dna-laboratory"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=d112478d0d8302fb8b9238db2b111ce6a104cb349149ca2932d3ea1e71221d1f; sha256=359fa8c4ad3854cf251c302d0d8cd1e9cd81f838c37e73dcb4f3c447a1082989"
+    },
+    {
+      "candidate_id": 54161,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Obernberg am Inn Adlerwarte Rotmilan-0136.jpg; sha256=ceeb5a35ce54b2f8001d24c0c1857177de48aed562ab3a07a22ffd484a54ca00"
+    },
+    {
+      "candidate_id": 54162,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Vigevano Aprile 1980.jpg; sha256=ab871708f37477e64db83e4e40b5ae04c2e4e634f0d5e4e90d3d8184a726da2f"
+    },
+    {
+      "candidate_id": 54165,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=5a36a3cfc437b9be440427dc5163053b22c2fc6b380d1404fdcc4debd080d24a; sha256=ce0a2a7f648f0085c095584a7b1ea8a6f4d60b26c4347a4454d623195f8c353d"
+    },
+    {
+      "candidate_id": 54168,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=77d5590149807f3722e03431b637ca335989061d5c1cc1fc1dac5bdbd41ecdcd; sha256=718e99ff3af3d207ad57d41de6269a8aaa5f4f676056cc6691f09d71ce1f5baf"
+    },
+    {
+      "candidate_id": 54169,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=b1bed350eda7cbae56f5455076ecce6877a8ca2a71122008ad61fe14f140e765; sha256=48742f1f495bd80dbf5ba1381b0bf587bbdb2954eeee9fcbf84ced81a1fe111f"
+    },
+    {
+      "candidate_id": 54172,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=e74fb0edf4fcc3b7d2b04f4e6738cc8d09e23bd40e385ca6d3acea395a1b096e; sha256=e2d9f58a076dbb0cc29ae6667c4c82d185d1745d471a8cad93f7bb02a928cdf7"
+    },
+    {
+      "candidate_id": 54173,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=eaa5c246beac08e805a4a6ad70e95b827f71f0e56d8d86678e003b3bc5d3d9dd; sha256=360fa9a8e3704e09ec49db50a94dec60ded1dd86ea1f194f95550a240c9905d3"
+    },
+    {
+      "candidate_id": 54176,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=99e3d5f3ebd565866d20ae0de4c130156f44caa0e638306db6816c7a54d4f6bb; sha256=4b3d6ddfee9f78ac93a485fa3eb97979cfc434a16ad5bd7e007c2ff48a708111"
+    },
+    {
+      "candidate_id": 54177,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=2683f23fb7cc73c7592424bea76f7e35c05ff549f4100cdb6305917e3a27679b; sha256=9a06acf2895b4819f0b7eb041a0c2f8149087eb2281527848cc00a31022b92e0"
+    },
+    {
+      "candidate_id": 54180,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=d7fad7098e1b3c64fc6d9ecb3e2350ee09865242b11bed6204c9309afa208d99; sha256=9126c58c22bcb2bfec862c4deaaf47323558f3e6066c3c975e3a26f8ad10f7c7"
+    },
+    {
+      "candidate_id": 54181,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Vigevano - Italia.it; sha256=4392fa5b3d942ead98532f3532cdc19952452f5c240d3c6cf5b18f3ab947e527"
+    },
+    {
+      "candidate_id": 54183,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Covid-19 San Salvatore 09.jpg; sha256=93901115f270996b5a96c32693a2e4b4eb00e3b6fb2cded556de8f52121b0f46"
+    },
+    {
+      "candidate_id": 54185,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=007c8ba3624c42f489fa0fadd82d2260d35b0d63293fe1e7bb533b11dba77221; sha256=a88bdb66cbfacd78634ffc072adbfad606fe4bd4516b43961f28a06abb102277"
+    },
+    {
+      "candidate_id": 54186,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Cesenatico - Porto Canale (2023).jpg; sha256=1db1bcc599e279fc5f9960260332928789e7676991a5ffe26bc30e94a7c94be5"
+    },
+    {
+      "candidate_id": 54189,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=62aa2e670b834bdb5330aea0858db50280d32d9d3795b49e038af893802d07a0; sha256=8e3008093b3302ad8205ed61d7de4312c1263dded80d08cc3ac001cc80c7ba71"
+    },
+    {
+      "candidate_id": 54193,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=b2f21b5dc35106140594d1f1f6a0b37b1c1dbd2b14171e5fa7d1f46be76968f2; sha256=c5548f0e8926ce39bcbe758d6ee5c88214c7279b06a249b92de54ba9b057a705"
+    },
+    {
+      "candidate_id": 54195,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=fa5c805a2d0a6f657499f306be743e5128824a726db1c32d93f9a17605ffdc16; sha256=0d1dc3df28b64ac4219bd5dcf0d0a407399006499881f295b88abbebb46077a1"
+    },
+    {
+      "candidate_id": 54198,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=78b5253bdbb979f4b473d7e20398d64513d9664854e82bf2de11861123ef2afa; sha256=808a80272d9fa3252f2f855c77444502f88a865bf50313062addcc32260d99a5"
+    },
+    {
+      "candidate_id": 54201,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=3f8ceca889dfc7654c24900387aa9eb2418bec82abc9e497d46642506d52917f; sha256=cf6c3f682297094ef3048af849df4851b4c1d7003e570653d3b7bcc6768bc501"
+    },
+    {
+      "candidate_id": 54220,
+      "description": "Garlasco",
+      "subjects": [
+        "person:garlasco"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Bozzola di Garlasco-Santuario B.V.-organo Mascioni.jpg; sha256=fbe17d8e6213e8b07a134f80ae9e8d27291ac0ab137f9b150b2a9ef952ff7b86"
+    },
+    {
+      "candidate_id": 54222,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=3860744dda9b71e9a0c71fa2718e80028cdd6d9ce5bfb094e16d01f5b2a264c6; sha256=4447cb978ad66d37c48c4cad9469ca61e8f79a758d4603735f68fbd0b5944d9b"
+    },
+    {
+      "candidate_id": 54228,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=b967deeadade97701c8473a8256856220195fb1a5187d2558688fcf735589d2d; sha256=0708c51f7f5594f3cbfb06df0dcb8d34b95364586c15a8cff44b7f4634f103b1"
+    },
+    {
+      "candidate_id": 54235,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=f318b4d156b318548c71b06fc117e5f388aff516c3aa945167ed287b2166279c; sha256=6b197fe328ee8ca40a0f98b765f12e30574dc7f4ae287193f7d3dc488220cf93"
+    },
+    {
+      "candidate_id": 54243,
+      "description": "Pavia",
+      "subjects": [
+        "person:pavia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Memorable batalla de Pavía.jpg; sha256=a9e82e54d37d65a6617711ba31fe82d32dcae5b4781b660970045b7e9cbffaff"
+    },
+    {
+      "candidate_id": 54246,
+      "description": "Pavia",
+      "subjects": [
+        "person:pavia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Pavia - Lombardei - italien.de; sha256=0140590a766d61826a4d233c44d10f3174e08b3118a97e3103fe5b720fca74eb"
+    },
+    {
+      "candidate_id": 54255,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:1947-06-15 Vigevano Ferrari 125 02C Cortese.jpg; sha256=67ea7d7c8af90c77d15bf010700ca9ad09a45e0f5e2e2de54f98885de1436002"
+    },
+    {
+      "candidate_id": 54256,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=ce6610d9bb329548b25be6b6dbb503b7f0162eb4752488c3fe090cb6c592bf84; sha256=5e553e32d725d81ea8fbc43859409a67cf26e17fe6d82bfbab7bcaa638ebf0e8"
+    },
+    {
+      "candidate_id": 54265,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=d156524927a17f653dfd4d0d136f157fb4a1de05821fb7ac6beb3c0a42d27d8c; sha256=fa0f8ed8b1c5ffed262db31ab3ced43993f838255d25514aaea17584f2f42a24"
+    },
+    {
+      "candidate_id": 54272,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=a35ad0b94e651bb2c231d2e9e0dab2b6e4bde117e47be96cd9a6829a46807057; sha256=d6f68eee57522929ef052ba33926024b7bd3ee2d687df600b3b72aa57b25a289"
+    },
+    {
+      "candidate_id": 54273,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=7d01b3f458c460de8aa2ffafcef47a30f5310750ee2c40717d9f373fe1c022c0; sha256=5cf07fd4d79e739a5fa5cb145532f639d0775c144127b168b187d546e70887a0"
+    },
+    {
+      "candidate_id": 54276,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Alfa Romeo's Website Crashed After 'Milano' Name Dispute; sha256=2480b6e29c25be7b60d8369048aa8897094c3b4b14a1958dccaaa4220d1b6760"
+    },
+    {
+      "candidate_id": 54293,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Vigevano 1980 2.jpg; sha256=51142feaf995a5d0510b7757fe795b258cb2ae015336d05c805ee8915c851ec4"
+    },
+    {
+      "candidate_id": 54298,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=a81ccf15d9ca8530588048f431becb5a3caf8a5f1f0042737c5425042c75a268; sha256=3b99ac774c531dfea64499ee2c37b0177dc9eb2bdd97d669a2a79a878c88b24d"
+    },
+    {
+      "candidate_id": 54303,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=fb15af6c49fe9c531bea0a951ba9de79d939b686e360bd9a99d7a467be06d009; sha256=c1a5765001f24ec5a8ec3f6fa7eae1fffbcc0417972498e3eef8353fb57a3584"
+    },
+    {
+      "candidate_id": 54311,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=523f8bbd38e2b68a1416671dca83baf99405c1204e477be92467fd250434b1e4; sha256=8928ad511350db79afc6fd2042b1b1415f6a53fa68323e7aa803369e60c91ac9"
+    },
+    {
+      "candidate_id": 54351,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=3623d6e35c50b0d200b2d89270845a4dc8b179bf3654645c7d5ccf17eebeb7ec; sha256=70fc6322fe8b12fba07437bd0ffd2a495c1f1ac6b06d399f0275abae862c8501"
+    },
+    {
+      "candidate_id": 54367,
+      "description": "Alberto Stasi",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=entity-image-54367; sha256=86078ea302b8a105229a06067aa8181522216500145d73cfd06be1aa05fd2369"
+    },
+    {
+      "candidate_id": 54368,
+      "description": "via Pascoli",
+      "subjects": [
+        "person:via-pascoli"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:1955-Scuola-Pascoli-Monza.jpg; sha256=ba585fcc3d7aadaa0198abd269b1470d1f9115a6485e186427927b29a9cb6874"
+    },
+    {
+      "candidate_id": 54369,
+      "description": "via Pascoli",
+      "subjects": [
+        "person:via-pascoli"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=File:Pisa, via Magenta 3, lapide Giovanni Pascoli.jpg; sha256=0404fb0f485cb5d285246e9b46830544c1217c18ee1ed6e10964935c69451ba7"
+    },
+    {
+      "candidate_id": 54372,
+      "description": "via Pascoli",
+      "subjects": [
+        "person:via-pascoli"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=3c20544ede735ad084b7757d4679a7314e9afb5bf6de29d4aa70f95b6231bb70; sha256=2a9df4fd9460423353ea478b96fd65b2331f96d1cdcf26dae7abdf17e027b709"
+    },
+    {
+      "candidate_id": 54392,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=MILAN TRAIN STATION: All About Milano Centrale - Getting To Know Italy; sha256=c76e68ba679630ffbbf95d156a69c4fa2bc035a5a9c67e79bce155ad8a185955"
+    },
+    {
+      "candidate_id": 54430,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Tribunale di Vigevano, un appello alla politica - L'Araldo; sha256=316e447546eb2f12e95277f0c7c4e501635f21a0218b454d73f7f9f3aa07ec5e"
+    },
+    {
+      "candidate_id": 54432,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Cartolina di Vigevano, 1923 : Free Download, Borrow, and Streaming ...; sha256=69746178666ddadf78a1156c428c4d52b2cc2bce55eb8fa3f49e6966dcb5f72b"
+    },
+    {
+      "candidate_id": 54434,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Best Italian Archives: Vigevano diocese - E. G. ANCESTRY RESEARCH; sha256=ab82dcafd536667de0dfe4cd168c4cea2b89d2b6a64eaeee301c7c2fe74dca6c"
+    },
+    {
+      "candidate_id": 54449,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Estro Milano Sectional MILANO Ice - Furnitalia | Stunning #1 Italian ...; sha256=8797d767dce60d818faa6fac58271610e7247742b54edd1709b00a8d27d38951"
+    },
+    {
+      "candidate_id": 54454,
+      "description": "Milano",
+      "subjects": [
+        "person:milano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Milano: prenota a partire da 3,00€ all'ora; sha256=9a9fed34d848d100e820afd7df72cdf65dcce69cd00cfe9e937a217e3c1a2b6f"
+    },
+    {
+      "candidate_id": 54455,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Cosa vedere a Vigevano e perché è la città ideale - LifeGate; sha256=1fa819686f2f9083f68dc00759c424810517ae36997a7f01d3342d96cb67fba1"
+    },
+    {
+      "candidate_id": 54457,
+      "description": "Vigevano",
+      "subjects": [
+        "person:vigevano"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Piazza Ducale Vigevano; sha256=375ad2e0bb59ec542bbd16b1afb1835760f3341a12b1d1e85af338ea909494dd"
+    },
+    {
+      "candidate_id": 54473,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=50 lugares imprescindibles que ver en Italia | Los Traveleros; sha256=4b1b89bce510ca911d2a9a70aee80c12dc0ed27346b23ef87ab77f0f5bdbf424"
+    },
+    {
+      "candidate_id": 54475,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Italy's Breathtaking Landscapes Captured in Art - ItalianNotebook ...; sha256=8bbd70b154802f811a90d900897a0ea6b6f2386e77b495596bdf0113677fc952"
+    },
+    {
+      "candidate_id": 54480,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Exploring Italy's Breathtaking Landscapes - YouTube; sha256=4ffec4d5195dccfcdd26d00c2698acdd15c084bf35b72a1f443ee93cdac05aed"
+    },
+    {
+      "candidate_id": 54481,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Italian Renaissance portrait painters | Портрет, Мужские портреты, Картины; sha256=a1fa62e90a8d2ca897ced659381509879dba384a999a37aecce3c99ce1dd2af1"
+    },
+    {
+      "candidate_id": 54492,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=967477ea7a7ca8477a2006dfbf283dade732fd420af75ca98ede856e97e5def7; sha256=939d800ca7f2110eb7f18f620ccc905d04d51dbf0250f929dda101e37e00d3c1"
+    },
+    {
+      "candidate_id": 54507,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=759ed821aa854578b8d15e39b5dfa38edc4f50a63ffdef7a034b13d262c8a365; sha256=5f42dc6589a646719df0567bdf0c57cebb7bf17bebe62a63f3eee7a2daa1d887"
+    },
+    {
+      "candidate_id": 54508,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Italy Ultra 4K HD Wallpapers - Top Free Italy Ultra 4K HD Backgrounds ...; sha256=ba96d77d72b715b79be18a8e044f267e6ad97a1e0ee3f50c5f4ae199e12da3be"
+    },
+    {
+      "candidate_id": 54509,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Explore Italy's Adriatic Coast; sha256=5f0ed0d6434b4e018bf8b6878cccf945a7577c523bc21bd87bcacf0247605e79"
+    },
+    {
+      "candidate_id": 54511,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=ca1485bfccf92bc8b66861f137f7738eb49b2f5fea55c4e3a2c91c6fdc109f13; sha256=922763efd4e9c5c60c18b94da97d927e944858acbd363e23eb02a49329d7ffc5"
+    },
+    {
+      "candidate_id": 54512,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Lugares Turisticos De Italia , 10 Increíbles Lugares Turísticos que Ver ...; sha256=f3dff389220b31a22c639b77cdebfa338c174e7b6e598eba637e4929ef009203"
+    },
+    {
+      "candidate_id": 54522,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=d1076d9e6d0143b87f27669e92933764ab6acae66f1ff1eeafb7631cafb3d400; sha256=4ec776647f4caf08410e9189fbe09248726041b1c6f8ff2390f4c364788cc611"
+    },
+    {
+      "candidate_id": 54523,
+      "description": "Italia",
+      "subjects": [
+        "person:italia"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=Italy Desktop Wallpapers - Wallpaper Cave; sha256=48ead6b7ef58109057a512d0eaf8b5dd185c8e55a793fe04690931633884c856"
+    },
+    {
+      "candidate_id": 54524,
+      "description": "Tribunale di Vigevano and generic evidence archive",
+      "subjects": [
+        "person:tribunale-di-vigevano-and-generic-evidence-archive"
+      ],
+      "tags": [],
+      "depiction": "unknown",
+      "identity_status": "catalog_claimed",
+      "review_status": "unverified",
+      "source": "postgres.media_assets.metadata_json.description",
+      "evidence": "media_asset_id=138ad755d59038bd5242df17174eb4c3a3848d02144a1e719eebc9862125e10a; sha256=32427865336bafe32a2d098e71df2999e3c33ef18f0238bcebfdd87e8586d7ab"
+    }
+  ]
+}

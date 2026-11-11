@@ -1,0 +1,22 @@
+[package]
+name = "imagecatalog"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "imagecatalog"
+path = "src/main.rs"
+
+[dependencies]
+semantic-engine = { path = "../semantic-engine" }
+semantic-core = { workspace = true }
+ndjson-stdio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

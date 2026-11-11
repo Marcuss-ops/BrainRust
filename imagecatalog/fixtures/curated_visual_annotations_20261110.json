@@ -1,0 +1,375 @@
+{
+  "schema_version": "image_annotations.v1",
+  "generated_at": "2026-11-10T00:00:00Z",
+  "source": "visual_review_2026-11-10",
+  "annotations": [
+    {
+      "candidate_id": 23256,
+      "description": "Ritratto ravvicinato di Andrea Sempio mentre parla ai giornalisti all'aperto; accanto a lui una donna con gli occhiali e un microfono.",
+      "subjects": [
+        "person:andrea-sempio"
+      ],
+      "tags": [
+        "andrea-sempio",
+        "ritratto",
+        "giornalisti",
+        "microfoni",
+        "esterno"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23256; source URL downloaded and inspected; matches Sempio in 23294/23528/34357/34757"
+    },
+    {
+      "candidate_id": 23264,
+      "description": "Composito giornalistico con il ritratto di Chiara Poggi, un uomo con gli occhiali, la casa dei Poggi e un dettaglio di impronte sul pavimento.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "composito",
+        "casa",
+        "impronte",
+        "garlasco"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23264; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23268,
+      "description": "Donna con capelli biondo-castani e sciarpa blu che parla ai giornalisti davanti a un edificio; non è Chiara Poggi. L'etichetta del catalogo è errata.",
+      "subjects": [],
+      "tags": [
+        "donna",
+        "giornalisti",
+        "microfoni",
+        "intervista",
+        "etichetta-errata"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23268; visually different from the Chiara Poggi portraits in 23296/23298/49960"
+    },
+    {
+      "candidate_id": 23294,
+      "description": "Composito con un primo piano di Andrea Sempio, un carabiniere in uniforme e un ritaglio di Chiara Poggi in basso a destra.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "andrea-sempio",
+        "chiara-poggi",
+        "composito",
+        "carabiniere",
+        "garlasco"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23294; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23296,
+      "description": "Ritratto frontale di Chiara Poggi con capelli castani e occhi chiari, sfondo urbano sfocato.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "ritratto",
+        "primo-piano",
+        "sfondo-urbano"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23296; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23298,
+      "description": "Ritratto ravvicinato di Chiara Poggi con capelli scuri e occhi azzurri, sfondo scuro.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "ritratto",
+        "primo-piano",
+        "sfondo-scuro"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23298; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23302,
+      "description": "Chiara Poggi ripresa mentre cammina all'aperto con una maglia a righe; immagine da servizio televisivo.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "servizio-televisivo",
+        "esterno",
+        "maglia-a-righe"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23302; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23304,
+      "description": "Ritratto di Alberto Stasi in interno, camicia scura e sguardo verso la camera.",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "alberto-stasi",
+        "ritratto",
+        "interno"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23304; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23462,
+      "description": "Ritratto di Alberto Stasi in una stanza con pareti gialle, maglia nera con colletto.",
+      "subjects": [
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "alberto-stasi",
+        "ritratto",
+        "pareti-gialle"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23462; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 23528,
+      "description": "Composito con Andrea Sempio tra i giornalisti, un ritratto di Chiara Poggi, un ritratto di Alberto Stasi, la casa dei Poggi e immagini del memoriale.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi",
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "composito",
+        "chiara-poggi",
+        "alberto-stasi",
+        "andrea-sempio",
+        "casa",
+        "memoriale"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 23528; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 34357,
+      "description": "Trittico di ritratti: Andrea Sempio a sinistra, Chiara Poggi al centro, Alberto Stasi a destra.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi",
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "trittico",
+        "chiara-poggi",
+        "alberto-stasi",
+        "andrea-sempio",
+        "ritratti"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 34357; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 34464,
+      "description": "Composito con un primo piano di Andrea Sempio, un carabiniere in uniforme e un ritaglio di Chiara Poggi in basso a destra; stesso contenuto di 23294.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "andrea-sempio",
+        "chiara-poggi",
+        "composito",
+        "carabiniere",
+        "duplicato"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 34464; same SHA-256 as candidate 23294"
+    },
+    {
+      "candidate_id": 34757,
+      "description": "Trittico televisivo: Andrea Sempio a sinistra, Chiara Poggi al centro, Alberto Stasi a destra, con la scritta 'La verità di Alberto Stasi'.",
+      "subjects": [
+        "person:andrea-sempio",
+        "person:chiara-poggi",
+        "person:alberto-stasi"
+      ],
+      "tags": [
+        "trittico",
+        "chiara-poggi",
+        "alberto-stasi",
+        "andrea-sempio",
+        "tv",
+        "sovrimpressione"
+      ],
+      "depiction": "composite",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 34757; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 49875,
+      "description": "Donna castana in maglia nera davanti a una libreria con poster e cartoline; l'identità con Chiara Poggi non è confermata visivamente.",
+      "subjects": [],
+      "tags": [
+        "donna",
+        "libreria",
+        "poster",
+        "identita-non-confermata"
+      ],
+      "depiction": "photograph",
+      "identity_status": "unverified",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 49875; source URL downloaded and inspected; not used as a solo portrait without further verification"
+    },
+    {
+      "candidate_id": 49960,
+      "description": "Ritratto di Chiara Poggi con un bicchiere e una cannuccia, capelli castani e sorriso, sfondo scuro.",
+      "subjects": [
+        "person:chiara-poggi"
+      ],
+      "tags": [
+        "chiara-poggi",
+        "ritratto",
+        "bicchiere",
+        "sorriso",
+        "sfondo-scuro"
+      ],
+      "depiction": "photograph",
+      "identity_status": "verified_visual",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 49960; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54133,
+      "description": "Facciata di un edificio pubblico arancione con bandiere italiane; immagine di contesto giudiziario, non un ritratto di persona.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "edificio",
+        "bandiere",
+        "contesto",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54133; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54138,
+      "description": "Interno di un ufficio con scatole e faldoni; archivio e contesto giudiziario, nessuna persona identificabile.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "ufficio",
+        "archivio",
+        "scatole",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54138; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54143,
+      "description": "Facciata di un edificio storico con portone ad arco; contesto giudiziario, non un ritratto di persona.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "edificio",
+        "portone",
+        "contesto",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54143; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54149,
+      "description": "Edificio giudiziario visto dall'esterno, facciata lunga con finestre; nessuna persona identificabile.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "edificio",
+        "facciata",
+        "contesto",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54149; source URL downloaded and inspected"
+    },
+    {
+      "candidate_id": 54153,
+      "description": "Grande palazzo istituzionale con facciata decorata; contesto giudiziario, nessuna persona identificabile.",
+      "subjects": [],
+      "tags": [
+        "tribunale",
+        "palazzo",
+        "facciata",
+        "contesto",
+        "non-persona"
+      ],
+      "depiction": "photograph",
+      "identity_status": "mismatch",
+      "review_status": "reviewed",
+      "source": "visual_review_2026-11-10",
+      "evidence": "candidate 54153; source URL downloaded and inspected"
+    }
+  ]
+}
