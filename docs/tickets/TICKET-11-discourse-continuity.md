@@ -31,7 +31,7 @@ recent name without evidence.
 
 ## Verification
 
-`cargo test -p semantic-engine --test discourse` — 13/13.
+`cargo test -p semantic-engine --test discourse` — 14/14.
 `cargo test -p semantic-engine --lib` — 51/51.
 The full workspace gate is recorded in `docs/tickets/README.md`.
 

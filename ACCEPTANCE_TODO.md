@@ -24,15 +24,15 @@ Canonical status: [`docs/tickets/README.md`](docs/tickets/README.md). Tickets
 |---|---|---|
 | Formatting | `cargo fmt --all -- --check` | `0` |
 | Lints | `RUST_ICU_MAJOR_VERSION_NUMBER=70 cargo clippy --workspace --all-targets -- -D warnings` | `0` |
-| Workspace tests | `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models cargo test --workspace -j 2` | **645 passed, 0 failed, 1 ignored**, 41 test binaries |
+| Workspace tests | `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models cargo test --workspace -j 2` | **646 passed, 0 failed, 1 ignored**, 41 test binaries |
 | Release worker | `cargo build --release -p semantic-engine` | `0` |
 | Canonical render integration | `cargo test -p pipelinegen-muscles --test canonical_render_segments` | 4/4 passed |
 | Go policy packages | `go test ./internal/capabilities/entities ./internal/capabilities/images/entitycatalog ./internal/capabilities/scripts/adapters -count=1` in `refactored` | pass |
 | Long-script RSS | 20 long scripts, analysed once and replayed once | peak 1,418,300 KiB; P50 0.403 s; P95 3.600 s |
 
 Evidence log: `BrainRust/.tmp/discourse-final-tests.log`. RSS report:
-`BrainRust/.tmp/ticket06-long-script-rss.json`. The 645 count includes the
-prior audit suites plus the 13 discourse integration tests and the
+`BrainRust/.tmp/ticket06-long-script-rss.json`. The 646 count includes the
+prior audit suites plus the 14 discourse integration tests and the
 language-scoped reference unit tests.
 
 This closeout does **not** satisfy the independent editorial gold set (ticket

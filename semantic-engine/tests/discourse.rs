@@ -210,6 +210,26 @@ fn surname_and_full_name_share_one_identity_and_one_thread() {
 }
 
 #[test]
+fn negation_does_not_disambiguate_a_pronoun_or_create_a_target() {
+    let value = manifest_value(vec![scene(
+        "negazione",
+        "Mario Rossi non incontrò Luca Bianchi. Lui sorrise.",
+    )]);
+    let pronoun = reference(&value, "Lui");
+    assert_eq!(
+        pronoun["status"], "ambiguous",
+        "negating the predicate must not choose a referent: {pronoun}"
+    );
+    assert_eq!(pronoun["candidate_entity_ids"].as_array().unwrap().len(), 2);
+    assert!(
+        pronoun["target_entity_ids"]
+            .as_array()
+            .is_some_and(Vec::is_empty),
+        "no target may be invented under negation: {pronoun}"
+    );
+}
+
+#[test]
 fn same_surname_does_not_merge_two_people_or_pick_a_pronoun_target() {
     let value = manifest_value(vec![scene(
         "omonimi",

@@ -34,7 +34,7 @@ Status vocabulary:
 - `cargo fmt --all -- --check` — clean.
 - `cargo clippy --workspace --all-targets -- -D warnings` — clean.
 - `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models RUST_ICU_MAJOR_VERSION_NUMBER=70
-  cargo test --workspace -j 2` — **645 passed, 0 failed, 1 ignored** across 41
+  cargo test --workspace -j 2` — **646 passed, 0 failed, 1 ignored** across 41
   test binaries. Log: `BrainRust/.tmp/discourse-final-tests.log`.
 - `cargo build --release -p semantic-engine` — clean.
 - `cargo test -p pipelinegen-muscles --test canonical_render_segments` — 4/4.
@@ -42,7 +42,7 @@ Status vocabulary:
   ./internal/capabilities/images/entitycatalog
   ./internal/capabilities/scripts/adapters -count=1` — pass in `refactored`.
 
-The 645 count includes the prior audit suites plus the 13 discourse integration
+The 646 count includes the prior audit suites plus the 14 discourse integration
 tests and the language-scoped reference unit tests. `discourse.v1` is additive:
 older manifests decode with an empty projection.
 

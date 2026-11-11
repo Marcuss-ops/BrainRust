@@ -55,6 +55,7 @@ antecedents when the status is `ambiguous`.
 - explicit returns after a skipped scene;
 - a pronoun after twenty intervening sentences;
 - two plausible people producing `ambiguous`;
+- a negated predicate not disambiguating a pronoun or inventing a target;
 - role nominals with one person resolving and with two people staying
   `ambiguous`;
 - same-surname people staying distinct;
