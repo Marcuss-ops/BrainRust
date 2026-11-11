@@ -2,7 +2,9 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use semantic_core::{Candidate, CanonicalIdentity, SceneInput, SemanticManifest};
+use semantic_core::{
+    Candidate, CanonicalIdentity, SceneInput, ScriptRequest, SemanticManifest, SCHEMA_VERSION,
+};
 
 use crate::canonical::canonical_person_id;
 use crate::catalog::{AssessedCandidate, CatalogIndex};
@@ -29,13 +31,17 @@ pub fn plan(request: &ImageCatalogRequest) -> Result<ImagePlan, String> {
             .ok_or_else(|| format!("now is not a UTC timestamp: {value}"))?,
         None => system_now_seconds(),
     };
-    let manifest = semantic_engine::analyze_script(&semantic_core::ScriptRequest {
+    let catalog = CatalogIndex::new(&request.catalog)?;
+    if let Some(manifest) = &request.manifest {
+        validate_reused_manifest(request, manifest)?;
+        return Ok(plan_from_manifest(manifest, &catalog, now));
+    }
+    let manifest = semantic_engine::analyze_script(&ScriptRequest {
         language: request.language.clone(),
         scenes: request.scenes.clone(),
         editorial: None,
         entity_safety_cap: 0,
     })?;
-    let catalog = CatalogIndex::new(&request.catalog);
     Ok(plan_from_manifest(&manifest, &catalog, now))
 }
 
@@ -53,7 +59,62 @@ pub fn plan_text(
         scenes,
         catalog: catalog.clone(),
         now: now.map(str::to_string),
+        manifest: None,
     })
+}
+
+/// Reuses a manifest only when it provably belongs to this request. The
+/// fingerprint covers the language, scenes, editorial options, safety cap and
+/// analyzer versions; the image catalog has no editorial/safety-cap input, so
+/// the accepted manifest must be the one produced from exactly these scenes
+/// with those options absent.
+fn validate_reused_manifest(
+    request: &ImageCatalogRequest,
+    manifest: &SemanticManifest,
+) -> Result<(), String> {
+    if manifest.schema_version != SCHEMA_VERSION {
+        return Err(format!(
+            "manifest schema_version must be {SCHEMA_VERSION}, got {}",
+            manifest.schema_version
+        ));
+    }
+    if manifest.language != request.language {
+        return Err(format!(
+            "manifest language {} does not match request language {}",
+            manifest.language, request.language
+        ));
+    }
+    if manifest.scenes.len() != request.scenes.len() {
+        return Err(format!(
+            "manifest has {} scenes, request has {}",
+            manifest.scenes.len(),
+            request.scenes.len()
+        ));
+    }
+    for (index, (expected, actual)) in request.scenes.iter().zip(&manifest.scenes).enumerate() {
+        if expected.scene_id != actual.scene_id {
+            return Err(format!(
+                "manifest scene {index} id {} does not match request id {}",
+                actual.scene_id, expected.scene_id
+            ));
+        }
+    }
+    let expected = semantic_engine::request_fingerprint(
+        &ScriptRequest {
+            language: request.language.clone(),
+            scenes: request.scenes.clone(),
+            editorial: None,
+            entity_safety_cap: 0,
+        },
+        &manifest.analyzers,
+    );
+    if manifest.fingerprint != expected {
+        return Err(format!(
+            "manifest fingerprint {} does not match request fingerprint {expected}",
+            manifest.fingerprint
+        ));
+    }
+    Ok(())
 }
 
 /// Builds the image plan from an already-analyzed semantic manifest.
@@ -70,6 +131,14 @@ pub fn plan_from_manifest(
     let mut scenes = Vec::with_capacity(manifest.scenes.len());
 
     for scene in &manifest.scenes {
+        if scene.status == "rejected" {
+            counts.rejected_scenes += 1;
+            scenes.push(SceneImagePlan {
+                scene_id: scene.scene_id.clone(),
+                queries: Vec::new(),
+            });
+            continue;
+        }
         let identities: HashMap<&str, &CanonicalIdentity> = scene
             .identities
             .iter()
@@ -206,6 +275,7 @@ pub fn plan_from_manifest(
         language: manifest.language.clone(),
         fingerprint: manifest.fingerprint.clone(),
         catalog_fingerprint: catalog.fingerprint().to_string(),
+        evaluated_at: now,
         scenes,
         counts,
     }

@@ -36,7 +36,7 @@
 //! third-party date parser, no locale database, so two runs of the same
 //! input produce byte-identical facts.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Stated year+month+day.
 pub const PRECISION_DAY: &str = "day";
@@ -50,7 +50,7 @@ pub const PRECISION_UNRESOLVED: &str = "unresolved";
 /// One grounded date fact. The wire shape follows the integration contract:
 /// `surface`/`type`/`normalized_date`/`precision`/`start_byte`/`end_byte`/
 /// `evidence`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TemporalFact {
     /// The exact source form (e.g. `"15 marzo 2008"`), preserving case.
     pub surface: String,
@@ -65,7 +65,7 @@ pub struct TemporalFact {
     #[serde(rename = "normalized_date")]
     pub normalized: Option<String>,
     /// One of `day`, `month`, `year`, `unresolved`.
-    pub precision: &'static str,
+    pub precision: String,
     /// Inclusive UTF-8 byte offset where the fact's evidence begins.
     pub start_byte: usize,
     /// Exclusive UTF-8 byte offset where the fact's evidence ends.
@@ -75,7 +75,7 @@ pub struct TemporalFact {
     /// `"BCE"` when the narration states a before-Christ era (e.g.
     /// `476 a.C.`); absent otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub era: Option<&'static str>,
+    pub era: Option<String>,
     /// True when a numeric form is order-ambiguous in the source (e.g.
     /// `03/04/2020`); the normalized value follows the language convention.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

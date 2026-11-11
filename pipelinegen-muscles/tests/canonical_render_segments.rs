@@ -58,6 +58,18 @@ fn make_fixture(dir: &Path) -> PathBuf {
             "18",
             "-g",
             "15",
+            // Match the canonical render's bt709/tv VUI. Without this the
+            // fixture and the re-encoded output are interpreted with different
+            // YUV->RGB matrices, which adds a constant pixel offset unrelated
+            // to seek or frame-selection correctness.
+            "-colorspace",
+            "bt709",
+            "-color_primaries",
+            "bt709",
+            "-color_trc",
+            "bt709",
+            "-color_range",
+            "tv",
             &path.to_string_lossy(),
         ])
         .output()

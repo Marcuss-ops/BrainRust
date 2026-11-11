@@ -2,10 +2,10 @@ use super::finish_run;
 use crate::artifact::{failed_response, part_path};
 use crate::encoder::append_video_options;
 use crate::process::FFmpegRunner;
+use crate::protocol::{AudioEditMetadata, MediaMetadata};
 use crate::protocol::{Operation, Request, Response};
 use std::fs;
 use std::path::Path;
-use crate::protocol::{AudioEditMetadata, MediaMetadata};
 
 pub(super) fn execute(request: Request, operation: Operation) -> Response {
     let operation_name = operation.as_str();
@@ -233,9 +233,17 @@ pub(super) fn execute(request: Request, operation: Operation) -> Response {
             // pre-canonicalization cache rows are never reused.
             let edits = match detect_silence_edits(ffmpeg, input) {
                 Ok(edits) => edits,
-                Err(error) => return failed_response(Some(input.to_string()), format!("remove_silence detection failed: {error}")),
+                Err(error) => {
+                    return failed_response(
+                        Some(input.to_string()),
+                        format!("remove_silence detection failed: {error}"),
+                    )
+                }
             };
-            metadata = Some(MediaMetadata { audio_edits: edits.clone(), ..Default::default() });
+            metadata = Some(MediaMetadata {
+                audio_edits: edits.clone(),
+                ..Default::default()
+            });
             command.args(["-i", input, "-af", "silenceremove=start_periods=1:start_threshold=-42dB:start_silence=0.35:stop_periods=-1:stop_threshold=-42dB:stop_silence=0.35", "-c:a", "libmp3lame", "-q:a", "2", "-ar", "48000", "-ac", "2"]);
         }
         Operation::Trim => {
@@ -293,9 +301,17 @@ pub(super) fn execute(request: Request, operation: Operation) -> Response {
 fn detect_silence_edits(ffmpeg: &str, input: &str) -> Result<Vec<AudioEditMetadata>, String> {
     let runner = crate::process::FFmpegRunner::from_ffmpeg_path(ffmpeg);
     let mut command = runner.ffmpeg();
-    command.args(["-hide_banner", "-i", input, "-af", "silencedetect=noise=-42dB:d=0.35", "-f", "null", "-"]);
-    let result = command.output()
-        .map_err(|e| e.to_string())?;
+    command.args([
+        "-hide_banner",
+        "-i",
+        input,
+        "-af",
+        "silencedetect=noise=-42dB:d=0.35",
+        "-f",
+        "null",
+        "-",
+    ]);
+    let result = command.output().map_err(|e| e.to_string())?;
     if !result.status.success() {
         return Err(String::from_utf8_lossy(&result.stderr).trim().to_string());
     }
@@ -304,16 +320,25 @@ fn detect_silence_edits(ffmpeg: &str, input: &str) -> Result<Vec<AudioEditMetada
     let mut removed_before = 0.0f64;
     for line in String::from_utf8_lossy(&result.stderr).lines() {
         if let Some(value) = line.split("silence_start:").nth(1) {
-            start = value.trim().split_whitespace().next().and_then(|v| v.parse().ok());
+            start = value.split_whitespace().next().and_then(|v| v.parse().ok());
         } else if let Some(value) = line.split("silence_end:").nth(1) {
-            let end: f64 = value.trim().split_whitespace().next().and_then(|v| v.parse().ok()).ok_or("invalid silence_end from ffmpeg")?;
+            let end: f64 = value
+                .split_whitespace()
+                .next()
+                .and_then(|v| v.parse().ok())
+                .ok_or("invalid silence_end from ffmpeg")?;
             if let Some(begin) = start.take() {
                 let cut_start = (begin + 0.35).min(end);
                 if end - cut_start > 0.001 {
                     let source_start_us = (cut_start * 1_000_000.0).round() as i64;
                     let source_end_us = (end * 1_000_000.0).round() as i64;
                     let output_us = ((cut_start - removed_before) * 1_000_000.0).round() as i64;
-                    edits.push(AudioEditMetadata { source_start_us, source_end_us, output_start_us: output_us, output_end_us: output_us });
+                    edits.push(AudioEditMetadata {
+                        source_start_us,
+                        source_end_us,
+                        output_start_us: output_us,
+                        output_end_us: output_us,
+                    });
                     removed_before += end - cut_start;
                 }
             }
@@ -328,7 +353,12 @@ fn detect_silence_edits(ffmpeg: &str, input: &str) -> Result<Vec<AudioEditMetada
             let source_start_us = (cut_start * 1_000_000.0).round() as i64;
             let source_end_us = (end * 1_000_000.0).round() as i64;
             let output_us = ((cut_start - removed_before) * 1_000_000.0).round() as i64;
-            edits.push(AudioEditMetadata { source_start_us, source_end_us, output_start_us: output_us, output_end_us: output_us });
+            edits.push(AudioEditMetadata {
+                source_start_us,
+                source_end_us,
+                output_start_us: output_us,
+                output_end_us: output_us,
+            });
         }
     }
     Ok(edits)

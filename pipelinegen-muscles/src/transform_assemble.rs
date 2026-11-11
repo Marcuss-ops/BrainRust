@@ -8,8 +8,6 @@ use crate::protocol::{
 };
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::thread;
 
 /// Implements `video.assemble.copy.v1`: assemble certified overlay segments by
 /// packet-copy (stream copy) with zero decode, zero encode and zero compositing.
@@ -162,40 +160,24 @@ pub(super) fn execute(request: Request) -> Response {
     }
 }
 
-/// probe_all_inputs_concurrent runs ffprobe on every input path in parallel,
-/// collecting results in the same order as inputs. Any probe failure aborts the
-/// entire batch — a single unreadable file means the assembly must fail.
+/// probe_all_inputs_concurrent runs ffprobe on every input path with bounded
+/// concurrency, collecting results in the same order as inputs. Any probe
+/// failure aborts the entire batch — a single unreadable file means the
+/// assembly must fail.
 fn probe_all_inputs_concurrent(
     ffprobe: &str,
     inputs: &[String],
 ) -> Result<Vec<MediaMetadata>, MuscleError> {
-    let ffprobe = Arc::new(ffprobe.to_string());
-    let inputs: Vec<Arc<String>> = inputs.iter().map(|p| Arc::new(p.clone())).collect();
-    let mut handles = Vec::with_capacity(inputs.len());
-
-    for input in &inputs {
-        let probe_cmd = Arc::clone(&ffprobe);
-        let path = Arc::clone(input);
-        let handle = thread::spawn(move || probe_file(&probe_cmd, &path));
-        handles.push(handle);
-    }
-
-    let mut results = Vec::with_capacity(handles.len());
-    for (i, handle) in handles.into_iter().enumerate() {
-        // Join-error parity with cut_batch: a panicking probe thread is
-        // converted into the same typed contract failure instead of unwinding
-        // through the dispatcher (which would tear down the persistent worker
-        // and every in-flight request with it).
-        let outcome = match handle.join() {
-            Ok(outcome) => outcome,
-            Err(_) => Err(MuscleError::generic("probe worker thread panicked")),
-        };
-        match outcome {
+    let probes = crate::parallel::bounded_map(inputs, crate::parallel::MAX_PARALLEL_IO, |input| {
+        probe_file(ffprobe, input).map_err(|error| error.to_string())
+    });
+    let mut results = Vec::with_capacity(probes.len());
+    for (index, probe) in probes.into_iter().enumerate() {
+        match probe {
             Ok(metadata) => results.push(metadata),
             Err(error) => {
                 return Err(MuscleError::generic(format!(
-                    "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {} probe failed: {}",
-                    i, error
+                    "ASSEMBLY_INPUT_CONTRACT_MISMATCH: input {index} probe failed: {error}"
                 )));
             }
         }

@@ -353,7 +353,7 @@ fn era_years_are_classified() {
     let bc = facts("The archive dates to 44 BC.", "en");
     let fact = bc
         .iter()
-        .find(|fact| fact.era == Some("BCE"))
+        .find(|fact| fact.era.as_deref() == Some("BCE"))
         .expect("44 BC must be a BCE year fact");
     assert_eq!(fact.precision, "year");
 }

@@ -937,8 +937,9 @@ impl CopyCertification {
             if metadata.audio_codec.as_deref() != Some("aac")
                 || metadata.audio_profile.as_deref() != Some("LC")
                 || metadata.audio_time_base_num != Some(1)
-                || metadata.audio_time_base_den != Some(48000)
-                || metadata.sample_rate != Some(48000)
+                || metadata.audio_time_base_den
+                    != Some(crate::audio_copy::CANONICAL_SAMPLE_RATE as u32)
+                || metadata.sample_rate != Some(crate::audio_copy::CANONICAL_SAMPLE_RATE as u32)
                 || metadata.channels != Some(2)
                 || metadata.channel_layout.as_deref() != Some("stereo")
                 || metadata.audio_bitrate != Some(192000)

@@ -72,19 +72,25 @@ pub struct AssessedCandidate {
 }
 
 impl CatalogIndex {
-    /// Builds the index from the existing rows. Duplicate or orphaned rows are
-    /// ignored deterministically; the snapshot is sorted before hashing so a
-    /// database export row order cannot change the fingerprint.
-    pub fn new(snapshot: &CatalogSnapshot) -> Self {
+    /// Builds the index from the existing rows. Orphaned rows are ignored;
+    /// identical duplicates are deduplicated; contradictory duplicates are
+    /// rejected so the result cannot depend on export row order. The snapshot
+    /// is sorted before hashing, so a database export row order cannot change
+    /// the fingerprint.
+    pub fn new(snapshot: &CatalogSnapshot) -> Result<Self, String> {
         let mut entities: BTreeMap<String, CatalogEntity> = BTreeMap::new();
         for entity in &snapshot.entities {
             let id = entity.canonical_entity_id.trim();
             if id.is_empty() {
                 continue;
             }
-            entities
-                .entry(id.to_string())
-                .or_insert_with(|| entity.clone());
+            if let Some(existing) = entities.get(id) {
+                if existing != entity {
+                    return Err(format!("contradictory duplicate catalog entity: {id}"));
+                }
+            } else {
+                entities.insert(id.to_string(), entity.clone());
+            }
         }
 
         let mut candidates: BTreeMap<i64, CatalogCandidate> = BTreeMap::new();
@@ -95,16 +101,30 @@ impl CatalogIndex {
             }
             let mut candidate = candidate.clone();
             candidate.canonical_entity_id = canonical_entity_id.to_string();
-            candidates
-                .entry(candidate.candidate_id)
-                .or_insert(candidate);
+            if let Some(existing) = candidates.get(&candidate.candidate_id) {
+                if existing != &candidate {
+                    return Err(format!(
+                        "contradictory duplicate catalog candidate: {}",
+                        candidate.candidate_id
+                    ));
+                }
+            } else {
+                candidates.insert(candidate.candidate_id, candidate);
+            }
         }
 
         let mut materializations: BTreeMap<i64, CatalogMaterialization> = BTreeMap::new();
         for materialization in &snapshot.materializations {
-            materializations
-                .entry(materialization.candidate_id)
-                .or_insert_with(|| materialization.clone());
+            if let Some(existing) = materializations.get(&materialization.candidate_id) {
+                if existing != materialization {
+                    return Err(format!(
+                        "contradictory duplicate catalog materialization: {}",
+                        materialization.candidate_id
+                    ));
+                }
+            } else {
+                materializations.insert(materialization.candidate_id, materialization.clone());
+            }
         }
 
         let mut annotations: BTreeMap<i64, CatalogAnnotation> = BTreeMap::new();
@@ -147,13 +167,13 @@ impl CatalogIndex {
             rows.sort_by_key(|candidate| candidate.candidate_id);
         }
 
-        Self {
+        Ok(Self {
             entities: entities.into_iter().collect(),
             candidates: by_entity,
             materializations: materializations.into_iter().collect(),
             annotations: annotations.into_iter().collect(),
             fingerprint,
-        }
+        })
     }
 
     /// FNV-1a over the normalized snapshot, including semantic annotations.
@@ -238,10 +258,15 @@ impl CatalogIndex {
         let annotation_problem = annotation_quality_problem(candidate, annotation.as_ref());
         let quality_problem = candidate_quality_problem(candidate);
         let status_usable = matches!(state.as_str(), "fresh" | "stale");
+        // A durable copy may keep a broken remote URL renderable. It does not
+        // resurrect a retired row or an unrecognized status: those are policy
+        // decisions that a materialization must never override.
+        let durable_bypass = durable && state == "broken";
         let reused = used.contains(&candidate.candidate_id);
 
-        let eligible =
-            annotation_problem.is_none() && quality_problem.is_none() && (status_usable || durable);
+        let eligible = annotation_problem.is_none()
+            && quality_problem.is_none()
+            && (status_usable || durable_bypass);
         let score = if eligible {
             ranking_score(
                 candidate,
@@ -259,7 +284,7 @@ impl CatalogIndex {
             format!("not eligible: {problem}")
         } else if let Some(problem) = quality_problem {
             format!("not eligible: {problem}")
-        } else if !status_usable && durable {
+        } else if !status_usable && durable_bypass {
             format!("eligible: {state} remote URL bypassed by a verified materialization")
         } else if !status_usable {
             match materialization_problem {
@@ -605,9 +630,13 @@ mod tests {
         parse_utc_timestamp("2026-11-10T00:00:00Z").unwrap()
     }
 
+    fn build_index(snapshot: &CatalogSnapshot) -> CatalogIndex {
+        CatalogIndex::new(snapshot).expect("test catalog snapshot must be consistent")
+    }
+
     #[test]
     fn accepted_fresh_candidate_is_eligible_and_durable_one_wins() {
-        let index = CatalogIndex::new(&snapshot(
+        let index = build_index(&snapshot(
             vec![
                 candidate(1, "fresh", "accepted"),
                 candidate(2, "fresh", "accepted"),
@@ -624,8 +653,7 @@ mod tests {
     #[test]
     fn unknown_or_rejected_semantic_status_fails_closed() {
         for status in ["unknown", "rejected", ""] {
-            let index =
-                CatalogIndex::new(&snapshot(vec![candidate(1, "fresh", status)], Vec::new()));
+            let index = build_index(&snapshot(vec![candidate(1, "fresh", status)], Vec::new()));
             let assessed = index.assess("person:alberto-stasi", now(), &BTreeSet::new());
             assert!(!assessed[0].eligible, "status {status:?} must fail closed");
         }
@@ -635,26 +663,26 @@ mod tests {
     fn technical_and_dimension_gates_reject_bad_rows() {
         let mut low_technical = candidate(1, "fresh", "accepted");
         low_technical.technical_score = 0.30;
-        let index = CatalogIndex::new(&snapshot(vec![low_technical], Vec::new()));
+        let index = build_index(&snapshot(vec![low_technical], Vec::new()));
         assert!(!index.assess("person:alberto-stasi", now(), &BTreeSet::new())[0].eligible);
 
         let mut small = candidate(2, "fresh", "accepted");
         small.width = 640;
         small.height = 480;
-        let index = CatalogIndex::new(&snapshot(vec![small], Vec::new()));
+        let index = build_index(&snapshot(vec![small], Vec::new()));
         assert!(!index.assess("person:alberto-stasi", now(), &BTreeSet::new())[0].eligible);
     }
 
     #[test]
     fn broken_url_is_rejected_unless_a_verified_materialization_exists() {
-        let index = CatalogIndex::new(&snapshot(
+        let index = build_index(&snapshot(
             vec![candidate(1, "broken", "accepted")],
             Vec::new(),
         ));
         let assessed = index.assess("person:alberto-stasi", now(), &BTreeSet::new());
         assert!(!assessed[0].eligible);
 
-        let index = CatalogIndex::new(&snapshot(
+        let index = build_index(&snapshot(
             vec![candidate(1, "broken", "accepted")],
             vec![materialization(1)],
         ));
@@ -668,7 +696,7 @@ mod tests {
     fn a_materialization_without_a_sha256_is_not_reusable() {
         let mut bad = materialization(1);
         bad.content_sha256 = "legacy-md5".to_string();
-        let index = CatalogIndex::new(&snapshot(
+        let index = build_index(&snapshot(
             vec![candidate(1, "broken", "accepted")],
             vec![bad],
         ));
@@ -680,7 +708,7 @@ mod tests {
 
     #[test]
     fn reused_candidates_are_demoted_but_never_dropped() {
-        let index = CatalogIndex::new(&snapshot(
+        let index = build_index(&snapshot(
             vec![
                 candidate(1, "fresh", "accepted"),
                 candidate(2, "fresh", "accepted"),
@@ -698,7 +726,7 @@ mod tests {
 
     #[test]
     fn equal_scores_break_ties_by_candidate_id() {
-        let index = CatalogIndex::new(&snapshot(
+        let index = build_index(&snapshot(
             vec![
                 candidate(9, "fresh", "accepted"),
                 candidate(3, "fresh", "accepted"),
@@ -712,7 +740,7 @@ mod tests {
 
     #[test]
     fn fingerprint_is_independent_of_snapshot_vector_order() {
-        let first = CatalogIndex::new(&snapshot(
+        let first = build_index(&snapshot(
             vec![
                 candidate(1, "fresh", "accepted"),
                 candidate(2, "fresh", "accepted"),
@@ -727,7 +755,7 @@ mod tests {
             vec![materialization(2)],
         );
         reversed.entities.reverse();
-        let second = CatalogIndex::new(&reversed);
+        let second = build_index(&reversed);
         assert_eq!(first.fingerprint(), second.fingerprint());
     }
 
@@ -735,7 +763,7 @@ mod tests {
     fn annotation_mismatch_rejects_an_otherwise_eligible_candidate() {
         let mut row = snapshot(vec![candidate(1, "fresh", "accepted")], Vec::new());
         row.annotations = vec![annotation(1, "mismatch", "photograph", &[])];
-        let index = CatalogIndex::new(&row);
+        let index = build_index(&row);
         let assessed = index.assess("person:alberto-stasi", now(), &BTreeSet::new());
         assert!(!assessed[0].eligible);
         assert!(assessed[0].reason.contains("mismatch"));
@@ -750,7 +778,7 @@ mod tests {
             "photograph",
             &["person:andrea-sempio"],
         )];
-        let index = CatalogIndex::new(&row);
+        let index = build_index(&row);
         let assessed = index.assess("person:alberto-stasi", now(), &BTreeSet::new());
         assert!(!assessed[0].eligible);
         assert!(assessed[0].reason.contains("do not include"));
@@ -766,7 +794,7 @@ mod tests {
                 depiction,
                 &["person:alberto-stasi"],
             )];
-            let index = CatalogIndex::new(&row);
+            let index = build_index(&row);
             let assessed = index.assess("person:alberto-stasi", now(), &BTreeSet::new());
             assert!(
                 !assessed[0].eligible,
@@ -791,7 +819,7 @@ mod tests {
             "composite",
             &["person:alberto-stasi"],
         )];
-        let index = CatalogIndex::new(&row);
+        let index = build_index(&row);
         let assessed = index.assess("person:alberto-stasi", now(), &BTreeSet::new());
         assert!(assessed[0].eligible);
         assert_eq!(assessed[0].candidate.candidate_id, 1);
@@ -813,7 +841,7 @@ mod tests {
             "photograph",
             &["person:alberto-stasi", "person:andrea-sempio"],
         )];
-        let index = CatalogIndex::new(&row);
+        let index = build_index(&row);
         let mut context = BTreeSet::new();
         context.insert("person:andrea-sempio".to_string());
         let assessed =
@@ -839,8 +867,49 @@ mod tests {
             &["person:alberto-stasi"],
         )];
         assert_ne!(
-            CatalogIndex::new(&first).fingerprint(),
-            CatalogIndex::new(&second).fingerprint()
+            build_index(&first).fingerprint(),
+            build_index(&second).fingerprint()
         );
+    }
+
+    #[test]
+    fn a_retired_candidate_is_never_selectable_even_with_a_materialization() {
+        let index = build_index(&snapshot(
+            vec![candidate(1, "retired", "accepted")],
+            vec![materialization(1)],
+        ));
+        let assessed = index.assess("person:alberto-stasi", now(), &BTreeSet::new());
+        assert!(!assessed[0].eligible);
+        assert!(assessed[0].durable);
+        assert!(assessed[0].reason.contains("retired"));
+    }
+
+    #[test]
+    fn an_unrecognized_status_is_not_treated_as_fresh() {
+        let index = build_index(&snapshot(
+            vec![candidate(1, "pending", "accepted")],
+            Vec::new(),
+        ));
+        let assessed = index.assess("person:alberto-stasi", now(), &BTreeSet::new());
+        assert_eq!(assessed[0].state, "unknown");
+        assert!(!assessed[0].eligible);
+        assert!(assessed[0].reason.contains("unknown"));
+    }
+
+    #[test]
+    fn contradictory_duplicate_candidates_are_rejected() {
+        let first = candidate(1, "fresh", "accepted");
+        let mut second = first.clone();
+        second.source_url = "https://example.com/different.jpg".to_string();
+        let error = CatalogIndex::new(&snapshot(vec![first, second], Vec::new()))
+            .expect_err("contradictory duplicate must be rejected");
+        assert!(error.contains("candidate"));
+    }
+
+    #[test]
+    fn identical_duplicate_candidates_are_deduplicated() {
+        let first = candidate(1, "fresh", "accepted");
+        let index = build_index(&snapshot(vec![first.clone(), first], Vec::new()));
+        assert_eq!(index.candidate_count("person:alberto-stasi"), 1);
     }
 }

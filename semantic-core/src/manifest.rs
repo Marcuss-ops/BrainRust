@@ -19,7 +19,7 @@ pub const SCHEMA_VERSION: &str = "semantic_manifest.v2";
 
 /// Version of the analyzer stack recorded on the manifest so a replay can be
 /// tied to the exact extractor build that produced it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct AnalyzerVersions {
     pub visualner: String,
     pub semantic_core: String,
@@ -35,7 +35,7 @@ pub struct AnalyzerVersions {
 /// `[start_byte, end_byte)`; the grounding checker enforces this (NO
 /// EVIDENCE -> NO CANDIDATE). `score` is a deterministic relevance score in
 /// `[0, 1]`, never a provider confidence. `provenance` names the analyzer.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Candidate {
     /// Canonical id resolved by the identity registry.
     pub id: String,
@@ -54,7 +54,7 @@ pub struct Candidate {
 }
 
 /// One comparable numeric value inside a chart proposal.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ChartItem {
     /// The sentence the value appears in (verbatim).
     pub label: String,
@@ -69,7 +69,7 @@ pub struct ChartItem {
 
 /// A proposed visual composition for a scene, produced by the engine as a
 /// *proposal* (with its evidence) and left for the planner to validate.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct VisualProposal {
     /// Stable scene-local id the planner uses to report a search outcome in
     /// [`SearchFeedback`]. Deterministic for a given scene and proposal order.
@@ -103,7 +103,7 @@ pub struct VisualProposal {
 /// A grounded multi-candidate structure that a planner can map to a visual
 /// recipe. The engine describes source order and evidence; it never selects
 /// an animation or invents missing list members.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SemanticGroup {
     pub id: String,
     /// `chronological`, `process`, `comparison`, `enumeration` or `ranking`.
@@ -120,7 +120,7 @@ pub struct SemanticGroup {
 }
 
 /// One exact, source-grounded member of a semantic group.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SemanticGroupMember {
     pub candidate_id: String,
     /// Source scene for this member. Local groups carry it too so a planner
@@ -144,7 +144,7 @@ pub struct SemanticGroupMember {
 }
 
 /// A source-grounded fact explicitly attached to a canonical entity.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct EntityFact {
     pub id: String,
     pub subject_entity_id: String,
@@ -224,7 +224,7 @@ impl EntityFact {
 /// attribution: every claim must be justified by `evidence_fact_ids`, and the
 /// span points at the sentence that carries the evidence. A summary without a
 /// fact backing is not emitted.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MicroSummary {
     pub id: String,
     /// `micro_summary`, `fact_comparison`, `step_sequence` or
@@ -254,7 +254,7 @@ pub struct MicroSummary {
 /// first and last sentence, and scored with the shared sentence salience
 /// (`semantic_core::bullets`) averaged over the window. Segments never
 /// overlap: the best windows win, in stable order.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ImportantSegment {
     pub id: String,
     /// Always `important_segment`.
@@ -276,7 +276,7 @@ pub struct ImportantSegment {
 
 /// One grounded component inside a composed image query: the exact span of a
 /// subject, object, measurement or date the query is composed of.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct QueryComponent {
     /// `entity`, `related_entity`, `location`, `co_mentioned_entity`, `measurement` or `date`.
     pub kind: String,
@@ -294,7 +294,7 @@ pub struct QueryComponent {
 /// provenance. The literal-substring rule is kept: the query text is a
 /// verbatim source slice spanning the components, never a synthetic join of
 /// surfaces the source never wrote.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ComposedImageQuery {
     pub id: String,
     /// Always `composed_image_query`.
@@ -313,7 +313,7 @@ pub struct ComposedImageQuery {
 /// retrieval cue; it does not assert a real-world relationship. Unlike
 /// `ComposedImageQuery`, `query` is not a source substring: each word comes
 /// from provenance components and the exact sentence remains attached.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ContextualImageQuery {
     pub id: String,
     /// Always `contextual_image_query`.
@@ -333,7 +333,7 @@ pub struct ContextualImageQuery {
 /// One rung of the asset-search ladder proposed by the engine. Literal queries
 /// preserve a source mention; contextual queries combine grounded components
 /// and carry the sentence that supports the combination.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SearchQuery {
     /// `exact_mention` or `context_phrase`.
     pub kind: String,
@@ -351,11 +351,11 @@ pub struct SearchQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evidence_end_byte: Option<usize>,
     /// Exact source spans combined into `text`.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<QueryComponent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub template_id: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub derived_terms: Vec<String>,
 }
 
@@ -426,7 +426,7 @@ impl SearchQuery {
 
 /// What the planner should do when a search ladder is exhausted. Only the
 /// planner can set this: the engine never sees a provider response.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SearchRetry {
     /// `broaden` (widen the query), `drop_entity` (the mention is not
     /// searchable) or `skip_visual` (leave the fact uncovered).
@@ -440,7 +440,7 @@ pub struct SearchRetry {
 /// retrieval and rewrites `status` (`satisfied` or `failed`) and `retry`, so a
 /// failed search is reported in the same contract instead of being lost in the
 /// planner's logs.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SearchFeedbackEntry {
     /// Proposal id this entry reports on.
     pub proposal_id: String,
@@ -455,7 +455,7 @@ pub struct SearchFeedbackEntry {
 
 /// Asset-search feedback for the whole script. The engine emits one `pending`
 /// entry per image-backed proposal; every later field belongs to the planner.
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 pub struct SearchFeedback {
     pub entries: Vec<SearchFeedbackEntry>,
 }
@@ -465,7 +465,7 @@ pub struct SearchFeedback {
 /// A node is either a canonical identity (`kind = "identity"`) or a grounded
 /// fact (`kind = "fact"`). Identity nodes carry every scene they are mentioned
 /// in, which is what makes a cross-scene link explicit instead of implicit.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct StoryNode {
     pub id: String,
     /// `identity` or `fact`.
@@ -494,7 +494,7 @@ pub struct StoryNode {
 }
 
 /// A grounded link between two story nodes.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct StoryEdge {
     pub id: String,
     /// `about` (identity -> fact) or `chronological` (fact -> fact).
@@ -517,14 +517,14 @@ pub struct StoryEdge {
 /// facts, and dated facts of one identity are ordered chronologically when the
 /// identity is mentioned in at least two scenes. Relationships the text does not
 /// assert are never invented.
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 pub struct StoryGraph {
     pub nodes: Vec<StoryNode>,
     pub edges: Vec<StoryEdge>,
 }
 
 /// One fact evaluated for visual representation.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CoverageItem {
     pub fact_id: String,
     pub predicate: String,
@@ -542,7 +542,7 @@ pub struct CoverageItem {
 
 /// Coverage of one scene: every grounded fact and whether something visual
 /// already represents it.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SceneCoverage {
     pub scene_id: String,
     /// Facts ordered by importance, then source position.
@@ -551,7 +551,7 @@ pub struct SceneCoverage {
 
 /// Whole-script visual coverage report. PipelineGen reads this to know which
 /// facts still need an image, a card or a chart instead of guessing.
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 pub struct VisualCoverage {
     pub total_facts: usize,
     pub covered_facts: usize,
@@ -567,7 +567,7 @@ pub const VISUAL_CONSOLIDATION_SCHEMA: &str = "visual_consolidation.v1";
 /// Raw inventory of one script before any production selection. These counts
 /// are measured, never estimated: they come from the scene manifests the same
 /// worker returns.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ConsolidationInventory {
     pub entity_mentions: usize,
     pub unique_identities: usize,
@@ -592,7 +592,7 @@ pub struct ConsolidationInventory {
 /// One canonical fact after duplicate mentions are merged. Every raw fact id is
 /// retained so the inventory stays auditable, while the production view sees a
 /// single claim with one representation decision.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ConsolidatedFact {
     /// Deterministic canonical id (`cf_0001`, ...).
     pub id: String,
@@ -628,7 +628,7 @@ pub struct ConsolidatedFact {
 }
 
 /// Which production candidate represents a canonical fact.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct FactRepresentation {
     pub candidate_id: String,
     /// `timeline`, `chart`, `fact_card`, ...
@@ -638,7 +638,7 @@ pub struct FactRepresentation {
 /// One canonical date: the normalized value plus every source surface and span
 /// that produced it. Duplicate partial dates are not discarded; they are
 /// collapsed into one reference while preserving the original evidence.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ConsolidatedDate {
     pub normalized_date: String,
     pub count: usize,
@@ -647,7 +647,7 @@ pub struct ConsolidatedDate {
 }
 
 /// One source occurrence of a canonical date.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ConsolidatedDateSpan {
     pub scene_id: String,
     pub surface: String,
@@ -658,7 +658,7 @@ pub struct ConsolidatedDateSpan {
 /// A numeric surface the source explicitly frames as a reference, not a
 /// quantity ("l'impronta numero 33"). It is kept in the inventory and excluded
 /// from quantitative chart candidates.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ReferenceNumber {
     pub scene_id: String,
     pub surface: String,
@@ -669,7 +669,7 @@ pub struct ReferenceNumber {
 
 /// A grounded event-to-event ordering link derived from one timeline group.
 /// The engine only states precedence the source already orders.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ConsolidatedEventLink {
     pub id: String,
     pub group_id: String,
@@ -686,7 +686,7 @@ pub struct ConsolidatedEventLink {
 /// One selective production candidate: the unit a planner may turn into a
 /// composition. The raw candidate pool remains in the scene manifests; this
 /// list is deduplicated, ranked and budget-aware.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ProductionCandidate {
     /// Deterministic id (`vc_0001`, ...).
     pub id: String,
@@ -735,7 +735,7 @@ pub struct ProductionCandidate {
 
 /// Measured before/after volume for the same manifest. Every field is an
 /// arithmetic count, not a provider measurement.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ConsolidationMetrics {
     pub raw_proposals: usize,
     pub production_candidates: usize,
@@ -757,7 +757,7 @@ pub struct ConsolidationMetrics {
 
 /// Per-scene volume and coverage, so a planner can see where consolidation
 /// removed work instead of only reading a script total.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ConsolidationSceneStats {
     pub scene_id: String,
     pub raw_proposals: usize,
@@ -773,7 +773,7 @@ pub struct ConsolidationSceneStats {
 /// This is the Semantic Consolidation v1 output: the raw manifest answers
 /// "what does the text contain?"; this section answers "which compositions are
 /// worth producing, and what is still uncovered?".
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct VisualConsolidation {
     pub schema: String,
     pub inventory: ConsolidationInventory,
@@ -803,11 +803,11 @@ impl Default for VisualConsolidation {
 }
 
 /// Every fact and proposal extracted for one scene.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SceneManifest {
     pub scene_id: String,
     /// `valid`, or `rejected` when the extractor refused the scene.
-    pub status: &'static str,
+    pub status: String,
     pub reason: Option<String>,
     pub entities: Vec<Candidate>,
     /// Canonical identities resolved across the whole script.
@@ -844,9 +844,9 @@ pub struct SceneManifest {
 }
 
 /// The whole-script manifest: one request, one response, one source of truth.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SemanticManifest {
-    pub schema_version: &'static str,
+    pub schema_version: String,
     pub language: String,
     /// FNV-1a 64 over the canonical request (language + scenes + analyzer
     /// versions). Equal inputs give equal fingerprints (idempotent replay).
@@ -870,7 +870,7 @@ pub struct SemanticManifest {
 /// Bounded editorial projection carried by the semantic manifest. Internal
 /// ranking graphs are intentionally omitted; only products consumed by Go
 /// planning and their stage timings cross the worker boundary.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EditorialManifest {
     pub summary: String,
     pub bullet_points: Vec<crate::phrase_impact::BulletPoint>,

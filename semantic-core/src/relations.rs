@@ -7,11 +7,11 @@
 //! an invented relation: the planner may propose `side_by_side` for it, but a
 //! directed edge requires an assertion.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Two identities occurring in the same sentence. Emitted for grouping, not
 /// as a claim: no direction, no predicate, no invented semantics.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CoMention {
     pub left_id: String,
     pub right_id: String,
@@ -21,7 +21,7 @@ pub struct CoMention {
 }
 
 /// An explicitly asserted relation with its grounding and epistemic status.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct AssertedRelation {
     pub source_id: String,
     pub target_id: String,
@@ -37,7 +37,7 @@ pub struct AssertedRelation {
 
 /// Epistemic status of an asserted relation. "X did not work with Y" is a
 /// relation with status `negated`; it must not fire as a positive edge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum RelationStatus {
     Asserted,
     Negated,
@@ -124,7 +124,7 @@ fn relation_status(sentence: &str, marker_start: usize, language: &str) -> Relat
 }
 
 /// A scene's relation view, kept in two separate collections on purpose.
-#[derive(Debug, Clone, PartialEq, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default)]
 pub struct RelationView {
     pub co_mentions: Vec<CoMention>,
     pub asserted_relations: Vec<AssertedRelation>,

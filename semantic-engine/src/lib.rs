@@ -112,7 +112,7 @@ fn analyze_scene_with_search(
                 return (
                     SceneManifest {
                         scene_id: scene.scene_id.clone(),
-                        status: "rejected",
+                        status: "rejected".to_string(),
                         reason: Some(reason),
                         entities: Vec::new(),
                         identities: Vec::new(),
@@ -371,7 +371,7 @@ fn analyze_scene_with_search(
     (
         SceneManifest {
             scene_id: scene.scene_id.clone(),
-            status: "valid",
+            status: "valid".to_string(),
             reason: None,
             entities: entity_candidate_list,
             identities: registry.identities().to_vec(),
@@ -480,7 +480,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         .map(Into::into);
 
     Ok(SemanticManifest {
-        schema_version: SCHEMA_VERSION,
+        schema_version: SCHEMA_VERSION.to_string(),
         language: language.to_string(),
         fingerprint,
         analyzers,
@@ -558,17 +558,6 @@ pub fn request_fingerprint(
         analyzers,
     ))
     .unwrap_or_default();
-    fnv1a_hex(&body)
-}
-
-/// FNV-1a 64 over the canonical request and analyzer versions. Equal inputs
-/// give equal fingerprints (idempotent replay).
-pub fn fingerprint(
-    language: &str,
-    scenes: &[SceneInput],
-    analyzers: &semantic_core::AnalyzerVersions,
-) -> String {
-    let body = serde_json::to_vec(&(language, scenes, analyzers)).unwrap_or_default();
     fnv1a_hex(&body)
 }
 

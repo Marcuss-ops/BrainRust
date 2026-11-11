@@ -4,17 +4,19 @@ mod envelopes;
 mod event_filter;
 #[path = "render_audio_execution/loudness.rs"]
 mod loudness;
+#[path = "render_audio_execution/sources.rs"]
+mod sources;
 use envelopes::*;
 use event_filter::*;
 use loudness::*;
+use sources::SourceCaches;
 
 use super::plan::{track_events, validate_plan};
 
 use super::plan::{Automation, Plan};
 use super::probe::{probe_audio, probe_source, SourceProbe};
 use crate::artifact::{failed_response, part_path, publish_output, sha256_file};
-use crate::error::MuscleError;
-use crate::process::FFmpegRunner;
+use crate::process::{kill_process_tree, FFmpegRunner};
 use crate::protocol::{AudioAsset, Request, Response};
 use std::collections::HashMap;
 use std::fs;
@@ -252,7 +254,11 @@ fn wait_child(
             Err(error) => return Err(format!("{label}: wait failed: {error}")),
         }
         if std::time::Instant::now() >= deadline {
-            let _ = child.kill();
+            // Every producer/encoder here is spawned through `process_command`,
+            // so its pid is also its process-group id. Kill the whole tree,
+            // not just the direct child; the helper falls back to a direct-pid
+            // kill when the group signal cannot be delivered.
+            kill_process_tree(child.id());
             let _ = child.wait();
             return Err(format!("{label} timed out"));
         }
@@ -289,151 +295,7 @@ pub(super) fn execute(request: Request) -> Response {
         .map(|asset: AudioAsset| (asset.asset_id, asset.path))
         .collect();
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
-    // Parallel source probes (P1.6): every event/layer probe is an
-    // independent ffprobe subprocess, so pre-probe all unique asset paths
-    // at once instead of paying them sequentially inside the build loops.
-    // Best-effort only: failures here are swallowed and the authoritative
-    // per-event loop below re-probes (sequentially) and reports the typed
-    // error in plan order, so pre-probing can never change the outcome —
-    // only collapse N sequential waits into one parallel wait.
-    let mut source_probes: HashMap<String, SourceProbe> = HashMap::new();
-    {
-        let mut unique_paths: Vec<String> = Vec::new();
-        let mut consider = |path: &str| {
-            if Path::new(path).is_file() && !unique_paths.iter().any(|p| p == path) {
-                unique_paths.push(path.to_string());
-            }
-        };
-        for (_, event) in track_events(&plan)
-            .into_iter()
-            .filter(|(_, event)| event.r#type != "SILENCE")
-        {
-            if let Some(path) = event.asset_id.as_ref().and_then(|id| by_id.get(id)) {
-                consider(path);
-            }
-        }
-        for layers in [&plan.background_music, &plan.sfx] {
-            for layer in layers {
-                if let Some(path) = by_id.get(&layer.asset_id) {
-                    consider(path);
-                }
-            }
-        }
-        if !unique_paths.is_empty() {
-            let probed: Vec<(String, Result<SourceProbe, MuscleError>)> =
-                std::thread::scope(|scope| {
-                    unique_paths
-                        .iter()
-                        .map(|path| {
-                            let ffmpeg = ffmpeg.to_string();
-                            let path_owned = path.clone();
-                            scope.spawn(move || {
-                                let result = probe_source(&ffmpeg, &path_owned);
-                                (path_owned, result)
-                            })
-                        })
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .map(|handle| {
-                            handle.join().unwrap_or_else(|_| {
-                                (
-                                    String::new(),
-                                    Err(MuscleError::generic("audio probe thread panicked")),
-                                )
-                            })
-                        })
-                        .collect()
-                });
-            for (path, result) in probed {
-                if let Ok(probe) = result {
-                    source_probes.insert(path, probe);
-                }
-            }
-        }
-    }
-    // BGM loudness normalization is also an independent subprocess per unique
-    // path, so measure all of them in parallel too (the build loop below used
-    // to pay these serially). Same best-effort contract as the probes: a
-    // failed measurement is cached as None and the authoritative fallback in
-    // bgm_loudness_prefix fails open exactly once.
-    let mut loudness_cache: HashMap<String, Option<f64>> = HashMap::new();
-    {
-        let mut bgm_paths: Vec<String> = Vec::new();
-        let mut consider = |path: &str| {
-            if Path::new(path).is_file() && !bgm_paths.iter().any(|p| p == path) {
-                bgm_paths.push(path.to_string());
-            }
-        };
-        for (_, event) in track_events(&plan)
-            .into_iter()
-            .filter(|(_, event)| event.r#type.eq_ignore_ascii_case("bgm"))
-        {
-            if let Some(path) = event.asset_id.as_ref().and_then(|id| by_id.get(id)) {
-                consider(path);
-            }
-        }
-        for layer in &plan.background_music {
-            if let Some(path) = by_id.get(&layer.asset_id) {
-                consider(path);
-            }
-        }
-        if !bgm_paths.is_empty() {
-            let measured: Vec<(String, Option<f64>)> = std::thread::scope(|scope| {
-                bgm_paths
-                    .iter()
-                    .map(|path| {
-                        let ffmpeg = ffmpeg.to_string();
-                        let path_owned = path.clone();
-                        scope.spawn(move || {
-                            let result = measure_mean_volume_db(&ffmpeg, &path_owned).ok();
-                            (path_owned, result)
-                        })
-                    })
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .map(|handle| handle.join().unwrap_or_else(|_| (String::new(), None)))
-                    .collect()
-            });
-            for (path, mean) in measured {
-                loudness_cache.insert(path, mean);
-            }
-        }
-    }
-    let mut ensure_source =
-        |asset_id: &str, path: &str, required_end_us: i64| -> Result<SourceProbe, MuscleError> {
-            let probe = if let Some(probe) = source_probes.get(path) {
-                probe.clone()
-            } else {
-                let probe = probe_source(ffmpeg, path)?;
-                source_probes.insert(path.to_owned(), probe.clone());
-                probe
-            };
-            if probe.duration_sec * 1_000_000.0 + 40_000.0 < required_end_us as f64 {
-                return Err(MuscleError::generic(format!(
-                    "audio asset {asset_id} is shorter than required source range"
-                )));
-            }
-            Ok(probe)
-        };
-    // bgm_loudness_prefix returns the static trim filter that lands a BGM
-    // source at the canonical loudness, measured once per unique path (the
-    // loop expander reuses one source across N events — one decode pass,
-    // N references). Non-BGM callers never reach here, and a failed
-    // measurement caches None so the render fails open exactly once.
-    let mut bgm_loudness_prefix = |path: &str| -> String {
-        let measured = match loudness_cache.get(path) {
-            Some(cached) => *cached,
-            None => {
-                let measured = measure_mean_volume_db(ffmpeg, path).ok();
-                loudness_cache.insert(path.to_owned(), measured);
-                measured
-            }
-        };
-        measured
-            .and_then(bgm_loudness_trim_db)
-            .map(loudness_trim_filter)
-            .unwrap_or_default()
-    };
+    let mut sources = SourceCaches::prefetch(&plan, &by_id, ffmpeg);
     // Build the resolved chains (the "Go decides" boundary). Everything is
     // validated here in plan order so the typed errors keep their meaning;
     // the fan-out below only renders what this loop accepted.
@@ -458,7 +320,11 @@ pub(super) fn execute(request: Request) -> Response {
                 return failed_response(None, "audio event source range is incomplete".to_string())
             }
         };
-        let probe = match ensure_source(event.asset_id.as_deref().unwrap_or(""), path, source_end) {
+        let probe = match sources.ensure_source(
+            event.asset_id.as_deref().unwrap_or(""),
+            path,
+            source_end,
+        ) {
             Ok(probe) => probe,
             Err(error) => return failed_response(Some(path.clone()), error.to_string()),
         };
@@ -502,7 +368,7 @@ pub(super) fn execute(request: Request) -> Response {
                 "{}{}",
                 source_normalize(&probe),
                 if event.r#type.eq_ignore_ascii_case("bgm") {
-                    bgm_loudness_prefix(path)
+                    sources.bgm_loudness_prefix(path)
                 } else {
                     String::new()
                 }
@@ -524,7 +390,7 @@ pub(super) fn execute(request: Request) -> Response {
             if layer.duration_us <= 0 || layer.timeline_start_us < 0 {
                 return failed_response(None, format!("{layer_name} layer range is invalid"));
             }
-            let probe = match ensure_source(&layer.asset_id, path, layer.duration_us) {
+            let probe = match sources.ensure_source(&layer.asset_id, path, layer.duration_us) {
                 Ok(probe) => probe,
                 Err(error) => return failed_response(Some(path.clone()), error.to_string()),
             };
@@ -560,7 +426,7 @@ pub(super) fn execute(request: Request) -> Response {
                     "{}{}",
                     source_normalize(&probe),
                     if layer_name == "BGM" {
-                        bgm_loudness_prefix(path)
+                        sources.bgm_loudness_prefix(path)
                     } else {
                         String::new()
                     }

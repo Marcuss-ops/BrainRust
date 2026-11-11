@@ -8,7 +8,7 @@
 //! tokenizer-specific), but the parse and the typed projection live here so a
 //! chart can never plot a value one parser accepted and another refused.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// One grounded numeric-value fact. `value` is parsed only when the surface
 /// is unambiguous for the scene language (`25%`, `$1,200`, `12,5% euro`); a
@@ -17,7 +17,7 @@ use serde::Serialize;
 /// "cinque consulenze") with the value resolved by the locale's ICU RBNF
 /// rules; the surface stays the exact source slice. The killer rule is
 /// inherited: surface == evidence == source slice at `[start_byte, end_byte)`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct NumericFact {
     /// Exact source form (e.g. "25%").
     pub surface: String,

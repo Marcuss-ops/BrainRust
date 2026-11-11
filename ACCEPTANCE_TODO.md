@@ -1,11 +1,44 @@
 # BrainRust acceptance checklist
 
+> Audit/ticket status is maintained in [`docs/tickets/README.md`](docs/tickets/README.md)
+> (last verified 2026-11-11). This file remains the detailed gate evidence and
+> historical closeout, not a competing status matrix.
+
 Goal: pass the four release gates with evidence. The 100-script benchmark is a
 regression suite, not a substitute for the independent editorial gold set.
 Do not treat partial metrics as completion. Analytic checks only in this work;
 no RenderingGen or Chronon runs in the original analytic scope. The user's
 2026-10-27 workspace-wide ticket closeout expands that restriction for the
 explicit full-workspace test below; editorial acceptance remains independent.
+
+> The numeric test counts below are dated evidence snapshots (2026-10-28). The
+> live gate is the CI command, not this file; adding a test changes the count
+> without invalidating the historical run.
+
+## Audit closeout verification — 2026-11-11
+
+Canonical status: [`docs/tickets/README.md`](docs/tickets/README.md). Tickets
+01–07 and 09 are closed; 08 and 10 remain externally blocked.
+
+| Check | Command | Result |
+|---|---|---|
+| Formatting | `cargo fmt --all -- --check` | `0` |
+| Lints | `RUST_ICU_MAJOR_VERSION_NUMBER=70 cargo clippy --workspace --all-targets -- -D warnings` | `0` |
+| Workspace tests | `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models cargo test --workspace -j 2` | **628 passed, 0 failed, 1 ignored**, 40 test binaries |
+| Release worker | `cargo build --release -p semantic-engine` | `0` |
+| Canonical render integration | `cargo test -p pipelinegen-muscles --test canonical_render_segments` | 4/4 passed |
+| Go policy packages | `go test ./internal/capabilities/entities ./internal/capabilities/images/entitycatalog ./internal/capabilities/scripts/adapters -count=1` in `refactored` | pass |
+| Long-script RSS | 20 long scripts, analysed once and replayed once | peak 1,418,300 KiB; P50 0.403 s; P95 3.600 s |
+
+Evidence log: `BrainRust/.tmp/audit-full-tests.log`. RSS report:
+`BrainRust/.tmp/ticket06-long-script-rss.json`. The 628 count includes the new
+NDJSON failure/ceiling tests, imagecatalog canonical/manifest-reuse tests,
+completeness wire tests and the canonical render integration suite.
+
+This closeout does **not** satisfy the independent editorial gold set (ticket
+08), multimodal pgvector association (ticket 10), Gate B's human annotations or
+Gate D's provider/deployment measurements. Those remain open and must not be
+reported as certified.
 
 ## Gate A — Stability
 

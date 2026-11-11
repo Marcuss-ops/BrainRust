@@ -84,4 +84,27 @@ mod tests {
         assert_eq!(canonical_person_id("   "), "");
         assert_eq!(canonical_person_id("!!!"), "");
     }
+
+    /// Cross-language identity battery. Every case mirrors the Go owner's
+    /// `CanonicalEntityID("PERSON", name)`: possessive stripping first, then
+    /// whitespace normalization, then ASCII-only slugging where every other
+    /// rune is a dash (including consecutive dashes for punctuation runs).
+    #[test]
+    fn matches_go_canonical_ids_for_accented_punctuated_and_non_ascii_names() {
+        assert_eq!(canonical_person_id("José Mourinho"), "person:jos--mourinho");
+        assert_eq!(
+            canonical_person_id("Jean-Luc Picard"),
+            "person:jean-luc-picard"
+        );
+        assert_eq!(canonical_person_id("O’Connor"), "person:o-connor");
+        assert_eq!(canonical_person_id("  Ana   María  "), "person:ana-mar-a");
+        assert_eq!(canonical_person_id("Donald Trump’s"), "person:donald-trump");
+        assert_eq!(
+            canonical_person_id("Dr. Martin Luther King, Jr."),
+            "person:dr--martin-luther-king--jr"
+        );
+        // A non-ASCII-only name has no ASCII alphanumeric token; the Go owner
+        // never mints an id for nothing, and neither does this projection.
+        assert_eq!(canonical_person_id("李小龙"), "");
+    }
 }

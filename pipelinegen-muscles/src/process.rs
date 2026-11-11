@@ -301,7 +301,7 @@ fn process_command(program: &str, args: &[String]) -> Command {
     }
 }
 
-fn kill_process_tree(pid: u32) {
+pub(crate) fn kill_process_tree(pid: u32) {
     #[cfg(unix)]
     {
         // The supervised program was spawned as the leader of its own process

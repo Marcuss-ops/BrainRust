@@ -51,11 +51,11 @@ pub(super) fn resolve(source: &str, mut facts: Vec<RawFact>) -> Vec<TemporalFact
             surface: surface.to_string(),
             kind: "DATE".to_string(),
             normalized,
-            precision,
+            precision: precision.to_string(),
             start_byte: fact.start,
             end_byte: fact.end,
             evidence: surface.to_string(),
-            era: (fact.era == Bce && !impossible).then_some("BCE"),
+            era: (fact.era == Bce && !impossible).then(|| "BCE".to_string()),
             ambiguous: fact.ambiguous,
         });
     }

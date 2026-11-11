@@ -6,7 +6,7 @@
 //! by PipelineGen (or by `tools/export_image_catalog.py`); this crate never
 //! opens the database itself.
 
-use semantic_core::SceneInput;
+use semantic_core::{SceneInput, SemanticManifest};
 use serde::{Deserialize, Serialize};
 
 /// Envelope version accepted by the worker.
@@ -28,6 +28,13 @@ pub struct ImageCatalogRequest {
     pub language: String,
     /// Script scenes in request order.
     pub scenes: Vec<SceneInput>,
+    /// Optional `semantic_manifest.v2` already produced for exactly these
+    /// scenes. The worker validates its schema, scene identity, fingerprint
+    /// and analyzer versions before reusing it; when absent it runs the
+    /// semantic analysis itself. This is the same manifest type the engine
+    /// returns, not a second projection.
+    #[serde(default)]
+    pub manifest: Option<SemanticManifest>,
     /// Existing durable image-catalog rows. Empty is valid: every grounded
     /// query then becomes a catalog miss.
     #[serde(default)]
@@ -177,6 +184,10 @@ pub struct ImagePlan {
     /// FNV-1a over the normalized catalog snapshot. Freezes the catalog state
     /// the decisions were made against.
     pub catalog_fingerprint: String,
+    /// UTC seconds at which the catalog eligibility and ranking were evaluated.
+    /// A replay with a different `evaluated_at` is a different decision, even
+    /// when both fingerprints are equal.
+    pub evaluated_at: i64,
     pub scenes: Vec<SceneImagePlan>,
     pub counts: ImagePlanCounts,
 }
@@ -306,6 +317,10 @@ pub struct ImageCandidateAssessment {
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
 pub struct ImagePlanCounts {
     pub scenes: usize,
+    /// Scenes the semantic extractor rejected. They keep a slot in
+    /// `ImagePlan.scenes` but contribute no queries, so a caller can never
+    /// mistake a partial plan for a complete one.
+    pub rejected_scenes: usize,
     pub queries: usize,
     pub selected: usize,
     pub catalog_misses: usize,

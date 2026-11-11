@@ -24,7 +24,10 @@ pub fn parse_utc_timestamp(value: &str) -> Option<i64> {
     let year = parse_i64(date_parts.next()?, 4)?;
     let month = parse_i64(date_parts.next()?, 2)?;
     let day = parse_i64(date_parts.next()?, 2)?;
-    if date_parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+    if date_parts.next().is_some()
+        || !(1..=12).contains(&month)
+        || !(1..=days_in_month(year, month)).contains(&day)
+    {
         return None;
     }
 
@@ -72,8 +75,25 @@ pub fn classify_candidate_state(now: i64, stored_status: &str, last_seen_at: &st
             Some(_) => "fresh".to_string(),
             None => stored,
         },
-        // `active` is the legacy pre-225 value and is treated as fresh.
-        _ => "fresh".to_string(),
+        // `active` is the only legacy status that maps to fresh. Anything
+        // else is unrecognized and must fail closed instead of becoming a
+        // selectable fresh candidate.
+        "active" => "fresh".to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
+fn is_leap_year(year: i64) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+fn days_in_month(year: i64, month: i64) -> i64 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        _ => 0,
     }
 }
 
@@ -123,6 +143,10 @@ mod tests {
         assert_eq!(parse_utc_timestamp("2026-11-10"), Some(1_794_268_800));
         assert_eq!(parse_utc_timestamp("2026-11-10T02:00:00+02:00"), None);
         assert_eq!(parse_utc_timestamp("not a date"), None);
+        assert!(parse_utc_timestamp("2024-02-29").is_some());
+        assert!(parse_utc_timestamp("2025-02-29").is_none());
+        assert!(parse_utc_timestamp("2026-04-31").is_none());
+        assert!(parse_utc_timestamp("2026-02-30").is_none());
     }
 
     #[test]
@@ -149,6 +173,7 @@ mod tests {
         let now = parse_utc_timestamp("2026-11-10T00:00:00Z").unwrap();
         assert_eq!(classify_candidate_state(now, "stale", ""), "stale");
         assert_eq!(classify_candidate_state(now, "active", ""), "fresh");
-        assert_eq!(classify_candidate_state(now, "", ""), "fresh");
+        assert_eq!(classify_candidate_state(now, "", ""), "unknown");
+        assert_eq!(classify_candidate_state(now, "pending", ""), "unknown");
     }
 }

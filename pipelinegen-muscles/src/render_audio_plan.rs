@@ -99,7 +99,7 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<(), MuscleError> {
     }
     if plan.duration_us <= 0
         || plan.canonical_audio_profile.codec != "aac"
-        || plan.canonical_audio_profile.sample_rate != 48000
+        || plan.canonical_audio_profile.sample_rate != crate::audio_copy::CANONICAL_SAMPLE_RATE
         || plan.canonical_audio_profile.channels != 2
         || plan.canonical_audio_profile.channel_layout != "stereo"
         || !plan

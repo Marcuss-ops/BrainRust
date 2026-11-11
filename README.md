@@ -25,7 +25,11 @@ The workspace has deliberately separate execution boundaries:
   annotation sidecar keyed by `candidate_id`, reuses the semantic engine's
   grounded queries and returns deterministic per-scene image decisions. It
   does not open PipelineGen's database, download assets, render, or create a
-  second catalog. Video, stock clips and SFX are out of scope.
+  second catalog. Video, stock clips and SFX are out of scope. The NDJSON
+  worker accepts scenes or an optional `semantic_manifest.v2`; it validates
+  the schema, scene identity and request fingerprint and reuses the same
+  manifest type without a second semantic analysis. In-process callers use
+  the same `imagecatalog::plan_from_manifest` path.
 - `pipelinegen-muscles` remains the media executor. It owns FFmpeg-related
   operations and must not become the semantic engine's dependency. The
   standalone Phrase Impact and Scene Intelligence compatibility workers were
@@ -169,7 +173,7 @@ the parity gate for the Go consumer copy. See
 ## Release
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`, which tests the tagged
-tree on Bookworm, builds the four binaries and publishes `sha256sums.txt`,
+tree on Bookworm, builds the five binaries and publishes `sha256sums.txt`,
 `TOOLCHAIN` and `ICU_MAJOR` alongside them. PipelineGen consumes that bundle
 with `make rust-fetch RUST_VERSION=vX.Y.Z`; the source build remains available
 there as the explicit `make build-muscles` fallback.
@@ -205,9 +209,9 @@ corpus over the supported languages.
 
 ## Phrase impact (extractive summary, heavy sentences, bullets)
 
-`pipelinegen-muscles::phrase_impact` is the extractive editorial summary
-engine. It never loads models, invokes inference, or touches the media
-executor JSON protocol: the caller supplies either one-vector-per-segment
+`semantic-core::phrase_impact` is the extractive editorial summary engine. It
+never loads models, invokes inference, or touches the media executor JSON
+protocol: the caller supplies either one-vector-per-segment
 embeddings (the canonical E5 passage vectors) or asks for the deterministic
 `lexical_only` fallback, and may pass per-sentence microsecond timings. The
 summary and bullets are extractive source sentences, selected separately from

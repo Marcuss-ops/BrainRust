@@ -80,17 +80,21 @@ pub struct Lexicon {
 }
 
 /// Loads one table: `$SEMANTIC_LEXICON_DIR/<file>` when present and valid,
-/// otherwise the embedded default. A malformed override warns and falls back
-/// so a broken deployment can never crash or silently change an analysis.
+/// otherwise the embedded default. A missing or malformed override warns and
+/// falls back so a broken deployment can never crash or silently change an
+/// analysis.
 fn load_table<T: serde::de::DeserializeOwned>(file: &str, embedded: &'static str) -> T {
     if let Ok(dir) = std::env::var(LEXICON_DIR_ENV) {
         let path = std::path::Path::new(&dir).join(file);
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            match serde_json::from_str(&text) {
+        match std::fs::read_to_string(&path) {
+            Ok(text) => match serde_json::from_str(&text) {
                 Ok(table) => return table,
                 Err(error) => {
                     eprintln!("semantic-core lexicon: ignoring {path:?}: {error}");
                 }
+            },
+            Err(error) => {
+                eprintln!("semantic-core lexicon: using embedded default for {path:?}: {error}");
             }
         }
     }

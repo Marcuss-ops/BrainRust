@@ -189,7 +189,7 @@ pub(crate) fn validate_output(
     Ok(duration)
 }
 
-fn video_codec_matches(actual: Option<&str>, expected: &str) -> bool {
+pub(crate) fn video_codec_matches(actual: Option<&str>, expected: &str) -> bool {
     let expected = expected.to_ascii_lowercase();
     match actual {
         Some(codec) if expected.contains("_nvenc") => codec == "h264",

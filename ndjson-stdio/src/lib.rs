@@ -11,6 +11,10 @@ use std::io::{self, BufRead, Write};
 use std::sync::mpsc;
 use std::sync::Mutex;
 
+/// Response used when a request handler panics. One panic must still produce
+/// exactly one JSON line, so a persistent client never waits forever.
+const PANIC_RESPONSE: &str = "{\"ok\":false,\"error\":\"worker panicked\"}";
+
 /// Runs a JSON-lines worker on stdin/stdout until EOF, skipping blank lines
 /// and flushing every response for persistent request/response clients.
 pub fn run_stdio(process_line: impl FnMut(&str) -> String) -> io::Result<()> {
@@ -33,7 +37,10 @@ where
         if line.trim().is_empty() {
             continue;
         }
-        writeln!(output, "{}", process_line(&line))?;
+        let response =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| process_line(&line)))
+                .unwrap_or_else(|_| PANIC_RESPONSE.to_string());
+        writeln!(output, "{response}")?;
         output.flush()?;
     }
     Ok(())
@@ -47,19 +54,25 @@ struct Job {
     line: String,
 }
 
+/// Hard ceiling for an explicitly configured worker pool. An operator can
+/// lower the pool per deployment, but no environment value may create an
+/// unbounded number of threads for one request stream.
+pub const MAX_WORKERS: usize = 32;
+
 /// Number of worker threads for a persistent worker process.
 ///
 /// `var` (for example `VISUALNER_WORKERS`) overrides the pool size; values
 /// that are absent, unparsable or zero fall back to the machine's available
 /// parallelism, clamped to a small ceiling so one worker cannot saturate a
-/// shared host by itself. `1` restores the serial loop exactly.
+/// shared host by itself. An explicit value is clamped to [`MAX_WORKERS`].
+/// `1` restores the serial loop exactly.
 pub fn workers_from_env(var: &str) -> usize {
     if let Some(value) = std::env::var(var)
         .ok()
         .and_then(|value| value.trim().parse::<usize>().ok())
         .filter(|value| *value > 0)
     {
-        return value;
+        return value.min(MAX_WORKERS);
     }
     default_workers()
 }
@@ -115,9 +128,18 @@ where
     let mut output = io::BufWriter::new(output);
     // Bounded queue: at most `workers * 4` requests are in flight, so a slow
     // consumer cannot make the worker accumulate unbounded input.
-    let (job_tx, job_rx) = mpsc::sync_channel::<Job>(workers * 4);
+    let window = workers.saturating_mul(4).max(1);
+    let (job_tx, job_rx) = mpsc::sync_channel::<Job>(window);
     let job_rx = Mutex::new(job_rx);
-    let (result_tx, result_rx) = mpsc::channel::<(usize, String)>();
+    let (result_tx, result_rx) = mpsc::sync_channel::<(usize, String)>(window);
+    let (permit_tx, permit_rx) = mpsc::sync_channel::<()>(window);
+    for _ in 0..window {
+        permit_tx
+            .send(())
+            .map_err(|_| io::Error::other("ndjson permit channel closed"))?;
+    }
+    let permit_rx = Mutex::new(permit_rx);
+    let mut permit_tx = Some(permit_tx);
 
     std::thread::scope(|scope| -> io::Result<()> {
         // Reader: assigns each request its input position and stops at EOF or
@@ -128,6 +150,16 @@ where
                 let line = line?;
                 if line.trim().is_empty() {
                     continue;
+                }
+                // Acquire one in-flight slot before issuing the job. Slots
+                // are released only after the ordered response is written.
+                match permit_rx.lock() {
+                    Ok(guard) => {
+                        if guard.recv().is_err() {
+                            return Ok(());
+                        }
+                    }
+                    Err(_) => return Ok(()),
                 }
                 if job_tx.send(Job { index, line }).is_err() {
                     return Ok(());
@@ -146,7 +178,11 @@ where
                     Err(_) => break,
                 };
                 let Ok(job) = job else { break };
-                let response = process(&job.line);
+                // A panic in one request must produce one error line, not
+                // kill the persistent worker or leave the client waiting.
+                let response =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| process(&job.line)))
+                        .unwrap_or_else(|_| PANIC_RESPONSE.to_string());
                 if sender.send((job.index, response)).is_err() {
                     break;
                 }
@@ -157,26 +193,40 @@ where
         let mut next_written = 0usize;
         let mut pending: BTreeMap<usize, String> = BTreeMap::new();
         let mut write_error: Option<io::Error> = None;
-        while let Ok((index, response)) = result_rx.recv() {
+        'responses: while let Ok((index, response)) = result_rx.recv() {
             pending.insert(index, response);
             while let Some(response) = pending.remove(&next_written) {
-                if write_error.is_none() {
-                    if let Err(error) = writeln!(output, "{response}").and_then(|()| output.flush())
-                    {
-                        write_error = Some(error);
-                    }
+                if let Err(error) = writeln!(output, "{response}").and_then(|()| output.flush()) {
+                    // Closing the permit sender unblocks the reader, which
+                    // then drops the job sender and lets every worker exit.
+                    // Without this, a failed stdout write would leave the
+                    // reader waiting for a permit that can never be released.
+                    write_error = Some(error);
+                    permit_tx.take();
+                    break 'responses;
+                }
+                // The slot is free only once its ordered response is on the
+                // wire; this is what bounds `pending`.
+                if let Some(permit_tx) = permit_tx.as_ref() {
+                    let _ = permit_tx.send(());
                 }
                 next_written += 1;
             }
         }
+        // Stop accepting results before joining the reader: workers blocked
+        // on a full result channel must observe the closed receiver.
+        drop(result_rx);
+        drop(pending);
+        let reader_result = match reader.join() {
+            Ok(result) => result,
+            Err(_) => Err(io::Error::other("ndjson input reader panicked")),
+        };
         if let Some(error) = write_error {
             return Err(error);
         }
+        reader_result?;
         output.flush()?;
-        match reader.join() {
-            Ok(result) => result,
-            Err(_) => Err(io::Error::other("ndjson input reader panicked")),
-        }
+        Ok(())
     })
 }
 
@@ -349,6 +399,56 @@ mod tests {
     }
 
     #[test]
+    fn explicitly_configured_worker_counts_are_clamped() {
+        let variable = "NDJSON_STDIO_TEST_WORKER_CEILING";
+        std::env::set_var(variable, "100000");
+        assert_eq!(super::workers_from_env(variable), super::MAX_WORKERS);
+        std::env::set_var(variable, "1");
+        assert_eq!(super::workers_from_env(variable), 1);
+        std::env::remove_var(variable);
+    }
+
+    #[test]
+    fn parallel_pool_terminates_when_the_output_writer_fails() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        struct FailingWriter;
+        impl std::io::Write for FailingWriter {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("synthetic output failure"))
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        // More than the in-flight window so the reader is still admitting
+        // requests when the first response fails to write. A deadlock here
+        // would leave the reader blocked forever on a permit.
+        let input: Vec<u8> = (0..128)
+            .map(|index| format!("{{\"n\":{index}}}\n"))
+            .collect::<String>()
+            .into_bytes();
+        let (done_tx, done_rx) = mpsc::channel();
+        let handle = std::thread::spawn(move || {
+            let mut writer = FailingWriter;
+            let result = super::run_io_parallel(
+                std::io::Cursor::new(input),
+                &mut writer,
+                |line| line.to_string(),
+                2,
+            );
+            let _ = done_tx.send(result.is_err());
+        });
+        let failed = done_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("a failed response write must terminate the pool, not deadlock it");
+        assert!(failed, "the write error must be returned to the caller");
+        handle.join().expect("pool thread");
+    }
+
+    #[test]
     fn parallel_pool_with_one_worker_is_the_serial_loop() {
         let input = Cursor::new(b"a\n\nb\nc\n".to_vec());
         let mut output = Vec::new();
@@ -365,5 +465,85 @@ mod tests {
         let operation = check_envelope("w", None, "w.v1", Some("drop"), "run").unwrap_err();
         assert_eq!(operation.code, ErrorCode::UnsupportedOperation);
         assert_eq!(operation.message, "w: unsupported operation: drop");
+    }
+
+    #[test]
+    fn parallel_pool_bounds_in_flight_work_behind_a_slow_head() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{mpsc, Arc};
+        use std::time::{Duration, Instant};
+
+        let input: Vec<u8> = (0..100)
+            .map(|index| format!("{{\"n\":{index}}}\n"))
+            .collect::<String>()
+            .into_bytes();
+        let processed = Arc::new(AtomicUsize::new(0));
+        let (gate_tx, gate_rx) = mpsc::channel::<()>();
+        let gate_rx = Arc::new(std::sync::Mutex::new(gate_rx));
+        let processed_in_process = Arc::clone(&processed);
+        let process = move |line: &str| {
+            let n: usize = line
+                .trim_start_matches("{\"n\":")
+                .trim_end_matches('}')
+                .parse()
+                .expect("test request index");
+            if n == 0 {
+                let _ = gate_rx.lock().expect("test gate").recv();
+            }
+            processed_in_process.fetch_add(1, Ordering::SeqCst);
+            format!("{{\"call\":{n}}}")
+        };
+        let mut output = Vec::new();
+        let handle = std::thread::spawn(move || {
+            super::run_io_parallel(Cursor::new(input), &mut output, process, 2)
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let mut last = 0;
+        let mut stable = 0;
+        while Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(25));
+            let now = processed.load(Ordering::SeqCst);
+            if now == last {
+                stable += 1;
+                if stable >= 3 {
+                    break;
+                }
+            } else {
+                stable = 0;
+                last = now;
+            }
+        }
+        let in_flight = processed.load(Ordering::SeqCst);
+        assert!(
+            in_flight <= 8,
+            "pool buffered {in_flight} requests behind a slow head"
+        );
+        gate_tx.send(()).expect("release slow head");
+        handle.join().expect("pool thread").expect("pool result");
+        assert_eq!(processed.load(Ordering::SeqCst), 100);
+    }
+
+    #[test]
+    fn parallel_pool_turns_a_panicking_request_into_one_error_line() {
+        let input = Cursor::new(b"{\"n\":0}\n{\"n\":1}\n".to_vec());
+        let mut output = Vec::new();
+        super::run_io_parallel(
+            input,
+            &mut output,
+            |line| {
+                if line.contains("\"n\":0") {
+                    panic!("synthetic worker panic");
+                }
+                "{\"ok\":true}".to_string()
+            },
+            2,
+        )
+        .expect("pool result");
+        let text = String::from_utf8(output).expect("utf8 output");
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains("worker panicked"));
+        assert_eq!(lines[1], "{\"ok\":true}");
     }
 }

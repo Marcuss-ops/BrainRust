@@ -104,7 +104,9 @@ pub(crate) fn resolve_entry(
 /// offsets, so agreement holds by construction). Adjacent pieces merge only
 /// when the artifact frames are contiguous too. Any disagreement fails
 /// closed: the projection never guesses which artifact frame wins.
-pub(crate) fn merge_pieces(mut pieces: Vec<ProjectionPiece>) -> Result<Vec<ProjectionPiece>, String> {
+pub(crate) fn merge_pieces(
+    mut pieces: Vec<ProjectionPiece>,
+) -> Result<Vec<ProjectionPiece>, String> {
     if pieces.is_empty() {
         return Ok(Vec::new());
     }
@@ -156,7 +158,10 @@ pub(crate) fn resolve_sub_window(
         ));
     }
     let base = entry.artifact_in_us.unwrap_or(entry.in_us);
-    Ok((base + (sub_in_us - entry.in_us), base + (sub_out_us - entry.in_us)))
+    Ok((
+        base + (sub_in_us - entry.in_us),
+        base + (sub_out_us - entry.in_us),
+    ))
 }
 
 #[cfg(test)]
@@ -177,7 +182,11 @@ mod tests {
         }
     }
 
-    fn packed(mut entry: OverlayManifestEntry, artifact_in_us: i64, artifact_out_us: i64) -> OverlayManifestEntry {
+    fn packed(
+        mut entry: OverlayManifestEntry,
+        artifact_in_us: i64,
+        artifact_out_us: i64,
+    ) -> OverlayManifestEntry {
         entry.artifact_in_us = Some(artifact_in_us);
         entry.artifact_out_us = Some(artifact_out_us);
         entry
@@ -250,13 +259,25 @@ mod tests {
         // Producer packing: A plan [10,20)->art [50,60), B plan [15,25)->art
         // [55,65): at master 15 both map to artifact 55.
         let merged = merge_pieces(vec![
-            ProjectionPiece { master_start: 10, master_end: 20, artifact_start: 50 },
-            ProjectionPiece { master_start: 15, master_end: 25, artifact_start: 55 },
+            ProjectionPiece {
+                master_start: 10,
+                master_end: 20,
+                artifact_start: 50,
+            },
+            ProjectionPiece {
+                master_start: 15,
+                master_end: 25,
+                artifact_start: 55,
+            },
         ])
         .unwrap();
         assert_eq!(
             merged,
-            vec![ProjectionPiece { master_start: 10, master_end: 25, artifact_start: 50 }]
+            vec![ProjectionPiece {
+                master_start: 10,
+                master_end: 25,
+                artifact_start: 50
+            }]
         );
         assert_eq!(merged[0].artifact_end(), 65);
     }
@@ -264,26 +285,53 @@ mod tests {
     #[test]
     fn overlapping_pieces_with_conflicting_mappings_fail_closed() {
         let error = merge_pieces(vec![
-            ProjectionPiece { master_start: 10, master_end: 20, artifact_start: 50 },
-            ProjectionPiece { master_start: 15, master_end: 25, artifact_start: 30 },
+            ProjectionPiece {
+                master_start: 10,
+                master_end: 20,
+                artifact_start: 50,
+            },
+            ProjectionPiece {
+                master_start: 15,
+                master_end: 25,
+                artifact_start: 30,
+            },
         ])
         .unwrap_err();
-        assert!(error.contains("disagree on the artifact mapping"), "{error}");
+        assert!(
+            error.contains("disagree on the artifact mapping"),
+            "{error}"
+        );
     }
 
     #[test]
     fn adjacent_pieces_merge_only_when_artifact_contiguous() {
         let contiguous = merge_pieces(vec![
-            ProjectionPiece { master_start: 0, master_end: 10, artifact_start: 40 },
-            ProjectionPiece { master_start: 10, master_end: 20, artifact_start: 50 },
+            ProjectionPiece {
+                master_start: 0,
+                master_end: 10,
+                artifact_start: 40,
+            },
+            ProjectionPiece {
+                master_start: 10,
+                master_end: 20,
+                artifact_start: 50,
+            },
         ])
         .unwrap();
         assert_eq!(contiguous.len(), 1);
         assert_eq!(contiguous[0].artifact_end(), 60);
 
         let disjoint = merge_pieces(vec![
-            ProjectionPiece { master_start: 0, master_end: 10, artifact_start: 40 },
-            ProjectionPiece { master_start: 10, master_end: 20, artifact_start: 70 },
+            ProjectionPiece {
+                master_start: 0,
+                master_end: 10,
+                artifact_start: 40,
+            },
+            ProjectionPiece {
+                master_start: 10,
+                master_end: 20,
+                artifact_start: 70,
+            },
         ])
         .unwrap();
         assert_eq!(disjoint.len(), 2);
@@ -291,7 +339,11 @@ mod tests {
 
     #[test]
     fn sub_window_preserves_the_packed_offset() {
-        let packed_entry = packed(entry("phrase.1", 1_000_000, 2_000_000), 3_000_000, 4_000_000);
+        let packed_entry = packed(
+            entry("phrase.1", 1_000_000, 2_000_000),
+            3_000_000,
+            4_000_000,
+        );
         // Plan sub-window [1.2s, 1.5s) maps to artifact [3.2s, 3.5s).
         assert_eq!(
             resolve_sub_window(&packed_entry, 1_200_000, 1_500_000).unwrap(),

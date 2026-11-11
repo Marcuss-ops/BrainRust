@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::MuscleError;
 
 pub(super) const BGM_SOURCE_LOUDNESS_TARGET_DB: f64 = -23.0;
 pub(super) const BGM_LOUDNESS_TRIM_MAX_DB: f64 = 24.0;

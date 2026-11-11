@@ -9,12 +9,12 @@
 
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// One canonical identity shared by every occurrence of a subject across the
 /// script. `mentions` records every (scene_id, surface) pair so grounding and
 /// the planner can trace the id back to source evidence.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CanonicalIdentity {
     /// Stable id for the subject (e.g. `person_01`, `org_02`).
     pub id: String,
@@ -28,7 +28,7 @@ pub struct CanonicalIdentity {
 }
 
 /// A single occurrence of a canonical identity in one scene.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Mention {
     pub scene_id: String,
     pub surface: String,

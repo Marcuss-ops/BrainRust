@@ -32,6 +32,17 @@ script text
   -> deterministic per-scene image plan
 ```
 
+The NDJSON worker accepts scenes, or an optional `semantic_manifest.v2`
+already produced for exactly those scenes. When the manifest is present, the
+worker validates the schema, language, scene ids and request fingerprint and
+reuses it without a second semantic analysis; when absent, it runs the engine
+itself. The accepted type is the engine's `SemanticManifest` itself, not a
+second DTO. A scene the extractor rejected keeps its slot in the plan with no
+queries and is counted in `counts.rejected_scenes`, so a partial plan is never
+presented as complete. The plan also records `evaluated_at` (UTC seconds), so
+two runs with different freshness boundaries are distinguishable even when the
+semantic and catalog fingerprints match.
+
 For every `entity_search` proposal the module resolves the canonical
 `person:<slug>` and selects at most one catalog candidate. Contextual and
 composed queries are reported as `not_catalog_eligible` because the current
@@ -49,9 +60,15 @@ threshold:
 | Semantic score | If recorded and below `0.60`, reject. |
 | Technical score | If recorded and below `0.50`, reject. |
 | Dimensions | When both sides are known: long side `>= 800px` and `>= 400000px`. |
-| Freshness | `fresh` at exactly 7 days, `stale` one second later. `stale` stays usable as fallback. `broken`/`retired` are not usable by age. |
-| Materialization | Reusable only when `materialized`, with `asset_id`, `drive_link` and a 64-hex SHA-256. A verified materialization keeps a `broken` remote URL renderable; it does not make `retired` rows selectable. |
+| Freshness/status | `fresh` at exactly 7 days, `stale` one second later. `stale` stays usable as fallback. `active` is the explicit legacy fresh value. Any other status becomes `unknown` and is not selectable. `broken`/`retired` are not usable by age. |
+| Materialization | Reusable only when `materialized`, with `asset_id`, `drive_link` and a 64-hex SHA-256. A verified materialization keeps a `broken` remote URL renderable; it does not make `retired` or `unknown` rows selectable. |
 | Reuse | A candidate already selected by an earlier scene is demoted but not dropped. |
+
+Snapshot integrity is fail-closed: an identical duplicate row is deduplicated,
+while a contradictory duplicate for the same `candidate_id` is a request error.
+The plan therefore cannot depend on database export row order. Timestamps are
+validated against the real calendar (month lengths and leap years), not merely
+day 1–31.
 
 The selected candidate carries the source URL, dimensions and scores; when a
 verified materialization exists it also carries `asset_id`, `content_sha256`
@@ -111,13 +128,11 @@ images actually inspected and the corrections found.
 | `catalog_miss` | The query is catalog-eligible but no row passed the gates. The caller uses the existing external retrieval path. |
 | `not_catalog_eligible` | Non-PERSON, contextual or composed query; this image slice does not cover it yet. |
 
-The plan is versioned (`image_plan.v1`) and includes the semantic fingerprint
-plus a catalog snapshot fingerprint, so replay is byte-identical for the same
-text, analyzer versions and catalog rows.
+The plan is versioned (`image_plan.v1`) and includes the semantic fingerprint,
+the catalog snapshot fingerprint and `evaluated_at`, so replay is byte-identical
+only for the same text, analyzer versions, catalog rows and evaluation instant.
 
 ## Commands
-
-Export the existing database read-only:
 
 Export the existing database read-only, optionally with a metadata overlay
 and a curated visual-review overlay (later files win):
@@ -164,6 +179,11 @@ jq -n \
   | ./target/release/imagecatalog
 ```
 
+`manifest` is optional. When supplied it must be the manifest for exactly
+those scenes, with no editorial input or safety cap, because the fingerprint
+covers those request fields. A missing/foreign schema or fingerprint is an
+error, never a silent re-analysis.
+
 The worker is NDJSON: one request per line, one plan per line. Errors are
 reported on the same line with `error` and `error_code`, never by exiting.
 
@@ -195,8 +215,21 @@ cargo test -p imagecatalog
 
 Unit tests cover canonical identity, the seven-day boundary, every quality
 gate, durable materialization reuse, deterministic tie-breaking and snapshot
-fingerprints. They also cover annotation mismatch, missing primary subjects,
-synthetic depictions, composite demotion and scene-context promotion. The
-integration tests cover grounded entity selection, cross-scene preference,
-explicit misses, deferred contextual queries and a replay over the real
-`fixtures/catalog_seed_20261110.json` slice.
+fingerprints. The canonical battery includes case/whitespace variants,
+possessives, accented names, punctuation and non-ASCII names; its expectations
+match the Go owner's `CanonicalEntityID("PERSON", name)`. Tests also cover
+annotation mismatch, missing primary subjects, synthetic depictions, composite
+demotion and scene-context promotion. The catalog suite additionally covers
+`retired` with a durable materialization, unknown statuses, contradictory
+snapshot duplicates, real-calendar dates and `evaluated_at`. The manifest-reuse
+tests cover in-process reuse, wire reuse without a second analysis, and
+rejection of a wrong schema, foreign fingerprint, foreign language, wrong
+scene count or wrong scene id. The plan integration tests cover grounded entity
+selection, cross-scene preference, explicit misses, deferred contextual queries
+and a replay over the real `fixtures/catalog_seed_20261110.json` slice.
+
+The Rust policy is intentionally stricter than the current Go owner in two
+places: Go still maps an unrecognized candidate status to `fresh`, and its
+adapter still lets a verified materialization keep a `retired` row in the pool.
+Rust rejects both. A shared Go/Rust decision fixture therefore remains blocked
+until PipelineGen changes those behaviors; no Go file is modified here.

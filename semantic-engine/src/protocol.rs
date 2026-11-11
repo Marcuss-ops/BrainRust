@@ -11,6 +11,7 @@
 use std::io;
 use std::sync::{Arc, Mutex};
 
+use semantic_core::SemanticManifest;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -71,14 +72,28 @@ impl Worker {
         };
         let key = ManifestCache::request_key(&request, &analyzer_versions());
         if let Some(manifest) = self.cache.lock().ok().and_then(|mut cache| cache.get(&key)) {
-            return json!({ "ok": true, "manifest": manifest, "cached": true }).to_string();
+            let completeness = manifest_completeness(&manifest);
+            return json!({
+                "ok": true,
+                "manifest": manifest,
+                "cached": true,
+                "completeness": completeness
+            })
+            .to_string();
         }
         match analyze_script(&request) {
             Ok(manifest) => {
                 if let Ok(mut cache) = self.cache.lock() {
                     cache.insert(key, manifest.clone());
                 }
-                json!({ "ok": true, "manifest": manifest, "cached": false }).to_string()
+                let completeness = manifest_completeness(&manifest);
+                json!({
+                    "ok": true,
+                    "manifest": manifest,
+                    "cached": false,
+                    "completeness": completeness
+                })
+                .to_string()
             }
             Err(message) => error_response(&message),
         }
@@ -121,6 +136,35 @@ fn split_sentences(line: &str) -> String {
 
 fn error_response(message: &str) -> String {
     json!({ "ok": false, "error": message }).to_string()
+}
+
+/// Aggregates scene-level rejection into a response-level contract. `ok` only
+/// says the request was processed; this field says whether every scene was
+/// analysed or whether the caller received a partial manifest.
+fn manifest_completeness(manifest: &SemanticManifest) -> serde_json::Value {
+    let rejected: Vec<_> = manifest
+        .scenes
+        .iter()
+        .filter(|scene| scene.status == "rejected")
+        .collect();
+    let status = if rejected.is_empty() {
+        "complete"
+    } else if rejected.len() == manifest.scenes.len() {
+        "rejected"
+    } else {
+        "partial"
+    };
+    json!({
+        "status": status,
+        "rejected_scenes": rejected.len(),
+        "rejections": rejected
+            .iter()
+            .map(|scene| json!({
+                "scene_id": scene.scene_id,
+                "reason": scene.reason.as_deref().unwrap_or("")
+            }))
+            .collect::<Vec<_>>(),
+    })
 }
 
 /// Handles one request line with a fresh worker (stateless convenience for
@@ -182,6 +226,87 @@ mod tests {
                 sentence["text"].as_str().unwrap()
             );
         }
+    }
+
+    #[test]
+    fn completeness_reports_partial_and_rejected_manifests() {
+        let mut manifest = analyze_script(&ScriptRequest {
+            language: "it".to_string(),
+            scenes: vec![
+                semantic_core::SceneInput {
+                    scene_id: "s1".to_string(),
+                    text: "Alberto Stasi entra nel tribunale.".to_string(),
+                },
+                semantic_core::SceneInput {
+                    scene_id: "s2".to_string(),
+                    text: "Il tribunale resta chiuso.".to_string(),
+                },
+            ],
+            editorial: None,
+            entity_safety_cap: 0,
+        })
+        .expect("manifest");
+        assert_eq!(manifest_completeness(&manifest)["status"], "complete");
+
+        manifest.scenes[0].status = "rejected".to_string();
+        manifest.scenes[0].reason = Some("extractor refused".to_string());
+        let partial = manifest_completeness(&manifest);
+        assert_eq!(partial["status"], "partial");
+        assert_eq!(partial["rejected_scenes"], 1);
+        assert_eq!(partial["rejections"][0]["scene_id"], "s1");
+
+        manifest.scenes[1].status = "rejected".to_string();
+        assert_eq!(manifest_completeness(&manifest)["status"], "rejected");
+    }
+
+    #[test]
+    fn fresh_and_cached_wire_responses_both_carry_completeness() {
+        let worker = Worker::new(8);
+        let line = request("Alberto Stasi e Andrea Sempio sono due nomi.");
+        let first: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        let second: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(first["completeness"]["status"], "complete");
+        assert_eq!(first["completeness"]["rejected_scenes"], 0);
+        assert_eq!(first["completeness"]["rejections"], json!([]));
+        assert_eq!(second["cached"], true);
+        assert_eq!(
+            second["completeness"], first["completeness"],
+            "a cache hit must report the same completeness contract"
+        );
+    }
+
+    #[test]
+    fn cached_partial_wire_response_lists_every_rejected_scene() {
+        let worker = Worker::new(8);
+        let line = serde_json::json!({
+            "operation": "analyze_script",
+            "language": "it",
+            "scenes": [
+                {"scene_id": "s1", "text": "Alberto Stasi entra nel tribunale."},
+                {"scene_id": "s2", "text": "Il tribunale resta chiuso."}
+            ]
+        })
+        .to_string();
+        let request: ScriptRequest = serde_json::from_str(&line).unwrap();
+        let key = ManifestCache::request_key(&request, &analyzer_versions());
+        let mut manifest = analyze_script(&request).expect("manifest");
+        manifest.scenes[1].status = "rejected".to_string();
+        manifest.scenes[1].reason = Some("extractor refused scene two".to_string());
+        worker
+            .cache
+            .lock()
+            .expect("cache lock")
+            .insert(key, manifest);
+
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["cached"], true);
+        assert_eq!(response["completeness"]["status"], "partial");
+        assert_eq!(response["completeness"]["rejected_scenes"], 1);
+        assert_eq!(response["completeness"]["rejections"][0]["scene_id"], "s2");
+        assert_eq!(
+            response["completeness"]["rejections"][0]["reason"],
+            "extractor refused scene two"
+        );
     }
 
     #[test]
