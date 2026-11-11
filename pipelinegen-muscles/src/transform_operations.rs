@@ -219,7 +219,7 @@ pub(super) fn execute(request: Request, operation: Operation) -> Response {
             command.args(["-i", input, "-c", "copy"]);
         }
         Operation::RemoveSilence => {
-            // Preserve a short 350 ms breathing gap and remove only the
+            // Preserve a short 120 ms breathing gap and remove only the
             // excess in longer pauses. Keep the detector and silenceremove
             // thresholds identical so timing edits describe the actual cuts.
             //
@@ -244,7 +244,7 @@ pub(super) fn execute(request: Request, operation: Operation) -> Response {
                 audio_edits: edits.clone(),
                 ..Default::default()
             });
-            command.args(["-i", input, "-af", "silenceremove=start_periods=1:start_threshold=-42dB:start_silence=0.35:stop_periods=-1:stop_threshold=-42dB:stop_silence=0.35", "-c:a", "libmp3lame", "-q:a", "2", "-ar", "48000", "-ac", "2"]);
+            command.args(["-i", input, "-af", "silenceremove=start_periods=1:start_threshold=-40dB:start_silence=0.12:stop_periods=-1:stop_threshold=-40dB:stop_silence=0.12", "-c:a", "libmp3lame", "-q:a", "2", "-ar", "48000", "-ac", "2"]);
         }
         Operation::Trim => {
             let max_duration = request.max_duration_sec.unwrap_or(0.0);
@@ -306,7 +306,7 @@ fn detect_silence_edits(ffmpeg: &str, input: &str) -> Result<Vec<AudioEditMetada
         "-i",
         input,
         "-af",
-        "silencedetect=noise=-42dB:d=0.35",
+        "silencedetect=noise=-40dB:d=0.12",
         "-f",
         "null",
         "-",
@@ -328,7 +328,7 @@ fn detect_silence_edits(ffmpeg: &str, input: &str) -> Result<Vec<AudioEditMetada
                 .and_then(|v| v.parse().ok())
                 .ok_or("invalid silence_end from ffmpeg")?;
             if let Some(begin) = start.take() {
-                let cut_start = (begin + 0.35).min(end);
+                let cut_start = (begin + 0.12).min(end);
                 if end - cut_start > 0.001 {
                     let source_start_us = (cut_start * 1_000_000.0).round() as i64;
                     let source_end_us = (end * 1_000_000.0).round() as i64;
@@ -348,7 +348,7 @@ fn detect_silence_edits(ffmpeg: &str, input: &str) -> Result<Vec<AudioEditMetada
         let probe = crate::probe::probe_file(&crate::probe::ffprobe_path(ffmpeg), input)
             .map_err(|e| e.to_string())?;
         let end = probe.duration_sec;
-        let cut_start = (begin + 0.35).min(end);
+        let cut_start = (begin + 0.12).min(end);
         if end - cut_start > 0.001 {
             let source_start_us = (cut_start * 1_000_000.0).round() as i64;
             let source_end_us = (end * 1_000_000.0).round() as i64;

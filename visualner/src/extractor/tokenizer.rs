@@ -147,9 +147,10 @@ fn elided_clitic_split(source_text: &str, token: &Token) -> Option<(usize, usize
     if prefix.len() < 2 || !prefix.bytes().all(|byte| byte.is_ascii_alphabetic()) {
         return None;
     }
-    let remainder_start = token.start + apostrophe + text[apostrophe..].chars().next()?.len_utf8();
+    let apostrophe_end = apostrophe + text[apostrophe..].chars().next()?.len_utf8();
+    let remainder_start = token.start + apostrophe_end;
     if !starts_uppercase(source_text.get(remainder_start..token.end)?) {
         return None;
     }
-    Some((token.start + apostrophe + 1, remainder_start))
+    Some((token.start + apostrophe_end, remainder_start))
 }
