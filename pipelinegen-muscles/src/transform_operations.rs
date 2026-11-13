@@ -52,7 +52,7 @@ pub(super) fn execute(request: Request, operation: Operation) -> Response {
                 Err(error) => return failed_response(Some(input.to_string()), error),
             };
             command.args(["-i", input, "-vf"]);
-            command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{}", profile.width, profile.height, profile.width, profile.height, profile.fps_num, profile.fps_den));
+            command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{},setsar=1", profile.width, profile.height, profile.width, profile.height, profile.fps_num, profile.fps_den));
             if let Err(error) = append_video_options(&mut command, &request) {
                 return failed_response(Some(input.to_string()), error);
             }
@@ -111,7 +111,7 @@ pub(super) fn execute(request: Request, operation: Operation) -> Response {
                 &(end - start).to_string(),
                 "-vf",
             ]);
-            command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{}", profile.width, profile.height, profile.width, profile.height, profile.fps_num, profile.fps_den));
+            command.arg(format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,fps={}/{},setsar=1", profile.width, profile.height, profile.width, profile.height, profile.fps_num, profile.fps_den));
             if let Err(error) = append_video_options(&mut command, &request) {
                 return failed_response(Some(input.to_string()), error);
             }
