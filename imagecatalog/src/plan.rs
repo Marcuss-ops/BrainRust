@@ -178,14 +178,14 @@ pub fn plan_from_manifest(
             if !seen.insert(("entity_search".to_string(), query.clone())) {
                 continue;
             }
-            let identity = proposal
-                .entity_ids
-                .first()
-                .and_then(|id| identities.get(id.as_str()).copied());
-            let entity = proposal
-                .entity_ids
-                .first()
-                .and_then(|id| entities.get(id.as_str()).copied());
+            // An entity-search proposal must identify one owner. Taking the
+            // first id from a multi-subject proposal can silently bind a
+            // candidate to the wrong person; the semantic producer should
+            // emit one proposal per canonical identity.
+            let single_entity_id =
+                (proposal.entity_ids.len() == 1).then(|| proposal.entity_ids[0].as_str());
+            let identity = single_entity_id.and_then(|id| identities.get(id).copied());
+            let entity = single_entity_id.and_then(|id| entities.get(id).copied());
             let entity_type = identity
                 .map(|identity| identity.kind.clone())
                 .or_else(|| entity.map(|entity| entity.kind.clone()));

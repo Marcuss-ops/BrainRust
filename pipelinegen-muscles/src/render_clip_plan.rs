@@ -1,4 +1,4 @@
-use crate::artifact::sha256_file;
+use crate::hash::sha256_file;
 
 use crate::error::MuscleError;
 use serde::Deserialize;
@@ -288,7 +288,7 @@ fn validate_artifact(label: &str, path: &str, expected: &str) -> Result<(), Musc
     Ok(())
 }
 
-// sha256_file is the crate-wide canonical file hasher (artifact.rs); the
+// sha256_file is the crate-wide canonical file hasher (hash.rs); the
 // plan validator hashes every referenced artifact through the same
 // `sha256sum` invocation the combined-audio render path uses.
 

@@ -15,8 +15,9 @@ use super::plan::{track_events, validate_plan};
 
 use super::plan::{Automation, Plan};
 use super::probe::{probe_audio, probe_source, SourceProbe};
-use crate::artifact::{failed_response, part_path, publish_output, sha256_file};
-use crate::process::{kill_process_tree, FFmpegRunner};
+use crate::artifact::{failed_response, part_path, publish_output};
+use crate::hash::sha256_file;
+use crate::process::{wait_child_with_deadline, FFmpegRunner};
 use crate::protocol::{AudioAsset, Request, Response};
 use std::collections::HashMap;
 use std::fs;
@@ -238,34 +239,6 @@ fn make_fifo(path: &str) -> Result<(), String> {
 /// Wait for a child with a deadline. The streaming path cannot use
 /// `output()`: a producer blocked on `open()` of a FIFO whose reader died
 /// would wait forever, and the outer supervisor's timeout is minutes away.
-fn wait_child(
-    mut child: std::process::Child,
-    deadline: std::time::Instant,
-    label: &str,
-) -> Result<std::process::Output, String> {
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => {
-                return child
-                    .wait_with_output()
-                    .map_err(|error| format!("{label}: wait failed: {error}"))
-            }
-            Ok(None) => {}
-            Err(error) => return Err(format!("{label}: wait failed: {error}")),
-        }
-        if std::time::Instant::now() >= deadline {
-            // Every producer/encoder here is spawned through `process_command`,
-            // so its pid is also its process-group id. Kill the whole tree,
-            // not just the direct child; the helper falls back to a direct-pid
-            // kill when the group signal cannot be delivered.
-            kill_process_tree(child.id());
-            let _ = child.wait();
-            return Err(format!("{label} timed out"));
-        }
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-}
-
 pub(super) fn execute(request: Request) -> Response {
     let output = match request.output_path.as_deref() {
         Some(value) if !value.is_empty() => value,
@@ -587,14 +560,15 @@ pub(super) fn execute(request: Request) -> Response {
     // Safety net, not a budget: the encode drains the FIFOs at ~34x realtime.
     let encode_deadline = std::time::Instant::now()
         + std::time::Duration::from_secs(master_secs.max(0.0) as u64 / 10 + 180);
-    let encode_output = wait_child(encode_child, encode_deadline, "render_audio_plan encode");
+    let encode_output =
+        wait_child_with_deadline(encode_child, encode_deadline, "render_audio_plan encode");
     let aac_encode_ms = encode_started.elapsed().as_millis() as i64;
     // With the encoder gone a producer can only be blocked in open(): 30s
     // covers the normal close path and bounds the pathological one.
     let writer_deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     let mut writer_error: Option<String> = None;
     for writer in writers {
-        match wait_child(writer, writer_deadline, "render_audio_plan stem render") {
+        match wait_child_with_deadline(writer, writer_deadline, "render_audio_plan stem render") {
             Ok(output) if output.status.success() => {}
             Ok(output) => {
                 if writer_error.is_none() {
@@ -606,7 +580,7 @@ pub(super) fn execute(request: Request) -> Response {
             }
             Err(error) => {
                 if writer_error.is_none() {
-                    writer_error = Some(error);
+                    writer_error = Some(error.to_string());
                 }
             }
         }
@@ -622,7 +596,7 @@ pub(super) fn execute(request: Request) -> Response {
             "render_audio_plan encode failed: {}",
             String::from_utf8_lossy(&output.stderr).trim()
         )),
-        Err(error) => Err(error),
+        Err(error) => Err(error.to_string()),
     };
     if let Err(error) = encode_result {
         let _ = fs::remove_file(&part);

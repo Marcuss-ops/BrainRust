@@ -20,8 +20,9 @@
 //! master has any (overlay segments are silent; the final audio enters once
 //! at `mux_audio_copy`), and fail closed on any manifest inconsistency.
 
-use crate::artifact::{failed_response, part_path, sha256_file};
+use crate::artifact::{failed_response, part_path};
 use crate::encoder::append_video_options;
+use crate::hash::sha256_file;
 use crate::manifest_projection::{
     merge_pieces, resolve_entry, resolve_sub_window, us_to_frame_ceil, us_to_frame_floor,
     ProjectionPiece,

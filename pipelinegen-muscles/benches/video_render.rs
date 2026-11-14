@@ -27,6 +27,7 @@
 
 #![recursion_limit = "256"]
 
+use pipelinegen_muscles::hash::sha256_file;
 use pipelinegen_muscles::process;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -89,19 +90,6 @@ fn workspace_bin(name: &str) -> PathBuf {
         return path;
     }
     PathBuf::from(name)
-}
-
-fn sha256_file(path: &Path) -> String {
-    let output = Command::new("sha256sum")
-        .arg("--")
-        .arg(path)
-        .output()
-        .expect("sha256sum is required by the canonical plan validator");
-    String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .next()
-        .expect("sha256sum digest")
-        .to_string()
 }
 
 fn fixture_path(cache: &Path) -> PathBuf {
@@ -247,7 +235,7 @@ fn main() {
     let fixture = fixture_path(&bench_dir);
     ensure_fixture(&ffmpeg, &fixture);
     let fixture_str = fixture.to_string_lossy().into_owned();
-    let fixture_sha = sha256_file(&fixture);
+    let fixture_sha = sha256_file(&fixture_str).expect("hash the synthetic canonical fixture");
 
     let runs = std::env::var("VIDEO_RENDER_BENCH_RUNS")
         .ok()

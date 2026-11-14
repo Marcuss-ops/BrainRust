@@ -1,9 +1,9 @@
 use serde::Deserialize;
 
 use crate::error::MuscleError;
+use crate::hash::sha256_file;
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct CanonicalRenderPlan {
@@ -187,32 +187,4 @@ pub(crate) fn validate_canonical_plan(plan: &CanonicalRenderPlan) -> Result<(), 
         ));
     }
     Ok(())
-}
-
-fn sha256_file(path: &str) -> Result<String, MuscleError> {
-    let output = Command::new("sha256sum")
-        .arg("--")
-        .arg(path)
-        .output()
-        .map_err(|error| MuscleError::generic(format!("compute SHA256 for {path}: {error}")))?;
-    if !output.status.success() {
-        return Err(MuscleError::generic(format!(
-            "compute SHA256 for {path} failed"
-        )));
-    }
-    let digest = String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_string();
-    if digest.len() != 64
-        || !digest
-            .chars()
-            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
-    {
-        return Err(MuscleError::generic(format!(
-            "sha256sum returned an invalid digest for {path}"
-        )));
-    }
-    Ok(digest)
 }

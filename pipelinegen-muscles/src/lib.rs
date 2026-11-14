@@ -27,6 +27,7 @@ pub mod error;
 #[cfg(test)]
 mod golden;
 mod gpu;
+pub mod hash;
 mod manifest_projection;
 mod parallel;
 mod probe;

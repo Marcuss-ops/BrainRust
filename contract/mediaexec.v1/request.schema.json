@@ -29,7 +29,9 @@
         "remove_silence",
         "render_audio_plan",
         "mux_audio_copy",
-        "assemble_copy"
+        "assemble_copy",
+        "project_overlay_manifest",
+        "extract_timeline_window"
       ]
     },
     "ffmpeg_path": { "type": "string" },

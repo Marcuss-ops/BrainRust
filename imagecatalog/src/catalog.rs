@@ -256,7 +256,7 @@ impl CatalogIndex {
         let annotation = self.annotations.get(&candidate.candidate_id).cloned();
         let (durable, materialization_problem) = materialization_status(materialization.as_ref());
         let annotation_problem = annotation_quality_problem(candidate, annotation.as_ref());
-        let quality_problem = candidate_quality_problem(candidate);
+        let quality_problem = candidate_quality_problem(candidate, annotation.as_ref());
         let status_usable = matches!(state.as_str(), "fresh" | "stale");
         // A durable copy may keep a broken remote URL renderable. It does not
         // resurrect a retired row or an unrecognized status: those are policy
@@ -325,7 +325,10 @@ impl CatalogIndex {
 
 /// Applies the existing semantic, technical and dimension gates. Missing or
 /// legacy certification fails closed.
-pub fn candidate_quality_problem(candidate: &CatalogCandidate) -> Option<String> {
+pub fn candidate_quality_problem(
+    candidate: &CatalogCandidate,
+    annotation: Option<&CatalogAnnotation>,
+) -> Option<String> {
     if candidate.source_url.trim().is_empty() {
         return Some("source URL is empty".to_string());
     }
@@ -344,6 +347,24 @@ pub fn candidate_quality_problem(candidate: &CatalogCandidate) -> Option<String>
             return Some("semantic status unknown (legacy row is not certified)".to_string())
         }
         other => return Some(format!("semantic status {other} is not accepted")),
+    }
+    let quality_reason = candidate.quality_reason.to_lowercase();
+    let reviewed_identity = annotation.is_some_and(|annotation| {
+        annotation.identity_status == "verified_visual"
+            && annotation.review_status == "reviewed"
+            && annotation
+                .subjects
+                .iter()
+                .any(|subject| subject == &candidate.canonical_entity_id)
+            && !annotation.source.trim().is_empty()
+            && !annotation.evidence.trim().is_empty()
+    });
+    if !reviewed_identity
+        && !quality_reason.contains("ollama visual identity verification confirmed")
+        && !quality_reason.contains("manual visual identity review confirmed")
+        && !quality_reason.contains("pinned by media_manifest.v1: offline sha256 verify")
+    {
+        return Some("accepted status has no visual identity-verification provenance".to_string());
     }
     if candidate.semantic_score > 0.0 && candidate.semantic_score < MIN_SEMANTIC_SCORE {
         return Some(format!(
@@ -573,7 +594,11 @@ mod tests {
             semantic_status: semantic_status.to_string(),
             semantic_score: 0.92,
             technical_score: 0.88,
-            quality_reason: String::new(),
+            quality_reason: if semantic_status == "accepted" {
+                "Ollama visual identity verification confirmed the requested person and one dominant subject".to_string()
+            } else {
+                String::new()
+            },
             last_seen_at: "2026-11-09T00:00:00Z".to_string(),
         }
     }

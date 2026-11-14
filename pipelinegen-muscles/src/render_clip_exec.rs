@@ -1,4 +1,16 @@
-pub(super) fn render_clip(request: Request) -> Response {
+use super::helpers::{audio_policy, build_filter_graph, BenchAccumulator};
+use super::plan::{self, BACKGROUND_ASSET, SUBTITLE_BURN};
+use crate::artifact::{failed_response, part_path, publish_output};
+use crate::config::VideoProfile;
+use crate::encoder::append_video_args;
+use crate::probe;
+use crate::process::FFmpegRunner;
+use crate::protocol::{MediaMetadata, Request, Response};
+use std::fs;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+
+pub(crate) fn render_clip(request: Request) -> Response {
     // The whole-operation wall clock for the benchmark decomposition: every
     // success response reports startup_ms / publish_ms / op_ms so the Go
     // boundary can attribute the seconds outside the ffmpeg wall.
@@ -112,8 +124,7 @@ pub(super) fn render_clip(request: Request) -> Response {
     // policy on a build without CUDA degrades to CPU decode (observable on
     // stderr), never a blind `-hwaccel cuda` that would break every render.
     let requested_codec = encoder.codec.trim().to_ascii_lowercase();
-    let (decode_accelerator, _) =
-        crate::gpu::resolve_decode_accelerator(&requested_codec, ffmpeg);
+    let (decode_accelerator, _) = crate::gpu::resolve_decode_accelerator(&requested_codec, ffmpeg);
     let image_watermark = clip_plan
         .watermark
         .as_ref()
@@ -221,7 +232,9 @@ pub(super) fn render_clip(request: Request) -> Response {
     // raster + watermark + compositing + conversions) plus demux/mux and the
     // +faststart pass. saw_bench=false means the ffmpeg build emitted no
     // bench lines → phases stay NOT_INSTRUMENTED (never a fake zero).
-    let bench_state = bench.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let bench_state = bench
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let saw_bench = bench_state.saw_bench;
     let decode_ms = bench_state.decode_us / 1000;
     let encode_ms = bench_state.encode_us / 1000;
@@ -275,11 +288,7 @@ pub(super) fn render_clip(request: Request) -> Response {
                         // The zero-copy certification fields were removed
                         // with the retired hybrid backend: this software
                         // baseline never certifies a device-local GPU path.
-                        decode_ms: if saw_bench {
-                            Some(decode_ms)
-                        } else {
-                            None
-                        },
+                        decode_ms: if saw_bench { Some(decode_ms) } else { None },
                         filter_graph_ms: if saw_bench {
                             Some(filter_graph_ms)
                         } else {
@@ -296,11 +305,7 @@ pub(super) fn render_clip(request: Request) -> Response {
                         subtitle_raster_ms: None,
                         watermark_raster_ms: None,
                         frame_conversion_ms: None,
-                        encode_ms: if saw_bench {
-                            Some(encode_ms)
-                        } else {
-                            None
-                        },
+                        encode_ms: if saw_bench { Some(encode_ms) } else { None },
                         audio_mux_ms: None,
                         ..Default::default()
                     }),

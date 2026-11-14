@@ -301,6 +301,49 @@ fn process_command(program: &str, args: &[String]) -> Command {
     }
 }
 
+/// Waits for an already-spawned child with a hard deadline.
+///
+/// The waiter blocks in `waitpid` on its own thread instead of polling
+/// `try_wait`, and the timeout path kills the child's whole process group
+/// (the caller must have spawned it through `process_command`). This is the
+/// single deadline contract for children that cannot use
+/// `RustProcessRunner::output` because they must run concurrently (the FIFO
+/// audio encoder/producers).
+pub(crate) fn wait_child_with_deadline(
+    child: std::process::Child,
+    deadline: Instant,
+    label: &str,
+) -> io::Result<std::process::Output> {
+    let pid = child.id();
+    let (status_tx, status_rx) = mpsc::channel();
+    let wait_thread = thread::spawn(move || {
+        let result = child.wait_with_output();
+        let _ = status_tx.send(result);
+    });
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    match status_rx.recv_timeout(remaining) {
+        Ok(result) => {
+            let _ = wait_thread.join();
+            result
+        }
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            kill_process_tree(pid);
+            // Reap the killed child so no zombie outlives the caller, then
+            // report the timeout deterministically instead of the child's
+            // exit status.
+            let _ = status_rx.recv();
+            let _ = wait_thread.join();
+            Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("{label} timed out"),
+            ))
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            Err(io::Error::other("child wait thread panicked"))
+        }
+    }
+}
+
 pub(crate) fn kill_process_tree(pid: u32) {
     #[cfg(unix)]
     {

@@ -41,6 +41,7 @@ fn catalog() -> CatalogSnapshot {
                 "semantic_status": "accepted",
                 "semantic_score": 0.92,
                 "technical_score": 0.88,
+                "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
                 "last_seen_at": "2026-11-09T00:00:00Z"
             },
             {
@@ -55,6 +56,7 @@ fn catalog() -> CatalogSnapshot {
                 "semantic_status": "accepted",
                 "semantic_score": 0.90,
                 "technical_score": 0.86,
+                "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
                 "last_seen_at": "2026-11-09T00:00:00Z"
             }
         ],

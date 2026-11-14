@@ -17,37 +17,23 @@
 // response reports subtitle_raster_cpu=true — the operation never claims a
 // 100% GPU path when libass is in the graph.
 
-use crate::artifact::{failed_response, part_path, publish_output};
-use crate::config::VideoProfile;
-use crate::encoder::append_video_args;
-use crate::probe;
-use crate::process::FFmpegRunner;
-use crate::protocol::{MediaMetadata, Request, Response};
-use std::fs;
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-
+// The operation is split by topic into normal modules: `exec` owns the
+// request-level entry point, `helpers` owns the pure graph/audio builders and
+// `plan` owns the sealed plan types. Each file has explicit imports and
+// visibility; there is no `include!` fragment.
+#[path = "render_clip_exec.rs"]
+mod exec;
+#[path = "render_clip_helpers.rs"]
+mod helpers;
 #[path = "render_clip_plan.rs"]
 mod plan;
-
-use plan::{
-    ClipPlanAudio, ClipPlanWatermark, ClipRenderPlan, AUDIO_COPY_IF_COMPATIBLE, BACKGROUND_ASSET,
-    BACKGROUND_NONE, SUBTITLE_BURN,
-};
 
 /// Sealed clip plan, re-exported so the protocol boundary holds the typed
 /// plan instead of an untyped JSON value.
 pub(crate) use plan::ClipRenderPlan as SealedClipPlan;
 
-// The module body is composed from sibling files so that every physical file
-// stays ≤400 lines while the compiled module keeps the former single-file
-// semantics (same items, same visibility, same order):
-//   render_clip_exec.rs    — include! fragment: pub(super) fn render_clip
-//   render_clip_helpers.rs — include! fragment: BenchAccumulator + builders
-//   render_clip_tests.rs   — #[cfg(test)] mod tests (the test assertions)
-//   render_clip_tests_support.rs — #[cfg(test)] test fixtures (plan/profile/…)
-include!("render_clip_exec.rs");
-include!("render_clip_helpers.rs");
+/// Request-level entry point used by the dispatcher.
+pub(crate) use exec::render_clip;
 
 #[cfg(test)]
 #[path = "render_clip_tests.rs"]

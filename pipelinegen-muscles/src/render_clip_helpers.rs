@@ -1,3 +1,9 @@
+use super::plan::{
+    ClipPlanAudio, ClipPlanWatermark, ClipRenderPlan, AUDIO_COPY_IF_COMPATIBLE, BACKGROUND_ASSET,
+    BACKGROUND_NONE, SUBTITLE_BURN,
+};
+use crate::config::VideoProfile;
+use crate::protocol::MediaMetadata;
 
 /// BenchAccumulator sums ffmpeg's `-benchmark_all` per-frame bench lines as
 /// they stream on stderr. Line shape (ffmpeg 4.x-7.x):
@@ -11,28 +17,59 @@
 /// filter graph (subtitles/watermark/composite/conversions) and muxing are
 /// NOT wrapped by any bench line and surface as the residual in render_clip.
 #[derive(Default)]
-struct BenchAccumulator {
-    decode_us: i64,
-    encode_us: i64,
-    saw_bench: bool,
+pub(super) struct BenchAccumulator {
+    pub(super) decode_us: i64,
+    pub(super) encode_us: i64,
+    pub(super) saw_bench: bool,
 }
 
 impl BenchAccumulator {
-    fn handle_line(&mut self, line: &str) {
+    pub(super) fn handle_line(&mut self, line: &str) {
         // Allocation-free: iterate split_whitespace directly, no Vec collect.
         let mut iter = line.split_whitespace();
-        let f0 = match iter.next() { Some(v) => v, None => return };
-        if f0 != "bench:" { return; }
-        let f1 = match iter.next() { Some(v) => v, None => return };
-        let f2 = match iter.next() { Some(v) => v, None => return };
-        let f3 = match iter.next() { Some(v) => v, None => return };
-        let f4 = match iter.next() { Some(v) => v, None => return };
-        let f5 = match iter.next() { Some(v) => v, None => return };
-        let f6 = match iter.next() { Some(v) => v, None => return };
-        let f7 = match iter.next() { Some(v) => v, None => return };
-        if f2 != "user" || f4 != "sys" || f6 != "real" { return; }
+        let f0 = match iter.next() {
+            Some(v) => v,
+            None => return,
+        };
+        if f0 != "bench:" {
+            return;
+        }
+        let f1 = match iter.next() {
+            Some(v) => v,
+            None => return,
+        };
+        let f2 = match iter.next() {
+            Some(v) => v,
+            None => return,
+        };
+        let f3 = match iter.next() {
+            Some(v) => v,
+            None => return,
+        };
+        let f4 = match iter.next() {
+            Some(v) => v,
+            None => return,
+        };
+        let f5 = match iter.next() {
+            Some(v) => v,
+            None => return,
+        };
+        let f6 = match iter.next() {
+            Some(v) => v,
+            None => return,
+        };
+        let f7 = match iter.next() {
+            Some(v) => v,
+            None => return,
+        };
+        if f2 != "user" || f4 != "sys" || f6 != "real" {
+            return;
+        }
         let _ = (f1, f3); // user/sys values unused, keep for shape validation
-        let real_us: i64 = match f5.parse() { Ok(v) => v, Err(_) => return };
+        let real_us: i64 = match f5.parse() {
+            Ok(v) => v,
+            Err(_) => return,
+        };
         self.saw_bench = true;
         match f7 {
             "decode_video" => self.decode_us += real_us,
@@ -50,30 +87,20 @@ impl BenchAccumulator {
 ///
 /// The compatibility rule itself lives in `crate::audio_copy` (P0.3: one
 /// rule shared by clip, mux and future stock-audio paths).
-fn audio_policy(
+pub(super) fn audio_policy(
     audio: &ClipPlanAudio,
     source: &MediaMetadata,
     bitrate: &str,
 ) -> (bool, i32, Vec<String>) {
     if audio.mode == AUDIO_COPY_IF_COMPATIBLE
-        && crate::audio_copy::is_compatible(
-            source,
-            &audio.codec,
-            audio.sample_rate,
-            audio.channels,
-        )
+        && crate::audio_copy::is_compatible(source, &audio.codec, audio.sample_rate, audio.channels)
     {
         return (true, 0, crate::audio_copy::copy_args());
     }
     (
         false,
         i32::from(source.has_audio),
-        crate::audio_copy::transcode_args(
-            &audio.codec,
-            audio.sample_rate,
-            audio.channels,
-            bitrate,
-        ),
+        crate::audio_copy::transcode_args(&audio.codec, audio.sample_rate, audio.channels, bitrate),
     )
 }
 
@@ -86,7 +113,7 @@ fn audio_policy(
 /// exclusively through the RenderingGen queue), and this graph is the
 /// software baseline for every other host. The PATH B GPU hybrid filter
 /// chain was removed with the retired backend.
-fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
+pub(super) fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
     let w = profile.width;
     let h = profile.height;
     // Rational framerate pair from the sealed plan: NTSC rates (30000/1001)
@@ -188,7 +215,7 @@ fn build_filter_graph(plan: &ClipRenderPlan, profile: &VideoProfile) -> String {
 
 /// watermark_position resolves the overlay x/y expressions for the requested
 /// corner with the margin in output pixels.
-fn watermark_position(
+pub(super) fn watermark_position(
     watermark: &ClipPlanWatermark,
     _width: u32,
     _height: u32,
@@ -215,13 +242,16 @@ fn watermark_position(
     }
 }
 
-fn watermark_text_position(watermark: &ClipPlanWatermark) -> (String, String) {
+pub(super) fn watermark_text_position(watermark: &ClipPlanWatermark) -> (String, String) {
     let margin = watermark.margin_px;
     match watermark.position.as_str() {
         "top_left" => (format!("x={margin}"), format!("y={margin}")),
         "top_right" => (format!("x=w-text_w-{margin}"), format!("y={margin}")),
         "bottom_left" => (format!("x={margin}"), format!("y=h-text_h-{margin}")),
-        "bottom_right" => (format!("x=w-text_w-{margin}"), format!("y=h-text_h-{margin}")),
+        "bottom_right" => (
+            format!("x=w-text_w-{margin}"),
+            format!("y=h-text_h-{margin}"),
+        ),
         _ => ("x=(w-text_w)/2".to_string(), "y=(h-text_h)/2".to_string()),
     }
 }
@@ -229,7 +259,7 @@ fn watermark_text_position(watermark: &ClipPlanWatermark) -> (String, String) {
 /// escape_filter_path makes a filesystem path safe inside an ffmpeg filter
 /// argument: backslashes and colons are backslash-escaped, single quotes are
 /// closed/reopened, and the result is single-quoted.
-fn escape_filter_path(path: &str) -> String {
+pub(super) fn escape_filter_path(path: &str) -> String {
     let mut escaped = String::with_capacity(path.len() + 8);
     for character in path.chars() {
         match character {
@@ -242,7 +272,7 @@ fn escape_filter_path(path: &str) -> String {
     escaped
 }
 
-fn escape_filter_text(text: &str) -> String {
+pub(super) fn escape_filter_text(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len() + 8);
     for character in text.chars() {
         match character {
@@ -256,4 +286,3 @@ fn escape_filter_text(text: &str) -> String {
     }
     escaped
 }
-

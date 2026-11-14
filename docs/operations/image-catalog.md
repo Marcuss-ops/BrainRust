@@ -56,7 +56,7 @@ threshold:
 
 | Check | Behavior |
 | --- | --- |
-| Semantic status | Only `accepted` is eligible. `unknown`/legacy and `rejected` fail closed. |
+| Semantic status | Only `accepted` with visual identity-verification provenance is eligible. Metadata-only query/name matches, `unknown`/legacy and `rejected` fail closed. A reviewed `verified_visual` annotation with matching canonical subject can supply that provenance. |
 | Semantic score | If recorded and below `0.60`, reject. |
 | Technical score | If recorded and below `0.50`, reject. |
 | Dimensions | When both sides are known: long side `>= 800px` and `>= 400000px`. |

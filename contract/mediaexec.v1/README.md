@@ -34,6 +34,9 @@ their e2e suites, not by this envelope contract.
 
 ## CI
 
-BrainRust runs `validate.py` in the Rust workspace job. PipelineGen runs
+BrainRust runs `validate.py` in the Rust workspace job. The workspace also
+runs a Rust drift test: every `Operation` variant must be declared in
+`request.schema.json`, and the response envelope must carry every
+schema-required field. PipelineGen runs
 `make verify-rust-contract` with the submodule checked out; it validates the
 canonical set, checks the consumer copy, and runs the Go golden test.

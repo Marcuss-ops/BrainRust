@@ -52,6 +52,33 @@ pub enum Operation {
 }
 
 impl Operation {
+    /// Every wire operation. The contract drift test uses this to prove that
+    /// each implemented operation is declared in request.schema.json.
+    pub const ALL: [Self; 22] = [
+        Self::Health,
+        Self::Probe,
+        Self::CutBatch,
+        Self::Normalize,
+        Self::CutCopy,
+        Self::CutAndNormalize,
+        Self::Watermark,
+        Self::ExtractFrame,
+        Self::GenerateProxy,
+        Self::GenerateStoryboard,
+        Self::RemuxHls,
+        Self::Trim,
+        Self::RenderStock,
+        Self::RenderClip,
+        Self::AdminRender,
+        Self::MergeInputs,
+        Self::RemoveSilence,
+        Self::RenderAudioPlan,
+        Self::MuxAudioCopy,
+        Self::AssembleCopy,
+        Self::ProjectOverlayManifest,
+        Self::ExtractTimelineWindow,
+    ];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Health => "health",
@@ -981,8 +1008,58 @@ fn copy_codec_matches(actual: Option<&str>, expected: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::CopyCertification;
+    use super::{Operation, Response, PROTOCOL_VERSION};
     use crate::error::ErrorCode;
     use crate::protocol::MediaMetadata;
+
+    #[test]
+    fn implemented_operations_are_declared_in_the_contract_schema() {
+        let schema: serde_json::Value = serde_json::from_str(include_str!(
+            "../../contract/mediaexec.v1/request.schema.json"
+        ))
+        .expect("request schema");
+        assert_eq!(
+            schema["properties"]["version"]["const"].as_str(),
+            Some(PROTOCOL_VERSION)
+        );
+        let declared: Vec<&str> = schema["properties"]["operation"]["enum"]
+            .as_array()
+            .expect("operation enum")
+            .iter()
+            .map(|value| value.as_str().expect("operation string"))
+            .collect();
+        for operation in Operation::ALL {
+            assert!(
+                declared.contains(&operation.as_str()),
+                "{} is implemented but absent from request.schema.json",
+                operation.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn response_envelope_contains_every_schema_required_field() {
+        let schema: serde_json::Value = serde_json::from_str(include_str!(
+            "../../contract/mediaexec.v1/response.schema.json"
+        ))
+        .expect("response schema");
+        let response = serde_json::to_value(Response {
+            ok: true,
+            operation: "health".to_string(),
+            source_path: None,
+            items: Vec::new(),
+            metadata: None,
+            error: None,
+        })
+        .expect("serialize response");
+        for field in schema["required"].as_array().expect("required fields") {
+            let field = field.as_str().expect("required field name");
+            assert!(
+                response.get(field).is_some(),
+                "Response is missing schema-required field {field}"
+            );
+        }
+    }
 
     const TEST_EXTRADATA: &str = "7201ce80a2b2b32a0c1a89501851099f267c1767d59ff799db744f72032aae5a";
 
