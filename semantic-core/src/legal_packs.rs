@@ -10,37 +10,24 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use serde::Deserialize;
-
 use crate::lexicon::LegalLexicon;
 
 const INDEX: &str = include_str!("../../lexicon/legal/index.json");
 
-#[derive(Debug, Deserialize)]
-struct RawIndex {
-    languages: Vec<String>,
-}
-
 fn packs() -> &'static HashMap<String, LegalLexicon> {
     static PACKS: OnceLock<HashMap<String, LegalLexicon>> = OnceLock::new();
     PACKS.get_or_init(|| {
-        let index: RawIndex = serde_json::from_str(INDEX).unwrap_or(RawIndex {
-            languages: Vec::new(),
-        });
-        let available: HashMap<&str, &str> = crate::generated_legal_packs::LEGAL_PACKS
-            .iter()
-            .copied()
-            .collect();
         let mut out = HashMap::new();
-        for language in index.languages {
-            let Some(json) = available.get(language.as_str()) else {
-                continue;
-            };
-            let Ok(pack) = serde_json::from_str::<LegalLexicon>(json) else {
-                continue;
-            };
-            out.insert(language, pack);
-        }
+        crate::pack_index::for_each_generated_pack(
+            INDEX,
+            crate::generated_legal_packs::LEGAL_PACKS,
+            |language, json| {
+                let Ok(pack) = serde_json::from_str::<LegalLexicon>(json) else {
+                    return;
+                };
+                out.insert(language.to_string(), pack);
+            },
+        );
         out
     })
 }

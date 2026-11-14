@@ -36,6 +36,7 @@ pub mod lexicon;
 pub mod manifest;
 pub mod narrative;
 pub mod numbers;
+mod pack_index;
 pub mod phrase_impact;
 pub mod relations;
 pub mod sentences;

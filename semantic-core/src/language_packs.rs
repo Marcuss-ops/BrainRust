@@ -66,46 +66,35 @@ impl LanguagePack {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct RawIndex {
-    languages: Vec<String>,
-}
-
 fn packs() -> &'static HashMap<String, LanguagePack> {
     static PACKS: OnceLock<HashMap<String, LanguagePack>> = OnceLock::new();
     PACKS.get_or_init(|| {
-        let index: RawIndex = serde_json::from_str(INDEX).unwrap_or(RawIndex {
-            languages: Vec::new(),
-        });
-        let available: HashMap<&str, &str> = crate::generated_language_packs::PACKS
-            .iter()
-            .copied()
-            .collect();
         let mut out = HashMap::new();
-        for language in index.languages {
-            let Some(json) = available.get(language.as_str()) else {
-                continue;
-            };
-            let Ok(raw) = serde_json::from_str::<RawPack>(json) else {
-                continue;
-            };
-            let mut stop: HashSet<String> = raw.closed_class.iter().cloned().collect();
-            stop.extend(raw.blocked.iter().cloned());
-            let mut function: HashSet<String> = raw.function_words.iter().cloned().collect();
-            function.extend(raw.closed_class.iter().cloned());
-            out.insert(
-                language.clone(),
-                LanguagePack {
-                    language: raw.language,
-                    closed_class: raw.closed_class,
-                    blocked: raw.blocked,
-                    function_words: raw.function_words,
-                    stopwords: raw.stopwords,
-                    function,
-                    stop,
-                },
-            );
-        }
+        crate::pack_index::for_each_generated_pack(
+            INDEX,
+            crate::generated_language_packs::PACKS,
+            |language, json| {
+                let Ok(raw) = serde_json::from_str::<RawPack>(json) else {
+                    return;
+                };
+                let mut stop: HashSet<String> = raw.closed_class.iter().cloned().collect();
+                stop.extend(raw.blocked.iter().cloned());
+                let mut function: HashSet<String> = raw.function_words.iter().cloned().collect();
+                function.extend(raw.closed_class.iter().cloned());
+                out.insert(
+                    language.to_string(),
+                    LanguagePack {
+                        language: raw.language,
+                        closed_class: raw.closed_class,
+                        blocked: raw.blocked,
+                        function_words: raw.function_words,
+                        stopwords: raw.stopwords,
+                        function,
+                        stop,
+                    },
+                );
+            },
+        );
         out
     })
 }
