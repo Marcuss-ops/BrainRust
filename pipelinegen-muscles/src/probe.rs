@@ -7,7 +7,6 @@ use crate::process::FFmpegRunner;
 use crate::protocol::{MediaMetadata, Request, Response};
 use serde::Deserialize;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn execute(request: Request) -> Response {
     probe(request)
@@ -254,33 +253,7 @@ fn hash_ffprobe_extradata(dump: &str) -> Option<String> {
     if raw.is_empty() {
         return None;
     }
-    hash_hex(&raw).ok()
-}
-
-fn hash_hex(bytes: &[u8]) -> Result<String, MuscleError> {
-    let mut command = Command::new("sha256sum");
-    let output = command
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .spawn()
-        .and_then(|mut child| {
-            use std::io::Write;
-            child
-                .stdin
-                .take()
-                .ok_or_else(|| std::io::Error::other("sha256 stdin unavailable"))?
-                .write_all(bytes)?;
-            child.wait_with_output()
-        })
-        .map_err(|error| error.to_string())?;
-    if !output.status.success() {
-        return Err(MuscleError::generic("sha256sum failed"));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_string())
+    crate::hash::sha256_bytes(&raw).ok()
 }
 
 fn parse_frame_rate_rational(value: &str) -> (u32, u32) {
@@ -457,7 +430,7 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Mus
         audio_bitrate: audio.and_then(|stream| stream.bit_rate.as_deref()?.parse().ok()),
         audio_extradata_sha256: audio
             .and_then(|stream| stream.extradata.as_deref())
-            .and_then(|value| hash_hex(value.as_bytes()).ok()),
+            .and_then(|value| crate::hash::sha256_bytes(value.as_bytes()).ok()),
         start_pts: audio
             .and_then(|stream| stream.start_time.as_deref()?.parse::<f64>().ok())
             .map(|value| value.round() as i64),

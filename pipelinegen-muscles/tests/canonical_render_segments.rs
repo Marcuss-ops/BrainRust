@@ -83,16 +83,7 @@ fn make_fixture(dir: &Path) -> PathBuf {
 }
 
 fn sha256(path: &Path) -> String {
-    let output = Command::new("sha256sum")
-        .arg("--")
-        .arg(path)
-        .output()
-        .expect("sha256sum");
-    String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .next()
-        .expect("digest")
-        .to_string()
+    pipelinegen_muscles::hash::sha256_file(&path.to_string_lossy()).expect("sha256sum")
 }
 
 fn request(fixture: &Path, output: &Path, segments: Value, duration_frames: i64) -> Value {

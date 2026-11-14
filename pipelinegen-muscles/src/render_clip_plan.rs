@@ -1,4 +1,4 @@
-use crate::hash::sha256_file;
+use crate::hash::{is_lower_sha256, sha256_file};
 
 use crate::error::MuscleError;
 use serde::Deserialize;
@@ -258,13 +258,6 @@ fn validate_audio(audio: &ClipPlanAudio) -> Result<(), MuscleError> {
     Ok(())
 }
 
-fn is_lower_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .chars()
-            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
-}
-
 /// validate_artifact verifies the referenced file exists and its content
 /// SHA256 (computed via sha256sum) matches the plan's digest. Fail-closed:
 /// a missing file or a digest mismatch rejects the plan.
@@ -288,9 +281,9 @@ fn validate_artifact(label: &str, path: &str, expected: &str) -> Result<(), Musc
     Ok(())
 }
 
-// sha256_file is the crate-wide canonical file hasher (hash.rs); the
-// plan validator hashes every referenced artifact through the same
-// `sha256sum` invocation the combined-audio render path uses.
+// sha256_file and the digest-shape predicate are owned by hash.rs; the plan
+// validator hashes every referenced artifact through the same contract the
+// combined-audio render path uses.
 
 #[cfg(test)]
 mod tests {
