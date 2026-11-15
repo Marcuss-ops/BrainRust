@@ -10,6 +10,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod editorial_plan_v2;
+pub use editorial_plan_v2::*;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResolveMapOverlapsRequest {
     pub fps_num: i64,
