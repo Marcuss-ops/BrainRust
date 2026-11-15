@@ -73,6 +73,13 @@ into the two calls.
 
 ### 13a — entity annotations: Go re-decides what Rust already decided
 
+**Status 2026-11-15:** rule 1 landed locally in `7fd7b718b`. BrainRust's
+`named_entity`/`visual_concept` role is carried through `VisualEntity`,
+`ExtractedEntity` and `AnnotatedEntity`, and both annotation projections use
+it for the primary/secondary split. Every v3 entity carries the Rust role;
+pre-v3 fixtures retain the legacy kind fallback. Rules 2–4 (NER repair,
+prompt-echo rejection, image admission) remain OPEN.
+
 `internal/capabilities/scripts/entity_annotations.go` — 598 lines. Violations,
 in order of severity:
 
@@ -112,7 +119,7 @@ keeps only: validate (entity occurs verbatim in scene text, offsets legal)
 No silent skip: a missing classification is an error, not "treat as
 secondary".
 
-### 13b — overlay entity cards + asset registry
+### 13b — overlay entity cards + asset registry — REGISTRY DONE (2026-11-15)
 
 - `overlay_entity_cards.go` (590) + `overlay_entity_cards_text.go` (232):
   card composition (which annotations become cards, text shaping, fallback
@@ -122,13 +129,37 @@ secondary".
   (registry → resolve → reserve) that the `imagecatalog` crate owns (ticket
   02: snapshot integrity, real dates, `evaluated_at`, fail-closed policy).
 
-**Migration mechanics.** The registry call becomes a single imagecatalog
-query whose snapshot policy is enforced in Rust; `eb4bf234b` already made the
-Go `entitycatalog` package fail closed on retired/unrecognized states —
-finish by deleting the scripts-side re-implementation and pointing
-`overlay_entity_asset_registry.go` consumers at `entitycatalog` ports. Card
-selection moves into the `compile_editorial_plan` op (13d) so cards and
-extractive callouts are planned by the same brain in the same pass.
+**Registry result (2026-11-15).** The live owner is the Go
+`internal/capabilities/images/entitycatalog` package, not the Rust
+`imagecatalog` crate: `BrainRust/imagecatalog/README.md` and
+`refactored/docs/operations/entity-image-pipeline-flow.md` both declare the
+crate experimental and not wired, and the canonical Go flow is the only live
+path. Moving this registry into the offline crate would have created a second
+planner. The verified local registry loader/verifier now lives in
+`internal/capabilities/images/entitycatalog/verified_asset_registry.go`:
+path/env discovery, manifest version check, SHA-256 re-verification, Drive
+locator, media type and key normalization. `scripts` keeps only the overlay
+binding and now propagates a malformed/unsupported registry as an error
+instead of silently returning no assets.
+
+**Migration mechanics.** The registry half is now done by pointing
+`overlay_entity_asset_registry.go` consumers at the entitycatalog-owned
+loader; `eb4bf234b` already made that package fail closed on
+retired/unrecognized catalog states. Card selection remains with the
+`compile_editorial_plan` op (13d), together with the Go planner cutover.
+
+Evidence (2026-11-15, `refactored`):
+
+```sh
+go test ./internal/capabilities/images/entitycatalog -count=1   # pass
+go test ./internal/capabilities/scripts -run 'TestRegistry|TestApplyVerifiedEntityAssets|TestApplyOverlayPresentation' -count=1   # pass
+go vet ./internal/capabilities/images/entitycatalog ./internal/capabilities/scripts   # pass
+```
+
+The full `scripts` suite currently has four unrelated
+`final_job_subtitles` failures from the in-flight 13a working tree; the 13b
+targeted tests and the entitycatalog package pass. Do not attribute those
+failures to the registry move.
 
 ### 13c — audio timing: verify, then delete residue — DONE (2026-11-15)
 
@@ -172,7 +203,22 @@ go test ./internal/platform/audio ./internal/capabilities/audio ./internal/capab
 Commits: `8bc9ad456` (single tolerance) and `0868387d4` (MP3 parser
 deleted), both on `main` and local/unpushed at ticket update time.
 
-### 13d — the last big cut: `compile_editorial_plan`
+Probe cost (2026-11-15, `refactored`): `BenchmarkProbeTTSMP3` on a
+representative synthesized MP3, 100 probes per run × 5 runs, one media
+execution slot, measured **10.94–12.08 ms/probe** (median ≈ 12.00 ms) and
+**82.7–91.3 probes/s**. A shorter 30-probe burst measured 7.63–11.71 ms.
+This is the isolated sequential probe cost; production TTS fans out through
+the shared four-runner media executor. It is not a before/after comparison
+with the removed parser: the old ~1.1 s note described a probe paid under
+four-slot contention, not the isolated cost.
+
+```sh
+VELOX_TTS_PROBE_SAMPLE=data/media/voiceovers/<sample>.mp3 \
+  go test ./internal/platform/media/rustexec -run '^$' \
+  -bench '^BenchmarkProbeTTSMP3$' -benchtime=100x -count=5
+```
+
+### 13d — the last big cut: `compile_editorial_plan` — RUST OP DONE (2026-11-15); GO CUTOVER OPEN
 
 `internal/capabilities/scripts/editorial_overlay.go` — 444 lines. Today it:
 
@@ -204,6 +250,31 @@ the response, fail closed (typed error `overlay plan: BrainRust editorial
 compiler is required: …`) on worker absence. Same discipline as
 `fc39e03e8`: no fallback compilation, no source-order stand-in.
 
+**Rust op landed (2026-11-15).** `overlay-compiler` now exposes
+`CompileEditorialPlanRequest` / `CompiledEditorialPlan` and
+`compile_editorial_plan`, which batch the four existing decisions
+(pre-budget map trim, map overlap resolution, entity ranking, entrance
+cascade) in one call. `semantic-engine` dispatches
+`compile_editorial_plan` and returns `{ok, plan}`. The per-concern functions
+and handlers remain the pure building blocks until the Go cutover; they are
+not a second authority because the batch calls exactly those functions.
+
+Evidence:
+
+```sh
+cargo test -p overlay-compiler --lib        # 8 passed
+cargo test -p semantic-engine --lib         # 53 passed
+cargo fmt --all -- --check                  # exit 0
+```
+
+Remaining for 13d: the Go planner still calls the four per-concern ports
+separately and still owns editorial callout/card selection
+(`editorial_overlay.go`, `overlay_entity_cards.go`). The cutover is
+deliberately not in this change: the 13a working tree is concurrently
+modifying the same scripts package. Do not mark 13d DONE until
+`compileOverlayPlanWithMotionOffset` calls the batch op and the Go
+editorial/card selection is deleted.
+
 ### 13e — in-flight concurrent work (do not duplicate, just sequence after)
 
 - `BrainRust/pipelinegen-muscles`: `admin_media.rs` (151) /
@@ -225,13 +296,15 @@ compiler is required: …`) on worker absence. Same discipline as
 3. **13a** — entity decisions → Rust. Per AGENTS.md: package tests after the
    change, then `make verify-agent`; commit as one focused unit
    (`refactor(scripts): project entity annotations instead of re-deciding them`).
-4. **13b** — asset registry → imagecatalog, card selection folded into 13d's
-   op (commit the registry move first, cards together with 13d to keep
-   commits focused).
-5. **13d** — `compile_editorial_plan` in `overlay-compiler`, then delete
-   `editorial_overlay.go` decisions + the four per-concern ports. The Rust
-   side lands with its own tests first (crate tests + golden), then the Go
-   cutover commit.
+   Current working tree: in flight from a concurrent session; do not duplicate.
+4. **13b — REGISTRY DONE (2026-11-15)** — verified registry moved to the Go
+   `entitycatalog` owner; Rust `imagecatalog` stays offline by canonical
+   design. Card selection stays with 13d's op.
+5. **13d — Rust op DONE (2026-11-15)** — `compile_editorial_plan` batches the
+   four timing/ranking/cascade decisions in `overlay-compiler` with its own
+   tests. Remaining: Go planner cutover and deletion of the Go editorial/card
+   selection. The Rust side landed first as required; the Go cutover commit
+   is still open.
 
 Per-unit verification commands:
 
