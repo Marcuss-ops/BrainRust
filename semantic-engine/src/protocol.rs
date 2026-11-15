@@ -18,9 +18,10 @@ use serde_json::json;
 use crate::cache::ManifestCache;
 use crate::{analyze_script, analyzer_versions, ScriptRequest, SCHEMA_VERSION};
 use overlay_compiler::{
-    cascade_clustered_entrances, compile_editorial_plan, rank_entity_overlays,
-    resolve_map_overlaps, trim_map_windows_before_budget, CascadeEntrancesRequest,
-    CompileEditorialPlanRequest, RankEntityOverlaysRequest, ResolveMapOverlapsRequest,
+    cascade_clustered_entrances, compile_editorial_plan, compile_overlay_plan_v2,
+    rank_entity_overlays, resolve_map_overlaps, trim_map_windows_before_budget,
+    CascadeEntrancesRequest, CompileEditorialPlanRequest, EditorialPlanV2Request,
+    RankEntityOverlaysRequest, ResolveMapOverlapsRequest, EDITORIAL_PLAN_V2_SCHEMA_VERSION,
 };
 
 /// Entries kept per persistent worker. Large enough that a full script batch
@@ -128,6 +129,44 @@ impl Worker {
 }
 
 fn compile_editorial_plan_line(line: &str) -> String {
+    match declared_schema_version(line) {
+        Some(version) if version == EDITORIAL_PLAN_V2_SCHEMA_VERSION => {
+            compile_full_editorial_plan_line(line)
+        }
+        Some(version) => error_response(&format!(
+            "unsupported compile_editorial_plan schema_version {version:?}, want {EDITORIAL_PLAN_V2_SCHEMA_VERSION:?}"
+        )),
+        None => compile_legacy_editorial_plan_line(line),
+    }
+}
+
+/// Reads the declared envelope version before deserializing. A v2 request must
+/// never be interpreted as the sparse legacy batch: the legacy request defaults
+/// every section, so that mismatch would silently return an empty plan instead
+/// of failing closed.
+fn declared_schema_version(line: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(line).ok()?;
+    value
+        .get("schema_version")
+        .and_then(|version| version.as_str())
+        .map(ToOwned::to_owned)
+}
+
+fn compile_full_editorial_plan_line(line: &str) -> String {
+    let request: EditorialPlanV2Request = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid editorial_plan.v2 request: {err}")),
+    };
+    match compile_overlay_plan_v2(&request) {
+        Ok(plan) => match serde_json::to_string(&plan) {
+            Ok(response) => response,
+            Err(err) => error_response(&format!("encode editorial_plan.v2 response: {err}")),
+        },
+        Err(err) => error_response(&err.to_string()),
+    }
+}
+
+fn compile_legacy_editorial_plan_line(line: &str) -> String {
     let request: CompileEditorialPlanRequest = match serde_json::from_str(line) {
         Ok(request) => request,
         Err(err) => {

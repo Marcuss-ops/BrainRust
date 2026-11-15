@@ -1,0 +1,211 @@
+{
+  "operation": "compile_editorial_plan",
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "plan_id": "charts-fixture",
+    "video_id": "video-charts-fixture",
+    "project_id": "project-fixture",
+    "motion_seed": "seed-charts-fixture",
+    "coherence_seed": "",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1
+  },
+  "language": "it",
+  "source_language": "it",
+  "seal": {
+    "audio_duration_us": 4000000,
+    "output_profile_id": "assemblyready.alpha.v1",
+    "background": null
+  },
+  "canvas": {
+    "overlay_categories": {
+      "titles": "disabled"
+    },
+    "group_limits": {},
+    "max_phrase_overlays": 8,
+    "max_image_overlays": 5,
+    "max_map_overlays": 3,
+    "max_overlays_per_scene": 3,
+    "map_presentation": {},
+    "animation_counts": {},
+    "phrase_motions": [],
+    "short_phrase_motion": "",
+    "long_phrase_motion": "",
+    "image_motions": [],
+    "image_with_text_motions": [],
+    "entity_style_id": "random",
+    "animation_directives": [],
+    "animation_contract_version": 2,
+    "animation_catalog_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "enable_charts": true
+  },
+  "editorial": {
+    "schema_version": "editorial.v1",
+    "source_language": "it",
+    "profile_version": "highlights.v1",
+    "certified": true,
+    "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "scenes": [
+      {
+        "scene_id": "s1",
+        "title": "Nike corre",
+        "title_status": "resolved",
+        "title_source": "extractive_keyphrase",
+        "globally_indexed": false,
+        "bullets": [
+          {
+            "sentence_start": 0,
+            "sentence_end": 1,
+            "text": "Il prezzo sale del 42 per cento."
+          }
+        ]
+      }
+    ]
+  },
+  "chapters": {
+    "schema_version": "chapter_manifest.v1",
+    "chapters": [
+      {
+        "bullets": [
+          {
+            "text": "Il prezzo sale del 42 per cento.",
+            "start_sentence": 0,
+            "end_sentence": 1
+          }
+        ]
+      }
+    ]
+  },
+  "scenes": [
+    {
+      "id": "s1",
+      "text": "Il prezzo sale del 42 per cento.",
+      "duration_ms": 4000,
+      "execution_mode": "generated",
+      "short_phrase_overlay": false,
+      "overlay_categories": {},
+      "voiceover": {
+        "timing": {
+          "duration_us": 4000000,
+          "words": [
+            {
+              "index": 0,
+              "text": "Il",
+              "start_us": 100000,
+              "end_us": 300000
+            },
+            {
+              "index": 1,
+              "text": "prezzo",
+              "start_us": 300000,
+              "end_us": 600000
+            },
+            {
+              "index": 2,
+              "text": "sale",
+              "start_us": 600000,
+              "end_us": 900000
+            },
+            {
+              "index": 3,
+              "text": "del",
+              "start_us": 900000,
+              "end_us": 1050000
+            },
+            {
+              "index": 4,
+              "text": "42",
+              "start_us": 1050000,
+              "end_us": 1300000
+            },
+            {
+              "index": 5,
+              "text": "per",
+              "start_us": 1300000,
+              "end_us": 1450000
+            },
+            {
+              "index": 6,
+              "text": "cento",
+              "start_us": 1450000,
+              "end_us": 1700000
+            }
+          ]
+        }
+      },
+      "timeline_start_us": 0,
+      "duration_us": 4000000,
+      "annotations": {
+        "chart_numbers": [
+          {
+            "text": "42 per cento",
+            "type": "NUMBER",
+            "start_ms": 1050,
+            "end_ms": 1700,
+            "start_us": 1050000,
+            "duration_us": 650000,
+            "score": 0.95,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          }
+        ],
+        "numbers": [
+          {
+            "text": "42 per cento",
+            "type": "NUMBER",
+            "start_ms": 1050,
+            "end_ms": 1700,
+            "start_us": 1050000,
+            "duration_us": 650000,
+            "score": 0.9,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          }
+        ],
+        "quotes": [
+          {
+            "text": "sale",
+            "type": "QUOTE",
+            "start_ms": 600,
+            "end_ms": 900,
+            "start_us": 600000,
+            "duration_us": 300000,
+            "score": 0.7,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          }
+        ],
+        "end_us": 4000000
+      }
+    }
+  ],
+  "entity_timeline": {
+    "version": 1,
+    "project_id": "project-fixture",
+    "language": "it",
+    "duration_us": 4000000,
+    "scenes": []
+  },
+  "media": {
+    "materialized_assets": [],
+    "verified_entity_assets": [],
+    "scene_image_candidates": []
+  },
+  "budgets": {
+    "phrase_overlays": 8,
+    "image_overlays": 5,
+    "map_overlays": 3,
+    "max_per_scene": 3,
+    "short_phrase": 3,
+    "long_phrase": 5,
+    "bullet": 2
+  },
+  "scene_windows": {
+    "s1": [
+      0,
+      4000000
+    ]
+  }
+}

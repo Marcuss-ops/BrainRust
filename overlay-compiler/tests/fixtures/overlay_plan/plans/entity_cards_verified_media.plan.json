@@ -1,0 +1,150 @@
+{
+  "ok": true,
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "schema_version": "editorial_plan.v2",
+    "plan_id": "cards-fixture",
+    "video_id": "video-cards-fixture",
+    "project_id": "project-fixture",
+    "language": "it",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_ms": 6000,
+    "items": [
+      {
+        "id": "s1-phrase-0",
+        "scene_id": "s1",
+        "kind": "text_phrase",
+        "start_ms": 100,
+        "end_ms": 800,
+        "start_us": 100000,
+        "duration_us": 700000,
+        "template_id": "IMPORTANT_PHRASE",
+        "motion_params": {
+          "enter_frames": 16
+        },
+        "text": "Nike corre",
+        "params": {
+          "priority": 0.9
+        }
+      },
+      {
+        "id": "s1-word-0",
+        "scene_id": "s1",
+        "kind": "important_word",
+        "start_ms": 1000,
+        "end_ms": 1300,
+        "start_us": 1000000,
+        "duration_us": 300000,
+        "template_id": "IMPORTANT_WORD",
+        "text": "museo",
+        "params": {
+          "priority": 0.6
+        }
+      },
+      {
+        "id": "s1-image-0",
+        "scene_id": "s1",
+        "kind": "image",
+        "start_ms": 0,
+        "end_ms": 2500,
+        "duration_us": 2500000,
+        "template_id": "IMAGE_OVERLAY",
+        "motion_params": {
+          "enter_frames": 8
+        },
+        "asset_refs": [
+          {
+            "asset_id": "asset-scene-1",
+            "url": "https://cdn.example/scene-1.jpg",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "media_type": "image/jpeg"
+          }
+        ],
+        "params": {
+          "priority": 0.7
+        }
+      },
+      {
+        "id": "overlay-s1-org:nike",
+        "scene_id": "s1",
+        "entity_id": "org:nike",
+        "kind": "entity_image",
+        "start_ms": 100,
+        "end_ms": 400,
+        "start_us": 100000,
+        "duration_us": 300000,
+        "template_id": "org_default",
+        "motion_params": {
+          "enter_frames": 8
+        },
+        "entity_caption": "Nike",
+        "asset_refs": [
+          {
+            "asset_id": "asset-nike",
+            "url": "https://cdn.example/nike.png",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "media_type": "image/png"
+          }
+        ],
+        "params": {
+          "canonical_entity_id": "org:nike",
+          "entity_type": "ORG",
+          "priority": 0.95
+        }
+      },
+      {
+        "id": "overlay-s2-org:ferrari",
+        "scene_id": "s2",
+        "entity_id": "org:ferrari",
+        "kind": "organization",
+        "start_ms": 3000,
+        "end_ms": 3600,
+        "start_us": 3000000,
+        "duration_us": 600000,
+        "template_id": "org_default",
+        "text": "Ferrari",
+        "params": {
+          "canonical_entity_id": "org:ferrari",
+          "entity_type": "ORG",
+          "priority": 0.95
+        }
+      }
+    ],
+    "recap_placements": 0,
+    "recap_cards": 0,
+    "chart_placements": 0,
+    "chart_cards": 0,
+    "timed_scenes": 2,
+    "intake": {
+      "scenes": 2,
+      "timed_scenes": 2,
+      "untimed_scenes": 0,
+      "budget": {
+        "phrase_overlays": 8,
+        "image_overlays": 5,
+        "map_overlays": 3,
+        "max_overlays_per_scene": 8
+      },
+      "candidates": 5,
+      "candidates_by_kind": {
+        "entity_image": 1,
+        "image": 1,
+        "important_word": 1,
+        "organization": 1,
+        "text_phrase": 1
+      },
+      "planned": 5,
+      "planned_by_kind": {
+        "entity_image": 1,
+        "image": 1,
+        "important_word": 1,
+        "organization": 1,
+        "text_phrase": 1
+      }
+    },
+    "output_profile_id": "assemblyready.alpha.v1"
+  }
+}

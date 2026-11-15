@@ -1,0 +1,104 @@
+{
+  "ok": true,
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "schema_version": "editorial_plan.v2",
+    "plan_id": "min-fixture",
+    "video_id": "video-min-fixture",
+    "project_id": "project-fixture",
+    "language": "it",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_ms": 3000,
+    "items": [
+      {
+        "id": "s1-editorial-0",
+        "scene_id": "s1",
+        "kind": "text_phrase",
+        "start_ms": 100,
+        "end_ms": 800,
+        "start_us": 100000,
+        "duration_us": 700000,
+        "template_id": "IMPORTANT_PHRASE",
+        "motion_params": {
+          "enter_frames": 8
+        },
+        "text": "Nike corre",
+        "params": {
+          "editorial_candidate": "title",
+          "editorial_role": "scene_title",
+          "priority": 1.0
+        }
+      },
+      {
+        "id": "s1-editorial-1",
+        "scene_id": "s1",
+        "kind": "text_phrase",
+        "start_ms": 100,
+        "end_ms": 1300,
+        "start_us": 100000,
+        "duration_us": 1200000,
+        "template_id": "IMPORTANT_PHRASE",
+        "motion_params": {
+          "enter_frames": 20
+        },
+        "text": "Nike corre al museo.",
+        "params": {
+          "editorial_candidate": "bullet",
+          "editorial_role": "scene_bullet",
+          "priority": 0.99
+        }
+      },
+      {
+        "id": "s1-phrase-0",
+        "scene_id": "s1",
+        "kind": "text_phrase",
+        "start_ms": 100,
+        "end_ms": 800,
+        "start_us": 100000,
+        "duration_us": 700000,
+        "template_id": "IMPORTANT_PHRASE",
+        "motion_params": {
+          "enter_frames": 16
+        },
+        "text": "Nike corre",
+        "params": {
+          "priority": 0.9
+        }
+      }
+    ],
+    "recap_placements": 0,
+    "recap_cards": 0,
+    "chart_placements": 0,
+    "chart_cards": 0,
+    "timed_scenes": 1,
+    "intake": {
+      "scenes": 1,
+      "timed_scenes": 1,
+      "untimed_scenes": 0,
+      "budget": {
+        "phrase_overlays": 8,
+        "image_overlays": 5,
+        "map_overlays": 3,
+        "max_overlays_per_scene": 3
+      },
+      "candidates": 6,
+      "candidates_by_kind": {
+        "entity_image": 1,
+        "image": 1,
+        "important_word": 1,
+        "text_phrase": 3
+      },
+      "planned": 3,
+      "planned_by_kind": {
+        "text_phrase": 3
+      },
+      "dropped_by_reason": {
+        "per_scene": 3
+      }
+    },
+    "output_profile_id": "assemblyready.alpha.v1"
+  }
+}

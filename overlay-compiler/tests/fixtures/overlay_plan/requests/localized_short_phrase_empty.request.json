@@ -1,0 +1,221 @@
+{
+  "operation": "compile_editorial_plan",
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "plan_id": "localized-fixture",
+    "video_id": "video-localized-fixture",
+    "project_id": "project-fixture",
+    "motion_seed": "seed-localized-fixture",
+    "coherence_seed": "",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1
+  },
+  "language": "en",
+  "source_language": "it",
+  "seal": {
+    "audio_duration_us": 8000000,
+    "output_profile_id": "assemblyready.alpha.v1",
+    "background": null
+  },
+  "canvas": {
+    "overlay_categories": {},
+    "group_limits": {},
+    "max_phrase_overlays": 8,
+    "max_image_overlays": 5,
+    "max_map_overlays": 3,
+    "max_overlays_per_scene": 3,
+    "map_presentation": {},
+    "animation_counts": {},
+    "phrase_motions": [],
+    "short_phrase_motion": "",
+    "long_phrase_motion": "",
+    "image_motions": [],
+    "image_with_text_motions": [],
+    "entity_style_id": "random",
+    "animation_directives": [],
+    "animation_contract_version": 2,
+    "animation_catalog_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "editorial": {
+    "schema_version": "editorial.v1",
+    "source_language": "en",
+    "profile_version": "highlights.v1",
+    "certified": true,
+    "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "scenes": []
+  },
+  "chapters": null,
+  "scenes": [
+    {
+      "id": "s1",
+      "text": "Nike runs to the museum.",
+      "duration_ms": 3000,
+      "execution_mode": "generated",
+      "short_phrase_overlay": true,
+      "overlay_categories": {},
+      "voiceover": {
+        "timing": {
+          "duration_us": 3000000,
+          "words": [
+            {
+              "index": 0,
+              "text": "Nike",
+              "start_us": 100000,
+              "end_us": 300000
+            },
+            {
+              "index": 1,
+              "text": "runs",
+              "start_us": 300000,
+              "end_us": 600000
+            },
+            {
+              "index": 2,
+              "text": "to",
+              "start_us": 600000,
+              "end_us": 750000
+            },
+            {
+              "index": 3,
+              "text": "the",
+              "start_us": 750000,
+              "end_us": 900000
+            },
+            {
+              "index": 4,
+              "text": "museum",
+              "start_us": 900000,
+              "end_us": 1200000
+            }
+          ]
+        }
+      },
+      "timeline_start_us": 0,
+      "duration_us": 3000000,
+      "annotations": {
+        "phrases": [
+          {
+            "text": "Nike runs",
+            "type": "PHRASE",
+            "start_ms": 100,
+            "end_ms": 600,
+            "start_us": 100000,
+            "duration_us": 500000,
+            "score": 0.9,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          }
+        ],
+        "end_us": 3000000
+      }
+    },
+    {
+      "id": "s2",
+      "text": "The trip continues north.",
+      "duration_ms": 3000,
+      "execution_mode": "generated",
+      "short_phrase_overlay": false,
+      "overlay_categories": {},
+      "voiceover": {
+        "timing": {
+          "duration_us": 3000000,
+          "words": [
+            {
+              "index": 0,
+              "text": "The",
+              "start_us": 100000,
+              "end_us": 250000
+            },
+            {
+              "index": 1,
+              "text": "trip",
+              "start_us": 250000,
+              "end_us": 550000
+            },
+            {
+              "index": 2,
+              "text": "continues",
+              "start_us": 550000,
+              "end_us": 950000
+            },
+            {
+              "index": 3,
+              "text": "north",
+              "start_us": 950000,
+              "end_us": 1250000
+            }
+          ]
+        }
+      },
+      "timeline_start_us": 3000000,
+      "duration_us": 3000000,
+      "annotations": {
+        "keywords": [
+          {
+            "text": "north",
+            "type": "KEYWORD",
+            "start_ms": 3950,
+            "end_ms": 4250,
+            "start_us": 3950000,
+            "duration_us": 300000,
+            "score": 0.7,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          }
+        ],
+        "end_us": 6000000
+      }
+    },
+    {
+      "id": "s3",
+      "text": "Fixed media section.",
+      "duration_ms": 2000,
+      "execution_mode": "fixed_media",
+      "short_phrase_overlay": false,
+      "overlay_categories": {},
+      "voiceover": null,
+      "timeline_start_us": 6000000,
+      "duration_us": 2000000,
+      "annotations": {
+        "end_us": 8000000
+      }
+    }
+  ],
+  "entity_timeline": {
+    "version": 1,
+    "project_id": "project-fixture",
+    "language": "en",
+    "duration_us": 8000000,
+    "scenes": []
+  },
+  "media": {
+    "materialized_assets": [],
+    "verified_entity_assets": [],
+    "scene_image_candidates": []
+  },
+  "budgets": {
+    "phrase_overlays": 8,
+    "image_overlays": 5,
+    "map_overlays": 3,
+    "max_per_scene": 3,
+    "short_phrase": 3,
+    "long_phrase": 5,
+    "bullet": 2
+  },
+  "scene_windows": {
+    "s1": [
+      0,
+      3000000
+    ],
+    "s2": [
+      3000000,
+      6000000
+    ],
+    "s3": [
+      6000000,
+      8000000
+    ]
+  }
+}

@@ -1,0 +1,339 @@
+{
+  "operation": "compile_editorial_plan",
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "plan_id": "maps-fixture",
+    "video_id": "video-maps-fixture",
+    "project_id": "project-fixture",
+    "motion_seed": "seed-maps-fixture",
+    "coherence_seed": "",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1
+  },
+  "language": "it",
+  "source_language": "it",
+  "seal": {
+    "audio_duration_us": 6000000,
+    "output_profile_id": "assemblyready.alpha.v1",
+    "background": null
+  },
+  "canvas": {
+    "overlay_categories": {},
+    "group_limits": {},
+    "max_phrase_overlays": 8,
+    "max_image_overlays": 5,
+    "max_map_overlays": 3,
+    "max_overlays_per_scene": 3,
+    "map_presentation": {},
+    "animation_counts": {},
+    "phrase_motions": [],
+    "short_phrase_motion": "",
+    "long_phrase_motion": "",
+    "image_motions": [],
+    "image_with_text_motions": [],
+    "entity_style_id": "random",
+    "animation_directives": [],
+    "animation_contract_version": 2,
+    "animation_catalog_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "editorial": {
+    "schema_version": "editorial.v1",
+    "source_language": "it",
+    "profile_version": "highlights.v1",
+    "certified": true,
+    "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "scenes": []
+  },
+  "chapters": null,
+  "scenes": [
+    {
+      "id": "s1",
+      "text": "Nike corre al museo.",
+      "duration_ms": 3000,
+      "execution_mode": "generated",
+      "short_phrase_overlay": false,
+      "overlay_categories": {},
+      "voiceover": {
+        "timing": {
+          "duration_us": 3000000,
+          "words": [
+            {
+              "index": 0,
+              "text": "Nike",
+              "start_us": 100000,
+              "end_us": 400000
+            },
+            {
+              "index": 1,
+              "text": "corre",
+              "start_us": 400000,
+              "end_us": 800000
+            },
+            {
+              "index": 2,
+              "text": "al",
+              "start_us": 800000,
+              "end_us": 1000000
+            },
+            {
+              "index": 3,
+              "text": "museo",
+              "start_us": 1000000,
+              "end_us": 1300000
+            }
+          ]
+        }
+      },
+      "timeline_start_us": 0,
+      "duration_us": 3000000,
+      "annotations": {
+        "phrases": [
+          {
+            "text": "Nike corre",
+            "type": "PHRASE",
+            "start_ms": 100,
+            "end_ms": 800,
+            "start_us": 100000,
+            "duration_us": 700000,
+            "score": 0.9,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          }
+        ],
+        "keywords": [
+          {
+            "text": "museo",
+            "type": "KEYWORD",
+            "start_ms": 1000,
+            "end_ms": 1300,
+            "start_us": 1000000,
+            "duration_us": 300000,
+            "score": 0.6,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          }
+        ],
+        "images": [
+          {
+            "asset_id": "asset-scene-1",
+            "url": "https://cdn.example/scene-1.jpg",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "media_type": "image/jpeg",
+            "start_ms": 0,
+            "end_ms": 2500,
+            "start_us": 0,
+            "duration_us": 2500000,
+            "score": 0.7
+          },
+          {
+            "asset_id": "asset-card-1",
+            "url": "https://cdn.example/card-1.jpg",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "media_type": "image/jpeg",
+            "start_ms": 1400,
+            "end_ms": 1900,
+            "start_us": 1400000,
+            "duration_us": 500000,
+            "score": 0.5
+          }
+        ],
+        "end_us": 3000000,
+        "maps": [
+          {
+            "entity_id": "place:milano",
+            "label": "Milano",
+            "scope": "city",
+            "latitude": 45.4642,
+            "longitude": 9.19,
+            "start_ms": 0,
+            "end_ms": 1500,
+            "start_us": 0,
+            "duration_us": 1500000,
+            "score": 0.9
+          },
+          {
+            "entity_id": "place:roma",
+            "label": "Roma",
+            "scope": "city",
+            "latitude": 41.9028,
+            "longitude": 12.4964,
+            "start_ms": 1200,
+            "end_ms": 2400,
+            "start_us": 1200000,
+            "duration_us": 1200000,
+            "score": 0.8
+          }
+        ]
+      }
+    },
+    {
+      "id": "s2",
+      "text": "Il viaggio continua verso nord.",
+      "duration_ms": 3000,
+      "execution_mode": "generated",
+      "short_phrase_overlay": false,
+      "overlay_categories": {},
+      "voiceover": {
+        "timing": {
+          "duration_us": 3000000,
+          "words": [
+            {
+              "index": 0,
+              "text": "Il",
+              "start_us": 100000,
+              "end_us": 300000
+            },
+            {
+              "index": 1,
+              "text": "viaggio",
+              "start_us": 300000,
+              "end_us": 700000
+            },
+            {
+              "index": 2,
+              "text": "continua",
+              "start_us": 700000,
+              "end_us": 1100000
+            },
+            {
+              "index": 3,
+              "text": "verso",
+              "start_us": 1100000,
+              "end_us": 1400000
+            },
+            {
+              "index": 4,
+              "text": "nord",
+              "start_us": 1400000,
+              "end_us": 1800000
+            }
+          ]
+        }
+      },
+      "timeline_start_us": 3000000,
+      "duration_us": 3000000,
+      "annotations": {
+        "maps": [
+          {
+            "entity_id": "place:torino",
+            "label": "Torino",
+            "scope": "city",
+            "latitude": 45.0703,
+            "longitude": 7.6869,
+            "start_ms": 3100,
+            "end_ms": 4800,
+            "start_us": 3100000,
+            "duration_us": 1700000,
+            "score": 0.75
+          }
+        ],
+        "end_us": 6000000
+      }
+    }
+  ],
+  "entity_timeline": {
+    "version": 1,
+    "project_id": "project-fixture",
+    "language": "it",
+    "duration_us": 6000000,
+    "scenes": [
+      {
+        "scene_id": "s1",
+        "scene_index": 0,
+        "timeline_start_us": 0,
+        "entities": [
+          {
+            "entity_id": "place:milano",
+            "name": "Milano",
+            "type": "GPE",
+            "scene_id": "s1",
+            "scene_index": 0,
+            "text_start": 0,
+            "text_end": 6,
+            "word_start": 0,
+            "word_end": 0,
+            "local_start_us": 0,
+            "local_end_us": 1500000,
+            "timeline_start_us": 0,
+            "audio_start_us": 0,
+            "audio_end_us": 1500000,
+            "confidence": 0.95,
+            "role": "named_entity",
+            "canonical_entity_id": "place:milano"
+          },
+          {
+            "entity_id": "place:roma",
+            "name": "Roma",
+            "type": "GPE",
+            "scene_id": "s1",
+            "scene_index": 0,
+            "text_start": 0,
+            "text_end": 4,
+            "word_start": 0,
+            "word_end": 0,
+            "local_start_us": 1200000,
+            "local_end_us": 2400000,
+            "timeline_start_us": 0,
+            "audio_start_us": 1200000,
+            "audio_end_us": 2400000,
+            "confidence": 0.95,
+            "role": "named_entity",
+            "canonical_entity_id": "place:roma"
+          }
+        ]
+      },
+      {
+        "scene_id": "s2",
+        "scene_index": 1,
+        "timeline_start_us": 3000000,
+        "entities": [
+          {
+            "entity_id": "place:torino",
+            "name": "Torino",
+            "type": "GPE",
+            "scene_id": "s2",
+            "scene_index": 1,
+            "text_start": 0,
+            "text_end": 6,
+            "word_start": 0,
+            "word_end": 0,
+            "local_start_us": 100000,
+            "local_end_us": 1800000,
+            "timeline_start_us": 3000000,
+            "audio_start_us": 3100000,
+            "audio_end_us": 4800000,
+            "confidence": 0.95,
+            "role": "named_entity",
+            "canonical_entity_id": "place:torino"
+          }
+        ]
+      }
+    ]
+  },
+  "media": {
+    "materialized_assets": [],
+    "verified_entity_assets": [],
+    "scene_image_candidates": []
+  },
+  "budgets": {
+    "phrase_overlays": 8,
+    "image_overlays": 5,
+    "map_overlays": 3,
+    "max_per_scene": 8,
+    "short_phrase": 3,
+    "long_phrase": 5,
+    "bullet": 2
+  },
+  "scene_windows": {
+    "s1": [
+      0,
+      3000000
+    ],
+    "s2": [
+      3000000,
+      6000000
+    ]
+  }
+}
