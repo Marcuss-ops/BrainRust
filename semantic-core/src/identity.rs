@@ -106,6 +106,123 @@ pub struct LinkedEntity {
     /// Ordered intents: identity first, then at most two contextual intents.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub search_intents: Vec<SearchIntent>,
+    /// The surface after the linker's editorial repair. Consumers project this
+    /// value; they must not re-run the repair rules in Go.
+    #[serde(default)]
+    pub editorial_surface: String,
+    /// The annotation type after the linker's editorial repair.
+    #[serde(default)]
+    pub editorial_type: String,
+    /// True when the surface is an instruction/template echo, never an entity.
+    #[serde(default)]
+    pub prompt_echo: bool,
+    /// Admission decision for an identity image slot. Asset verification is
+    /// still projected by the consumer; the entity-level policy lives here.
+    #[serde(default)]
+    pub visual_admission: bool,
+}
+
+/// The editorial decision attached to one linked identity. It is pure and
+/// deterministic so the same rule runs for every manifest producer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EditorialDecision {
+    pub surface: String,
+    pub kind: String,
+    pub prompt_echo: bool,
+    pub visual_admission: bool,
+}
+
+/// Repairs recurring NER errors and rejects prompt echoes before an identity
+/// can reserve a text or visual slot. This is the single owner of those rules;
+/// PipelineGen only projects the returned decision.
+pub fn editorial_decision(surface: &str, kind: &str) -> EditorialDecision {
+    let value = surface.split_whitespace().collect::<Vec<_>>().join(" ");
+    let key = normalize_surface(&value)
+        .trim_matches(|character: char| {
+            character.is_whitespace()
+                || matches!(
+                    character,
+                    '.' | ','
+                        | ';'
+                        | ':'
+                        | '!'
+                        | '?'
+                        | '('
+                        | ')'
+                        | '['
+                        | ']'
+                        | '{'
+                        | '}'
+                        | '"'
+                        | '\''
+                        | '“'
+                        | '”'
+                )
+        })
+        .to_string();
+    let mut kind = kind.to_string();
+
+    if matches!(key.as_str(), "dopo" | "capire")
+        && matches!(kind.as_str(), "LOCATION" | "GPE" | "PLACE")
+    {
+        return EditorialDecision {
+            surface: value,
+            kind: String::new(),
+            prompt_echo: false,
+            visual_admission: false,
+        };
+    }
+    if key == "dna di chiara" {
+        kind = "CONCEPT".to_string();
+    }
+    if is_prompt_echo(&key) {
+        return EditorialDecision {
+            surface: value,
+            kind: String::new(),
+            prompt_echo: true,
+            visual_admission: false,
+        };
+    }
+    if kind == "PERSON" && starts_with_acronym(&value) {
+        kind = "CONCEPT".to_string();
+    }
+    let visual_admission =
+        role_of(&kind) == EntityRole::NamedEntity && !starts_with_acronym(&value);
+    EditorialDecision {
+        surface: value,
+        kind,
+        prompt_echo: false,
+        visual_admission,
+    }
+}
+
+fn is_prompt_echo(name: &str) -> bool {
+    matches!(name, "overlay check" | "data documentata")
+        || name.starts_with("overlay:")
+        || name.starts_with("scheda entit")
+        || name.starts_with("mappa pertinente")
+        || name.starts_with("frase breve")
+        || name.starts_with("frase lunga")
+        || name.starts_with("immagine (")
+}
+
+fn starts_with_acronym(value: &str) -> bool {
+    let mut fields = value.split_whitespace();
+    let Some(first) = fields.next() else {
+        return false;
+    };
+    if fields.next().is_none() {
+        return false;
+    }
+    let letters = first
+        .chars()
+        .filter(|character| character.is_alphabetic())
+        .count();
+    letters >= 2
+        && letters <= 6
+        && first
+            .chars()
+            .all(|character| !character.is_alphabetic() || character.is_uppercase())
 }
 
 /// Named kinds are eligible for an identity lookup and the VLM identity gate.
@@ -398,5 +515,23 @@ mod tests {
         assert_eq!(role_of("VISUAL_CONCEPT"), EntityRole::VisualConcept);
         assert_eq!(role_of("OBJECT"), EntityRole::VisualConcept);
         assert_eq!(role_of("NUMBER"), EntityRole::VisualConcept);
+    }
+
+    #[test]
+    fn editorial_repair_owns_ner_and_prompt_echo_policy() {
+        let dna = editorial_decision("DNA di Chiara", "PERSON");
+        assert_eq!(dna.kind, "CONCEPT");
+        assert!(!dna.visual_admission);
+
+        let verb = editorial_decision("  dopo  ", "LOCATION");
+        assert!(verb.kind.is_empty());
+        assert!(!verb.visual_admission);
+
+        let echo = editorial_decision("Mappa Pertinente Andrea Sempio", "PERSON");
+        assert!(echo.prompt_echo);
+        assert!(echo.kind.is_empty());
+
+        let acronym = editorial_decision("ANSA news agency", "ORG");
+        assert!(!acronym.visual_admission);
     }
 }

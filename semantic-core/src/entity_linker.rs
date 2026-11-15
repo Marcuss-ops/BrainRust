@@ -16,8 +16,8 @@ use std::sync::OnceLock;
 use serde::Deserialize;
 
 use crate::identity::{
-    normalize_surface, role_of, stable_surface_key, CanonicalIdentity, EntityRole, LinkStatus,
-    LinkedEntity, SearchIntent,
+    editorial_decision, normalize_surface, role_of, stable_surface_key, CanonicalIdentity,
+    EntityRole, LinkStatus, LinkedEntity, SearchIntent,
 };
 
 /// Version recorded in analyzer provenance and health output.
@@ -173,7 +173,8 @@ pub fn link_all(
             } else {
                 identity.kind.clone()
             };
-            let role = role_of(&entity_type);
+            let decision = editorial_decision(&identity.canonical_surface, &entity_type);
+            let role = role_of(&decision.kind);
             let canonical_name = if linked {
                 entry
                     .map(|entry| entry.canonical_name.clone())
@@ -207,6 +208,10 @@ pub fn link_all(
                 },
                 mentions: identity.mentions.clone(),
                 search_intents,
+                editorial_surface: decision.surface,
+                editorial_type: decision.kind,
+                prompt_echo: decision.prompt_echo,
+                visual_admission: decision.visual_admission,
             }
         })
         .collect()
