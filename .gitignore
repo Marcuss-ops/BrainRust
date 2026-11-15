@@ -13,3 +13,6 @@ __pycache__/
 
 # Local run scratch logs (2026-10-27): stdout/stderr captures, never source.
 *.log
+
+# Release binaries are published through GitHub Releases, not the source tree.
+/dist-icu72/
