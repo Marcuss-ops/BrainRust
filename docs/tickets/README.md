@@ -4,7 +4,7 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-15. **10 DONE, 0 PARTIAL, 2 BLOCKED, 1 OPEN.**
+Last verified: 2026-11-15. **10 DONE, 1 PARTIAL, 2 BLOCKED.**
 
 Status vocabulary:
 
@@ -30,7 +30,7 @@ Status vocabulary:
 | [10](TICKET-10-multimodal-pgvector.md) | P2 | BLOCKED | Requires SigLIP/pgvector, a schema and a calibrated held-out dataset. |
 | [11](TICKET-11-discourse-continuity.md) | P0 | DONE (deterministic core) | Additive `discourse.v1` references, ambiguity, threads and scene continuity. |
 | [12](TICKET-12-mvp-semantic-contract.md) | P0 | DONE (bound/Rust) | v3 linked-entity projection, local index/linker, typed intents, Go v3 consumer, intent/index cache key, verified-hit admission, stop-on-satisfaction and cross-repo smoke pass; only the revised SLO agreement remains external. |
-| [13](TICKET-13-go-demolition-closeout.md) | P1 | OPEN | Go-side demolition closeout: 13c DONE and pushed; 13a rule 1 landed locally (`7fd7b718b`: Rust entity role projected through annotations). Remaining: 13a rules 2–4 (NER repair, prompt-echo rejection, image admission), 13b asset registry → imagecatalog, and 13d `compile_editorial_plan`. |
+| [13](TICKET-13-go-demolition-closeout.md) | P1 | PARTIAL | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d Rust op + Go batch ports DONE (`ded9f28`, `68ddb83f5`, `652c03217`): all four overlay ports use `compile_editorial_plan`, but the planner still calls them at four phases. Remaining: port the interleaved planner phases into one call, delete Go editorial/card selection, and run full verify-main. |
 
 ## Verification — 2026-11-15 (ticket 12, Rust core)
 

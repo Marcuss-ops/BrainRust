@@ -1,7 +1,7 @@
 # TICKET 13 — Go-side demolition closeout (P2–P8)
 
 - Priority: P1
-- Status: OPEN
+- Status: PARTIAL
 - Source: 2026-11-15 workspace audit ("andiamola a completare e tagliare per
   davvero") + Go→Rust migration analysis
 - Owner: any session working in `refactored` (PipelineGen)
@@ -44,6 +44,11 @@ Everything in the inventory below violates one of these two shapes.
 | `8bc9ad456` | refactored | final-audio 40 ms tolerance owned by `audio.FinalAudioDurationTolerance*` (13c) — pushed |
 | `0868387d4` | refactored | local MP3 duration parser and tests deleted; shared executor probe is the only duration authority (13c) — pushed |
 | `eb4bf234b` | refactored | entitycatalog fail-closed on retired/unrecognized states — pushed |
+| `b6f5379` | BrainRust | 13a rules 2–4: one editorial entity decision (repair, prompt echo, image admission) — local |
+| `c4c12ac98` | refactored | 13a rules 2–4 projected through annotations and localization — local |
+| `8b4482660` | refactored | 13b verified asset registry owned by `entitycatalog` — local |
+| `ded9f28` | BrainRust | 13d `compile_editorial_plan` batch operation — local |
+| `68ddb83f5` / `652c03217` | refactored | 13d Go batch adapter; all overlay ports route through it — local |
 
 Push gate: `make verify-main` in `refactored` must pass once before pushing
 (AGENTS.md rule). Do not push while another session has uncommitted edits in
@@ -73,12 +78,16 @@ into the two calls.
 
 ### 13a — entity annotations: Go re-decides what Rust already decided
 
-**Status 2026-11-15:** rule 1 landed locally in `7fd7b718b`. BrainRust's
-`named_entity`/`visual_concept` role is carried through `VisualEntity`,
-`ExtractedEntity` and `AnnotatedEntity`, and both annotation projections use
-it for the primary/secondary split. Every v3 entity carries the Rust role;
-pre-v3 fixtures retain the legacy kind fallback. Rules 2–4 (NER repair,
-prompt-echo rejection, image admission) remain OPEN.
+**Status 2026-11-15: DONE.** Rule 1 landed locally in `7fd7b718b`.
+BrainRust's `named_entity`/`visual_concept` role is carried through
+`VisualEntity`, `ExtractedEntity` and `AnnotatedEntity`, and both annotation
+projections use it for the primary/secondary split. Rules 2–4 landed in
+BrainRust `b6f5379` and refactored `c4c12ac98`: the linker emits
+`editorial_surface`, `editorial_type`, `prompt_echo` and `visual_admission`
+from one pure decision, and Go no longer runs `normalizeEditorialEntity`,
+`isPromptEchoEntityName` or the acronym guard. Every v3 entity carries that
+decision through the durable annotation and the localized merge; pre-v3
+fixtures retain only the legacy kind fallback.
 
 `internal/capabilities/scripts/entity_annotations.go` — 598 lines. Violations,
 in order of severity:
@@ -119,7 +128,7 @@ keeps only: validate (entity occurs verbatim in scene text, offsets legal)
 No silent skip: a missing classification is an error, not "treat as
 secondary".
 
-### 13b — overlay entity cards + asset registry — REGISTRY DONE (2026-11-15)
+### 13b — overlay entity cards + asset registry — REGISTRY DONE (2026-11-15, `8b4482660`)
 
 - `overlay_entity_cards.go` (590) + `overlay_entity_cards_text.go` (232):
   card composition (which annotations become cards, text shaping, fallback
@@ -156,10 +165,9 @@ go test ./internal/capabilities/scripts -run 'TestRegistry|TestApplyVerifiedEnti
 go vet ./internal/capabilities/images/entitycatalog ./internal/capabilities/scripts   # pass
 ```
 
-The full `scripts` suite currently has four unrelated
-`final_job_subtitles` failures from the in-flight 13a working tree; the 13b
-targeted tests and the entitycatalog package pass. Do not attribute those
-failures to the registry move.
+The full `scripts/...` tree passes, including the final-job subtitle matrix
+after the single certified render language was restored. The 13b targeted
+tests and the entitycatalog package pass.
 
 ### 13c — audio timing: verify, then delete residue — DONE (2026-11-15)
 
@@ -218,7 +226,7 @@ VELOX_TTS_PROBE_SAMPLE=data/media/voiceovers/<sample>.mp3 \
   -bench '^BenchmarkProbeTTSMP3$' -benchtime=100x -count=5
 ```
 
-### 13d — the last big cut: `compile_editorial_plan` — RUST OP DONE (2026-11-15); GO CUTOVER OPEN
+### 13d — the last big cut: `compile_editorial_plan` — RUST OP + BATCH PORTS DONE (2026-11-15); SINGLE-CALL CUTOVER OPEN
 
 `internal/capabilities/scripts/editorial_overlay.go` — 444 lines. Today it:
 
@@ -263,17 +271,48 @@ Evidence:
 
 ```sh
 cargo test -p overlay-compiler --lib        # 8 passed
+cargo test -p semantic-core --lib           # 151 passed
 cargo test -p semantic-engine --lib         # 53 passed
 cargo fmt --all -- --check                  # exit 0
 ```
 
-Remaining for 13d: the Go planner still calls the four per-concern ports
-separately and still owns editorial callout/card selection
-(`editorial_overlay.go`, `overlay_entity_cards.go`). The cutover is
-deliberately not in this change: the 13a working tree is concurrently
-modifying the same scripts package. Do not mark 13d DONE until
-`compileOverlayPlanWithMotionOffset` calls the batch op and the Go
-editorial/card selection is deleted.
+**Go contract + batch ports landed (2026-11-15, `68ddb83f5` /
+`652c03217`).** `internal/platform/media/rustexec/semantic_engine_editorial_plan.go`
+adds `CompileEditorialPlan` with typed request/response and apply-edits-only
+outputs (`PreBudgetItems`, `ResolvedItems`, `RankedEntities`,
+`EntranceItems`). It reuses the same `applyMapTimingEdits`,
+`applyCascadeEntranceEdits` and `validateEntitySelections` helpers as the
+legacy adapters. `TrimMapWindowsBeforeBudget`, `ResolveMapOverlaps`,
+`RankEntityOverlays` and `CascadeClusteredEntrances` now all call this one
+operation; the old per-concern wire operations are no longer sent.
+
+This is **not** yet the one-call plan compilation the ticket requires. The
+planner still invokes the four ports at four different phases, each carrying
+only that phase's inputs. Trim must run inside `BuildPlan`'s budget, ranking
+inside card resolution, cascade after motion assignment, and overlap
+resolution at seal. Collapsing those into one request requires moving the
+interleaved planner phases into Rust, then deleting `editorial_overlay.go`
+and the Go card selection. Applying the batch at the end would compute trim
+and cascade on items the planner has not produced yet, so it is deliberately
+not wired as a silent approximation.
+
+Evidence:
+
+```sh
+go test ./internal/platform/media/rustexec -run 'TestCompileEditorialPlan|TestOverlayPortsUseTheSingleBatchOperation' -count=1   # pass
+go vet ./internal/platform/media/rustexec/...                                             # pass
+```
+
+Remaining for 13d: port the interleaved planner phases into the batch, wire
+`compileOverlayPlanWithMotionOffset` to one call, and delete the Go
+editorial/card selection. Do not mark 13d DONE until those conditions hold.
+
+**Final-job subtitle cleanup (2026-11-15).** The pre-render had started
+iterating `fixedRenderLanguages`, producing one fragment per target language.
+A final job is one video in the language the run already certified;
+`ensureFinalJobFixedMediaSubtitles` now resolves that single language through
+`finalJobRenderLanguage` and skips every already-certified clip. The four
+`final_job_subtitles` tests pass and the full `scripts/...` tree is green.
 
 ### 13e — in-flight concurrent work (do not duplicate, just sequence after)
 
@@ -293,18 +332,18 @@ editorial/card selection is deleted.
 2. **13c (audit-only) — DONE (2026-11-15)** — cheapest unit, no Rust
    change; the residue list is recorded above and the duplicated 40 ms
    tolerance was collapsed to one Go constant.
-3. **13a** — entity decisions → Rust. Per AGENTS.md: package tests after the
-   change, then `make verify-agent`; commit as one focused unit
-   (`refactor(scripts): project entity annotations instead of re-deciding them`).
-   Current working tree: in flight from a concurrent session; do not duplicate.
-4. **13b — REGISTRY DONE (2026-11-15)** — verified registry moved to the Go
-   `entitycatalog` owner; Rust `imagecatalog` stays offline by canonical
-   design. Card selection stays with 13d's op.
-5. **13d — Rust op DONE (2026-11-15)** — `compile_editorial_plan` batches the
-   four timing/ranking/cascade decisions in `overlay-compiler` with its own
-   tests. Remaining: Go planner cutover and deletion of the Go editorial/card
-   selection. The Rust side landed first as required; the Go cutover commit
-   is still open.
+3. **13a — DONE (2026-11-15, `b6f5379` + `c4c12ac98`)** — rules 1–4 are
+   owned by BrainRust; the durable and localized projections only carry the
+   decision. Targeted entity/translation and rustexec tests pass.
+4. **13b — REGISTRY DONE (2026-11-15, `8b4482660`)** — verified registry
+   moved to the Go `entitycatalog` owner; Rust `imagecatalog` stays offline
+   by canonical design. Card selection stays with 13d's op.
+5. **13d — Rust op + Go batch ports DONE (2026-11-15)** —
+   `compile_editorial_plan` batches the four timing/ranking/cascade decisions
+   in `overlay-compiler`, and all four Go ports now use it. Remaining: port
+   the interleaved planner phases into the batch, delete the Go editorial/card
+   selection, and wire `compileOverlayPlanWithMotionOffset` to one call. The
+   one-call cutover is still open.
 
 Per-unit verification commands:
 
