@@ -297,8 +297,7 @@ fn cut_one(
 /// 'Parsed_null_0' and the filter 'auto_scaler_0'" — but only for sources whose
 /// geometry already matched the profile, because `gpu_cut_eligibility` gates the
 /// path. Bare `-hwaccel cuda` keeps decode accelerated and hands system-memory
-/// frames to the filter/encode chain, which is what the shared contract expects
-/// (the same form `render_clip_exec` uses).
+/// frames to the filter/encode chain, which is what the shared cut contract expects.
 /// Builds the hardware-decode preamble for a cut. The resolution logic and
 /// the system-memory contract live in `gpu.rs`; this thin alias keeps the
 /// cut call sites short.

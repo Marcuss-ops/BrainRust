@@ -16,7 +16,6 @@
 /// Stable placeholder proving that the crate is wired and testable.
 pub const COMPONENT: &str = "pipelinegen-muscles";
 
-mod admin_media;
 mod artifact;
 mod audio_copy;
 mod config;
@@ -34,7 +33,6 @@ mod probe;
 mod process;
 mod protocol;
 mod render_audio;
-mod render_clip;
 mod render_stock;
 mod transform;
 

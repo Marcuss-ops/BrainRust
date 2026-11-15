@@ -12,8 +12,8 @@
 //! * `extract_timeline_window` — the `scene.clip.{timeline_item_id,in_us,
 //!   out_us}` wire: phrase-only scene clips are windows of the SAME artifact,
 //!   extracted by manifest entry id instead of materialized as standalone
-//!   Drive clips. This is the worker-side twin of `render_clip_exec`'s
-//!   `manifest` mode.
+//!   Drive clips. This keeps timeline extraction on the media-transform path;
+//!   Chronon remains responsible for final video rendering.
 //!
 //! Both re-encode through the canonical encoder policy (a replacement needs
 //! real frames, never packets), keep the master audio verbatim where the

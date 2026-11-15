@@ -144,7 +144,6 @@ pub(crate) fn execute(request: Request, operation: Operation) -> Response {
         Operation::Normalize
         | Operation::CutCopy
         | Operation::CutAndNormalize
-        | Operation::Watermark
         | Operation::ExtractFrame
         | Operation::GenerateProxy
         | Operation::GenerateStoryboard

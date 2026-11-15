@@ -159,16 +159,6 @@ impl ProcessCommand {
         self.runner.run(&self.program, &self.args)
     }
 
-    /// output_with_line_handler streams the child's stderr to `on_line`
-    /// (complete lines only) while still returning the capped tail buffer.
-    pub(crate) fn output_with_line_handler(
-        self,
-        on_line: impl FnMut(&str) + Send + 'static,
-    ) -> io::Result<ProcessOutput> {
-        self.runner
-            .run_with_handler(&self.program, &self.args, on_line)
-    }
-
     /// Hands the built argv to a raw `Command` for callers that must `spawn`
     /// and supervise the child themselves (the FIFO audio path: encoder and
     /// producers have to run concurrently, so `output()` cannot be used).

@@ -35,7 +35,6 @@ pub fn process(request: Request) -> Response {
         Operation::CutAndNormalize => {
             crate::transform::execute(request, Operation::CutAndNormalize)
         }
-        Operation::Watermark => crate::transform::execute(request, Operation::Watermark),
         Operation::ExtractFrame => crate::transform::execute(request, Operation::ExtractFrame),
         Operation::GenerateProxy => crate::transform::execute(request, Operation::GenerateProxy),
         Operation::GenerateStoryboard => {
@@ -44,8 +43,6 @@ pub fn process(request: Request) -> Response {
         Operation::RemuxHls => crate::transform::execute(request, Operation::RemuxHls),
         Operation::Trim => crate::transform::execute(request, Operation::Trim),
         Operation::RenderStock => crate::render_stock::execute(request),
-        Operation::RenderClip => crate::render_clip::render_clip(request),
-        Operation::AdminRender => crate::admin_media::execute(request),
         Operation::MergeInputs => crate::transform::execute(request, Operation::MergeInputs),
         Operation::RemoveSilence => crate::transform::execute(request, Operation::RemoveSilence),
         Operation::RenderAudioPlan => render_audio::execute(request),
@@ -128,12 +125,6 @@ mod tests {
             media: crate::config::MediaConfig::default(),
             no_audio: None,
             keep_audio: None,
-            overlay_path: None,
-            opacity: None,
-            scale_percent: None,
-            green_screen_color: None,
-            green_screen_similarity: None,
-            green_screen_blend: None,
             overlay_manifest: None,
             timeline_window: None,
             input_paths: Some(vec!["/tmp/in.mp4".to_string()]),
@@ -143,15 +134,11 @@ mod tests {
             no_effects: None,
             effect_paths: None,
             overlay_opacity: None,
-            font: None,
-            effects: None,
-            overlays: None,
             max_duration_sec: None,
             audio_plan: None,
             audio_assets: None,
             copy_certification: None,
             render_plan: None,
-            clip_plan: None,
         };
         assert_eq!(process(request.clone()).operation, "render_stock");
         let response = process(request);
@@ -206,12 +193,11 @@ mod tests {
 
     #[test]
     fn unsupported_operations_fail_closed() {
-        let invalid = serde_json::from_str::<Request>(
-            r#"{
-            "version":"mediaexec.v2",
-            "operation":"run_command"
-        }"#,
-        );
-        assert!(invalid.is_err());
+        for operation in ["run_command", "render_clip", "admin_render", "watermark"] {
+            let invalid = serde_json::from_str::<Request>(&format!(
+                r#"{{"version":"mediaexec.v2","operation":"{operation}"}}"#
+            ));
+            assert!(invalid.is_err(), "retired operation accepted: {operation}");
+        }
     }
 }

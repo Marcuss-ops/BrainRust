@@ -2,8 +2,7 @@
 //!
 //! ONE definition of "this audio stream can be copied verbatim": the source
 //! already satisfies the plan/output contract (codec, sample rate,
-//! channels). Every path that moves audio — `render_clip`
-//! (`copy_if_compatible`), `mux_audio_copy` (final-audio certification),
+//! channels). Every path that moves audio — `mux_audio_copy` (final-audio certification),
 //! future stock audio — routes through `is_compatible`, so a contract
 //! change lands in one place instead of drifting per caller.
 //!
@@ -41,25 +40,6 @@ pub fn is_canonically_compatible(source: &MediaMetadata) -> bool {
         CANONICAL_SAMPLE_RATE,
         CANONICAL_CHANNELS,
     )
-}
-
-/// FFmpeg arguments for the verbatim copy.
-pub fn copy_args() -> Vec<String> {
-    vec!["-c:a".to_string(), "copy".to_string()]
-}
-
-/// FFmpeg arguments for exactly one certified conversion.
-pub fn transcode_args(codec: &str, sample_rate: i64, channels: i64, bitrate: &str) -> Vec<String> {
-    vec![
-        "-c:a".to_string(),
-        codec.to_string(),
-        "-ar".to_string(),
-        sample_rate.to_string(),
-        "-ac".to_string(),
-        channels.to_string(),
-        "-b:a".to_string(),
-        bitrate.to_string(),
-    ]
 }
 
 #[cfg(test)]
@@ -118,14 +98,5 @@ mod tests {
         let mut silent = metadata(Some("aac"), Some(48000), Some(2));
         silent.has_audio = false;
         assert!(!is_canonically_compatible(&silent));
-    }
-
-    #[test]
-    fn arg_shapes_are_stable() {
-        assert_eq!(copy_args(), vec!["-c:a".to_string(), "copy".to_string()]);
-        assert_eq!(
-            transcode_args("aac", 48000, 2, "128k"),
-            vec!["-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "128k"]
-        );
     }
 }

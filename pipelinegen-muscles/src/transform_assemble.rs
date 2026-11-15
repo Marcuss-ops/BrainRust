@@ -356,20 +356,11 @@ mod tests {
             probe_ms: None,
             hash_ms: None,
             ffmpeg_ms: None,
-            startup_ms: None,
-            publish_ms: None,
-            op_ms: None,
             final_audio_sha256: None,
             audio_copy_eligible: None,
             audio_encode_passes: None,
-            subtitle_raster_cpu: None,
             decode_ms: None,
-            filter_graph_ms: None,
-            subtitle_raster_ms: None,
-            watermark_raster_ms: None,
-            frame_conversion_ms: None,
             encode_ms: None,
-            audio_mux_ms: None,
             ..Default::default()
         }
     }

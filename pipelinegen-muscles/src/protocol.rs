@@ -4,7 +4,6 @@ use crate::error::MuscleError;
 
 use crate::config;
 use crate::render_audio::CompiledAudioPlan;
-use crate::render_clip::SealedClipPlan;
 use crate::render_stock::SealedCanonicalPlan;
 
 pub const PROTOCOL_VERSION: &str = "mediaexec.v2";
@@ -33,15 +32,12 @@ pub enum Operation {
     Normalize,
     CutCopy,
     CutAndNormalize,
-    Watermark,
     ExtractFrame,
     GenerateProxy,
     GenerateStoryboard,
     RemuxHls,
     Trim,
     RenderStock,
-    RenderClip,
-    AdminRender,
     MergeInputs,
     RemoveSilence,
     RenderAudioPlan,
@@ -54,22 +50,19 @@ pub enum Operation {
 impl Operation {
     /// Every wire operation. The contract drift test uses this to prove that
     /// each implemented operation is declared in request.schema.json.
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 19] = [
         Self::Health,
         Self::Probe,
         Self::CutBatch,
         Self::Normalize,
         Self::CutCopy,
         Self::CutAndNormalize,
-        Self::Watermark,
         Self::ExtractFrame,
         Self::GenerateProxy,
         Self::GenerateStoryboard,
         Self::RemuxHls,
         Self::Trim,
         Self::RenderStock,
-        Self::RenderClip,
-        Self::AdminRender,
         Self::MergeInputs,
         Self::RemoveSilence,
         Self::RenderAudioPlan,
@@ -87,15 +80,12 @@ impl Operation {
             Self::Normalize => "normalize",
             Self::CutCopy => "cut_copy",
             Self::CutAndNormalize => "cut_and_normalize",
-            Self::Watermark => "watermark",
             Self::ExtractFrame => "extract_frame",
             Self::GenerateProxy => "generate_proxy",
             Self::GenerateStoryboard => "generate_storyboard",
             Self::RemuxHls => "remux_hls",
             Self::Trim => "trim",
             Self::RenderStock => "render_stock",
-            Self::RenderClip => "render_clip",
-            Self::AdminRender => "admin_render",
             Self::MergeInputs => "merge_inputs",
             Self::RemoveSilence => "remove_silence",
             Self::RenderAudioPlan => "render_audio_plan",
@@ -125,17 +115,6 @@ pub struct Request {
     pub media: config::MediaConfig,
     pub no_audio: Option<bool>,
     pub keep_audio: Option<bool>,
-    pub overlay_path: Option<String>,
-    pub opacity: Option<f64>,
-    // Watermark scaling + green-screen chroma key (YouTube watermark flow).
-    // scale_percent is the overlay size as a percentage of the MAIN frame
-    // width (0 = leave the overlay at its native size). green_screen_*
-    // drive the ffmpeg chromakey filter that removes the backdrop before
-    // the alpha/opacity pass.
-    pub scale_percent: Option<u32>,
-    pub green_screen_color: Option<String>,
-    pub green_screen_similarity: Option<f64>,
-    pub green_screen_blend: Option<f64>,
     pub input_paths: Option<Vec<String>>,
     pub no_transitions: Option<bool>,
     pub clip_duration_sec: Option<i32>,
@@ -149,9 +128,6 @@ pub struct Request {
     pub no_effects: Option<bool>,
     pub effect_paths: Option<Vec<RenderEffectPath>>,
     pub overlay_opacity: Option<f64>,
-    pub font: Option<String>,
-    pub effects: Option<Vec<RenderEffect>>,
-    pub overlays: Option<Vec<RenderOverlay>>,
     pub overlay_manifest: Option<OverlayManifestWire>,
     /// Manifest window reference for `extract_timeline_window` — the
     /// `scene.clip.{timeline_item_id,in_us,out_us}` wire of the final worker
@@ -170,13 +146,6 @@ pub struct Request {
     /// Typed sealed canonical render plan. A malformed plan fails request
     /// parsing fail-closed instead of travelling as untyped JSON.
     pub(crate) render_plan: Option<SealedCanonicalPlan>,
-    // The Go boundary sends the sealed ClipRenderPlanV1 for render_clip.
-    // Same audited-contract rule: Rust validates and executes it verbatim,
-    // making zero business selections (background/watermark/subtitles/audio
-    // policy/geometry all arrive resolved).
-    /// Typed sealed clip render plan. A malformed plan fails request
-    /// parsing fail-closed instead of travelling as untyped JSON.
-    pub(crate) clip_plan: Option<SealedClipPlan>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -226,19 +195,9 @@ impl Request {
                 }
                 require_output()
             }
-            Operation::RenderClip => {
-                require_source()?;
-                require_output()?;
-                if self.clip_plan.is_none() {
-                    return Err(MuscleError::generic("clip_plan is required"));
-                }
-                Ok(())
-            }
-            Operation::AdminRender
-            | Operation::CutCopy
+            Operation::CutCopy
             | Operation::Normalize
             | Operation::CutAndNormalize
-            | Operation::Watermark
             | Operation::ExtractFrame
             | Operation::GenerateProxy
             | Operation::GenerateStoryboard
@@ -369,24 +328,6 @@ pub struct RenderTransition {
 pub struct RenderEffectPath {
     pub clip_index: usize,
     pub path: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct RenderEffect {
-    pub path: String,
-    pub delay_ms: i32,
-    pub duration: f64,
-    pub volume: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct RenderOverlay {
-    pub text: String,
-    pub start: String,
-    pub end: String,
-    pub size: String,
-    pub y: String,
-    pub color: String,
 }
 
 pub const OVERLAY_MANIFEST_SCHEMA_V1: &str = "pipelinegen.overlay-manifest.v1";
@@ -708,54 +649,27 @@ pub struct MediaMetadata {
     // wall time without an external timing shim. None elsewhere.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ffmpeg_ms: Option<i64>,
-    // render_clip phase timings (the benchmark decomposition): startup_ms
-    // spans plan decode + source probe + filter-graph build + process spawn
-    // (the "renderer startup" BEFORE the ffmpeg wall); publish_ms is the
-    // output publish/rename; op_ms is the whole render_clip wall inside the
-    // Rust process. None elsewhere.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub startup_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub publish_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub op_ms: Option<i64>,
     // SHA256 of the published final audio, computed by Rust so the Go adapter
     // never re-hashes the output it just rendered (single ownership of the
     // hash operation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub final_audio_sha256: Option<String>,
-    // render_clip audio copy policy outcome: whether the source audio stream
+    // Audio copy policy outcome: whether the source audio stream
     // was copied verbatim (true) or one certified conversion ran (false).
     // None everywhere else.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio_copy_eligible: Option<bool>,
-    // render_clip audio encode passes (0 = copied, 1 = exactly one certified
+    // Audio encode passes (0 = copied, 1 = exactly one certified
     // conversion) and render_audio_plan master AAC encodes (always 1: the
     // stem fan-out mixes to lossless PCM and only the final pass encodes).
     // None everywhere else.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio_encode_passes: Option<i32>,
-    // render_clip subtitle raster stage: true when mode=burn rasterized
-    // libass inside the single render pass (a CPU stage — never claimed as
-    // GPU). None when subtitles are disabled or sidecar.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subtitle_raster_cpu: Option<bool>,
-
     // Fine-grained render phases measured by the owning Rust boundary.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decode_ms: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub filter_graph_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subtitle_raster_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub watermark_raster_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub frame_conversion_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub encode_ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub audio_mux_ms: Option<i64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1113,20 +1027,11 @@ mod tests {
             probe_ms: None,
             hash_ms: None,
             ffmpeg_ms: None,
-            startup_ms: None,
-            publish_ms: None,
-            op_ms: None,
             final_audio_sha256: None,
             audio_copy_eligible: None,
             audio_encode_passes: None,
-            subtitle_raster_cpu: None,
             decode_ms: None,
-            filter_graph_ms: None,
-            subtitle_raster_ms: None,
-            watermark_raster_ms: None,
-            frame_conversion_ms: None,
             encode_ms: None,
-            audio_mux_ms: None,
             ..Default::default()
         }
     }
