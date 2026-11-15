@@ -19,7 +19,10 @@ The workspace has deliberately separate execution boundaries:
 
 - `semantic-engine` is the dedicated CPU-only text-analysis worker. One
   `analyze_script` request carries all scenes and returns the versioned
-  `semantic_manifest.v2`; it does not search for assets or perform media I/O.
+  `semantic_manifest.v3`, including a script-level `entities` projection with
+  linked ids, roles, glosses, negative constraints and typed intents from the
+  packaged `entity_index.v1`; it does not search for assets or perform media
+  I/O.
 - `imagecatalog` is an **experimental, unwired** snapshot planner. It consumes
   an exported snapshot of the existing `entity_image_catalog_*` rows plus an
   optional semantic annotation sidecar keyed by `candidate_id` and returns
@@ -28,7 +31,7 @@ The workspace has deliberately separate execution boundaries:
   No Go composition root calls it; the live flow is documented in
   `refactored/docs/operations/entity-image-pipeline-flow.md`. Video, stock
   clips and SFX are out of scope. The NDJSON worker accepts scenes or an
-  optional `semantic_manifest.v2`; it validates the schema, scene identity and
+  optional `semantic_manifest.v3`; it validates the schema, scene identity and
   request fingerprint and reuses the same manifest type without a second
   semantic analysis.
 - `pipelinegen-muscles` remains the media executor. It owns FFmpeg-related
@@ -49,7 +52,7 @@ The manifest preserves candidates and evidence. It does not assert that a
 textual claim is externally true, and empty or unsupported categories stay
 empty. Editorial top-N and asset availability remain planner decisions.
 
-The current V2 engine emits chronology groups only when multiple normalized
+The current V3 engine emits chronology groups only when multiple normalized
 dates occur in sentences with explicit event predicates. It recognizes
 consecutive numbered items (one per line or inline in a paragraph) as
 enumerations or rankings; a declared Top 10, or ten consecutive explicit
@@ -182,11 +185,11 @@ Adding a language never touches Rust code. See
 
 ## Contract
 
-`contract/mediaexec.v1/` owns the request/response JSON Schemas and the shared
+`contract/mediaexec.v2/` owns the request/response JSON Schemas and the shared
 goldens consumed by PipelineGen. Validate them with
-`python3 contract/mediaexec.v1/validate.py`; `check_consumer_copy.sh <dir>` is
+`python3 contract/mediaexec.v2/validate.py`; `check_consumer_copy.sh <dir>` is
 the parity gate for the Go consumer copy. See
-`contract/mediaexec.v1/README.md`.
+`contract/mediaexec.v2/README.md`.
 
 ## Release
 

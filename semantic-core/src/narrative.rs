@@ -6,7 +6,7 @@
 //! unresolved), entity threads, and scene-level entity continuity. Every
 //! reference keeps the exact mention span and the sentence that grounds it.
 //!
-//! The projection is additive to `semantic_manifest.v2`; older consumers can
+//! The projection is additive to the semantic manifest; older consumers can
 //! ignore it, and older manifests decode with an empty projection.
 
 use serde::{Deserialize, Serialize};

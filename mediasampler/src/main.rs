@@ -1,3 +1,4 @@
+use mediasampler::local_score::{score_local, LocalScoreCandidate, LocalScoreQuery};
 use mediasampler::{
     sample_scene, sample_scene_group, BoundAssets, Candidate, SampleOptions, SampleResult, Scene,
 };
@@ -74,6 +75,45 @@ struct SampleResponse {
     error: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct OperationEnvelope {
+    operation: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LocalScoreRequest {
+    version: Option<String>,
+    operation: Option<String>,
+    query: LocalScoreQueryOwned,
+    #[serde(default)]
+    candidates: Vec<LocalScoreCandidateOwned>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LocalScoreQueryOwned {
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    source: String,
+    #[serde(default)]
+    min_duration_ms: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct LocalScoreCandidateOwned {
+    id: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    source: String,
+    #[serde(default)]
+    duration_ms: i64,
+}
+
 /// Applies the optional data-driven table overrides from the request.
 /// Each override REPLACES the default table wholesale (never merges), so a
 /// domain list stays auditable end-to-end. `diversity_weight` outside
@@ -128,6 +168,13 @@ fn main() {
 /// line: the Go side drives this binary as a persistent worker, so killing
 /// the process would drop every queued request behind it.
 fn process_line(line: &str) -> String {
+    // Keep the local catalog scoring operation as a separate, small contract;
+    // scene selection keeps its existing request shape and validation path.
+    if let Ok(envelope) = serde_json::from_str::<OperationEnvelope>(line) {
+        if envelope.operation.as_deref() == Some("score_local") {
+            return process_local_score(line);
+        }
+    }
     let request: SampleRequest = match serde_json::from_str(line) {
         Ok(request) => request,
         Err(error) => {
@@ -229,6 +276,46 @@ fn process_line(line: &str) -> String {
             format!("mediasampler encode: {error}"),
         )),
     }
+}
+
+fn process_local_score(line: &str) -> String {
+    let request: LocalScoreRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(error) => {
+            return error_response(&WorkerError::new(
+                ErrorCode::Decode,
+                format!("mediasampler local score decode: {error}"),
+            ));
+        }
+    };
+    if let Err(error) = check_envelope(
+        "mediasampler",
+        request.version.as_deref(),
+        "mediasampler.v1",
+        request.operation.as_deref(),
+        "score_local",
+    ) {
+        return error_response(&error);
+    }
+    let query = LocalScoreQuery {
+        text: &request.query.text,
+        tags: &request.query.tags,
+        source: &request.query.source,
+        min_duration_ms: request.query.min_duration_ms,
+    };
+    let candidates: Vec<_> = request
+        .candidates
+        .iter()
+        .map(|candidate| LocalScoreCandidate {
+            id: &candidate.id,
+            title: &candidate.title,
+            tags: &candidate.tags,
+            source: &candidate.source,
+            duration_ms: candidate.duration_ms,
+        })
+        .collect();
+    let scores = score_local(&query, &candidates);
+    serde_json::json!({ "scores": scores }).to_string()
 }
 
 #[cfg(test)]

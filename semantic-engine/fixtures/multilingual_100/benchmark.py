@@ -78,7 +78,7 @@ def inspect(case, manifest, scenes):
     problems, review = [], []
     byid = {s["scene_id"]:s["text"] for s in scenes}
     records = manifest.get("scenes",[])
-    if manifest.get("schema_version")!="semantic_manifest.v2": problems.append("schema mismatch")
+    if manifest.get("schema_version")!="semantic_manifest.v3": problems.append("schema mismatch")
     if len(records)!=len(scenes): problems.append("scene count mismatch")
     entities = []; dates=[]; charts=[]; bullet=[]; micro=[]; groups=[]; proposals=[]; contextual=[]
     for r in records:

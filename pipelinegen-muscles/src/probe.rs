@@ -88,6 +88,11 @@ pub(crate) fn ffprobe_path(ffmpeg: &str) -> String {
     "ffprobe".to_string()
 }
 
+pub(crate) struct ValidatedOutput {
+    pub duration_sec: f64,
+    pub video_extradata_sha256: String,
+}
+
 pub(crate) fn validate_output(
     ffprobe: &str,
     path: &str,
@@ -95,7 +100,7 @@ pub(crate) fn validate_output(
     expected_duration: f64,
     profile: &config::VideoProfile,
     encoder: &EncoderPolicy,
-) -> Result<f64, MuscleError> {
+) -> Result<ValidatedOutput, MuscleError> {
     let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
     command.args([
         "-v",
@@ -135,6 +140,11 @@ pub(crate) fn validate_output(
         .iter()
         .find(|stream| stream.codec_type.as_deref() == Some("video"))
         .ok_or_else(|| MuscleError::generic("no video stream"))?;
+    let video_extradata_sha256 = video
+        .extradata
+        .as_deref()
+        .and_then(hash_ffprobe_extradata)
+        .ok_or_else(|| MuscleError::generic("ffprobe returned no valid H.264 extradata"))?;
     if video.width != Some(profile.width)
         || video.height != Some(profile.height)
         || !video_codec_matches(video.codec_name.as_deref(), &encoder.codec)
@@ -185,7 +195,10 @@ pub(crate) fn validate_output(
             return Err(MuscleError::generic("canonical audio profile violation"));
         }
     }
-    Ok(duration)
+    Ok(ValidatedOutput {
+        duration_sec: duration,
+        video_extradata_sha256,
+    })
 }
 
 pub(crate) fn video_codec_matches(actual: Option<&str>, expected: &str) -> bool {

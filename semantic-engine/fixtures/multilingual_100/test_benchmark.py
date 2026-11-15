@@ -23,7 +23,7 @@ class ContextualQueryChecks(unittest.TestCase):
                 ]}]}
 
     def problems(self, scene):
-        return inspect(self.case, {"schema_version": "semantic_manifest.v2", "scenes": [scene]},
+        return inspect(self.case, {"schema_version": "semantic_manifest.v3", "scenes": [scene]},
                        [{"scene_id": "s", "text": self.text}])["problems"]
 
     def test_grounded_co_mention_is_not_required_to_assert_location(self):

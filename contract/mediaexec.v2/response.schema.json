@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/Marcuss-ops/BrainRust/contract/mediaexec.v1/response.schema.json",
-  "title": "mediaexec.v1 response (golden-certified envelope)",
+  "$id": "https://github.com/Marcuss-ops/BrainRust/contract/mediaexec.v2/response.schema.json",
+  "title": "mediaexec.v2 response (golden-certified envelope)",
   "description": "The success response envelope shared by the Rust executor and the Go rustexec consumer. The validator additionally requires operation equality with the request and ok=true for the golden set.",
   "type": "object",
   "additionalProperties": false,
@@ -20,6 +20,31 @@
     "metrics": { "type": ["object", "null"] },
     "error": { "type": ["string", "null"] }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "operation": { "const": "cut_batch" } },
+        "required": ["operation"]
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "items": {
+              "allOf": [
+                {
+                  "if": {
+                    "properties": { "status": { "enum": ["succeeded", "validated"] } },
+                    "required": ["status"]
+                  },
+                  "then": { "required": ["sha256"] }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
   "definitions": {
     "cut_item": {
       "type": "object",
@@ -31,6 +56,7 @@
         "status": { "type": "string", "minLength": 1 },
         "size_bytes": { "type": "integer", "minimum": 0 },
         "duration_sec": { "type": "number", "minimum": 0 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "error": { "type": ["string", "null"] }
       }
     },

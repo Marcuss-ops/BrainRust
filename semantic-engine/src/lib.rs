@@ -1,4 +1,4 @@
-//! Unified Rust semantic engine (`semantic_manifest.v2`).
+//! Unified Rust semantic engine (`semantic_manifest.v3`).
 //!
 //! One request carries every scene of a script. Each scene is analysed once by
 //! `visualner` (entities, relations, bullets, numeric and temporal facts), then
@@ -72,6 +72,7 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
             "phrase_impact+editorial-selection-v3+image-query-fanout-v3+chart-gate-v1+discourse-v1"
                 .to_string(),
         lexicon: semantic_core::lexicon::LEXICON_VERSION.to_string(),
+        entity_index: semantic_core::entity_linker::entity_index_version().to_string(),
     }
 }
 
@@ -448,6 +449,16 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
     add_cross_scene_causal_groups(&request.scenes, &mut scenes);
     add_cross_scene_process_groups(&request.scenes, &mut scenes, language);
 
+    // The v3 entity projection runs after every scene has registered, so the
+    // linker sees the complete script context and every cross-scene mention.
+    let scene_texts: Vec<(&str, &str)> = request
+        .scenes
+        .iter()
+        .map(|scene| (scene.scene_id.as_str(), scene.text.as_str()))
+        .collect();
+    let entities =
+        semantic_core::entity_linker::link_all(language, &scene_texts, registry.identities());
+
     let story_graph = story::build_story_graph(&scenes);
     let visual_coverage = story::build_visual_coverage(&scenes);
     let discourse = discourse::build(language, &request.scenes, &scenes);
@@ -488,6 +499,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         fingerprint,
         analyzers,
         scenes,
+        entities,
         story_graph,
         visual_coverage,
         discourse,

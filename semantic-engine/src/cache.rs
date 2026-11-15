@@ -172,6 +172,7 @@ mod tests {
             semantic_core: "0.1.0".to_string(),
             phrase_impact: "phrase_impact".to_string(),
             lexicon: "lexicon.v1".to_string(),
+            entity_index: "entity_index.v1".to_string(),
         }
     }
 
@@ -203,6 +204,7 @@ mod tests {
             semantic_core: "0.1.0".to_string(),
             phrase_impact: "phrase_impact".to_string(),
             lexicon: "lexicon.v1".to_string(),
+            entity_index: "entity_index.v1".to_string(),
         };
         let v2 = AnalyzerVersions {
             semantic_core: "0.2.0".to_string(),

@@ -4,9 +4,9 @@
 # Usage:
 #   check_consumer_copy.sh <consumer-goldens-dir>
 #
-# PipelineGen keeps testdata/mediaexec/v1 because its Go CI checks out the
+# PipelineGen keeps testdata/mediaexec/v2 because its Go CI checks out the
 # monorepo without submodules. The copy must stay byte-identical to
-# contract/mediaexec.v1/goldens; this script is the parity gate.
+# contract/mediaexec.v2/goldens; this script is the parity gate.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,4 +33,4 @@ for copy in "$CONSUMER"/*.json; do
 done
 
 [ "$status" -eq 0 ] || exit 1
-echo "✅ consumer goldens match contract/mediaexec.v1/goldens"
+echo "✅ consumer goldens match contract/mediaexec.v2/goldens"

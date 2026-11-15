@@ -32,7 +32,7 @@ script text
   -> deterministic per-scene image plan
 ```
 
-The NDJSON worker accepts scenes, or an optional `semantic_manifest.v2`
+The NDJSON worker accepts scenes, or an optional `semantic_manifest.v3`
 already produced for exactly those scenes. When the manifest is present, the
 worker validates the schema, language, scene ids and request fingerprint and
 reuses it without a second semantic analysis; when absent, it runs the engine

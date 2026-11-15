@@ -1,0 +1,48 @@
+{
+  "fixture": "20 scenes, Italian, ESA/NASA/SpaceX/Mars; each scene repeats one sentence twice",
+  "modes": {
+    "model-free": {
+      "single-scene": {
+        "max_ms": 53.379478,
+        "mean_ms": 38.24542477000001,
+        "min_ms": 37.427405,
+        "p50_ms": 37.9562,
+        "p95_ms": 39.143174,
+        "p99_ms": 41.405929,
+        "warm_runs": 100
+      },
+      "twenty-scene": {
+        "max_ms": 1978.8186300000002,
+        "mean_ms": 1566.1119235499996,
+        "min_ms": 1373.354286,
+        "p50_ms": 1548.1000609999999,
+        "p95_ms": 1821.2445000000002,
+        "p99_ms": 1963.608224,
+        "warm_runs": 100
+      }
+    },
+    "udpipe": {
+      "single-scene": {
+        "max_ms": 56.929427,
+        "mean_ms": 38.02769,
+        "min_ms": 33.454986,
+        "p50_ms": 37.69311999999999,
+        "p95_ms": 40.255996,
+        "p99_ms": 44.05682100000001,
+        "warm_runs": 100
+      },
+      "twenty-scene": {
+        "max_ms": 2138.108216,
+        "mean_ms": 1531.6247076799998,
+        "min_ms": 1363.524653,
+        "p50_ms": 1506.988046,
+        "p95_ms": 1784.6278149999998,
+        "p99_ms": 2104.1248960000003,
+        "warm_runs": 100
+      }
+    }
+  },
+  "runs_per_probe": 100,
+  "schema": "ticket12.slo_100_samples.v1",
+  "warmup": "one analysis/extract before sampling; warmup excluded from samples"
+}

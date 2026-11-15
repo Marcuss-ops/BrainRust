@@ -27,6 +27,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod local_score;
 pub mod sampler;
 pub mod types;
 

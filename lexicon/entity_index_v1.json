@@ -1,0 +1,145 @@
+{
+  "version": "entity_index.v1",
+  "entries": [
+    {
+      "id": "wd:Q42262",
+      "canonical_name": "European Space Agency",
+      "entity_type": "ORG",
+      "gloss": "European intergovernmental space agency",
+      "negative_constraints": ["entertainment software association", "video games"],
+      "aliases": {
+        "en": ["ESA", "European Space Agency"],
+        "it": ["ESA", "Agenzia Spaziale Europea"],
+        "pt": ["ESA", "Agência Espacial Europeia"]
+      },
+      "context_terms": ["spazio", "spaziale", "spaziali", "nasa", "marte", "missione", "missioni", "satellite", "astronauta", "razzo", "space", "mars", "mission"],
+      "counter_terms": ["videogioco", "videogiochi", "e3", "software", "entertainment", "video game"]
+    },
+    {
+      "id": "wd:Q1133229",
+      "canonical_name": "Entertainment Software Association",
+      "entity_type": "ORG",
+      "gloss": "American trade association for the video game industry",
+      "negative_constraints": ["space agency", "space missions"],
+      "aliases": {
+        "en": ["ESA", "Entertainment Software Association"],
+        "it": ["ESA"],
+        "pt": ["ESA"]
+      },
+      "context_terms": ["videogioco", "videogiochi", "e3", "software", "entertainment", "video game", "industria"],
+      "counter_terms": ["spazio", "spaziale", "nasa", "marte", "missione", "satellite", "razzo"]
+    },
+    {
+      "id": "wd:Q23548",
+      "canonical_name": "NASA",
+      "entity_type": "ORG",
+      "gloss": "United States National Aeronautics and Space Administration",
+      "negative_constraints": [],
+      "aliases": {
+        "en": ["NASA", "National Aeronautics and Space Administration"],
+        "it": ["NASA"],
+        "pt": ["NASA"]
+      },
+      "context_terms": ["spazio", "spaziale", "marte", "missione", "satellite", "astronauta", "razzo", "space", "mars"],
+      "counter_terms": []
+    },
+    {
+      "id": "wd:Q1094480",
+      "canonical_name": "ANSA",
+      "entity_type": "ORG",
+      "gloss": "Italian national news agency",
+      "negative_constraints": [],
+      "aliases": {
+        "en": ["ANSA", "Agenzia Nazionale Stampa Associata"],
+        "it": ["ANSA", "Agenzia Nazionale Stampa Associata"],
+        "pt": ["ANSA"]
+      },
+      "context_terms": ["notizie", "agenzia", "giornalismo", "stampa", "news"],
+      "counter_terms": []
+    },
+    {
+      "id": "wd:Q17334",
+      "canonical_name": "CERN",
+      "entity_type": "ORG",
+      "gloss": "European Organization for Nuclear Research",
+      "negative_constraints": [],
+      "aliases": {
+        "en": ["CERN", "European Organization for Nuclear Research"],
+        "it": ["CERN", "Organizzazione Europea per la Ricerca Nucleare"],
+        "pt": ["CERN"]
+      },
+      "context_terms": ["particelle", "rivelatori", "ginevra", "fisica", "acceleratore", "nucleare"],
+      "counter_terms": []
+    },
+    {
+      "id": "wd:Q286442",
+      "canonical_name": "SpaceX",
+      "entity_type": "ORG",
+      "gloss": "American aerospace manufacturer and space transportation company",
+      "negative_constraints": [],
+      "aliases": {
+        "en": ["SpaceX", "Space Exploration Technologies"],
+        "it": ["SpaceX"],
+        "pt": ["SpaceX"]
+      },
+      "context_terms": ["razzi", "lancio", "starship", "spazio", "aerospaziale", "falcon", "space", "rocket"],
+      "counter_terms": []
+    },
+    {
+      "id": "wd:Q483859",
+      "canonical_name": "Nike",
+      "entity_type": "BRAND",
+      "gloss": "American sportswear and footwear brand",
+      "negative_constraints": ["Nike of Samothrace", "Greek mythology"],
+      "aliases": {
+        "en": ["Nike", "Nike Inc"],
+        "it": ["Nike"],
+        "pt": ["Nike"]
+      },
+      "context_terms": ["scarpe", "sneakers", "sportswear", "abbigliamento", "atleta", "atleti", "basket", "calcio", "sponsor", "swoosh", "running"],
+      "counter_terms": ["statua", "mitologia", "grecia", "museo", "samotracia", "vittoria", "louvre"]
+    },
+    {
+      "id": "wd:Q193845",
+      "canonical_name": "Nike of Samothrace",
+      "entity_type": "WORK",
+      "gloss": "Hellenistic sculpture of the goddess Nike",
+      "negative_constraints": ["sportswear", "footwear"],
+      "aliases": {
+        "en": ["Nike", "Nike of Samothrace", "Winged Victory"],
+        "it": ["Nike", "Nike di Samotracia"],
+        "pt": ["Nike", "Nike de Samotrácia"]
+      },
+      "context_terms": ["statua", "mitologia", "grecia", "greca", "museo", "samotracia", "vittoria", "louvre", "scultura"],
+      "counter_terms": ["scarpe", "sneakers", "sportswear", "abbigliamento", "atleta"]
+    },
+    {
+      "id": "wd:Q19927",
+      "canonical_name": "Michael Jordan",
+      "entity_type": "PERSON",
+      "gloss": "American basketball player",
+      "negative_constraints": ["Michael B. Jordan", "actor"],
+      "aliases": {
+        "en": ["Michael Jordan"],
+        "it": ["Michael Jordan"],
+        "pt": ["Michael Jordan"]
+      },
+      "context_terms": ["basket", "bulls", "chicago", "nba", "basketball"],
+      "counter_terms": ["attore", "actor", "creed", "adonis", "film"]
+    },
+    {
+      "id": "wd:Q1924529",
+      "canonical_name": "Michael B. Jordan",
+      "entity_type": "PERSON",
+      "gloss": "American actor",
+      "negative_constraints": ["basketball player", "Chicago Bulls"],
+      "aliases": {
+        "en": ["Michael B. Jordan"],
+        "it": ["Michael B. Jordan"],
+        "pt": ["Michael B. Jordan"]
+      },
+      "context_terms": ["attore", "actor", "creed", "adonis", "film", "cinema"],
+      "counter_terms": ["basket", "bulls", "chicago", "nba"]
+    }
+  ]
+}

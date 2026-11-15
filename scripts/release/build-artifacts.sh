@@ -58,8 +58,9 @@ for name in ("pipelinegen-muscles", "visualner", "mediasampler", "semantic-engin
 manifest = {
     "version": version,
     "git_sha": git_sha,
-    "semantic_schema": "semantic_manifest.v2",
-    "mediaexec_schema": "mediaexec.v1",
+    "semantic_schema": "semantic_manifest.v3",
+    "entity_index": "entity_index.v1",
+    "mediaexec_schema": "mediaexec.v2",
     "image_plan_schema": "image_plan.v1",
     "icu_major": int(icu_major),
     "toolchain": (out / "TOOLCHAIN").read_text(encoding="utf-8").strip(),

@@ -1,15 +1,21 @@
-//! Canonical entity identity registry.
+//! Canonical entity identity registry and the v3 linked-entity projection.
 //!
 //! The same person mentioned in three scenes must keep ONE canonical id, and
 //! two distinct subjects must never be merged. The registry assigns ids by a
-//! normalized identity key (lowercased, whitespace-collapsed surface plus its
-//! semantic type). Surfaces that differ only in case or spacing map to one
-//! canonical id; surfaces with different types (`PERSON` vs `ORG`) are kept
-//! apart even when they share a surface string.
+//! normalized identity key (Unicode NFC, apostrophe-folded, lowercased and
+//! whitespace-collapsed surface plus its semantic type). Surfaces that differ
+//! only in case, spacing or apostrophe form map to one canonical id; surfaces
+//! with different types (`PERSON` vs `ORG`) are kept apart even when they share
+//! a surface string.
+//!
+//! `canonical_id` remains the human-readable v2 surface slug. `surface_key`
+//! (v3) adds a deterministic short hash of the full typed key, so two distinct
+//! keys that slug to the same text can never collide in a cache.
 
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use unicode_normalization::UnicodeNormalization;
 
 /// One canonical identity shared by every occurrence of a subject across the
 /// script. `mentions` records every (scene_id, surface) pair so grounding and
@@ -19,8 +25,8 @@ pub struct CanonicalIdentity {
     /// Document-local id for references within this manifest (e.g. `org_02`).
     pub id: String,
     /// Surface-derived stable identity key, independent of document order.
-    /// This is not an ontology link; linked knowledge-base IDs belong in a
-    /// future additive field when a local entity linker is available.
+    /// This is a typed surface slug, not an ontology link. The v3 `entities`
+    /// projection carries the linked knowledge-base id separately.
     #[serde(default)]
     pub canonical_id: String,
     /// The surface used as the canonical display form (first-seen surface).
@@ -39,6 +45,77 @@ pub struct Mention {
     pub surface: String,
     pub start_byte: usize,
     pub end_byte: usize,
+}
+
+/// Resolution state of one entity against the local knowledge index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkStatus {
+    Linked,
+    Ambiguous,
+    Unlinked,
+}
+
+/// Whether an identity is a named subject or a generic visual concept.
+/// The VLM identity gate applies only to `NamedEntity`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EntityRole {
+    NamedEntity,
+    VisualConcept,
+}
+
+/// One typed, ordered retrieval intent for an entity.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct SearchIntent {
+    /// `identity` (who/what this is) or `contextual` (B-roll / scene context).
+    pub kind: String,
+    /// Short query string. Never a raw token window or a full sentence.
+    pub query: String,
+    /// BCP-47 language of the query.
+    pub lang: String,
+}
+
+/// The v3 entity projection consumed by the resolver. It is additive: the v2
+/// scene-level `identities` collection remains available for old consumers.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct LinkedEntity {
+    /// Document-local identity id (`org_01`), used by manifest references.
+    pub local_id: String,
+    /// Collision-safe document-scoped key. It is not a KB id.
+    pub surface_key: String,
+    /// Canonical display surface from the source.
+    pub canonical_surface: String,
+    /// Linked knowledge-base id (`wd:Q42262`) only when `link_status` is
+    /// `linked`; `None` for `ambiguous` and `unlinked`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canonical_id: Option<String>,
+    pub link_status: LinkStatus,
+    /// Resolved KB name for a linked entity, otherwise the source surface.
+    pub canonical_name: String,
+    pub entity_type: String,
+    pub role: EntityRole,
+    /// Short disambiguation gloss from the index; linked entities only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disambiguation_gloss: Option<String>,
+    /// Verifier exclusions from the index; linked entities only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub negative_constraints: Vec<String>,
+    /// Every source mention, with verbatim surface and UTF-8 byte offsets.
+    pub mentions: Vec<Mention>,
+    /// Ordered intents: identity first, then at most two contextual intents.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub search_intents: Vec<SearchIntent>,
+}
+
+/// Named kinds are eligible for an identity lookup and the VLM identity gate.
+/// Generic visual concepts and objects are B-roll/stock subjects instead.
+pub fn role_of(kind: &str) -> EntityRole {
+    match kind {
+        "PERSON" | "ORG" | "ORGANIZATION" | "LOCATION" | "FACILITY" | "BRAND" | "PRODUCT"
+        | "WORK" | "EVENT" | "ROLE" => EntityRole::NamedEntity,
+        _ => EntityRole::VisualConcept,
+    }
 }
 
 /// Assigns canonical ids across scenes. Ids are deterministic: the numbering
@@ -114,30 +191,44 @@ impl IdentityRegistry {
     }
 }
 
-/// The identity key: type + whitespace-collapsed lowercase surface. Two
-/// surfaces that differ only in case/spacing share a key; different types do
-/// not, so `PERSON "Mark"` and `ORG "Mark"` stay distinct subjects.
-fn identity_key(kind: &str, surface: &str) -> String {
-    let mut collapsed = String::with_capacity(surface.len());
+/// Normalizes a surface for matching only: Unicode NFC, apostrophe folding,
+/// lowercasing and whitespace collapsing. The stored surface and every source
+/// span stay verbatim.
+pub fn normalize_surface(surface: &str) -> String {
+    let normalized: String = surface.nfc().collect();
+    let mut out = String::with_capacity(normalized.len());
     let mut last_space = false;
-    for ch in surface.trim().chars() {
-        if ch.is_whitespace() {
+    for character in normalized.trim().chars() {
+        let character = match character {
+            '\u{2018}' | '\u{2019}' | '\u{02bb}' | '\u{02bc}' | '\u{0060}' | '\u{ff07}' => '\'',
+            other => other,
+        };
+        if character.is_whitespace() {
             if !last_space {
-                collapsed.push(' ');
+                out.push(' ');
             }
             last_space = true;
         } else {
-            collapsed.push(ch.to_lowercase().next().unwrap_or(ch));
+            for lower in character.to_lowercase() {
+                out.push(lower);
+            }
             last_space = false;
         }
     }
-    format!("{kind}\u{1f}{collapsed}")
+    out
+}
+
+/// The identity key: type + normalized surface. Two surfaces that differ only
+/// in case, spacing, Unicode composition or apostrophe form share a key;
+/// different types do not, so `PERSON "Mark"` and `ORG "Mark"` stay distinct.
+fn identity_key(kind: &str, surface: &str) -> String {
+    format!("{kind}\u{1f}{}", normalize_surface(surface))
 }
 
 fn id_prefix(kind: &str) -> &'static str {
     match kind {
         "PERSON" => "person",
-        "ORG" => "org",
+        "ORG" | "ORGANIZATION" => "org",
         "LOCATION" => "location",
         "DATE" => "date",
         "PERCENT" | "NUMBER" | "MONEY" | "MEASUREMENT" => "number",
@@ -152,7 +243,10 @@ fn id_prefix(kind: &str) -> &'static str {
 fn stable_slug(surface: &str) -> String {
     let mut slug = String::with_capacity(surface.len());
     let mut separator = false;
-    for character in surface.trim().chars().flat_map(char::to_lowercase) {
+    for character in normalize_surface(surface)
+        .chars()
+        .flat_map(char::to_lowercase)
+    {
         if character.is_alphanumeric() {
             if separator && !slug.is_empty() {
                 slug.push('-');
@@ -168,6 +262,28 @@ fn stable_slug(surface: &str) -> String {
     } else {
         slug
     }
+}
+
+/// Collision-safe document-scoped key for the v3 projection. The hash covers
+/// the full typed key, so `person:anne-marie` and `person:anne marie` never
+/// share a cache entry even though they slug to the same text.
+pub fn stable_surface_key(kind: &str, surface: &str) -> String {
+    let key = identity_key(kind, surface);
+    format!(
+        "{}:{}-{:08x}",
+        id_prefix(kind),
+        stable_slug(surface),
+        fnv1a32(key.as_bytes())
+    )
+}
+
+fn fnv1a32(bytes: &[u8]) -> u32 {
+    let mut hash: u32 = 0x811c9dc5;
+    for byte in bytes {
+        hash ^= u32::from(*byte);
+        hash = hash.wrapping_mul(0x01000193);
+    }
+    hash
 }
 
 #[cfg(test)]
@@ -228,5 +344,59 @@ mod tests {
             isolated.identities()[0].canonical_id
         );
         assert_eq!(isolated.identities()[0].canonical_id, "org:ansa");
+    }
+
+    #[test]
+    fn composed_and_decomposed_unicode_share_one_identity() {
+        let mut composed = IdentityRegistry::new();
+        composed.register("PERSON", "Café", "s1", 0, 5);
+        let mut decomposed = IdentityRegistry::new();
+        decomposed.register("PERSON", "Cafe\u{301}", "s1", 0, 6);
+
+        assert_eq!(
+            composed.identities()[0].canonical_id,
+            decomposed.identities()[0].canonical_id
+        );
+        assert_eq!(
+            stable_surface_key("PERSON", "Café"),
+            stable_surface_key("PERSON", "Cafe\u{301}")
+        );
+    }
+
+    #[test]
+    fn apostrophe_variants_share_one_identity() {
+        for variant in [
+            "O'Brien",
+            "O\u{2019}Brien",
+            "O\u{02bc}Brien",
+            "O\u{0060}Brien",
+        ] {
+            assert_eq!(
+                stable_surface_key("PERSON", "O'Brien"),
+                stable_surface_key("PERSON", variant),
+                "apostrophe variant {variant:?} must fold"
+            );
+        }
+        assert_eq!(normalize_surface("L\u{2019}Aquila"), "l'aquila");
+        assert_eq!(normalize_surface("d\u{2019}Artagnan"), "d'artagnan");
+    }
+
+    #[test]
+    fn distinct_keys_that_slug_collide_keep_distinct_surface_keys() {
+        let hyphenated = stable_surface_key("PERSON", "Anne-Marie");
+        let spaced = stable_surface_key("PERSON", "Anne Marie");
+        assert_ne!(hyphenated, spaced);
+        assert!(hyphenated.starts_with("person:anne-marie-"));
+        assert!(spaced.starts_with("person:anne-marie-"));
+    }
+
+    #[test]
+    fn named_and_generic_kinds_get_the_right_role() {
+        assert_eq!(role_of("PERSON"), EntityRole::NamedEntity);
+        assert_eq!(role_of("ORG"), EntityRole::NamedEntity);
+        assert_eq!(role_of("BRAND"), EntityRole::NamedEntity);
+        assert_eq!(role_of("VISUAL_CONCEPT"), EntityRole::VisualConcept);
+        assert_eq!(role_of("OBJECT"), EntityRole::VisualConcept);
+        assert_eq!(role_of("NUMBER"), EntityRole::VisualConcept);
     }
 }

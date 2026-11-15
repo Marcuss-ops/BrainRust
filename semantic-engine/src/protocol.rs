@@ -17,6 +17,11 @@ use serde_json::json;
 
 use crate::cache::ManifestCache;
 use crate::{analyze_script, analyzer_versions, ScriptRequest, SCHEMA_VERSION};
+use overlay_compiler::{
+    cascade_clustered_entrances, rank_entity_overlays, resolve_map_overlaps,
+    trim_map_windows_before_budget, CascadeEntrancesRequest, RankEntityOverlaysRequest,
+    ResolveMapOverlapsRequest,
+};
 
 /// Entries kept per persistent worker. Large enough that a full script batch
 /// plus its replay stay warm, small enough to bound RSS.
@@ -58,9 +63,19 @@ impl Worker {
             Err(err) => return error_response(&format!("invalid request: {err}")),
         };
         match envelope.operation.as_str() {
-            "health" => json!({ "ok": true, "schema_version": SCHEMA_VERSION }).to_string(),
+            "health" => json!({
+                "ok": true,
+                "schema_version": SCHEMA_VERSION,
+                "entity_index_version": semantic_core::entity_linker::entity_index_version(),
+                "entity_index_entries": semantic_core::entity_linker::entity_index().entry_count(),
+            })
+            .to_string(),
             "analyze_script" => self.analyze(line),
             "split_sentences" => split_sentences(line),
+            "resolve_map_overlaps" => resolve_map_overlaps_line(line),
+            "trim_map_windows_before_budget" => trim_map_windows_before_budget_line(line),
+            "rank_entity_overlays" => rank_entity_overlays_line(line),
+            "cascade_clustered_entrances" => cascade_clustered_entrances_line(line),
             other => error_response(&format!("unknown operation: {other}")),
         }
     }
@@ -109,6 +124,44 @@ impl Worker {
             ndjson_stdio::workers_from_env("SEMANTIC_ENGINE_WORKERS"),
         )
     }
+}
+
+fn resolve_map_overlaps_line(line: &str) -> String {
+    let request: ResolveMapOverlapsRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid resolve_map_overlaps request: {err}")),
+    };
+    let edits = resolve_map_overlaps(request);
+    json!({ "ok": true, "edits": edits }).to_string()
+}
+
+fn trim_map_windows_before_budget_line(line: &str) -> String {
+    let request: ResolveMapOverlapsRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => {
+            return error_response(&format!("invalid map-window budget request: {err}"));
+        }
+    };
+    let edits = trim_map_windows_before_budget(request);
+    json!({ "ok": true, "edits": edits }).to_string()
+}
+
+fn rank_entity_overlays_line(line: &str) -> String {
+    let request: RankEntityOverlaysRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid entity overlay rank request: {err}")),
+    };
+    let selected_indices = rank_entity_overlays(request);
+    json!({ "ok": true, "selected_indices": selected_indices }).to_string()
+}
+
+fn cascade_clustered_entrances_line(line: &str) -> String {
+    let request: CascadeEntrancesRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid entrance cascade request: {err}")),
+    };
+    let edits = cascade_clustered_entrances(request);
+    json!({ "ok": true, "edits": edits }).to_string()
 }
 
 fn split_sentences(line: &str) -> String {
@@ -191,6 +244,35 @@ mod tests {
             "scenes": [{"scene_id": "s1", "text": text}]
         })
         .to_string()
+    }
+
+    #[test]
+    fn ranks_entity_overlays_through_the_worker_protocol() {
+        let worker = Worker::new(8);
+        let line = json!({
+            "operation": "rank_entity_overlays",
+            "scenes": [{
+                "entities": [
+                    {"entity_id":"org-a", "overlay_id":"a", "entity_type":"ORG", "confidence":0.9},
+                    {"entity_id":"person-b", "overlay_id":"b", "entity_type":"PERSON", "confidence":0.8}
+                ]
+            }]
+        })
+        .to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["selected_indices"], json!([[1, 0]]));
+    }
+
+    #[test]
+    fn cascades_clustered_entrances_through_the_worker_protocol() {
+        let worker = Worker::default();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(
+            r#"{"operation":"cascade_clustered_entrances","fps_num":24,"fps_den":1,"items":[{"id":"phrase","kind":"text_phrase","start_ms":0,"end_ms":3000,"motion_params":{"enter_frames":8}},{"id":"image","kind":"entity_image","start_ms":100,"end_ms":3000,"motion_params":{"enter_frames":8}}]}"#,
+        )).unwrap();
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["edits"][0]["index"], 1);
+        assert_eq!(response["edits"][0]["enter_frames"], 20);
     }
 
     #[test]

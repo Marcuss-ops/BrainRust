@@ -1,6 +1,6 @@
 # Discourse continuity (`discourse.v1`)
 
-`semantic_manifest.v2` now carries an additive `discourse` projection. It is a
+`semantic_manifest.v3` carries an additive `discourse` projection. It is a
 deterministic continuity layer over the identities and source spans the engine
 already grounded. It is not a second entity extractor, a language model or a
 calibrated probability.

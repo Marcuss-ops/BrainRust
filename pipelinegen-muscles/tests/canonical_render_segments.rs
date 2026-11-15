@@ -90,7 +90,7 @@ fn request(fixture: &Path, output: &Path, segments: Value, duration_frames: i64)
     let fixture = fixture.to_string_lossy().to_string();
     let fixture_sha = sha256(Path::new(&fixture));
     json!({
-        "version": "mediaexec.v1",
+        "version": "mediaexec.v2",
         "operation": "render_stock",
         "input_paths": [fixture],
         "output_path": output.to_string_lossy(),
@@ -359,7 +359,7 @@ fn multi_manifest_projection_matches_single_artifact_projection() {
     ]});
     let project = |wire: Value, inputs: Vec<String>, output: &Path| -> Result<(), String> {
         render(
-            json!({"version":"mediaexec.v1", "operation":"project_overlay_manifest",
+            json!({"version":"mediaexec.v2", "operation":"project_overlay_manifest",
             "source_path": fixture, "input_paths": inputs, "output_path": output,
             "overlay_manifest": wire, "codec":"libx264", "preset":"ultrafast", "crf":18,
             "width":WIDTH, "height":HEIGHT, "fps_num":FPS, "fps_den":1,

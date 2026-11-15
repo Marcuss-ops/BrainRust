@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/Marcuss-ops/BrainRust/contract/mediaexec.v1/request.schema.json",
-  "title": "mediaexec.v1 request (golden-certified envelope)",
+  "$id": "https://github.com/Marcuss-ops/BrainRust/contract/mediaexec.v2/request.schema.json",
+  "title": "mediaexec.v2 request (golden-certified envelope)",
   "description": "The request envelope shared by the Rust executor and the Go rustexec consumer. Only fields exercised by the shared goldens are tightened here; operation-specific sealed plans are owned by the typed consumers and their e2e suites.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "operation"],
   "properties": {
-    "version": { "const": "mediaexec.v1" },
+    "version": { "const": "mediaexec.v2" },
     "operation": {
       "enum": [
         "health",

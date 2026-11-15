@@ -1,4 +1,4 @@
-//! `semantic_manifest.v2` — the single typed contract returned by the Rust
+//! `semantic_manifest.v3` — the single typed contract returned by the Rust
 //! semantic engine.
 //!
 //! The manifest is the ONE source of truth PipelineGen reads. Per the contract
@@ -10,13 +10,18 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::identity::CanonicalIdentity;
+use crate::identity::{CanonicalIdentity, LinkedEntity};
 use crate::narrative::DiscourseProjection;
 use crate::numbers::NumericFact;
 use crate::relations::RelationView;
 
 /// Wire version of the manifest.
-pub const SCHEMA_VERSION: &str = "semantic_manifest.v2";
+pub const SCHEMA_VERSION: &str = "semantic_manifest.v3";
+
+/// Versions this decoder accepts. `semantic_manifest.v2` is the migration
+/// path: it has no `entities` projection and no `entity_index` analyzer field,
+/// both of which default on decode.
+pub const SUPPORTED_SCHEMA_VERSIONS: &[&str] = &["semantic_manifest.v2", SCHEMA_VERSION];
 
 /// Version of the analyzer stack recorded on the manifest so a replay can be
 /// tied to the exact extractor build that produced it.
@@ -28,6 +33,10 @@ pub struct AnalyzerVersions {
     /// Version of the lexical knowledge tables (`semantic_core::lexicon`),
     /// so a vocabulary change can never serve a stale cached analysis.
     pub lexicon: String,
+    /// Version of the packaged entity index used for v3 linked ids. Defaults
+    /// to empty when decoding a v2 manifest that predates the field.
+    #[serde(default)]
+    pub entity_index: String,
 }
 
 /// One grounded candidate with the fields shared by every projection.
@@ -560,7 +569,7 @@ pub struct VisualCoverage {
 }
 
 /// Wire version of the semantic consolidation projection carried by the same
-/// manifest. It is additive: `semantic_manifest.v2` raw collections remain the
+/// manifest. It is additive: raw scene collections remain the
 /// complete inventory, and this section is the compiler's selective production
 /// view over them.
 pub const VISUAL_CONSOLIDATION_SCHEMA: &str = "visual_consolidation.v1";
@@ -854,6 +863,10 @@ pub struct SemanticManifest {
     pub fingerprint: String,
     pub analyzers: AnalyzerVersions,
     pub scenes: Vec<SceneManifest>,
+    /// Additive v3 entity projection: linked ids, roles, glosses, exclusions
+    /// and typed retrieval intents. Empty when decoding a v2 manifest.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entities: Vec<LinkedEntity>,
     /// Grounded identities, facts and dates joined across scene boundaries.
     pub story_graph: StoryGraph,
     /// Which grounded facts a scene's proposals already represent.

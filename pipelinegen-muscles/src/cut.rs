@@ -1,4 +1,5 @@
 use crate::artifact::{failed_response, part_path};
+use crate::hash::sha256_file;
 
 use crate::config;
 use crate::encoder;
@@ -89,6 +90,8 @@ fn cut_batch(request: Request) -> Response {
                         status: "failed".to_string(),
                         size_bytes: 0,
                         duration_sec: 0.0,
+                        sha256: None,
+                        video_extradata_sha256: None,
                         error: Some("cut worker thread panicked".to_string()),
                     })
                 })
@@ -130,6 +133,8 @@ fn cut_one(
         status: "failed".to_string(),
         size_bytes: 0,
         duration_sec: 0.0,
+        sha256: None,
+        video_extradata_sha256: None,
         error: Some(message),
     };
 
@@ -149,7 +154,7 @@ fn cut_one(
     // for a newly cut file; corrupt or partial files are regenerated.
     if let Ok(metadata) = fs::metadata(&job.output_path) {
         if metadata.len() > 0 {
-            if let Ok(duration_sec) = validate_output(
+            if let Ok(validated) = validate_output(
                 ffprobe,
                 &job.output_path,
                 no_audio,
@@ -157,14 +162,18 @@ fn cut_one(
                 &profile,
                 encoder,
             ) {
-                return CutItem {
-                    job_id: job.job_id.clone(),
-                    output_path: Some(job.output_path.clone()),
-                    status: "validated".to_string(),
-                    size_bytes: metadata.len(),
-                    duration_sec,
-                    error: None,
-                };
+                if let Ok(sha256) = sha256_file(&job.output_path) {
+                    return CutItem {
+                        job_id: job.job_id.clone(),
+                        output_path: Some(job.output_path.clone()),
+                        status: "validated".to_string(),
+                        size_bytes: metadata.len(),
+                        duration_sec: validated.duration_sec,
+                        sha256: Some(sha256),
+                        video_extradata_sha256: Some(validated.video_extradata_sha256),
+                        error: None,
+                    };
+                }
             }
             let _ = fs::remove_file(&job.output_path);
         }
@@ -242,7 +251,7 @@ fn cut_one(
         Ok(_) => return failed("ffmpeg produced an empty output".to_string()),
         Err(error) => return failed(format!("stat cut output: {error}")),
     };
-    let duration_sec = match validate_output(
+    let validated = match validate_output(
         ffprobe,
         &job.output_path,
         no_audio,
@@ -250,10 +259,17 @@ fn cut_one(
         &profile,
         encoder,
     ) {
-        Ok(duration_sec) => duration_sec,
+        Ok(validated) => validated,
         Err(error) => {
             let _ = fs::remove_file(&job.output_path);
             return failed(format!("validate cut output: {error}"));
+        }
+    };
+    let sha256 = match sha256_file(&job.output_path) {
+        Ok(sha256) => sha256,
+        Err(error) => {
+            let _ = fs::remove_file(&job.output_path);
+            return failed(format!("hash cut output: {error}"));
         }
     };
 
@@ -262,7 +278,9 @@ fn cut_one(
         output_path: Some(job.output_path.clone()),
         status: "validated".to_string(),
         size_bytes,
-        duration_sec,
+        duration_sec: validated.duration_sec,
+        sha256: Some(sha256),
+        video_extradata_sha256: Some(validated.video_extradata_sha256),
         error: None,
     }
 }

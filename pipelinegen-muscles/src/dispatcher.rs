@@ -113,7 +113,7 @@ mod tests {
         // no sealed render_plan is now the single fail-closed shape. Rust never
         // chooses assets: it fails with the typed canonical-plan requirement.
         let request = Request {
-            version: "mediaexec.v1".to_string(),
+            version: "mediaexec.v2".to_string(),
             operation: Operation::RenderStock,
             ffmpeg_path: None,
             source_path: None,
@@ -208,7 +208,7 @@ mod tests {
     fn unsupported_operations_fail_closed() {
         let invalid = serde_json::from_str::<Request>(
             r#"{
-            "version":"mediaexec.v1",
+            "version":"mediaexec.v2",
             "operation":"run_command"
         }"#,
         );

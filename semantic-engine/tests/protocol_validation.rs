@@ -18,7 +18,7 @@ fn replay_of_the_same_script_gives_identical_manifest_and_fingerprint() {
     let second = serde_json::to_value(analyze_script(&request(scenes)).unwrap()).unwrap();
 
     assert_eq!(first, second);
-    assert_eq!(first["schema_version"], "semantic_manifest.v2");
+    assert_eq!(first["schema_version"], "semantic_manifest.v3");
     assert_eq!(first["fingerprint"].as_str().unwrap().len(), 16);
     assert_eq!(first["analyzers"]["visualner"], "visualner");
 }
@@ -47,6 +47,9 @@ fn missing_language_and_duplicate_scene_ids_are_rejected() {
 fn ndjson_protocol_serves_health_analysis_and_errors() {
     let health: Value = serde_json::from_str(&handle_line(r#"{"operation":"health"}"#)).unwrap();
     assert_eq!(health["ok"], true);
+    assert_eq!(health["schema_version"], "semantic_manifest.v3");
+    assert_eq!(health["entity_index_version"], "entity_index.v1");
+    assert!(health["entity_index_entries"].as_u64().unwrap() >= 8);
 
     let request = json!({
         "operation": "analyze_script",

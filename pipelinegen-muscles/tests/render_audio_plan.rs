@@ -144,7 +144,7 @@ fn compiled_plan() -> Value {
 
 fn request(output: &str, plan: Value, assets: Value) -> pipelinegen_muscles::Request {
     serde_json::from_value(json!({
-        "version": "mediaexec.v1",
+        "version": "mediaexec.v2",
         "operation": "render_audio_plan",
         "ffmpeg_path": "ffmpeg",
         "output_path": output,

@@ -1,10 +1,10 @@
-# BrainRust audit tickets — 2026-11-11
+# BrainRust audit tickets — 2026-11-15
 
-Canonical status for the 2026-11-11 architecture audit and its ten-PR roadmap.
+Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-11. **9 DONE, 0 PARTIAL, 2 BLOCKED.**
+Last verified: 2026-11-15. **10 DONE, 0 PARTIAL, 2 BLOCKED.**
 
 Status vocabulary:
 
@@ -13,7 +13,8 @@ Status vocabulary:
   parity/benchmark gate remains outside this checkout.
 - **BLOCKED** — cannot be completed inside this repository without an external
   owner, dataset, credential or cross-repo contract change.
-- **PARTIAL** — not used by the final audit state.
+- **PARTIAL** — some implementation or evidence exists, but acceptance criteria
+  remain open.
 
 | Ticket | Priority | Status | Outcome |
 | --- | --- | --- | --- |
@@ -28,8 +29,40 @@ Status vocabulary:
 | [09](TICKET-09-hotspot-contraction.md) | P2 | DONE | Source preparation extracted; duplicate cache fingerprint removed; remaining splits would be cosmetic. |
 | [10](TICKET-10-multimodal-pgvector.md) | P2 | BLOCKED | Requires SigLIP/pgvector, a schema and a calibrated held-out dataset. |
 | [11](TICKET-11-discourse-continuity.md) | P0 | DONE (deterministic core) | Additive `discourse.v1` references, ambiguity, threads and scene continuity. |
+| [12](TICKET-12-mvp-semantic-contract.md) | P0 | DONE (bound/Rust) | v3 linked-entity projection, local index/linker, typed intents, Go v3 consumer, intent/index cache key, verified-hit admission, stop-on-satisfaction and cross-repo smoke pass; only the revised SLO agreement remains external. |
 
-## Verification — 2026-11-11
+## Verification — 2026-11-15 (ticket 12, Rust core)
+
+- `cargo test -p semantic-core --lib` — 150 passed.
+- `cargo test -p semantic-engine --test mvp_semantic_contract` — 7 passed
+  (T1–T7).
+- `cargo test -p semantic-engine --test protocol_validation` — 4 passed.
+- `cargo test -p semantic-core -p semantic-engine -p visualner -p imagecatalog`
+  — all passed.
+- `cargo fmt --all -- --check` and clippy on the touched crates — clean.
+- Release probe (20 scenes): with UDPipe p50/p95/p99 = 1.438/1.503/1.551 s;
+  model-free 77.9/88.7/98.6 ms.
+- No-network: the release binary analyzed the ESA/NASA fixture inside
+  `unshare -n` and returned `ok:true`.
+- RSS: 1,000 analyses plateaued at 228,264 KiB (0 KiB growth across the last
+  three samples).
+
+## Verification — 2026-11-15 (ticket 12, Go consumer)
+
+- Cache-key tests: intent, query class, provider, verifier and entity-index
+  changes all invalidate the key; unlinked document-scoped identities do not
+  collide.
+- Scheduler tests: `bestVerifiedSemanticHit` rejects provider-order
+  `Hits[0]`; a hit settles the composition and later rungs do not run.
+- v3 projection tests: role, gloss, negative constraints and typed intents
+  survive the Go boundary; an unlinked entity carrying a canonical id fails
+  closed.
+- Cross-repo: `TestSemanticEngineRealBinaryProjectsLinkedEntities` passes
+  against the release BrainRust binary in 3.28 s with UDPipe models.
+- The broad Go suite is currently red on unrelated in-flight
+  `overlay_plan_*` signature changes; those files are outside the WP5 diff.
+
+## Verification — 2026-11-11 (tickets 01–11)
 
 - `cargo fmt --all -- --check` — clean.
 - `cargo clippy --workspace --all-targets -- -D warnings` — clean.
@@ -61,6 +94,10 @@ These do not reopen the tickets; they are owner gates outside this checkout:
   saving; the Rust contract and wire tests are complete.
 - **08/10** — human gold annotations and the multimodal model/schema/calibrated
   association set are still required.
+- **12** — the revised measured SLO needs owner agreement. The Rust contract,
+  local index/linker, typed intents, Go v3 consumer, intent/index cache key,
+  verified-hit admission, stop-on-satisfaction, cross-repo smoke, no-network
+  and RSS gates are complete in this checkout.
 
 No extra platform or persistence layer was introduced. PipelineGen remains the
 owner of canonical state and business policy.

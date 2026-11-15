@@ -12,13 +12,13 @@ mod tests {
     }
 
     fn fixture(name: &str) -> Fixture {
-        // Canonical mediaexec.v1 goldens. PipelineGen keeps a byte-identical
-        // consumer copy in testdata/mediaexec/v1; contract/check_consumer_copy.sh
+        // Canonical mediaexec.v2 goldens. PipelineGen keeps a byte-identical
+        // consumer copy in testdata/mediaexec/v2; contract/check_consumer_copy.sh
         // is the parity gate.
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("contract")
-            .join("mediaexec.v1")
+            .join("mediaexec.v2")
             .join("goldens")
             .join(format!("{name}.json"));
         let data = fs::read(&path)
@@ -28,7 +28,7 @@ mod tests {
     }
 
     #[test]
-    fn mediaexec_v1_shared_goldens_match_rust_wire_types() {
+    fn mediaexec_v2_shared_goldens_match_rust_wire_types() {
         // render_stock is not in the shared set: production sends a sealed
         // render_plan, covered by the typed consumers and the e2e suites.
         for name in ["probe", "cut_batch", "normalize"] {

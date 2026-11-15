@@ -16,6 +16,7 @@ path = "src/main.rs"
 # second process, so the script is analysed once per scene.
 visualner = { path = "../visualner" }
 semantic-core = { workspace = true }
+overlay-compiler = { workspace = true }
 ndjson-stdio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

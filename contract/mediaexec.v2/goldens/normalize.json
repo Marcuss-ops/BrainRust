@@ -1,6 +1,6 @@
 {
   "request": {
-    "version": "mediaexec.v1",
+    "version": "mediaexec.v2",
     "operation": "normalize",
     "ffmpeg_path": "/usr/bin/ffmpeg",
     "source_path": "/fixtures/input.mp4",

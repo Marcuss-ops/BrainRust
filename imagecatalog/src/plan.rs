@@ -3,7 +3,8 @@
 use std::collections::{BTreeSet, HashMap};
 
 use semantic_core::{
-    Candidate, CanonicalIdentity, SceneInput, ScriptRequest, SemanticManifest, SCHEMA_VERSION,
+    Candidate, CanonicalIdentity, SceneInput, ScriptRequest, SemanticManifest,
+    SUPPORTED_SCHEMA_VERSIONS,
 };
 
 use crate::canonical::canonical_person_id;
@@ -72,9 +73,9 @@ fn validate_reused_manifest(
     request: &ImageCatalogRequest,
     manifest: &SemanticManifest,
 ) -> Result<(), String> {
-    if manifest.schema_version != SCHEMA_VERSION {
+    if !SUPPORTED_SCHEMA_VERSIONS.contains(&manifest.schema_version.as_str()) {
         return Err(format!(
-            "manifest schema_version must be {SCHEMA_VERSION}, got {}",
+            "manifest schema_version must be one of {SUPPORTED_SCHEMA_VERSIONS:?}, got {}",
             manifest.schema_version
         ));
     }

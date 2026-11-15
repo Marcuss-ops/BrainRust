@@ -74,6 +74,14 @@ jobs:
     - name: cargo test (workspace)
       run: cargo test --workspace --locked
 
+    # TICKET-12 WP4: prove the real worker performs no outbound network I/O.
+    # The container runs as root, so an isolated network namespace is available.
+    - name: Build the release worker for OS-level gates
+      run: cargo build --release -p semantic-engine --locked
+
+    - name: No-network semantic analysis (isolated namespace)
+      run: ./scripts/ci/check-no-network.sh target/release/semantic-engine
+
     - name: Validate the mediaexec.v1 contract
       run: |
         python3 -m venv /tmp/contract-venv

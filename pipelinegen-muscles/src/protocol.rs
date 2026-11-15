@@ -7,7 +7,7 @@ use crate::render_audio::CompiledAudioPlan;
 use crate::render_clip::SealedClipPlan;
 use crate::render_stock::SealedCanonicalPlan;
 
-pub const PROTOCOL_VERSION: &str = "mediaexec.v1";
+pub const PROTOCOL_VERSION: &str = "mediaexec.v2";
 
 /// Assembly-ready output contract identity, V1 (frozen).
 ///
@@ -773,6 +773,10 @@ pub struct CutItem {
     pub status: String,
     pub size_bytes: u64,
     pub duration_sec: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_extradata_sha256: Option<String>,
     pub error: Option<String>,
 }
 
@@ -1015,7 +1019,7 @@ mod tests {
     #[test]
     fn implemented_operations_are_declared_in_the_contract_schema() {
         let schema: serde_json::Value = serde_json::from_str(include_str!(
-            "../../contract/mediaexec.v1/request.schema.json"
+            "../../contract/mediaexec.v2/request.schema.json"
         ))
         .expect("request schema");
         assert_eq!(
@@ -1040,7 +1044,7 @@ mod tests {
     #[test]
     fn response_envelope_contains_every_schema_required_field() {
         let schema: serde_json::Value = serde_json::from_str(include_str!(
-            "../../contract/mediaexec.v1/response.schema.json"
+            "../../contract/mediaexec.v2/response.schema.json"
         ))
         .expect("response schema");
         let response = serde_json::to_value(Response {

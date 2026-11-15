@@ -59,6 +59,16 @@ jobs:
         cargo clippy --workspace --all-targets --locked -- -D warnings
         cargo test --workspace --locked
 
+    # TICKET-12 WP4/WP6: measured SLO, bounded RSS and OS-level no-network
+    # evidence must pass on the exact tagged tree before artifacts are built.
+    - name: Release semantic gates
+      run: |
+        cargo test -p semantic-engine --test mvp_semantic_contract --release --locked
+        cargo test -p semantic-engine --test performance_probe --release --locked -- --ignored --nocapture
+        cargo test -p semantic-engine --test resource_gate --release --locked -- --ignored --nocapture
+        cargo build --release -p semantic-engine --locked
+        ./scripts/ci/check-no-network.sh target/release/semantic-engine
+
     - name: Validate the mediaexec.v1 contract
       run: |
         python3 -m venv /tmp/contract-venv

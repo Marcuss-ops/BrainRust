@@ -26,6 +26,7 @@
 pub mod bullets;
 pub mod dates;
 pub mod discourse;
+pub mod entity_linker;
 mod generated_language_packs;
 mod generated_legal_packs;
 pub mod grounding;
@@ -43,7 +44,10 @@ pub mod sentences;
 
 pub use bullets::{BulletCandidate, BulletSignal, SignalKind};
 pub use dates::{temporal_facts, TemporalFact};
-pub use identity::{CanonicalIdentity, IdentityRegistry, Mention};
+pub use identity::{
+    role_of, stable_surface_key, CanonicalIdentity, EntityRole, IdentityRegistry, LinkStatus,
+    LinkedEntity, Mention, SearchIntent,
+};
 pub use manifest::ChartItem;
 pub use manifest::{
     AnalyzerVersions, Candidate, ComposedImageQuery, ConsolidatedDate, ConsolidatedDateSpan,
@@ -53,7 +57,7 @@ pub use manifest::{
     SceneCoverage, SceneInput, SceneManifest, ScriptRequest, SearchFeedback, SearchFeedbackEntry,
     SearchQuery, SearchRetry, SemanticGroup, SemanticGroupMember, SemanticManifest, StoryEdge,
     StoryGraph, StoryNode, VisualConsolidation, VisualCoverage, VisualProposal, SCHEMA_VERSION,
-    VISUAL_CONSOLIDATION_SCHEMA,
+    SUPPORTED_SCHEMA_VERSIONS, VISUAL_CONSOLIDATION_SCHEMA,
 };
 pub use narrative::{
     DiscourseCounts, DiscourseProjection, DiscourseReference, EntityThread, SceneContinuity,

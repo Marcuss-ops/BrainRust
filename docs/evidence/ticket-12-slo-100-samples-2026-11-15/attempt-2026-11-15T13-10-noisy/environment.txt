@@ -1,0 +1,17 @@
+schema=ticket12.slo_environment.v1
+generated_at=2026-11-15T13:10:32Z
+git_sha=f5ca25b4e48bc4bb81dfb3fd1bbff08081b47e88
+git_dirty_entries=56
+git_status_sha256=ce57cf64ab6dccd8298afe62eca181b864343b79d66f56300d009e665f22db10
+uname=Linux YOutube 5.15.0-203-generic #213-Ubuntu SMP Fri Oct 23 13:21:06 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+os=Ubuntu 22.04.5 LTS
+cpu=Intel Xeon E3-12xx v2 (Ivy Bridge, IBRS)
+cpus=24
+memory_total=29Gi
+loadavg_before=6.50 7.54 7.46 4/1619 842497
+rustc=rustc 1.99.1 (58cf8f9c3 2026-10-13)
+icu=70.1
+model_dir=/home/pierone/src/go-master/projects/Pyt/VeloxEditing/BrainRust/.tmp/udpipe-models
+italian_model_sha256=dad54daaa01c250f39ec0ae7d29b3f3830c1eea066db4e3a92c39b41f2dd1a40
+probe_source_sha256=ad99fc9605b3e03094fa9315a1494392cb933a48ebe3fb848ad0c98c7a48c6ab
+cargo_lock_sha256=d3ab9e0478d1b712ee89fcea77c137222e2d3aab499e927252dae3200d8a7265

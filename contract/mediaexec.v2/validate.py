@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Validate the shared mediaexec.v1 goldens against the versioned schemas.
+"""Validate the shared mediaexec.v2 goldens against the versioned schemas.
 
 Run from anywhere:
-    python3 contract/mediaexec.v1/validate.py
+    python3 contract/mediaexec.v2/validate.py
 
 Requires jsonschema (see requirements.txt). The validator is deliberately
 strict about the golden set: a missing or extra fixture is a contract change,
@@ -20,7 +20,7 @@ try:
 except ImportError:  # pragma: no cover - exercised by the CI setup path
     sys.exit(
         "jsonschema is required: install it from "
-        "contract/mediaexec.v1/requirements.txt"
+        "contract/mediaexec.v2/requirements.txt"
     )
 
 ROOT = Path(__file__).resolve().parent
@@ -33,7 +33,7 @@ def load(path: Path) -> dict:
 
 
 def fail(message: str) -> None:
-    print(f"mediaexec.v1 contract: {message}", file=sys.stderr)
+    print(f"mediaexec.v2 contract: {message}", file=sys.stderr)
     raise SystemExit(1)
 
 
@@ -72,8 +72,8 @@ def main() -> None:
         validate(request_validator, request, path.stem, "request")
         validate(response_validator, response, path.stem, "response")
 
-        if request.get("version") != "mediaexec.v1":
-            fail(f"{path.name}: request.version is not mediaexec.v1")
+        if request.get("version") != "mediaexec.v2":
+            fail(f"{path.name}: request.version is not mediaexec.v2")
         if request.get("operation") != path.stem:
             fail(f"{path.name}: request.operation does not match the golden name")
         if response.get("operation") != path.stem:
@@ -81,7 +81,7 @@ def main() -> None:
         if response.get("ok") is not True:
             fail(f"{path.name}: the shared golden set only carries success responses")
 
-    print(f"✅ mediaexec.v1 contract: {len(goldens)} shared goldens validated")
+    print(f"✅ mediaexec.v2 contract: {len(goldens)} shared goldens validated")
 
 
 if __name__ == "__main__":

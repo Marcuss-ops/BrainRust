@@ -166,7 +166,7 @@ fn build_request_value(fixture: &str, fixture_sha: &str, output: &Path, encoder:
         })
     };
     json!({
-        "version": "mediaexec.v1",
+        "version": "mediaexec.v2",
         "operation": "render_stock",
         "input_paths": [fixture],
         "output_path": output.to_string_lossy(),

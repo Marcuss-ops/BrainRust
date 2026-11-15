@@ -28,7 +28,7 @@ pub struct ImageCatalogRequest {
     pub language: String,
     /// Script scenes in request order.
     pub scenes: Vec<SceneInput>,
-    /// Optional `semantic_manifest.v2` already produced for exactly these
+    /// Optional `semantic_manifest.v3` already produced for exactly these
     /// scenes. The worker validates its schema, scene identity, fingerprint
     /// and analyzer versions before reusing it; when absent it runs the
     /// semantic analysis itself. This is the same manifest type the engine

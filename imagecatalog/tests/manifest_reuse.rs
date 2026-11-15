@@ -77,6 +77,39 @@ fn wire_manifest_is_reused_without_a_second_analysis() {
 }
 
 #[test]
+fn wire_v2_manifest_without_v3_fields_is_reused() {
+    let manifest = analysed_manifest("Alberto Stasi entra nel tribunale.");
+    let mut value = serde_json::to_value(manifest).expect("manifest JSON");
+    value["schema_version"] = serde_json::json!("semantic_manifest.v2");
+    value
+        .as_object_mut()
+        .expect("manifest object")
+        .remove("entities");
+    // Keep the analyzer block intact: the recorded fingerprint must still
+    // match the request's analyzer set. The missing-field default is covered
+    // by the dedicated serde test below.
+    let manifest: semantic_core::SemanticManifest =
+        serde_json::from_value(value).expect("v2 manifest decodes");
+    assert!(manifest.entities.is_empty());
+
+    let plan = plan(&wire_request(manifest)).expect("v2 manifest is reusable");
+    assert_eq!(plan.counts.scenes, 1);
+}
+
+#[test]
+fn analyzer_versions_default_a_missing_entity_index() {
+    let value = serde_json::json!({
+        "visualner": "visualner",
+        "semantic_core": "0.1.0",
+        "phrase_impact": "phrase_impact",
+        "lexicon": "lexicon.v1"
+    });
+    let analyzers: semantic_core::AnalyzerVersions =
+        serde_json::from_value(value).expect("v2 analyzers decode");
+    assert!(analyzers.entity_index.is_empty());
+}
+
+#[test]
 fn wire_manifest_with_the_wrong_schema_is_rejected() {
     let mut manifest = analysed_manifest("Alberto Stasi entra nel tribunale.");
     manifest.schema_version = "semantic_manifest.v1".to_string();
