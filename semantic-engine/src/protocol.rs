@@ -18,9 +18,9 @@ use serde_json::json;
 use crate::cache::ManifestCache;
 use crate::{analyze_script, analyzer_versions, ScriptRequest, SCHEMA_VERSION};
 use overlay_compiler::{
-    cascade_clustered_entrances, rank_entity_overlays, resolve_map_overlaps,
-    trim_map_windows_before_budget, CascadeEntrancesRequest, RankEntityOverlaysRequest,
-    ResolveMapOverlapsRequest,
+    cascade_clustered_entrances, compile_editorial_plan, rank_entity_overlays,
+    resolve_map_overlaps, trim_map_windows_before_budget, CascadeEntrancesRequest,
+    CompileEditorialPlanRequest, RankEntityOverlaysRequest, ResolveMapOverlapsRequest,
 };
 
 /// Entries kept per persistent worker. Large enough that a full script batch
@@ -72,6 +72,7 @@ impl Worker {
             .to_string(),
             "analyze_script" => self.analyze(line),
             "split_sentences" => split_sentences(line),
+            "compile_editorial_plan" => compile_editorial_plan_line(line),
             "resolve_map_overlaps" => resolve_map_overlaps_line(line),
             "trim_map_windows_before_budget" => trim_map_windows_before_budget_line(line),
             "rank_entity_overlays" => rank_entity_overlays_line(line),
@@ -124,6 +125,17 @@ impl Worker {
             ndjson_stdio::workers_from_env("SEMANTIC_ENGINE_WORKERS"),
         )
     }
+}
+
+fn compile_editorial_plan_line(line: &str) -> String {
+    let request: CompileEditorialPlanRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => {
+            return error_response(&format!("invalid compile_editorial_plan request: {err}"))
+        }
+    };
+    let plan = compile_editorial_plan(request);
+    json!({ "ok": true, "plan": plan }).to_string()
 }
 
 fn resolve_map_overlaps_line(line: &str) -> String {

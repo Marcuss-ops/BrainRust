@@ -744,13 +744,75 @@ fn entity_type_weight(entity_type: &str) -> f64 {
     }
 }
 
+/// One request for the editorial-plan batch. The caller supplies the planned
+/// overlay items and the already-extracted entity/entrance facts; Rust owns
+/// the timing, ranking and cascade decisions in one worker round-trip.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CompileEditorialPlanRequest {
+    #[serde(default)]
+    pub fps_num: i64,
+    #[serde(default)]
+    pub fps_den: i64,
+    #[serde(default)]
+    pub scene_windows: BTreeMap<String, [i64; 2]>,
+    #[serde(default)]
+    pub items: Vec<TimingItem>,
+    #[serde(default)]
+    pub entity_scenes: Vec<EntityRankingScene>,
+    #[serde(default)]
+    pub entrance_items: Vec<CascadeEntranceItem>,
+}
+
+/// The four batch sections PipelineGen used to request separately. Keeping
+/// them as sparse edits means the caller still applies them to its complete
+/// overlay DTO without round-tripping opaque render metadata through Rust.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CompiledEditorialPlan {
+    pub pre_budget_edits: Vec<TimingEdit>,
+    pub timing_edits: Vec<TimingEdit>,
+    pub ranked_entities: Vec<Vec<usize>>,
+    pub entrance_edits: Vec<EntranceMotionEdit>,
+}
+
+/// Compiles the editorial/timing sections of an overlay plan in one call.
+/// This is the batch entry point; the per-concern functions remain the pure
+/// building blocks and keep their dedicated protocol handlers for compatibility.
+pub fn compile_editorial_plan(request: CompileEditorialPlanRequest) -> CompiledEditorialPlan {
+    let pre_budget_edits = trim_map_windows_before_budget(ResolveMapOverlapsRequest {
+        fps_num: request.fps_num,
+        fps_den: request.fps_den,
+        scene_windows: request.scene_windows.clone(),
+        items: request.items.clone(),
+    });
+    let timing_edits = resolve_map_overlaps(ResolveMapOverlapsRequest {
+        fps_num: request.fps_num,
+        fps_den: request.fps_den,
+        scene_windows: request.scene_windows,
+        items: request.items,
+    });
+    let ranked_entities = rank_entity_overlays(RankEntityOverlaysRequest {
+        scenes: request.entity_scenes,
+    });
+    let entrance_edits = cascade_clustered_entrances(CascadeEntrancesRequest {
+        fps_num: request.fps_num,
+        fps_den: request.fps_den,
+        items: request.entrance_items,
+    });
+    CompiledEditorialPlan {
+        pre_budget_edits,
+        timing_edits,
+        ranked_entities,
+        entrance_edits,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        cascade_clustered_entrances, rank_entity_overlays, resolve_map_overlaps,
-        trim_map_windows_before_budget, CascadeEntranceItem, CascadeEntrancesRequest,
-        EntityRankingInput, EntityRankingScene, RankEntityOverlaysRequest,
-        ResolveMapOverlapsRequest, TimingItem,
+        cascade_clustered_entrances, compile_editorial_plan, rank_entity_overlays,
+        resolve_map_overlaps, trim_map_windows_before_budget, CascadeEntranceItem,
+        CascadeEntrancesRequest, CompileEditorialPlanRequest, EntityRankingInput,
+        EntityRankingScene, RankEntityOverlaysRequest, ResolveMapOverlapsRequest, TimingItem,
     };
     use serde_json::{json, Value};
     use std::collections::BTreeMap;
@@ -904,6 +966,81 @@ mod tests {
 
         assert!(edits[1].keep);
         assert_eq!(edits[1].start_us, 2_000_000);
+    }
+
+    #[test]
+    fn compile_editorial_plan_batches_map_ranking_and_cascade() {
+        let request = CompileEditorialPlanRequest {
+            fps_num: 24,
+            fps_den: 1,
+            scene_windows: BTreeMap::from([("scene-1".to_owned(), [0, 5_000_000])]),
+            items: vec![
+                item("map-a", 0, 2_000_000, true),
+                item("map-b", 1_500_000, 1_000_000, true),
+                item("image", 1_600_000, 500_000, false),
+            ],
+            entity_scenes: vec![EntityRankingScene {
+                entities: vec![EntityRankingInput {
+                    entity_id: "person-tim".to_owned(),
+                    overlay_id: "overlay-s0-tim".to_owned(),
+                    entity_type: "PERSON".to_owned(),
+                    confidence: 0.98,
+                }],
+            }],
+            entrance_items: vec![
+                cascade_item("image", "entity_image", 100, 3_000, Some(8)),
+                cascade_item("phrase", "text_phrase", 0, 3_000, Some(8)),
+            ],
+        };
+        let plan = compile_editorial_plan(request.clone());
+        assert_eq!(
+            plan.pre_budget_edits,
+            trim_map_windows_before_budget(ResolveMapOverlapsRequest {
+                fps_num: request.fps_num,
+                fps_den: request.fps_den,
+                scene_windows: request.scene_windows.clone(),
+                items: request.items.clone(),
+            })
+        );
+        assert_eq!(
+            plan.timing_edits,
+            resolve_map_overlaps(ResolveMapOverlapsRequest {
+                fps_num: request.fps_num,
+                fps_den: request.fps_den,
+                scene_windows: request.scene_windows.clone(),
+                items: request.items.clone(),
+            })
+        );
+        assert_eq!(
+            plan.ranked_entities,
+            rank_entity_overlays(RankEntityOverlaysRequest {
+                scenes: request.entity_scenes.clone(),
+            })
+        );
+        assert_eq!(
+            plan.entrance_edits,
+            cascade_clustered_entrances(CascadeEntrancesRequest {
+                fps_num: request.fps_num,
+                fps_den: request.fps_den,
+                items: request.entrance_items.clone(),
+            })
+        );
+    }
+
+    #[test]
+    fn compile_editorial_plan_is_empty_without_inputs() {
+        let plan = compile_editorial_plan(CompileEditorialPlanRequest {
+            fps_num: 0,
+            fps_den: 0,
+            scene_windows: BTreeMap::new(),
+            items: Vec::new(),
+            entity_scenes: Vec::new(),
+            entrance_items: Vec::new(),
+        });
+        assert!(plan.pre_budget_edits.is_empty());
+        assert!(plan.timing_edits.is_empty());
+        assert!(plan.ranked_entities.is_empty());
+        assert!(plan.entrance_edits.is_empty());
     }
 
     #[test]
