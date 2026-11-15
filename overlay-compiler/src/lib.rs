@@ -10,7 +10,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod chapter_bullet;
 mod editorial_plan_v2;
+pub use chapter_bullet::*;
 pub use editorial_plan_v2::*;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -208,13 +210,11 @@ fn cascade_content_priority(item: &CascadeEntranceItem) -> i32 {
         kind.as_str(),
         "entity_image" | "entity_card" | "organization" | "location" | "concept"
     );
-    let section_priority = if item.image_layer_count > 1 || item.asset_ref_count > 1 {
-        Some(60)
-    } else if item.image_layer_count == 1 {
-        Some(60)
-    } else if item.asset_ref_count == 1
-        && entity_kind
-        && (!item.entity_caption.trim().is_empty() || !item.text.trim().is_empty())
+    let section_priority = if item.image_layer_count >= 1
+        || item.asset_ref_count > 1
+        || (item.asset_ref_count == 1
+            && entity_kind
+            && (!item.entity_caption.trim().is_empty() || !item.text.trim().is_empty()))
     {
         Some(60)
     } else if matches!(template.as_str(), "IMPORTANT_PHRASE")
