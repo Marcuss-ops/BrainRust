@@ -149,8 +149,7 @@ Tests follow two conventions, both split by topic — never by size:
   objects_values, scoring_guards plus `common.rs`). In both, the folder is
   wired with `#[cfg(test)] #[path = "<folder>/mod.rs"]`; each topic file sees
   production items through `super::super::*` and shared helpers through
-  `super::common::*`. `pipelinegen-muscles` follows the same rule with its
-  two small `render_clip_tests*` modules. These paths exist because their
+  `super::common::*`. These paths exist because their
   subjects expose `pub(crate)` items that integration binaries cannot see
   (for example `visualner`'s test-only `tokenize`); do not move them to
   `tests/` without making private items public.
