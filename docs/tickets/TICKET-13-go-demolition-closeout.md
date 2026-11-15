@@ -166,9 +166,10 @@ go vet ./internal/capabilities/images/entitycatalog ./internal/capabilities/scri
 ```
 
 The 13b targeted tests and the entitycatalog package pass. The full
-`scripts/...` tree is currently red in three localized-render tests from a
-separate uncommitted Chronon refactor; the final-job subtitle matrix itself
-passes after the single certified render language was restored.
+`scripts/...` tree is green as well (`go test ./internal/capabilities/scripts/... -count=1`);
+the three localized-render tests were resolved by the concurrent Chronon
+refactor, and the final-job subtitle matrix passes after the single certified
+render language was restored.
 
 ### 13c — audio timing: verify, then delete residue — DONE (2026-11-15)
 
@@ -304,24 +305,63 @@ go test ./internal/platform/media/rustexec -run 'TestCompileEditorialPlan|TestOv
 go vet ./internal/platform/media/rustexec/...                                             # pass
 ```
 
-Remaining for 13d: port the interleaved planner phases into the batch, wire
-`compileOverlayPlanWithMotionOffset` to one call, and delete the Go
-editorial/card selection. Do not mark 13d DONE until those conditions hold.
+Remaining for 13d — single-call port (OPEN, not implemented). This is not a
+mechanical swap: the Go planner package is 15,171 non-test LOC with 14,660 LOC
+of tests, and the scripts overlay planner/editorial/card layer is another
+6,098 non-test LOC. The four phases are interleaved because trim feeds
+`BuildPlan`'s budget, ranking feeds card resolution, cascade feeds motion
+layout, and overlap resolution feeds the seal. A batch applied after the
+planner would run those decisions on items the planner has not selected yet;
+that is forbidden by this ticket.
+
+Execution plan:
+
+1. Expand `CompileEditorialPlanRequest` into a versioned full-plan request:
+   language, fps, scene windows, canvas/toggles/budgets, semantic manifest,
+   scene text/timing/annotations, entity timeline, resolved plate/image refs,
+   and the runtime media/materialization index. Response must be either the
+   final item set plus placements/intake or a complete, validated edit set;
+   no nullable "fallback" path.
+2. Port the planner phases in their real order to `overlay-compiler`: scene
+   surfaces + chapter/editorial projection, entity card resolution + ranking,
+   admission/budget/group caps, style/animation finalization, and seal. Keep
+   opaque render metadata opaque; never re-derive it in Rust.
+3. Replace `compileOverlayPlanWithMotionOffset` with: build request → one
+   `compile_editorial_plan` call → validate/apply response → seal. Delete
+   `editorial_overlay.go`, the Go card-selection helpers and the four
+   per-concern ports once parity is proven.
+4. Add parity/golden coverage before deleting anything: map trim, entity
+   ranking, entrance cascade, map-overlap resolution, editorial/card category
+   filtering, image/materialization rejection, and byte-identical sealed
+   plans for representative fixtures. Add a real-worker test for the single
+   round-trip.
+5. Run `cargo test -p overlay-compiler -p semantic-core -p semantic-engine
+   --lib`, `cargo fmt --all -- --check`, `go test
+   ./internal/capabilities/scripts/... ./internal/platform/media/rustexec/...`,
+   `make verify-agent`, and `make verify-main` before marking 13d DONE.
+
+Do not mark 13d DONE until steps 1–5 hold. The current verified state keeps
+the four batch ports: no silent approximation and no Go-only fallback.
 
 **Verification boundary (2026-11-15).** The full
-`go test ./internal/platform/media/rustexec/...` suite passes (79s), and
-`make verify-agent` passes foundation/static/vet. Its component gate is red
-only in `internal/capabilities/scripts` on the separate Chronon render
-refactor; no TICKET-13 test fails. `make verify-main` was not run.
+`go test ./internal/platform/media/rustexec/...` suite passes (74s), and
+`make verify-agent` passes end-to-end (`final: PASS`) with every component
+reported PASS or cache-hit, including `script`, `rust` and `timeline`.
+`make verify-main` also passes end-to-end: foundation, static, full Go tests,
+changed-components (`final=PASS`) and architecture checks
+(`CLIP_RENDER_CUTOVER=PASS`). The full `go test
+./internal/capabilities/scripts/...` tree passes, and the real-worker smoke
+`TestSemanticEngineRealBinaryProjectsLinkedEntities` passes in 2.94s. No
+TICKET-13 test fails.
 
 **Final-job subtitle cleanup (2026-11-15).** The pre-render had started
 iterating `fixedRenderLanguages`, producing one fragment per target language.
 A final job is one video in the language the run already certified;
 `ensureFinalJobFixedMediaSubtitles` now resolves that single language through
 `finalJobRenderLanguage` and skips every already-certified clip. The four
-`final_job_subtitles` tests pass. The full `scripts/...` tree is not green
-because the separate uncommitted localized-render refactor fails three
-`runner_localized_render` tests.
+`final_job_subtitles` tests pass, and the full `scripts/...` tree is green
+after the concurrent localized-render refactor updated its expectations and
+fixtures.
 
 ### 13e — in-flight concurrent work (do not duplicate, just sequence after)
 
@@ -347,12 +387,11 @@ because the separate uncommitted localized-render refactor fails three
 4. **13b — REGISTRY DONE (2026-11-15, `8b4482660`)** — verified registry
    moved to the Go `entitycatalog` owner; Rust `imagecatalog` stays offline
    by canonical design. Card selection stays with 13d's op.
-5. **13d — Rust op + Go batch ports DONE (2026-11-15)** —
+5. **13d — Rust op + Go batch ports DONE (2026-11-15); SINGLE-CALL PORT OPEN** —
    `compile_editorial_plan` batches the four timing/ranking/cascade decisions
-   in `overlay-compiler`, and all four Go ports now use it. Remaining: port
-   the interleaved planner phases into the batch, delete the Go editorial/card
-   selection, and wire `compileOverlayPlanWithMotionOffset` to one call. The
-   one-call cutover is still open.
+   in `overlay-compiler`, and all four Go ports now use it. `make verify-agent`
+   and `make verify-main` pass. Remaining: execute the single-call port plan
+   above; do not mark 13d DONE before parity.
 
 Per-unit verification commands:
 

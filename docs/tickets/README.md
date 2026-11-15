@@ -30,7 +30,7 @@ Status vocabulary:
 | [10](TICKET-10-multimodal-pgvector.md) | P2 | BLOCKED | Requires SigLIP/pgvector, a schema and a calibrated held-out dataset. |
 | [11](TICKET-11-discourse-continuity.md) | P0 | DONE (deterministic core) | Additive `discourse.v1` references, ambiguity, threads and scene continuity. |
 | [12](TICKET-12-mvp-semantic-contract.md) | P0 | DONE (bound/Rust) | v3 linked-entity projection, local index/linker, typed intents, Go v3 consumer, intent/index cache key, verified-hit admission, stop-on-satisfaction and cross-repo smoke pass; only the revised SLO agreement remains external. |
-| [13](TICKET-13-go-demolition-closeout.md) | P1 | PARTIAL | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d Rust op + Go batch ports DONE (`ded9f28`, `68ddb83f5`, `652c03217`): all four overlay ports use `compile_editorial_plan`, but the planner still calls them at four phases. Remaining: port the interleaved planner phases into one call, delete Go editorial/card selection, and run full verify-main. |
+| [13](TICKET-13-go-demolition-closeout.md) | P1 | PARTIAL | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d Rust op + Go batch ports DONE (`ded9f28`, `68ddb83f5`, `652c03217`): all four overlay ports use `compile_editorial_plan`, but the planner still calls them at four phases. `make verify-agent` and `make verify-main` PASS; remaining: the single-call planner port and deletion of Go editorial/card selection (execution plan in the ticket). |
 
 ## Verification — 2026-11-15 (ticket 12, Rust core)
 
@@ -59,6 +59,20 @@ Status vocabulary:
   gone. The Go MP3 frame-duration parser was deleted: synthesized audio
   duration comes only from the shared media executor probe.
 
+## Verification — 2026-11-15 (ticket 13 cleanup)
+
+- `make verify-main` — PASS (foundation, static, full Go tests, changed
+  components `final=PASS`, archcheck/C2, `CLIP_RENDER_CUTOVER=PASS`).
+- `make verify-agent` — PASS (`final: PASS`); every component PASS or
+  cache-hit, including `script`, `rust` and `timeline`.
+- `go test ./internal/capabilities/scripts/... -count=1` — all packages pass.
+- `go test ./internal/platform/media/rustexec/... -count=1` — pass (74s);
+  `TestSemanticEngineRealBinaryProjectsLinkedEntities` — pass (2.94s).
+- `gofmt -l .` and `git diff --check` — clean.
+- `cargo fmt --all -- --check` — clean.
+- `cargo test -p overlay-compiler -p semantic-core -p semantic-engine --lib`
+  — pass (8 + 151 + 53 tests).
+
 ## Verification — 2026-11-15 (ticket 12, Go consumer)
 
 - Cache-key tests: intent, query class, provider, verifier and entity-index
@@ -71,8 +85,8 @@ Status vocabulary:
   closed.
 - Cross-repo: `TestSemanticEngineRealBinaryProjectsLinkedEntities` passes
   against the release BrainRust binary in 3.28 s with UDPipe models.
-- The broad Go suite is currently red on unrelated in-flight
-  `overlay_plan_*` signature changes; those files are outside the WP5 diff.
+- The broad Go suite is green as of the ticket-13 cleanup above; the earlier
+  `overlay_plan_*` signature churn has landed.
 
 ## Verification — 2026-11-11 (tickets 01–11)
 
