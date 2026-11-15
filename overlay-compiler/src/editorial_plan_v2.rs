@@ -181,6 +181,8 @@ pub struct EditorialSceneV2 {
     #[serde(default)]
     pub title_source: String,
     #[serde(default)]
+    pub globally_indexed: bool,
+    #[serde(default)]
     pub bullets: Vec<EditorialBulletV2>,
 }
 
@@ -239,6 +241,8 @@ pub struct ScenePhraseV2 {
     pub duration_us: i64,
     pub score: f64,
     pub presentation_role: String,
+    #[serde(default)]
+    pub candidate: String,
 }
 
 impl EditorialPlanV2Request {
@@ -416,6 +420,15 @@ impl EditorialPlanV2Response {
                         phrase.presentation_role
                     ));
                 }
+                if !matches!(
+                    phrase.candidate.as_str(),
+                    "" | "title" | "bullet" | "opening"
+                ) {
+                    return Err(format!(
+                        "editorial plan response: invalid candidate {:?}",
+                        phrase.candidate
+                    ));
+                }
             }
         }
         Ok(())
@@ -484,12 +497,281 @@ fn is_lower_hex_64(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+/// Projects every grounded editorial title and bullet that can render for the
+/// request's language. The result is a candidate set: category toggles,
+/// grounding, exact word timing and scene bounds are applied, but no run-level
+/// budget or card choice is made here.
+pub fn project_editorial_scenes(
+    request: &EditorialPlanV2Request,
+) -> Result<EditorialPlanV2Response, String> {
+    request.validate()?;
+    let manifest = request
+        .editorial
+        .as_ref()
+        .ok_or("editorial plan: editorial manifest is required")?;
+    if !manifest.certified {
+        return Err("editorial plan: editorial manifest is not certified".to_string());
+    }
+    if !manifest
+        .source_language
+        .eq_ignore_ascii_case(request.language.trim())
+    {
+        return Err(format!(
+            "editorial plan: manifest language {:?} does not match {:?}",
+            manifest.source_language, request.language
+        ));
+    }
+    if !request.source_language.trim().is_empty()
+        && !manifest
+            .source_language
+            .eq_ignore_ascii_case(request.source_language.trim())
+    {
+        return Err(format!(
+            "editorial plan: manifest language {:?} does not match source {:?}",
+            manifest.source_language, request.source_language
+        ));
+    }
+
+    let scenes: BTreeMap<&str, &SceneV2> = request
+        .scenes
+        .iter()
+        .map(|scene| (scene.id.as_str(), scene))
+        .collect();
+    let mut scene_phrases: BTreeMap<String, Vec<ScenePhraseV2>> = BTreeMap::new();
+    for editorial in &manifest.scenes {
+        let Some(scene) = scenes.get(editorial.scene_id.as_str()) else {
+            continue;
+        };
+        if scene.duration_us <= 0 || scene.timeline_start_us < 0 {
+            continue;
+        }
+        if scene
+            .execution_mode
+            .trim()
+            .eq_ignore_ascii_case("fixed_media")
+        {
+            continue;
+        }
+        if scene.short_phrase_overlay {
+            continue;
+        }
+        let text = scene.text.trim();
+        if text.is_empty() {
+            continue;
+        }
+        let Some(timing) = scene
+            .voiceover
+            .as_ref()
+            .and_then(|voice| voice.timing.as_ref())
+        else {
+            continue;
+        };
+        if locate_phrase(timing, text).is_none() {
+            continue;
+        }
+        let window_start = scene.timeline_start_us;
+        let window_end = window_start.saturating_add(scene.duration_us);
+        let mut phrases = Vec::new();
+
+        if category_enabled(scene, &request.canvas, "titles")
+            && editorial.title_status == "resolved"
+        {
+            if let Some(title) = editorial
+                .title
+                .as_deref()
+                .map(str::trim)
+                .filter(|title| !title.is_empty())
+            {
+                if valid_title_source(&editorial.title_source) && grounded(text, title) {
+                    if let Some((start_us, end_us)) = locate_phrase(timing, title) {
+                        if let Some(phrase) = scene_phrase(
+                            title,
+                            start_us,
+                            end_us,
+                            window_start,
+                            window_end,
+                            1.0,
+                            "scene_title",
+                            "title",
+                        ) {
+                            phrases.push(phrase);
+                        }
+                    }
+                }
+            }
+        }
+
+        if category_enabled(scene, &request.canvas, "bullets") {
+            for bullet in &editorial.bullets {
+                let bullet_text = bullet.text.trim();
+                if bullet_text.is_empty()
+                    || bullet.sentence_start < 0
+                    || bullet.sentence_end <= bullet.sentence_start
+                {
+                    continue;
+                }
+                if !grounded(text, bullet_text) {
+                    continue;
+                }
+                if !editorial.globally_indexed {
+                    let Some(span) = editorial_sentence_span(
+                        text,
+                        bullet.sentence_start as usize,
+                        bullet.sentence_end as usize,
+                    ) else {
+                        continue;
+                    };
+                    if !span.eq_ignore_ascii_case(bullet_text) {
+                        continue;
+                    }
+                }
+                if let Some((start_us, end_us)) = locate_phrase(timing, bullet_text) {
+                    if let Some(phrase) = scene_phrase(
+                        bullet_text,
+                        start_us,
+                        end_us,
+                        window_start,
+                        window_end,
+                        0.99,
+                        "scene_bullet",
+                        "bullet",
+                    ) {
+                        phrases.push(phrase);
+                    }
+                }
+            }
+        }
+
+        if !phrases.is_empty() {
+            scene_phrases.insert(editorial.scene_id.clone(), phrases);
+        }
+    }
+    Ok(EditorialPlanV2Response {
+        schema_version: EDITORIAL_PLAN_V2_SCHEMA_VERSION.to_string(),
+        scene_phrases,
+        covered_scenes: Vec::new(),
+    })
+}
+
+fn category_enabled(scene: &SceneV2, canvas: &CanvasV2, category: &str) -> bool {
+    if let Some(toggle) = scene.overlay_categories.get(category) {
+        if !toggle.is_empty() && toggle != "default" {
+            return toggle != "disabled";
+        }
+    }
+    canvas
+        .overlay_categories
+        .get(category)
+        .map(|toggle| toggle != "disabled")
+        .unwrap_or(true)
+}
+
+fn valid_title_source(source: &str) -> bool {
+    matches!(source.trim(), "topic_validated" | "extractive_keyphrase")
+}
+
+fn grounded(scene_text: &str, phrase: &str) -> bool {
+    !phrase.is_empty() && scene_text.to_lowercase().contains(&phrase.to_lowercase())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scene_phrase(
+    text: &str,
+    start_us: i64,
+    end_us: i64,
+    window_start: i64,
+    window_end: i64,
+    score: f64,
+    presentation_role: &str,
+    candidate: &str,
+) -> Option<ScenePhraseV2> {
+    let clipped_start = window_start.saturating_add(start_us);
+    let clipped_end = window_start.saturating_add(end_us);
+    if clipped_end <= clipped_start || clipped_start < window_start || clipped_end > window_end {
+        return None;
+    }
+    Some(ScenePhraseV2 {
+        text: text.to_string(),
+        start_us: clipped_start,
+        duration_us: clipped_end - clipped_start,
+        score,
+        presentation_role: presentation_role.to_string(),
+        candidate: candidate.to_string(),
+    })
+}
+
+fn editorial_sentence_span(text: &str, start: usize, end: usize) -> Option<String> {
+    if end <= start {
+        return None;
+    }
+    let mut sentences = Vec::new();
+    let mut sentence_start = 0;
+    for (index, character) in text.char_indices() {
+        if !matches!(character, '.' | '!' | '?' | '\n') {
+            continue;
+        }
+        let sentence_end = index + character.len_utf8();
+        let sentence = text[sentence_start..sentence_end].trim();
+        if !sentence.is_empty() {
+            sentences.push(sentence.to_string());
+        }
+        sentence_start = sentence_end;
+    }
+    let tail = text[sentence_start..].trim();
+    if !tail.is_empty() {
+        sentences.push(tail.to_string());
+    }
+    if end > sentences.len() {
+        return None;
+    }
+    Some(sentences[start..end].join(" "))
+}
+
+/// Exact contiguous phrase location over the certified word timing. Tokens are
+/// lowercased and split on non-alphanumeric characters on both sides, so
+/// punctuation and dash-joined TTS words align without fabricating timing.
+fn locate_phrase(timing: &TimingV2, phrase: &str) -> Option<(i64, i64)> {
+    let query = phrase_tokens(phrase);
+    if query.is_empty() {
+        return None;
+    }
+    let mut words: Vec<(String, usize)> = Vec::new();
+    for (index, word) in timing.words.iter().enumerate() {
+        for token in phrase_tokens(&word.text) {
+            words.push((token, index));
+        }
+    }
+    if query.len() > words.len() {
+        return None;
+    }
+    for start in 0..=words.len() - query.len() {
+        if words[start..start + query.len()]
+            .iter()
+            .zip(query.iter())
+            .all(|((token, _), expected)| token == expected)
+        {
+            let first = words[start].1;
+            let last = words[start + query.len() - 1].1;
+            return Some((timing.words[first].start_us, timing.words[last].end_us));
+        }
+    }
+    None
+}
+
+fn phrase_tokens(value: &str) -> Vec<String> {
+    value
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .map(|token| token.to_lowercase())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        ChapterBulletV2, ChapterManifestV2, ChapterV2, EditorialBulletV2, EditorialManifestV2,
-        EditorialPlanV2Request, EditorialPlanV2Response, EditorialSceneV2, PlanIdentityV2,
-        ScenePhraseV2, SceneV2, TimingV2, VoiceoverV2, WordTimingV2,
+        project_editorial_scenes, ChapterBulletV2, ChapterManifestV2, ChapterV2, EditorialBulletV2,
+        EditorialManifestV2, EditorialPlanV2Request, EditorialPlanV2Response, EditorialSceneV2,
+        PlanIdentityV2, ScenePhraseV2, SceneV2, TimingV2, VoiceoverV2, WordTimingV2,
         CHAPTER_MANIFEST_SCHEMA_VERSION, EDITORIAL_MANIFEST_SCHEMA_VERSION,
         EDITORIAL_PLAN_V2_SCHEMA_VERSION, EDITORIAL_PROFILE_VERSION,
     };
@@ -557,6 +839,7 @@ mod tests {
                 title: Some("Nike corre".to_string()),
                 title_status: "resolved".to_string(),
                 title_source: "sentence".to_string(),
+                globally_indexed: true,
                 bullets: vec![EditorialBulletV2 {
                     sentence_start: 0,
                     sentence_end: 1,
@@ -673,6 +956,7 @@ mod tests {
                 duration_us: 1_500_000,
                 score: 1.0,
                 presentation_role: "scene_title".to_string(),
+                candidate: "title".to_string(),
             }],
         );
         let response = EditorialPlanV2Response {
@@ -694,6 +978,7 @@ mod tests {
                 duration_us: 1_500_000,
                 score: 1.0,
                 presentation_role: "title".to_string(),
+                candidate: "title".to_string(),
             }],
         );
         let response = EditorialPlanV2Response {
@@ -705,5 +990,96 @@ mod tests {
             .validate()
             .expect_err("role")
             .contains("invalid presentation_role"));
+    }
+
+    fn projection_request() -> EditorialPlanV2Request {
+        let mut request = request();
+        let words = ["Nike", "corre.", "La", "statua", "è", "al", "museo."];
+        let timing = TimingV2 {
+            duration_us: 1_500_000,
+            words: words
+                .iter()
+                .enumerate()
+                .map(|(index, text)| WordTimingV2 {
+                    index: index as i64,
+                    text: (*text).to_string(),
+                    start_us: index as i64 * 100_000,
+                    end_us: (index as i64 + 1) * 100_000,
+                })
+                .collect(),
+        };
+        request.scenes[0].voiceover = Some(VoiceoverV2 {
+            timing: Some(timing),
+        });
+        let editorial = request.editorial.as_mut().expect("editorial");
+        editorial.scenes[0].title_source = "topic_validated".to_string();
+        editorial.scenes[0].globally_indexed = true;
+        editorial.scenes[0].bullets = vec![
+            EditorialBulletV2 {
+                sentence_start: 0,
+                sentence_end: 1,
+                text: "Nike corre.".to_string(),
+            },
+            EditorialBulletV2 {
+                sentence_start: 1,
+                sentence_end: 2,
+                text: "La statua è al museo.".to_string(),
+            },
+        ];
+        request
+    }
+
+    #[test]
+    fn projection_emits_all_grounded_candidates() {
+        let response = project_editorial_scenes(&projection_request()).expect("projection");
+        let phrases = &response.scene_phrases["scene-1"];
+        assert_eq!(3, phrases.len());
+        assert_eq!(
+            vec!["title", "bullet", "bullet"],
+            phrases
+                .iter()
+                .map(|phrase| phrase.candidate.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(0, phrases[0].start_us);
+        assert_eq!(200_000, phrases[0].duration_us);
+        assert_eq!(200_000, phrases[2].start_us);
+    }
+
+    #[test]
+    fn projection_respects_scene_category_override() {
+        let mut request = projection_request();
+        request.scenes[0]
+            .overlay_categories
+            .insert("bullets".to_string(), "disabled".to_string());
+        let response = project_editorial_scenes(&request).expect("projection");
+        let phrases = &response.scene_phrases["scene-1"];
+        assert_eq!(1, phrases.len());
+        assert_eq!("title", phrases[0].candidate);
+    }
+
+    #[test]
+    fn projection_drops_ungrounded_title_but_keeps_bullets() {
+        let mut request = projection_request();
+        request.editorial.as_mut().expect("editorial").scenes[0].title =
+            Some("Invented".to_string());
+        let response = project_editorial_scenes(&request).expect("projection");
+        let phrases = &response.scene_phrases["scene-1"];
+        assert_eq!(2, phrases.len());
+        assert!(phrases.iter().all(|phrase| phrase.candidate == "bullet"));
+    }
+
+    #[test]
+    fn projection_fails_closed_on_out_of_window_and_short_phrase() {
+        let mut request = projection_request();
+        request.scenes[0].timeline_start_us = 10_000_000;
+        request.scenes[0].duration_us = 100_000;
+        let response = project_editorial_scenes(&request).expect("projection");
+        assert!(response.scene_phrases.is_empty());
+
+        let mut request = projection_request();
+        request.scenes[0].short_phrase_overlay = true;
+        let response = project_editorial_scenes(&request).expect("projection");
+        assert!(response.scene_phrases.is_empty());
     }
 }
