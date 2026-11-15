@@ -128,19 +128,45 @@ finish by deleting the scripts-side re-implementation and pointing
 selection moves into the `compile_editorial_plan` op (13d) so cards and
 extractive callouts are planned by the same brain in the same pass.
 
-### 13c — audio timing: verify, then delete residue
+### 13c — audio timing: verify, then delete residue — DONE (2026-11-15)
 
 `render_audio_plan` already returns certified word-level timing; the
 editorial extractor requires it before anything renders (`editorial_overlay`
 comments say "certified word audio timing"). Canonical sample rate lives in
-`audio_copy::CANONICAL_SAMPLE_RATE` (ticket 09). What remains:
+`audio_copy::CANONICAL_SAMPLE_RATE` (ticket 09).
 
-- Audit `internal/capabilities/scripts/` for any residual timing math
-  (durations derived in Go instead of read from the plan). Grep targets:
-  `Timing`, `Duration`, `SampleRate` in scripts/*.go.
-- Any Go-side derivation that disagrees with the plan is a bug by
-  construction; delete the derivation, read the plan, fail closed if the
-  plan lacks it.
+Audit result:
+
+- The canonical scene timeline is compiled once by
+  `compileResolvedSceneTimeline`; final duration/profile come from the
+  `render_audio_plan` response metadata. No Go path re-derives event timing
+  from the rendered file or a second audio timeline.
+- The residual duplicate authority was the 40 ms AAC padding tolerance,
+  repeated as literals in five Go gates. It now lives only in
+  `internal/capabilities/audio` as `FinalAudioDurationToleranceUS` /
+  `FinalAudioDurationToleranceMS`, consumed by `ValidateFinalAudio`,
+  `ValidateFinalAudioReference`, `ValidateMasterAudioInvariants`,
+  `final_job_payload.go` and `final_job_compiled_plan.go`. No numeric literal
+  for this window remains outside the constant definition.
+- Deliberate non-demolition: `internal/platform/audio/mp3_duration.go` walks
+  MP3 frame headers as a TTS post-process fast path. It computes a
+  provider-asset duration, not plan/event authority, and falls back to the
+  authoritative Rust media probe on any unexpected shape. Deleting it would
+  put ~140 chunk probes per run back on the shared 4-runner media pool; that
+  is a measured performance regression, not a demolition. Keep it until a
+  Rust-side fast probe replaces it.
+
+Evidence (2026-11-15, `refactored`):
+
+```sh
+gofmt -w internal/capabilities/audio/strategy.go \
+  internal/capabilities/scripts/audio_timeline.go \
+  internal/capabilities/scripts/final_job_payload.go \
+  internal/capabilities/scripts/final_job_compiled_plan.go \
+  internal/capabilities/scripts/audio_timeline_test.go
+go vet ./internal/capabilities/audio ./internal/capabilities/scripts/...   # exit 0
+go test ./internal/capabilities/audio ./internal/capabilities/scripts/...   # all packages pass
+```
 
 ### 13d — the last big cut: `compile_editorial_plan`
 
@@ -187,8 +213,9 @@ compiler is required: …`) on worker absence. Same discipline as
 
 1. **Push the four local commits** (see table) after one `make verify-main`.
    Do not start 13a on an unpushed base.
-2. **13c (audit-only)** — cheapest unit, no Rust change; produces the
-   residue list used by 13d.
+2. **13c (audit-only) — DONE (2026-11-15)** — cheapest unit, no Rust
+   change; the residue list is recorded above and the duplicated 40 ms
+   tolerance was collapsed to one Go constant.
 3. **13a** — entity decisions → Rust. Per AGENTS.md: package tests after the
    change, then `make verify-agent`; commit as one focused unit
    (`refactor(scripts): project entity annotations instead of re-deciding them`).
