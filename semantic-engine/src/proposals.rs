@@ -5,7 +5,7 @@ pub(crate) fn to_visual_proposal(
     scene_id: &str,
     index: usize,
     source: &str,
-    language: &str,
+    _language: &str,
 ) -> (VisualProposal, Option<SearchFeedbackEntry>) {
     let score = match candidate.kind {
         "chart" => 0.9,
@@ -22,47 +22,11 @@ pub(crate) fn to_visual_proposal(
     // Cards and co-mention layouts reuse that asset; emitting the same exact
     // query again for each presentation proposal inflated retrieval feedback
     // without creating a distinct search opportunity.
-    if candidate.kind == "entity_search" && !candidate.entity_texts.is_empty() {
-        for text in &candidate.entity_texts {
-            if text.is_empty() || is_noise_query(text) || !source.contains(text.as_str()) {
-                continue;
-            }
-            if candidate.kind == "entity_search" {
-                if let Some(span) =
-                    semantic_core::sentences::split_sentences(source, language, None)
-                        .into_iter()
-                        .find(|span| {
-                            span.start_byte <= candidate.start && span.end_byte >= candidate.end
-                        })
-                {
-                    if let Some(sentence) = source.get(span.start_byte..span.end_byte) {
-                        let sentence = sentence.trim();
-                        let mut compact = compact_entity_context(
-                            sentence,
-                            candidate.start.saturating_sub(span.start_byte),
-                            language,
-                        );
-                        if compact == sentence {
-                            compact = sentence.trim_end_matches(['.', '!', '?', '。']).to_string();
-                        }
-                        let suggestions: [String; 2] = [compact, sentence.to_string()];
-                        for suggestion in suggestions {
-                            if suggestion.as_str() != text.as_str()
-                                && source.contains(suggestion.as_str())
-                                && !is_noise_query(&suggestion)
-                                && !visual_query_suggestions
-                                    .iter()
-                                    .any(|query| query == &suggestion)
-                            {
-                                visual_query_suggestions.push(suggestion.clone());
-                                queries.push(SearchQuery::literal(suggestion));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Identity retrieval is the high-recall first intent. Do not append a
+    // raw token window or the full sentence: auxiliary + inflected verb
+    // sequences narrow provider recall and turn BrainRust into a query
+    // rewriter. Contextual intents require typed semantic slots and are
+    // emitted by the dedicated query planner, never by slicing adjacent text.
     // Every presentation proposal carries the exact grounded subject query so
     // a card or layout can be resolved without a second lookup. Only the
     // entity_search proposal owns retrieval feedback entries: duplicating the
@@ -110,46 +74,6 @@ pub(crate) fn to_visual_proposal(
         end_byte: candidate.end,
     };
     (proposal, feedback)
-}
-
-/// Builds a short fallback around the entity head instead of taking the
-/// sentence prefix. The generated language pack trims a dangling function
-/// word, while the returned query remains an exact source slice.
-fn compact_entity_context(sentence: &str, entity_start: usize, language: &str) -> String {
-    let Some(tail) = sentence.get(entity_start..) else {
-        return String::new();
-    };
-    let mut spans = Vec::new();
-    let mut word_start = None;
-    for (index, character) in tail.char_indices() {
-        if character.is_whitespace() {
-            if let Some(start) = word_start.take() {
-                spans.push((start, index));
-            }
-        } else if word_start.is_none() {
-            word_start = Some(index);
-        }
-    }
-    if let Some(start) = word_start {
-        spans.push((start, tail.len()));
-    }
-    spans.truncate(4);
-    let Some((_, mut end)) = spans.last().copied() else {
-        return String::new();
-    };
-    if let Some(pack) = semantic_core::language_packs::get(language) {
-        while let Some((start, _)) = spans.last().copied() {
-            let token = tail[start..end]
-                .trim_matches(|character: char| !character.is_alphanumeric())
-                .to_lowercase();
-            if token.is_empty() || !pack.is_stopword(&token) {
-                break;
-            }
-            spans.pop();
-            end = spans.last().map_or(0, |(_, prior_end)| *prior_end);
-        }
-    }
-    tail[..end].trim_end().to_string()
 }
 
 /// Noise surfaces never become search proposals. A curated filler phrase

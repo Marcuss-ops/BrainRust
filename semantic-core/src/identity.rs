@@ -16,8 +16,13 @@ use serde::{Deserialize, Serialize};
 /// the planner can trace the id back to source evidence.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CanonicalIdentity {
-    /// Stable id for the subject (e.g. `person_01`, `org_02`).
+    /// Document-local id for references within this manifest (e.g. `org_02`).
     pub id: String,
+    /// Surface-derived stable identity key, independent of document order.
+    /// This is not an ontology link; linked knowledge-base IDs belong in a
+    /// future additive field when a local entity linker is available.
+    #[serde(default)]
+    pub canonical_id: String,
     /// The surface used as the canonical display form (first-seen surface).
     pub canonical_surface: String,
     /// Closed semantic type (`PERSON`, `ORG`, `LOCATION`, `DATE`, ...).
@@ -83,8 +88,10 @@ impl IdentityRegistry {
                 let index = self.identities.len();
                 self.by_key.insert(key, index);
                 let prefix = id_prefix(kind);
+                let canonical_id = format!("{prefix}:{}", stable_slug(canonical_surface));
                 self.identities.push(CanonicalIdentity {
                     id: format!("{prefix}_{:02}", index + 1),
+                    canonical_id,
                     canonical_surface: canonical_surface.to_string(),
                     kind: kind.to_string(),
                     mentions: Vec::new(),
@@ -138,6 +145,31 @@ fn id_prefix(kind: &str) -> &'static str {
     }
 }
 
+/// Builds an order-independent cache identity without claiming that a
+/// surface-based key has resolved a real-world homonym. Unicode letters and
+/// numbers are retained; punctuation and repeated whitespace become one
+/// hyphen. Type remains part of the key, so `person:mark` and `org:mark` differ.
+fn stable_slug(surface: &str) -> String {
+    let mut slug = String::with_capacity(surface.len());
+    let mut separator = false;
+    for character in surface.trim().chars().flat_map(char::to_lowercase) {
+        if character.is_alphanumeric() {
+            if separator && !slug.is_empty() {
+                slug.push('-');
+            }
+            separator = false;
+            slug.push(character);
+        } else {
+            separator = true;
+        }
+    }
+    if slug.is_empty() {
+        "unresolved".to_string()
+    } else {
+        slug
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +211,22 @@ mod tests {
             (a, b)
         };
         assert_eq!(build(), build());
+    }
+
+    #[test]
+    fn canonical_id_does_not_depend_on_registration_order() {
+        let mut paragraph = IdentityRegistry::new();
+        paragraph.register("ORG", "NASA", "s1", 0, 4);
+        let expected = paragraph.register("ORG", "ANSA", "s1", 9, 13);
+
+        let mut isolated = IdentityRegistry::new();
+        let actual = isolated.register("ORG", "ANSA", "s1", 0, 4);
+
+        assert_ne!(expected, actual, "local IDs remain document scoped");
+        assert_eq!(
+            paragraph.identities()[1].canonical_id,
+            isolated.identities()[0].canonical_id
+        );
+        assert_eq!(isolated.identities()[0].canonical_id, "org:ansa");
     }
 }

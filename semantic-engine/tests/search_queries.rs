@@ -34,35 +34,29 @@ fn every_visual_entity_mention_gets_a_grounded_asset_search_query() {
 }
 
 #[test]
-fn entity_search_queries_include_the_grounded_sentence_context_for_images_and_stock() {
+fn entity_search_queries_use_the_identity_surface_without_raw_sentence_context() {
     let text = "I tifosi festeggiano sugli spalti dopo la vittoria della squadra.";
     let value = manifest_value(vec![scene("tifosi-in-festa", text)]);
     let searches = proposals_of(&value["scenes"][0], "entity_search");
-    // The entity-anchored phrase is compact enough for provider search while
-    // retaining the complete sentence and exact entity as fallbacks.
     let tifosi = searches
         .iter()
-        .find(|proposal| {
-            proposal["visual_query_suggestions"][0] == "tifosi festeggiano sugli spalti"
-        })
+        .find(|proposal| proposal["visual_query_suggestions"][0] == "tifosi")
         .expect("the source-grounded supporter concept gets a search proposal");
     let queries = tifosi["visual_query_suggestions"]
         .as_array()
         .expect("query suggestions array");
     assert_eq!(
-        queries[0], "tifosi festeggiano sugli spalti",
-        "lead with a compact phrase anchored at the visual subject"
+        queries[0], "tifosi",
+        "lead with the high-recall identity surface"
     );
     assert!(
-        queries
-            .iter()
-            .any(|query| query == "tifosi festeggiano sugli spalti"),
-        "keep the exact entity span as a fallback query: {queries:?}"
+        queries.iter().any(|query| query == "tifosi"),
+        "keep the exact entity span as the query: {queries:?}"
     );
     for query in queries {
         assert!(text.contains(query.as_str().unwrap()), "grounded: {query}");
     }
-    assert!(queries.iter().any(|query| query == text));
+    assert_eq!(queries.len(), 1, "untyped sentence windows are not intents");
 }
 
 #[test]

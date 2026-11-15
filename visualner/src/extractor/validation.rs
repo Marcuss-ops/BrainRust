@@ -33,6 +33,22 @@ pub(crate) fn validate_evidence(
     if has_suspicious_asr_digit_fusion(evidence) {
         return None;
     }
+    // Sentence position alone is not evidence of a proper name. A one-word
+    // title-case token at BOS survives only when its shape is structural
+    // (acronym/mixed case) or the configured gazetteer recognizes it. This
+    // keeps ordinary sentence openers out without a language-specific
+    // blacklist and preserves source offsets for accepted names.
+    if is_sentence_initial(source_text, c.start)
+        && c.text.split_whitespace().count() == 1
+        && !has_structural_name_case(&c.text)
+        && !is_exact_gazetteer_name(&c.text, language)
+        && !tokens
+            .iter()
+            .find(|token| token.start == c.start)
+            .is_some_and(|token| token.upos.as_deref() == Some("PROPN"))
+    {
+        return None;
+    }
     // The POS model decides whether a gazetteer hit is a place name. A
     // place is a PROPN whose lemma keeps its capital ("Pavia" -> "Pavia"),
     // while a common noun tagged PROPN by the tagger has a lowercase lemma
@@ -163,6 +179,42 @@ pub(crate) fn validate_evidence(
         source_text,
         language,
     ))
+}
+
+fn is_sentence_initial(source: &str, start: usize) -> bool {
+    let Some(prefix) = source.get(..start) else {
+        return false;
+    };
+    match prefix.trim_end().chars().last() {
+        None => true,
+        Some(character) => matches!(character, '.' | '!' | '?' | '\n' | ':' | ';' | '«' | '"'),
+    }
+}
+
+fn has_structural_name_case(surface: &str) -> bool {
+    let letters: Vec<char> = surface
+        .chars()
+        .filter(|character| character.is_alphabetic())
+        .collect();
+    (letters.len() >= 2 && letters.iter().all(|character| character.is_uppercase()))
+        || letters
+            .iter()
+            .skip(1)
+            .any(|character| character.is_uppercase())
+}
+
+fn is_exact_gazetteer_name(surface: &str, language: &str) -> bool {
+    let gazetteer = &semantic_core::lexicon::lexicon().gazetteer;
+    gazetteer
+        .works
+        .iter()
+        .chain(gazetteer.persons.iter())
+        .chain(gazetteer.brands.iter())
+        .chain(gazetteer.product_names.iter())
+        .chain(gazetteer.locations.iter())
+        .chain(gazetteer.typed_entities.values().flatten())
+        .any(|name| name.eq_ignore_ascii_case(surface))
+        || semantic_core::lexicon::lexicon().is_place(surface, language)
 }
 
 /// A determiner is not part of an organization's or facility's own name

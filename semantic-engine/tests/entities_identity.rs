@@ -254,7 +254,11 @@ fn filler_phrases_headings_and_pronouns_never_become_search_proposals() {
         })
         .expect("Pavia keeps its search proposal");
     let queries = pavia["visual_query_suggestions"].as_array().unwrap();
-    assert_eq!(queries.len(), 3, "full ladder expected: {queries:?}");
+    assert_eq!(
+        queries.len(),
+        1,
+        "only the identity intent is emitted: {queries:?}"
+    );
 }
 
 #[test]
