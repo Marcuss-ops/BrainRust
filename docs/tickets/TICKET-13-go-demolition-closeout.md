@@ -41,6 +41,8 @@ Everything in the inventory below violates one of these two shapes.
 | `8d7495200` | refactored | `watermark` retired (kernel types, alias, transport, tests) — **local, unpushed** |
 | `60e69c8` | BrainRust | `dist-icu72` binaries untracked (release-only distribution) — **local, unpushed** |
 | `578ed4f` | BrainRust | mediaexec.v2 schema retires `watermark`/`render_clip`/`admin_render`; README cleanup — **local, unpushed** |
+| `8bc9ad456` | refactored | final-audio 40 ms tolerance owned by `audio.FinalAudioDurationTolerance*` (13c) — **local, unpushed** |
+| `0868387d4` | refactored | local MP3 duration parser and tests deleted; shared executor probe is the only duration authority (13c) — **local, unpushed** |
 | `eb4bf234b` | refactored | entitycatalog fail-closed on retired/unrecognized states — pushed |
 
 Push gate: `make verify-main` in `refactored` must pass once before pushing
@@ -167,6 +169,9 @@ go vet ./internal/capabilities/audio ./internal/platform/audio ./internal/capabi
 go test ./internal/platform/audio ./internal/capabilities/audio ./internal/capabilities/scripts/...   # all packages pass
 ```
 
+Commits: `8bc9ad456` (single tolerance) and `0868387d4` (MP3 parser
+deleted), both on `main` and local/unpushed at ticket update time.
+
 ### 13d — the last big cut: `compile_editorial_plan`
 
 `internal/capabilities/scripts/editorial_overlay.go` — 444 lines. Today it:
@@ -210,8 +215,9 @@ compiler is required: …`) on worker absence. Same discipline as
 
 ## Execution order and per-unit gates
 
-1. **Push the four local commits** (see table) after one `make verify-main`.
-   Do not start 13a on an unpushed base.
+1. **Push the verified local commits** (see table; the two 13c commits are
+   included) after one `make verify-main`. Do not start 13a on an unpushed
+   base.
 2. **13c (audit-only) — DONE (2026-11-15)** — cheapest unit, no Rust
    change; the residue list is recorded above and the duplicated 40 ms
    tolerance was collapsed to one Go constant.
