@@ -653,6 +653,40 @@ pub fn project_editorial_scenes(
     })
 }
 
+/// Reduces the complete candidate set to the editorial surfaces that may
+/// render: one title and one bullet per scene, in manifest order. This is the
+/// selector the legacy Go projection performed implicitly; keeping it explicit
+/// lets the single-call compiler own the choice without re-running grounding.
+pub fn select_editorial_candidates(
+    response: &EditorialPlanV2Response,
+) -> Result<EditorialPlanV2Response, String> {
+    response.validate()?;
+    let mut scene_phrases: BTreeMap<String, Vec<ScenePhraseV2>> = BTreeMap::new();
+    for (scene_id, phrases) in &response.scene_phrases {
+        let title = phrases.iter().find(|phrase| {
+            phrase.candidate == "title" || phrase.presentation_role == "scene_title"
+        });
+        let bullet = phrases.iter().find(|phrase| {
+            phrase.candidate == "bullet" || phrase.presentation_role == "scene_bullet"
+        });
+        let mut selected = Vec::new();
+        if let Some(title) = title {
+            selected.push(title.clone());
+        }
+        if let Some(bullet) = bullet {
+            selected.push(bullet.clone());
+        }
+        if !selected.is_empty() {
+            scene_phrases.insert(scene_id.clone(), selected);
+        }
+    }
+    Ok(EditorialPlanV2Response {
+        schema_version: response.schema_version.clone(),
+        scene_phrases,
+        covered_scenes: response.covered_scenes.clone(),
+    })
+}
+
 fn category_enabled(scene: &SceneV2, canvas: &CanvasV2, category: &str) -> bool {
     if let Some(toggle) = scene.overlay_categories.get(category) {
         if !toggle.is_empty() && toggle != "default" {
@@ -769,11 +803,12 @@ fn phrase_tokens(value: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        project_editorial_scenes, ChapterBulletV2, ChapterManifestV2, ChapterV2, EditorialBulletV2,
-        EditorialManifestV2, EditorialPlanV2Request, EditorialPlanV2Response, EditorialSceneV2,
-        PlanIdentityV2, ScenePhraseV2, SceneV2, TimingV2, VoiceoverV2, WordTimingV2,
-        CHAPTER_MANIFEST_SCHEMA_VERSION, EDITORIAL_MANIFEST_SCHEMA_VERSION,
-        EDITORIAL_PLAN_V2_SCHEMA_VERSION, EDITORIAL_PROFILE_VERSION,
+        project_editorial_scenes, select_editorial_candidates, ChapterBulletV2, ChapterManifestV2,
+        ChapterV2, EditorialBulletV2, EditorialManifestV2, EditorialPlanV2Request,
+        EditorialPlanV2Response, EditorialSceneV2, PlanIdentityV2, ScenePhraseV2, SceneV2,
+        TimingV2, VoiceoverV2, WordTimingV2, CHAPTER_MANIFEST_SCHEMA_VERSION,
+        EDITORIAL_MANIFEST_SCHEMA_VERSION, EDITORIAL_PLAN_V2_SCHEMA_VERSION,
+        EDITORIAL_PROFILE_VERSION,
     };
     use std::collections::BTreeMap;
 
@@ -1044,6 +1079,31 @@ mod tests {
         assert_eq!(0, phrases[0].start_us);
         assert_eq!(200_000, phrases[0].duration_us);
         assert_eq!(200_000, phrases[2].start_us);
+    }
+
+    #[test]
+    fn selection_keeps_title_and_exactly_one_bullet() {
+        let projected = project_editorial_scenes(&projection_request()).expect("projection");
+        let selected = select_editorial_candidates(&projected).expect("selection");
+        let phrases = &selected.scene_phrases["scene-1"];
+        assert_eq!(2, phrases.len());
+        assert_eq!("title", phrases[0].candidate);
+        assert_eq!("bullet", phrases[1].candidate);
+        assert_eq!("Nike corre.", phrases[1].text);
+    }
+
+    #[test]
+    fn selection_keeps_a_bullet_without_a_title() {
+        let mut projected = project_editorial_scenes(&projection_request()).expect("projection");
+        projected
+            .scene_phrases
+            .get_mut("scene-1")
+            .expect("scene")
+            .remove(0);
+        let selected = select_editorial_candidates(&projected).expect("selection");
+        let phrases = &selected.scene_phrases["scene-1"];
+        assert_eq!(1, phrases.len());
+        assert_eq!("bullet", phrases[0].candidate);
     }
 
     #[test]
