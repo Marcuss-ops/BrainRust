@@ -37,12 +37,12 @@ Everything in the inventory below violates one of these two shapes.
 | --- | --- | --- |
 | `2a557d432` | refactored | semantic entity linking + local scoring wired (P0) — pushed |
 | `03f21d132` | refactored | `render_clip` retired from the mediaexec protocol — pushed |
-| `fc39e03e8` | refactored | Go-only overlay compilation path deleted, resolver fail-closed mandatory (P1) — **local, unpushed** |
-| `8d7495200` | refactored | `watermark` retired (kernel types, alias, transport, tests) — **local, unpushed** |
-| `60e69c8` | BrainRust | `dist-icu72` binaries untracked (release-only distribution) — **local, unpushed** |
-| `578ed4f` | BrainRust | mediaexec.v2 schema retires `watermark`/`render_clip`/`admin_render`; README cleanup — **local, unpushed** |
-| `8bc9ad456` | refactored | final-audio 40 ms tolerance owned by `audio.FinalAudioDurationTolerance*` (13c) — **local, unpushed** |
-| `0868387d4` | refactored | local MP3 duration parser and tests deleted; shared executor probe is the only duration authority (13c) — **local, unpushed** |
+| `fc39e03e8` | refactored | Go-only overlay compilation path deleted, resolver fail-closed mandatory (P1) — pushed |
+| `8d7495200` | refactored | `watermark` retired (kernel types, alias, transport, tests) — pushed |
+| `60e69c8` | BrainRust | `dist-icu72` binaries untracked (release-only distribution) — pushed |
+| `578ed4f` | BrainRust | mediaexec.v2 schema retires `watermark`/`render_clip`/`admin_render`; README cleanup — pushed |
+| `8bc9ad456` | refactored | final-audio 40 ms tolerance owned by `audio.FinalAudioDurationTolerance*` (13c) — pushed |
+| `0868387d4` | refactored | local MP3 duration parser and tests deleted; shared executor probe is the only duration authority (13c) — pushed |
 | `eb4bf234b` | refactored | entitycatalog fail-closed on retired/unrecognized states — pushed |
 
 Push gate: `make verify-main` in `refactored` must pass once before pushing
@@ -215,9 +215,10 @@ compiler is required: …`) on worker absence. Same discipline as
 
 ## Execution order and per-unit gates
 
-1. **Push the verified local commits** (see table; the two 13c commits are
-   included) after one `make verify-main`. Do not start 13a on an unpushed
-   base.
+1. **Push the verified local commits** — DONE (2026-11-15). `make verify-main`
+   passed once, then `03f21d132..c06aef174` (refactored),
+   `4871256..98a1bf3` (BrainRust) and `fe1019b..7fee04b` (root) were pushed.
+   13a starts from this pushed base.
 2. **13c (audit-only) — DONE (2026-11-15)** — cheapest unit, no Rust
    change; the residue list is recorded above and the duplicated 40 ms
    tolerance was collapsed to one Go constant.
