@@ -22,10 +22,31 @@ use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 /// Version of the lexicon tables. Bump whenever a table changes semantics.
-pub const LEXICON_VERSION: &str = "lexicon.v5";
+pub const LEXICON_VERSION: &str = "lexicon.v6";
 
 /// Environment variable naming a directory of overriding table files.
 pub const LEXICON_DIR_ENV: &str = "SEMANTIC_LEXICON_DIR";
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct EntityGazetteerDelta {
+    #[serde(default)]
+    remove_brands: Vec<String>,
+    #[serde(default)]
+    product_names: Vec<String>,
+    #[serde(default)]
+    typed_entities: BTreeMap<String, Vec<String>>,
+}
+
+fn extend_unique(target: &mut Vec<String>, additions: Vec<String>) {
+    for value in additions {
+        if !target
+            .iter()
+            .any(|existing| existing.eq_ignore_ascii_case(&value))
+        {
+            target.push(value);
+        }
+    }
+}
 
 // ── Table shapes ────────────────────────────────────────────────────
 
@@ -173,6 +194,19 @@ impl Lexicon {
                 "entity_gazetteer.json",
                 include_str!("../../lexicon/entity_gazetteer.json"),
             );
+            let mut gazetteer = gazetteer;
+            // Keep product and organization curation in a small, reviewable
+            // delta instead of rewriting the generated GeoNames table.
+            let entity_delta: EntityGazetteerDelta =
+                serde_json::from_str(include_str!("../../lexicon/entity_gazetteer_delta.json"))
+                    .expect("embedded entity gazetteer delta must be valid JSON");
+            gazetteer
+                .brands
+                .retain(|brand| !entity_delta.remove_brands.contains(brand));
+            extend_unique(&mut gazetteer.product_names, entity_delta.product_names);
+            for (kind, names) in entity_delta.typed_entities {
+                extend_unique(gazetteer.typed_entities.entry(kind).or_default(), names);
+            }
             let (place_index, minor_place_aliases) = build_place_index(&gazetteer);
             let place_ambiguities = build_place_ambiguities(&gazetteer);
             let months: Months =

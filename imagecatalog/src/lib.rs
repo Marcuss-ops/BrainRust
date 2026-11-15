@@ -30,7 +30,7 @@ mod clock;
 mod plan;
 pub mod types;
 
-pub use catalog::{AssessedCandidate, CatalogIndex};
+pub use catalog::{candidate_quality_problem, AssessedCandidate, CatalogIndex};
 pub use plan::{plan, plan_from_manifest, plan_text};
 pub use types::{
     CatalogAnnotation, CatalogCandidate, CatalogEntity, CatalogMaterialization, CatalogSnapshot,

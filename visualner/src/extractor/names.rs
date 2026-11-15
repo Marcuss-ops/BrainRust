@@ -237,6 +237,28 @@ fn name_run_continues(tokens: &[Token], bytes: &[u8], index: usize, language: &s
             .any(|b| is_phrase_breaking_byte(*b))
     };
     let token = &tokens[index];
+    // Keep a dotted middle initial attached to both adjacent name words:
+    // "Michael B. Jordan" is one identity, not "Michael B" plus "B. Jordan".
+    // The period is retained in the byte gap by the tokenizer.
+    if index > 0
+        && is_uppercase_initial(&tokens[index - 1].text)
+        && starts_uppercase(&token.text)
+        && !is_stop_token(token, language)
+        && gap_has_period(&bytes[tokens[index - 1].end..token.start])
+    {
+        return true;
+    }
+    if index > 0
+        && token.text.len() == 1
+        && token.text.as_bytes()[0].is_ascii_uppercase()
+        && index + 1 < tokens.len()
+        && starts_uppercase(&tokens[index + 1].text)
+        && !is_stop_token(&tokens[index + 1], language)
+        && gap_has_period(&bytes[token.end..tokens[index + 1].start])
+        && !gap_breaks(index - 1, index)
+    {
+        return true;
+    }
     if starts_uppercase(&token.text)
         && !is_stop_token(token, language)
         && !(token.text.len() == 1 && token.text.as_bytes()[0].is_ascii_uppercase())

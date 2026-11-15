@@ -158,6 +158,45 @@ fn acronym_compounds_are_not_people() {
 }
 
 #[test]
+fn stress_entities_keep_curated_acronym_and_team_types() {
+    let source = "La NASA e l’ESA collaborano con il CERN. L’ANSA racconta la missione dei Chicago Bulls. Nike ha creato Air Jordan.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".into(),
+            entity_count: 20,
+        },
+    )
+    .unwrap();
+    for name in ["NASA", "ESA", "CERN", "ANSA", "Chicago Bulls"] {
+        let entity = entities
+            .iter()
+            .find(|entity| entity.text == name)
+            .unwrap_or_else(|| panic!("{name} missing: {entities:?}"));
+        assert!(
+            matches!(entity.r#type.as_str(), "ORG" | "ORGANIZATION"),
+            "{name}: {entity:?}"
+        );
+    }
+    assert_eq!(
+        entities
+            .iter()
+            .find(|entity| entity.text == "Air Jordan")
+            .map(|entity| entity.r#type.as_str()),
+        Some("BRAND"),
+        "{entities:?}"
+    );
+    assert_eq!(
+        entities
+            .iter()
+            .filter(|entity| entity.text == "ANSA")
+            .count(),
+        1,
+        "an elided article must not create a second organization identity: {entities:?}"
+    );
+}
+
+#[test]
 fn capitalized_multilingual_institution_heads_keep_the_full_name() {
     // The marker head is sometimes tagged as a common noun while its name is
     // tagged as a proper noun. The extractor must keep the full grounded span

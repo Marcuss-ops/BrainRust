@@ -228,6 +228,31 @@ fn dotted_person_initials_keep_the_full_grounded_name() {
 }
 
 #[test]
+fn middle_initial_stays_inside_one_person_identity() {
+    let source = "Michael B. Jordan built a career in cinema.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "en".into(),
+            entity_count: 20,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Michael B. Jordan" && entity.r#type == "PERSON"),
+        "{entities:?}"
+    );
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| matches!(entity.text.as_str(), "Michael B" | "B. Jordan")),
+        "fragments remain: {entities:?}"
+    );
+}
+
+#[test]
 fn dolly_places_and_song_titles_do_not_consume_person_slots() {
     let text = "Dolly Parton was born in Sevier County, Tennessee, in the Great Smoky Mountains. Porter Wagoner worked with Dolly Parton. I Will Always Love You became a song.";
     let entities = extract(

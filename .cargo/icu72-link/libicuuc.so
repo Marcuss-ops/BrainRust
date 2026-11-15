@@ -1,0 +1,9 @@
+/*
+ * ICU 72 link adapter for rust_icu_sys.
+ *
+ * rust_icu_sys links with -licuuc, and the host's unversioned libicuuc.so can
+ * point at a different major (for example ICU 70 on Ubuntu 22.04). Resolve the
+ * link name to the canonical Debian Bookworm soname instead. The runtime
+ * loader finds the same soname through ldconfig.
+ */
+INPUT ( libicuuc.so.72 )

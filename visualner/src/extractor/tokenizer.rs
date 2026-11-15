@@ -81,7 +81,7 @@ pub(crate) fn tokenize_untyped(source_text: &str, language: &str) -> Result<Vec<
             let (_, joiner_end, joiner_word) = segments[index];
             let (next_start, next_end, next_word) = segments[index + 1];
             let joiner = &source_text[token_end..joiner_end];
-            let is_joiner = joiner == "-" || joiner == "'" || joiner == "\u{2019}";
+            let is_joiner = joiner == "-" || is_apostrophe(joiner);
             if is_joiner && !joiner_word && next_word && next_start == joiner_end {
                 token_end = next_end;
                 index += 2;
@@ -137,20 +137,46 @@ fn elided_clitic_split(source_text: &str, token: &Token) -> Option<(usize, usize
     if text != token.text {
         return None;
     }
-    // Only the clitic itself has to be ASCII letters; the name it precedes may
-    // carry any script ("dell'Università", "dell'Abruzzo", "d'Italia" is the
-    // one-letter case that stays attached). Rejecting the whole token on a
-    // non-ASCII remainder left the name fused to its article and invisible to
-    // every name rule.
-    let apostrophe = text.find(['\'', '\u{2019}'])?;
+    // Split a grammatical prefix before a multi-letter acronym regardless of
+    // its casing ("L’ANSA", "l'ONU"). The acronym shape disambiguates the
+    // otherwise ambiguous one-letter prefix without language-specific article
+    // lists. Ordinary one-letter name prefixes remain attached ("L'Aquila",
+    // "d'Artagnan", "O'Brien").
+    let apostrophe = text.find(is_apostrophe_char)?;
     let prefix = &text[..apostrophe];
-    if prefix.len() < 2 || !prefix.bytes().all(|byte| byte.is_ascii_alphabetic()) {
+    if prefix.is_empty() || !prefix.chars().all(char::is_alphabetic) {
         return None;
     }
     let apostrophe_end = apostrophe + text[apostrophe..].chars().next()?.len_utf8();
     let remainder_start = token.start + apostrophe_end;
-    if !starts_uppercase(source_text.get(remainder_start..token.end)?) {
+    let remainder = source_text.get(remainder_start..token.end)?;
+    let is_acronym = remainder
+        .chars()
+        .filter(|character| character.is_alphabetic())
+        .count()
+        >= 2
+        && remainder
+            .chars()
+            .filter(|character| character.is_alphabetic())
+            .all(char::is_uppercase);
+    let multi_letter_lowercase_clitic =
+        prefix.chars().count() >= 2 && prefix.chars().all(char::is_lowercase);
+    if !is_acronym && (!multi_letter_lowercase_clitic || !starts_uppercase(remainder)) {
         return None;
     }
     Some((token.start + apostrophe_end, remainder_start))
+}
+
+// Treat the common Unicode apostrophe forms as the same grammatical
+// boundary while keeping token spans in the original source byte offsets.
+// This is deliberately a boundary rule, not an entity-name rewrite.
+fn is_apostrophe(value: &str) -> bool {
+    value.chars().count() == 1 && value.chars().next().is_some_and(is_apostrophe_char)
+}
+
+fn is_apostrophe_char(value: char) -> bool {
+    matches!(
+        value,
+        '\'' | '\u{2019}' | '\u{02bc}' | '\u{ff07}' | '\u{2018}' | '\u{02bb}'
+    )
 }

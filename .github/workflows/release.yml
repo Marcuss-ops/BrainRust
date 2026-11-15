@@ -14,6 +14,8 @@ jobs:
     # The released binaries must link Bookworm's ICU 72, exactly like the
     # PipelineGen runtime image; a different host would ship a different ABI.
     container: buildpack-deps:bookworm
+    env:
+      BRAINRUST_VERSION: ${{ github.ref_name }}
     steps:
     - name: Check out code
       uses: actions/checkout@v7

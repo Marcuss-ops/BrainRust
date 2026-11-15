@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "entity_id": "person:contract-subject",
+  "cases": [
+    {
+      "name": "fresh accepted with current verifier",
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 0.92,
+      "technical_score": 0.88,
+      "width": 1200,
+      "height": 800,
+      "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": true
+    },
+    {
+      "name": "stale accepted remains eligible",
+      "status": "stale",
+      "semantic_status": "accepted",
+      "semantic_score": 0.92,
+      "technical_score": 0.88,
+      "width": 1200,
+      "height": 800,
+      "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": true
+    },
+    {
+      "name": "unknown semantic status fails closed",
+      "status": "fresh",
+      "semantic_status": "unknown",
+      "semantic_score": 0.92,
+      "technical_score": 0.88,
+      "width": 1200,
+      "height": 800,
+      "quality_reason": "",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": false
+    },
+    {
+      "name": "rejected semantic status fails closed",
+      "status": "fresh",
+      "semantic_status": "rejected",
+      "semantic_score": 0.92,
+      "technical_score": 0.88,
+      "width": 1200,
+      "height": 800,
+      "quality_reason": "",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": false
+    },
+    {
+      "name": "semantic score below threshold",
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 0.40,
+      "technical_score": 0.88,
+      "width": 1200,
+      "height": 800,
+      "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": false
+    },
+    {
+      "name": "technical score below threshold",
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 0.92,
+      "technical_score": 0.30,
+      "width": 1200,
+      "height": 800,
+      "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": false
+    },
+    {
+      "name": "dimensions below catalog minimum",
+      "status": "fresh",
+      "semantic_status": "accepted",
+      "semantic_score": 0.92,
+      "technical_score": 0.88,
+      "width": 640,
+      "height": 480,
+      "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": false
+    },
+    {
+      "name": "broken remote URL without durable materialization",
+      "status": "broken",
+      "semantic_status": "accepted",
+      "semantic_score": 0.92,
+      "technical_score": 0.88,
+      "width": 1200,
+      "height": 800,
+      "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": false
+    },
+    {
+      "name": "retired status is terminal",
+      "status": "retired",
+      "semantic_status": "accepted",
+      "semantic_score": 0.92,
+      "technical_score": 0.88,
+      "width": 1200,
+      "height": 800,
+      "quality_reason": "Ollama visual identity verification confirmed the requested person and one dominant subject",
+      "verifier_version": "entity-image-visual/v3",
+      "want_eligible": false
+    }
+  ]
+}

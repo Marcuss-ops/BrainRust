@@ -32,6 +32,26 @@ fn typed_entities_use_shared_vocabulary() {
 }
 
 #[test]
+fn stress_products_are_not_downgraded_to_visual_concepts() {
+    let source = "Steve Jobs presentò Macintosh, iPhone e iPad.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".into(),
+            entity_count: 20,
+        },
+    )
+    .unwrap();
+    for name in ["Macintosh", "iPhone", "iPad"] {
+        let entity = entities
+            .iter()
+            .find(|entity| entity.text == name)
+            .unwrap_or_else(|| panic!("{name} missing: {entities:?}"));
+        assert_eq!(entity.r#type, "PRODUCT", "{name}: {entities:?}");
+    }
+}
+
+#[test]
 fn common_sports_objects_receive_the_typed_object_category() {
     for (language, source, objects) in [
         ("en", "Ball, trophy, jersey.", ["ball", "trophy", "jersey"]),

@@ -1,0 +1,8 @@
+{
+  "remove_brands": ["nasa"],
+  "product_names": ["macintosh", "ipad"],
+  "typed_entities": {
+    "ORG": ["NASA", "ESA", "CERN", "ANSA", "l’ansa", "l’esa", "Chicago Bulls"],
+    "BRAND": ["Air Jordan"]
+  }
+}

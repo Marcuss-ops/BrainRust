@@ -28,6 +28,26 @@ fn icu_tokenizer_handles_latin_script_with_diacritics() {
 }
 
 #[test]
+fn elided_clitics_split_acronyms_without_splitting_ambiguous_names() {
+    for (source, acronym, whole_name) in [
+        ("L’ANSA", "ANSA", ""),
+        ("l'ONU", "ONU", ""),
+        ("L'Aquila", "", "L'Aquila"),
+        ("O’Brien", "", "O’Brien"),
+    ] {
+        let tokens = tokenize_untyped(source, "it").expect("Italian segmentation");
+        let texts: Vec<&str> = tokens.iter().map(|token| token.text.as_str()).collect();
+        if !acronym.is_empty() {
+            assert!(texts.contains(&acronym), "{source:?}: {texts:?}");
+            assert_eq!(source.get(tokens[1].start..tokens[1].end), Some(acronym));
+        }
+        if !whole_name.is_empty() {
+            assert!(texts.contains(&whole_name), "{source:?}: {texts:?}");
+        }
+    }
+}
+
+#[test]
 fn pos_tags_are_applied_when_model_is_installed() {
     let tokens = tokenize("Imagine the feta cheese on the plate.", "en").expect("en");
     if tokens.iter().all(|token| token.upos.is_none()) {

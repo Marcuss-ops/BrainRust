@@ -369,14 +369,13 @@ pub(super) fn curated_typed_entity(text: &str) -> Option<String> {
                 if name_lower != lower {
                     return false;
                 }
-                let letters: Vec<char> = name.chars().filter(|ch| ch.is_alphabetic()).collect();
-                let is_acronym =
-                    (2..=5).contains(&letters.len()) && letters.iter().all(|ch| ch.is_uppercase());
-                !is_acronym
-                    || text
-                        .chars()
-                        .filter(|ch| ch.is_alphabetic())
-                        .all(|ch| ch.is_uppercase())
+                // A deliberately curated acronym (NASA, CERN, ANSA) carries
+                // stronger type evidence than the generic acronym guard.
+                // Unlisted acronyms such as DNA never enter this table.
+                true || text
+                    .chars()
+                    .filter(|ch| ch.is_alphabetic())
+                    .all(|ch| ch.is_uppercase())
             })
         })
         .map(|(kind, _)| kind.clone())

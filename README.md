@@ -20,16 +20,17 @@ The workspace has deliberately separate execution boundaries:
 - `semantic-engine` is the dedicated CPU-only text-analysis worker. One
   `analyze_script` request carries all scenes and returns the versioned
   `semantic_manifest.v2`; it does not search for assets or perform media I/O.
-- `imagecatalog` is the image-only association planner. It consumes a snapshot
-  of the **existing** `entity_image_catalog_*` rows plus an optional semantic
-  annotation sidecar keyed by `candidate_id`, reuses the semantic engine's
-  grounded queries and returns deterministic per-scene image decisions. It
-  does not open PipelineGen's database, download assets, render, or create a
-  second catalog. Video, stock clips and SFX are out of scope. The NDJSON
-  worker accepts scenes or an optional `semantic_manifest.v2`; it validates
-  the schema, scene identity and request fingerprint and reuses the same
-  manifest type without a second semantic analysis. In-process callers use
-  the same `imagecatalog::plan_from_manifest` path.
+- `imagecatalog` is an **experimental, unwired** snapshot planner. It consumes
+  an exported snapshot of the existing `entity_image_catalog_*` rows plus an
+  optional semantic annotation sidecar keyed by `candidate_id` and returns
+  deterministic per-scene decisions for offline analysis. It does not open
+  PipelineGen's database, download assets, render, or create a second catalog.
+  No Go composition root calls it; the live flow is documented in
+  `refactored/docs/operations/entity-image-pipeline-flow.md`. Video, stock
+  clips and SFX are out of scope. The NDJSON worker accepts scenes or an
+  optional `semantic_manifest.v2`; it validates the schema, scene identity and
+  request fingerprint and reuses the same manifest type without a second
+  semantic analysis.
 - `pipelinegen-muscles` remains the media executor. It owns FFmpeg-related
   operations and must not become the semantic engine's dependency. The
   standalone Phrase Impact and Scene Intelligence compatibility workers were
@@ -90,14 +91,24 @@ retired on 2026-10-25 after parity evidence was recorded (see
 VisualNER uses the system ICU4C RBNF/CLDR spellout rules. The canonical release
 ABI is **ICU 72** (Debian Bookworm), declared once in `ICU_MAJOR`; CI and
 `scripts/release/build-artifacts.sh` refuse to build when `pkg-config` reports
-a different major. Install the ICU **development** package (`libicu-dev`,
-including `pkg-config`) on build hosts; runtime hosts that execute
-`bin/visualner` need `libicu72`. Do not copy that binary to a host with a
-different major.
+a different major. Runtime hosts that execute `bin/visualner` need `libicu72`.
+Do not copy that binary to a host with a different major.
 
-The Rust toolchain is pinned in `rust-toolchain.toml`, so plain `cargo` picks
-it up automatically. On a host with a different ICU (for example ICU 70),
-override the `.cargo/config.toml` default explicitly.
+The Rust toolchain is pinned in `rust-toolchain.toml`, and plain `cargo` picks
+up both the toolchain and the ICU 72 link adapter automatically.
+`.cargo/config.toml` sets `RUST_ICU_MAJOR_VERSION_NUMBER` and
+`RUST_ICU_LINK_SEARCH_DIR`; the linker scripts in `.cargo/icu72-link/` redirect
+`-licuuc`, `-licui18n` and `-licudata` to the `.so.72` sonames. This matters on
+hosts such as Ubuntu 22.04 where the ICU 72 runtime is installed but the
+unversioned `libicuuc.so` still points at ICU 70: the build and test binaries
+must link the same ABI they will use at runtime. The adapter needs the ICU 72
+**runtime** in the loader search path; it does not need ICU 72 development
+headers because `rust_icu_sys` uses its pre-generated bindings.
+
+If you deliberately cross-build against another ICU major, export
+`RUST_ICU_MAJOR_VERSION_NUMBER` and point `RUST_ICU_LINK_SEARCH_DIR` at the
+matching libraries. Do not mix an exported binding major with the default
+ICU 72 adapter.
 
 The tests also need the UDPipe 2.5 models declared by
 `lexicon/language_profiles.json`. Provision them once (the installer is
@@ -113,11 +124,10 @@ degrades to the model-free extractor.
 
 ```sh
 cd <this repository>
-ICU_MAJOR=$(pkg-config --modversion icu-i18n | cut -d. -f1)
-RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" cargo test --workspace
+cargo test --workspace
 
 # Prints distinct language identifiers with installed ICU spellout rules.
-RUST_ICU_MAJOR_VERSION_NUMBER="$ICU_MAJOR" cargo run -p visualner -- --locale-count
+cargo run -p visualner -- --locale-count
 
 # Build the executables consumed by the Go adapter (see rustexec in PipelineGen).
 cargo build --release

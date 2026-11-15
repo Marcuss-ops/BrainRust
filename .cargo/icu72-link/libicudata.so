@@ -1,0 +1,6 @@
+/*
+ * ICU 72 link adapter for rust_icu_sys.
+ *
+ * Keep -licudata on the same ABI as -licuuc; see libicuuc.so in this directory.
+ */
+INPUT ( libicudata.so.72 )
