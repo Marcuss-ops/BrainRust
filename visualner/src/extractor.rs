@@ -47,7 +47,7 @@ pub(crate) use pipeline::extract_with_context_and_spellout_preserving_mentions;
 pub use pipeline::{extract, extract_with_context, script_person_tokens, ScriptContext};
 
 #[cfg(test)]
-pub(crate) use tokenizer::tokenize;
+pub(crate) use tokenizer::{tokenize, tokenize_untyped};
 
 // ── Stopword + blocklist tables ──────────────────────────────────────
 //

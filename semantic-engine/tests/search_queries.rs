@@ -599,18 +599,6 @@ fn search_feedback_keeps_exact_queries_and_stays_pending_without_context() {
         }
     }
     for entry in entries {
-        let proposal_id = entry["proposal_id"].as_str().unwrap();
-        let proposal = value["scenes"][0]["visual_proposals"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|proposal| proposal["id"] == proposal_id)
-            .unwrap();
-        let expected = if proposal["proposal_type"] == "entity_search" {
-            3
-        } else {
-            1
-        };
-        assert_eq!(entry["queries"].as_array().unwrap().len(), expected);
+        assert_eq!(entry["queries"].as_array().unwrap().len(), 1);
     }
 }

@@ -33,22 +33,6 @@ pub(crate) fn validate_evidence(
     if has_suspicious_asr_digit_fusion(evidence) {
         return None;
     }
-    // Sentence position alone is not evidence of a proper name. A one-word
-    // title-case token at BOS survives only when its shape is structural
-    // (acronym/mixed case) or the configured gazetteer recognizes it. This
-    // keeps ordinary sentence openers out without a language-specific
-    // blacklist and preserves source offsets for accepted names.
-    if is_sentence_initial(source_text, c.start)
-        && c.text.split_whitespace().count() == 1
-        && !has_structural_name_case(&c.text)
-        && !is_exact_gazetteer_name(&c.text, language)
-        && !tokens
-            .iter()
-            .find(|token| token.start == c.start)
-            .is_some_and(|token| token.upos.as_deref() == Some("PROPN"))
-    {
-        return None;
-    }
     // The POS model decides whether a gazetteer hit is a place name. A
     // place is a PROPN whose lemma keeps its capital ("Pavia" -> "Pavia"),
     // while a common noun tagged PROPN by the tagger has a lowercase lemma
@@ -147,6 +131,25 @@ pub(crate) fn validate_evidence(
             language,
         )
     });
+    // Sentence position alone is not evidence of a named entity. A
+    // one-word title-case token at BOS survives only when its shape is
+    // structural (acronym/mixed case), it is in the configured gazetteer, or
+    // UDPipe marks it PROPN. Typed physical objects and numeric values are
+    // independently grounded and keep their normal extraction behavior.
+    if !matches!(
+        entity_type.as_str(),
+        "OBJECT" | "NUMBER" | "PERCENT" | "MONEY"
+    ) && is_sentence_initial(source_text, c.start)
+        && c.text.split_whitespace().count() == 1
+        && !has_structural_name_case(&c.text)
+        && !is_exact_gazetteer_name(&c.text, language)
+        && !tokens
+            .iter()
+            .find(|token| token.start == c.start)
+            .is_some_and(|token| token.upos.as_deref() == Some("PROPN"))
+    {
+        return None;
+    }
     // In a language that capitalizes common nouns (German) the title-case
     // shape alone cannot prove a person, and without a UDPipe model there is
     // no PROPN tag either. A curated person title immediately before the name
