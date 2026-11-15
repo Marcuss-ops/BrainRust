@@ -148,13 +148,12 @@ Audit result:
   `ValidateFinalAudioReference`, `ValidateMasterAudioInvariants`,
   `final_job_payload.go` and `final_job_compiled_plan.go`. No numeric literal
   for this window remains outside the constant definition.
-- Deliberate non-demolition: `internal/platform/audio/mp3_duration.go` walks
-  MP3 frame headers as a TTS post-process fast path. It computes a
-  provider-asset duration, not plan/event authority, and falls back to the
-  authoritative Rust media probe on any unexpected shape. Deleting it would
-  put ~140 chunk probes per run back on the shared 4-runner media pool; that
-  is a measured performance regression, not a demolition. Keep it until a
-  Rust-side fast probe replaces it.
+- Deleted: `internal/platform/audio/mp3_duration.go` and its tests. The MP3
+  frame walker was a second duration rule for provider assets; synthesized
+  audio duration now comes only from the authoritative shared media executor
+  probe. The ~140 chunk probes per run return to the shared 4-runner pool —
+  accepted as the cost of single duration authority, not hidden behind a
+  local parser.
 
 Evidence (2026-11-15, `refactored`):
 
@@ -164,8 +163,8 @@ gofmt -w internal/capabilities/audio/strategy.go \
   internal/capabilities/scripts/final_job_payload.go \
   internal/capabilities/scripts/final_job_compiled_plan.go \
   internal/capabilities/scripts/audio_timeline_test.go
-go vet ./internal/capabilities/audio ./internal/capabilities/scripts/...   # exit 0
-go test ./internal/capabilities/audio ./internal/capabilities/scripts/...   # all packages pass
+go vet ./internal/capabilities/audio ./internal/platform/audio ./internal/capabilities/scripts/...   # exit 0
+go test ./internal/platform/audio ./internal/capabilities/audio ./internal/capabilities/scripts/...   # all packages pass
 ```
 
 ### 13d — the last big cut: `compile_editorial_plan`

@@ -30,7 +30,7 @@ Status vocabulary:
 | [10](TICKET-10-multimodal-pgvector.md) | P2 | BLOCKED | Requires SigLIP/pgvector, a schema and a calibrated held-out dataset. |
 | [11](TICKET-11-discourse-continuity.md) | P0 | DONE (deterministic core) | Additive `discourse.v1` references, ambiguity, threads and scene continuity. |
 | [12](TICKET-12-mvp-semantic-contract.md) | P0 | DONE (bound/Rust) | v3 linked-entity projection, local index/linker, typed intents, Go v3 consumer, intent/index cache key, verified-hit admission, stop-on-satisfaction and cross-repo smoke pass; only the revised SLO agreement remains external. |
-| [13](TICKET-13-go-demolition-closeout.md) | P1 | OPEN | Go-side demolition closeout: 13c DONE (single Go audio-timing tolerance; `render_audio_plan` response is the final-duration authority). Remaining: push 4 verified local commits, project (not re-decide) entity/linguistics, delegate asset registry to imagecatalog, and fold `editorial_overlay.go` into a single `compile_editorial_plan` worker op. |
+| [13](TICKET-13-go-demolition-closeout.md) | P1 | OPEN | Go-side demolition closeout: 13c DONE (Go MP3 duration parser deleted; single Go audio-timing tolerance; `render_audio_plan` response is the final-duration authority). Remaining: push 4 verified local commits, project (not re-decide) entity/linguistics, delegate asset registry to imagecatalog, and fold `editorial_overlay.go` into a single `compile_editorial_plan` worker op. |
 
 ## Verification — 2026-11-15 (ticket 12, Rust core)
 
@@ -56,7 +56,8 @@ Status vocabulary:
   -count=1` — all packages pass.
 - The 40 ms AAC padding tolerance now has one Go definition; the literals in
   the final-audio validator, master invariants and final-job payload/plan are
-  gone. See ticket 13 for the deliberate MP3-probe exception.
+  gone. The Go MP3 frame-duration parser was deleted: synthesized audio
+  duration comes only from the shared media executor probe.
 
 ## Verification — 2026-11-15 (ticket 12, Go consumer)
 
