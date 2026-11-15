@@ -165,9 +165,10 @@ go test ./internal/capabilities/scripts -run 'TestRegistry|TestApplyVerifiedEnti
 go vet ./internal/capabilities/images/entitycatalog ./internal/capabilities/scripts   # pass
 ```
 
-The full `scripts/...` tree passes, including the final-job subtitle matrix
-after the single certified render language was restored. The 13b targeted
-tests and the entitycatalog package pass.
+The 13b targeted tests and the entitycatalog package pass. The full
+`scripts/...` tree is currently red in three localized-render tests from a
+separate uncommitted Chronon refactor; the final-job subtitle matrix itself
+passes after the single certified render language was restored.
 
 ### 13c — audio timing: verify, then delete residue — DONE (2026-11-15)
 
@@ -307,12 +308,20 @@ Remaining for 13d: port the interleaved planner phases into the batch, wire
 `compileOverlayPlanWithMotionOffset` to one call, and delete the Go
 editorial/card selection. Do not mark 13d DONE until those conditions hold.
 
+**Verification boundary (2026-11-15).** The full
+`go test ./internal/platform/media/rustexec/...` suite passes (79s), and
+`make verify-agent` passes foundation/static/vet. Its component gate is red
+only in `internal/capabilities/scripts` on the separate Chronon render
+refactor; no TICKET-13 test fails. `make verify-main` was not run.
+
 **Final-job subtitle cleanup (2026-11-15).** The pre-render had started
 iterating `fixedRenderLanguages`, producing one fragment per target language.
 A final job is one video in the language the run already certified;
 `ensureFinalJobFixedMediaSubtitles` now resolves that single language through
 `finalJobRenderLanguage` and skips every already-certified clip. The four
-`final_job_subtitles` tests pass and the full `scripts/...` tree is green.
+`final_job_subtitles` tests pass. The full `scripts/...` tree is not green
+because the separate uncommitted localized-render refactor fails three
+`runner_localized_render` tests.
 
 ### 13e — in-flight concurrent work (do not duplicate, just sequence after)
 
