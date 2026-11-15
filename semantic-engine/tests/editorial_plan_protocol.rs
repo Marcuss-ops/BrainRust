@@ -14,30 +14,25 @@ const MINIMAL_V2: &str = include_str!(
     "../../overlay-compiler/tests/fixtures/overlay_plan/requests/minimal_phrase_only.request.json"
 );
 
-fn response(line: &str) -> serde_json::Value {
-    serde_json::from_str(&line_trimmed(line)).expect("worker returns one JSON object")
-}
-
 fn handle(request: &str) -> serde_json::Value {
-    response(&handle_line(request))
-}
-
-fn line_trimmed(line: &str) -> String {
-    line.trim().to_string()
+    let line = handle_line(request);
+    serde_json::from_str(line.trim()).expect("worker returns one JSON object")
 }
 
 #[test]
 fn v2_requests_are_routed_to_the_full_plan_compiler() {
     let response = handle(MINIMAL_V2);
-    assert_eq!(response["ok"], true, "planner rejected fixture: {response}");
+    assert_eq!(response["ok"], true, "the full-plan compiler must run");
     assert_eq!(response["schema_version"], "editorial_plan.v2");
     assert_eq!(response["plan"]["schema_version"], "editorial_plan.v2");
+    assert_eq!(response["plan"]["plan_id"], "min-fixture");
+    assert_eq!(
+        response["plan"]["items"].as_array().expect("items").len(),
+        3
+    );
     assert!(
-        !response["plan"]["items"]
-            .as_array()
-            .expect("items")
-            .is_empty(),
-        "the minimal fixture must produce the certified plan"
+        response.get("plan").is_some(),
+        "a v2 request must never degrade to the legacy sparse plan"
     );
 }
 
@@ -50,6 +45,7 @@ fn an_unknown_schema_version_is_rejected_before_deserializing() {
     let error = response["error"].as_str().expect("typed error");
     assert!(error.contains("unsupported"), "got {error:?}");
     assert!(error.contains("editorial_plan.v9"), "got {error:?}");
+    assert!(response.get("plan").is_none());
 }
 
 #[test]
@@ -88,23 +84,13 @@ fn the_sparse_legacy_batch_still_compiles() {
 }
 
 #[test]
-fn a_v2_request_returns_the_full_plan_not_the_legacy_batch() {
+fn a_v2_request_never_returns_an_empty_plan() {
     let response = handle(MINIMAL_V2);
-    assert_eq!(response["ok"], true, "planner rejected fixture: {response}");
-    assert!(
-        response.get("plan").is_some(),
-        "a v2 request must return the full plan"
-    );
+    let items = response["plan"]["items"].as_array().expect("items");
+    assert!(!items.is_empty(), "the fixture compiles admitted items");
     assert!(
         response["plan"].get("pre_budget_edits").is_none(),
         "a v2 request must not degrade to the legacy sparse plan"
-    );
-    assert!(
-        !response["plan"]["items"]
-            .as_array()
-            .expect("items")
-            .is_empty(),
-        "the full plan must contain the admitted items"
     );
 }
 
@@ -146,8 +132,9 @@ fn the_real_worker_answers_exactly_one_v2_compile_request() {
         serde_json::from_str(responses[0]).expect("worker returns one JSON object");
     assert_eq!(response["ok"], true, "worker rejected request: {response}");
     assert_eq!(response["schema_version"], "editorial_plan.v2");
-    assert!(!response["plan"]["items"]
-        .as_array()
-        .expect("items")
-        .is_empty());
+    assert_eq!(response["plan"]["plan_id"], "min-fixture");
+    assert_eq!(
+        response["plan"]["items"].as_array().expect("items").len(),
+        3
+    );
 }
