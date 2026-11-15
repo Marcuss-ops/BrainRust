@@ -43,7 +43,14 @@ pub fn project_editorial_scenes(
             ),
         ));
     }
+    // A localized run carries the manifest in the target language, so the
+    // source-language equality only applies when the request is not localized.
+    let localized = !request.source_language.trim().is_empty()
+        && !request
+            .source_language
+            .eq_ignore_ascii_case(request.language.trim());
     if !request.source_language.trim().is_empty()
+        && !localized
         && !manifest
             .source_language
             .eq_ignore_ascii_case(request.source_language.trim())

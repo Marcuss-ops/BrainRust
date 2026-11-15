@@ -55,18 +55,36 @@
         "duration_us": 650000,
         "template_id": "NUMBER",
         "motion_params": {
-          "enter_frames": 8
+          "enter_frames": 15
         },
         "text": "42 per cento",
         "params": {
           "priority": 0.9
+        }
+      },
+      {
+        "id": "s1-chart-number-0",
+        "scene_id": "s1",
+        "kind": "number",
+        "start_ms": 1050,
+        "end_ms": 1700,
+        "start_us": 1050000,
+        "duration_us": 650000,
+        "template_id": "NUMBER",
+        "motion_params": {
+          "enter_frames": 8
+        },
+        "text": "42 per cento",
+        "params": {
+          "chart": true,
+          "priority": 0.95
         }
       }
     ],
     "recap_placements": 0,
     "recap_cards": 0,
     "chart_placements": 0,
-    "chart_cards": 0,
+    "chart_cards": 1,
     "timed_scenes": 1,
     "intake": {
       "scenes": 1,
@@ -76,7 +94,7 @@
         "phrase_overlays": 8,
         "image_overlays": 5,
         "map_overlays": 3,
-        "max_overlays_per_scene": 3
+        "max_overlays_per_scene": 8
       },
       "candidates": 4,
       "candidates_by_kind": {
@@ -84,14 +102,11 @@
         "quote": 1,
         "text_phrase": 1
       },
-      "planned": 3,
+      "planned": 4,
       "planned_by_kind": {
-        "number": 1,
+        "number": 2,
         "quote": 1,
         "text_phrase": 1
-      },
-      "dropped_by_reason": {
-        "per_scene": 1
       }
     },
     "output_profile_id": "assemblyready.alpha.v1"

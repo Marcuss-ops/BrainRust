@@ -41,6 +41,9 @@ pub fn project_chapter_bullets(request: &EditorialPlanV2Request) -> EditorialPla
         scene_phrases: BTreeMap::new(),
         covered_scenes: Vec::new(),
     };
+    if request.schema_version != EDITORIAL_PLAN_V2_SCHEMA_VERSION {
+        return response;
+    }
     let Some(chapters) = &request.chapters else {
         return response;
     };
@@ -638,6 +641,26 @@ mod tests {
         assert_eq!(rendered, 1);
         assert!(response.covered_scenes.contains(&"s1".to_string()));
         assert!(!response.covered_scenes.contains(&"s2".to_string()));
+    }
+
+    #[test]
+    fn batch_envelope_carries_the_chapter_projection() {
+        let plan = crate::compile_editorial_plan(crate::CompileEditorialPlanRequest {
+            fps_num: 0,
+            fps_den: 0,
+            scene_windows: BTreeMap::new(),
+            items: Vec::new(),
+            entity_scenes: Vec::new(),
+            entrance_items: Vec::new(),
+            v2: Some(request()),
+        });
+        let projection = plan.v2.expect("v2 projection");
+        assert_eq!(projection.covered_scenes, vec!["s1", "s2"]);
+        assert_eq!(projection.scene_phrases.len(), 2);
+        assert_eq!(
+            projection.scene_phrases["s1"][0].presentation_role,
+            CHAPTER_BULLET_ROLE
+        );
     }
 
     #[test]

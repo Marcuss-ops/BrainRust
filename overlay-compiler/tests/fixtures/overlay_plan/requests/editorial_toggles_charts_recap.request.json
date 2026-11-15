@@ -197,7 +197,7 @@
     "phrase_overlays": 8,
     "image_overlays": 5,
     "map_overlays": 3,
-    "max_per_scene": 3,
+    "max_per_scene": 8,
     "short_phrase": 3,
     "long_phrase": 5,
     "bullet": 2

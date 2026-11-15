@@ -3,7 +3,7 @@
 //! verified entity cards, admission, entrance cascade and seal. The module
 //! deliberately reuses the existing Rust ranking/cascade primitives.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{json, Value};
 
@@ -28,11 +28,40 @@ pub fn compile_plan(
     request: &EditorialPlanV2Request,
 ) -> Result<EditorialPlanV2Compiled, EditorialPlanError> {
     request.validate_compilable()?;
-    let editorial = project_editorial_scenes(request)?;
+    let mut editorial = project_editorial_scenes(request)?;
+    if request.chapters.is_some() {
+        // Chapter bullets own the bullet slot on the scenes they cover. They
+        // are projected before the editorial bullets are admitted, exactly as
+        // the Go planner orders the two phases; a scene keeps at most one
+        // bullet, so the editorial bullet is dropped on covered scenes.
+        let chapters = crate::project_chapter_bullets(request);
+        for (scene_id, phrases) in &chapters.scene_phrases {
+            editorial
+                .scene_phrases
+                .entry(scene_id.clone())
+                .or_default()
+                .extend(phrases.iter().cloned());
+        }
+        let covered: BTreeSet<String> = chapters.covered_scenes.iter().cloned().collect();
+        for (scene_id, phrases) in editorial.scene_phrases.iter_mut() {
+            if covered.contains(scene_id) {
+                phrases.retain(|phrase| phrase.presentation_role != "scene_bullet");
+            }
+        }
+        editorial.covered_scenes = chapters.covered_scenes;
+    }
     let mut candidates = build_candidates(request, &editorial)?;
     trim_maps(request, &mut candidates);
-    let (mut items, intake) = admit(request, candidates);
+    let (mut items, mut intake) = admit(request, candidates);
     cascade(&mut items, request);
+    // Overlap resolution is the last layout phase: it must see the final
+    // admitted and cascaded set, never the pre-budget candidates. A map can
+    // shorten an earlier map or shift/drop a colliding card, so items and the
+    // intake accounting are re-sealed together afterwards.
+    let before_overlap = items.len();
+    items = resolve_overlaps(request, items);
+    record_drops(&mut intake, "overlap", before_overlap, items.len());
+    finalize_intake(&mut intake, &items);
     let plan = seal(request, items, intake);
     let compiled = EditorialPlanV2Compiled {
         ok: true,
@@ -75,7 +104,10 @@ fn append_editorial(
     let bullet = phrases
         .iter()
         .find(|phrase| phrase.presentation_role == "scene_bullet");
-    for (ordinal, phrase) in [title, bullet].into_iter().flatten().enumerate() {
+    let chapter = phrases
+        .iter()
+        .find(|phrase| phrase.presentation_role == "chapter_bullet");
+    for (ordinal, phrase) in [title, bullet, chapter].into_iter().flatten().enumerate() {
         let role = phrase.presentation_role.as_str();
         let mut item = scene_item(
             format!("{}-editorial-{ordinal}", scene.id),
@@ -289,6 +321,11 @@ fn append_entity_cards(
             let Some((kind, template)) = entity_card_kind(&entity.entity_type) else {
                 continue;
             };
+            if scene_has_map_for(scene, entity) {
+                // A grounded place already renders as a map pin. Emitting a
+                // location card as well would render the same entity twice.
+                continue;
+            }
             let assets = verified_entity_assets(media, entity);
             if assets.is_empty() {
                 if text_cards >= 2 {
@@ -331,6 +368,22 @@ fn append_entity_cards(
         }
     }
     Ok(())
+}
+
+fn scene_has_map_for(scene: &SceneV2, entity: &EntityOccurrenceV2) -> bool {
+    scene
+        .annotations
+        .as_ref()
+        .map(|annotations| {
+            annotations.maps.iter().any(|map| {
+                map.entity_id == entity.entity_id
+                    || (!entity.canonical_entity_id.is_empty()
+                        && map.entity_id == entity.canonical_entity_id)
+                    || (!map.label.is_empty()
+                        && map.label.eq_ignore_ascii_case(&entity.name))
+            })
+        })
+        .unwrap_or(false)
 }
 
 fn entity_window(scene: &SceneV2, entity: &EntityOccurrenceV2) -> Option<(i64, i64)> {
@@ -672,6 +725,54 @@ fn cascade(items: &mut [PlanItemV2], request: &EditorialPlanV2Request) {
             }
             item.motion_params = Some(params);
         }
+    }
+}
+
+fn resolve_overlaps(request: &EditorialPlanV2Request, items: Vec<PlanItemV2>) -> Vec<PlanItemV2> {
+    if items.is_empty() {
+        return items;
+    }
+    let input: Vec<TimingItem> = items.iter().map(timing_item).collect();
+    let edits = crate::resolve_map_overlaps(crate::ResolveMapOverlapsRequest {
+        fps_num: request.plan.fps_num,
+        fps_den: request.plan.fps_den,
+        scene_windows: request.scene_windows.clone(),
+        items: input,
+    });
+    if edits.len() != items.len() {
+        return items;
+    }
+    let mut resolved = Vec::with_capacity(items.len());
+    for (index, edit) in edits.into_iter().enumerate() {
+        if !edit.keep {
+            continue;
+        }
+        let mut item = items[index].clone();
+        if edit.start_us != item.start_us || edit.duration_us != item.duration_us {
+            item.start_us = edit.start_us;
+            item.duration_us = edit.duration_us;
+            item.start_ms = edit.start_ms;
+            item.end_ms = edit.end_ms;
+        }
+        resolved.push(item);
+    }
+    resolved
+}
+
+fn record_drops(intake: &mut IntakeV2, reason: &str, before: usize, after: usize) {
+    if before > after {
+        *intake
+            .dropped_by_reason
+            .entry(reason.to_string())
+            .or_default() += (before - after) as i64;
+    }
+}
+
+fn finalize_intake(intake: &mut IntakeV2, items: &[PlanItemV2]) {
+    intake.planned = items.len() as i64;
+    intake.planned_by_kind.clear();
+    for item in items {
+        *intake.planned_by_kind.entry(item.kind.clone()).or_default() += 1;
     }
 }
 

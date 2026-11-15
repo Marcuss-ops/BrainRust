@@ -14,84 +14,6 @@
     "duration_ms": 6000,
     "items": [
       {
-        "id": "s1-phrase-0",
-        "scene_id": "s1",
-        "kind": "text_phrase",
-        "start_ms": 100,
-        "end_ms": 800,
-        "start_us": 100000,
-        "duration_us": 700000,
-        "template_id": "IMPORTANT_PHRASE",
-        "motion_params": {
-          "enter_frames": 16
-        },
-        "text": "Nike corre",
-        "params": {
-          "priority": 0.9
-        }
-      },
-      {
-        "id": "s1-word-0",
-        "scene_id": "s1",
-        "kind": "important_word",
-        "start_ms": 1000,
-        "end_ms": 1300,
-        "start_us": 1000000,
-        "duration_us": 300000,
-        "template_id": "IMPORTANT_WORD",
-        "text": "museo",
-        "params": {
-          "priority": 0.6
-        }
-      },
-      {
-        "id": "s1-image-0",
-        "scene_id": "s1",
-        "kind": "image",
-        "start_ms": 0,
-        "end_ms": 2500,
-        "duration_us": 2500000,
-        "template_id": "IMAGE_OVERLAY",
-        "motion_params": {
-          "enter_frames": 8
-        },
-        "asset_refs": [
-          {
-            "asset_id": "asset-scene-1",
-            "url": "https://cdn.example/scene-1.jpg",
-            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-            "media_type": "image/jpeg"
-          }
-        ],
-        "params": {
-          "priority": 0.7
-        }
-      },
-      {
-        "id": "s1-image-1",
-        "scene_id": "s1",
-        "kind": "image",
-        "start_ms": 1400,
-        "end_ms": 1900,
-        "start_us": 1400000,
-        "duration_us": 500000,
-        "template_id": "IMAGE_OVERLAY",
-        "motion_params": {
-          "enter_frames": 8
-        },
-        "asset_refs": [
-          {
-            "asset_id": "asset-card-1",
-            "url": "https://cdn.example/card-1.jpg",
-            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-            "media_type": "image/jpeg"
-          }
-        ],
-        "params": {
-          "priority": 0.5
-        }
-      },
-      {
         "id": "s1-map-0",
         "scene_id": "s1",
         "kind": "map",
@@ -149,56 +71,6 @@
         "params": {
           "priority": 0.75
         }
-      },
-      {
-        "id": "overlay-s1-place:milano",
-        "scene_id": "s1",
-        "entity_id": "place:milano",
-        "kind": "location",
-        "start_ms": 0,
-        "end_ms": 1500,
-        "duration_us": 1500000,
-        "template_id": "gpe_default",
-        "text": "Milano",
-        "params": {
-          "canonical_entity_id": "place:milano",
-          "entity_type": "GPE",
-          "priority": 0.95
-        }
-      },
-      {
-        "id": "overlay-s1-place:roma",
-        "scene_id": "s1",
-        "entity_id": "place:roma",
-        "kind": "location",
-        "start_ms": 1200,
-        "end_ms": 2400,
-        "start_us": 1200000,
-        "duration_us": 1200000,
-        "template_id": "gpe_default",
-        "text": "Roma",
-        "params": {
-          "canonical_entity_id": "place:roma",
-          "entity_type": "GPE",
-          "priority": 0.95
-        }
-      },
-      {
-        "id": "overlay-s2-place:torino",
-        "scene_id": "s2",
-        "entity_id": "place:torino",
-        "kind": "location",
-        "start_ms": 3000,
-        "end_ms": 4800,
-        "start_us": 3000000,
-        "duration_us": 1800000,
-        "template_id": "gpe_default",
-        "text": "Torino",
-        "params": {
-          "canonical_entity_id": "place:torino",
-          "entity_type": "GPE",
-          "priority": 0.95
-        }
       }
     ],
     "recap_placements": 0,
@@ -216,21 +88,19 @@
         "map_overlays": 3,
         "max_overlays_per_scene": 8
       },
-      "candidates": 10,
+      "candidates": 7,
       "candidates_by_kind": {
         "image": 2,
         "important_word": 1,
-        "location": 3,
         "map": 3,
         "text_phrase": 1
       },
-      "planned": 10,
+      "planned": 3,
       "planned_by_kind": {
-        "image": 2,
-        "important_word": 1,
-        "location": 3,
-        "map": 3,
-        "text_phrase": 1
+        "map": 3
+      },
+      "dropped_by_reason": {
+        "overlap": 4
       }
     },
     "output_profile_id": "assemblyready.alpha.v1"
