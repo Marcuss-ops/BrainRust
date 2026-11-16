@@ -80,7 +80,11 @@ jobs:
         /tmp/contract-venv/bin/python contract/mediaexec.v2/validate.py
 
     - name: Build release assets
-      run: ./scripts/release/build-artifacts.sh dist
+      run: |
+        # The build script runs git inside the job container; checkout owns the
+        # workspace with another uid, so git needs an explicit safe.directory.
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        ./scripts/release/build-artifacts.sh dist
 
     - name: Publish release
       uses: softprops/action-gh-release@v2
