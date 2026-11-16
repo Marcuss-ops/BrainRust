@@ -4,7 +4,7 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-16. **10 DONE, 2 PARTIAL, 6 OPEN, 2 BLOCKED.**
+Last verified: 2026-11-16. **13 DONE, 1 PARTIAL, 4 OPEN, 2 BLOCKED.**
 
 Tickets 15–20 are the 2026-11-16 external-audit follow-ups. They cover the Go
 authorities that remain outside TICKET-13's 13a–13e inventory; none of them is
@@ -25,32 +25,62 @@ Status vocabulary:
 | Ticket | Priority | Status | Outcome |
 | --- | --- | --- | --- |
 | [01](TICKET-01-ndjson-backpressure.md) | P0 | DONE | End-to-end NDJSON backpressure and panic-safe responses. |
-| [02](TICKET-02-imagecatalog-policy.md) | P0 | DONE (Rust) | Fail-closed catalog policy, snapshot integrity, real dates, `evaluated_at`. Go parity fixture remains external. |
+| [02](TICKET-02-imagecatalog-policy.md) | P0 | DONE | Fail-closed catalog policy, snapshot integrity, real dates, `evaluated_at`. The Go policy now agrees on both audited cases: an unrecognized status classifies `unknown` and `retired` never re-enters the recertification pool (verified 2026-11-16). |
 | [03](TICKET-03-artifact-publish.md) | P1 | DONE | Unique `.part` files, atomic publish, newest-generation guard. |
 | [04](TICKET-04-render-stock-certification.md) | P1 | DONE | `render_stock` probes and certifies the final file before publishing; canonical render integration is 4/4. |
 | [05](TICKET-05-manifest-completeness.md) | P1 | DONE | Response-level `completeness` with rejected scene count and reasons. |
 | [06](TICKET-06-cache-byte-budget.md) | P1 | DONE (bound + measured) | Entry cap plus 128 MiB serialized-byte budget; 20-script replay peak RSS measured at 1,418,300 KiB. |
-| [07](TICKET-07-manifest-reuse.md) | P1 | DONE | Optional `semantic_manifest.v2` on the worker request; same type, validated and reused without a second analysis. |
+| [07](TICKET-07-manifest-reuse.md) | P1 | DONE | Optional `semantic_manifest.v2` on the worker request; same type, validated and reused without a second analysis. No Go consumer exists to wire: `imagecatalog` stays offline by the 13b decision. |
 | [08](TICKET-08-editorial-gold-set.md) | P1 | BLOCKED | Requires independent human annotations; no such dataset ships here. |
 | [09](TICKET-09-hotspot-contraction.md) | P2 | DONE | Source preparation extracted; duplicate cache fingerprint removed; remaining splits would be cosmetic. |
 | [10](TICKET-10-multimodal-pgvector.md) | P2 | BLOCKED | Requires SigLIP/pgvector, a schema and a calibrated held-out dataset. |
 | [11](TICKET-11-discourse-continuity.md) | P0 | DONE (deterministic core) | Additive `discourse.v1` references, ambiguity, threads and scene continuity. |
 | [12](TICKET-12-mvp-semantic-contract.md) | P0 | DONE (bound/Rust) | v3 linked-entity projection, local index/linker, typed intents, Go v3 consumer, intent/index cache key, verified-hit admission, stop-on-satisfaction and cross-repo smoke pass; only the revised SLO agreement remains external. |
-| [13](TICKET-13-go-demolition-closeout.md) | P1 | PARTIAL | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d Rust op + Go batch ports DONE (`ded9f28`, `68ddb83f5`, `652c03217`): all four overlay ports use `compile_editorial_plan`, but the planner still calls them at four phases. `make verify-agent` and `make verify-main` PASS; the versioned `editorial_plan.v2` envelope + Go producer landed (2026-11-15), but the single-call planner port and deletion of Go editorial/card selection remain; tracked by [14](TICKET-14-overlay-planner-single-call.md). 13 remains PARTIAL until 14 is DONE. |
-| [14](TICKET-14-overlay-planner-single-call.md) | P1 | PARTIAL | Rust single-call compiler landed: complete `editorial_plan.v2` request (seal, annotations, entity timeline, media, budgets, windows), final-plan response with `validate_for`, and one `compile_overlay_plan_v2` call that projects editorial/chapter bullets, entity cards, budgets, map trim/resolution, cascade and seal. Five request fixtures plus five planner-generated goldens and a 27-test contract suite are checked in; the worker routes by schema version before deserializing. Entity-card motion/style selection is ported (certified pool rotation by run offset, independent caption lane, below-caption style, `image_scale_in`) and the seal clears derived render keys for Go to recompute. Open: Go cutover (the four phase ports and Go editorial/card selection remain), Go-oracle parity, the one-request-per-plan counter and `make verify-main` on the cutover tree. Blocks TICKET-13 13d closure. |
-| [15](TICKET-15-phrase-engine-demolition.md) | P1 | OPEN | Go still owns important-phrase selection and phrase timing (`phrases/` + `phrase_*.go`, 8 files / 1,846 LOC). Target: Rust returns selected spans and alignment; delete the Go selector, supplement and endpoint fallback. |
+| [13](TICKET-13-go-demolition-closeout.md) | P1 | DONE | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d DONE 2026-11-16: the four per-concern ports and `legacy_overlay_plan.go` were deleted; production uses one `CompileOverlayPlanV2`. WP5/WP7 closed 2026-11-16: six-fixture production-adapter gate, one-request real-worker counter, deletion guard and `make verify-agent` / `make verify-main` PASS. The producer no longer calls `projectEditorialOverlays`/`projectChapterBullets`; they remain test-only helpers. the request-side surface builder was removed from production on 2026-11-16; TICKET-14 closed 2026-11-16, so 13d and 13 are DONE. |
+| [14](TICKET-14-overlay-planner-single-call.md) | P1 | DONE | Rust single-call compiler landed: complete `editorial_plan.v2` request (seal, annotations, entity timeline, media, budgets, windows), final-plan response with `validate_for`, and one `compile_overlay_plan_v2` call that projects editorial/chapter bullets, entity cards, budgets, map trim/resolution, cascade and seal. Eight request fixtures plus eight planner-generated goldens and a 30-test contract suite are checked in; the worker routes by schema version before deserializing. Entity-card motion/style selection is ported and cards now merge after the editorial admission. Go cutover LANDED 2026-11-16: one `CompileOverlayPlanV2` in production, sealed-plan adoption, legacy planner and four ports deleted, captioned-card chain fusion moved to Rust, chart placements computed in Rust. WP5/WP7 closed 2026-11-16: the stale Go-vs-Rust differential was replaced by an eight-fixture production-adapter gate, the real-worker one-request counter and a deletion guard both PASS, and `make verify-agent` / `make verify-main` PASS. WP4 request-side surface projection DONE 2026-11-16: raw phrases/entities/numbers/dates/maps/charts/heavy/categories are projected in Rust; `overlaySceneInput` no longer has a production caller. All parity lanes closed 2026-11-16: general phrase/image/mixed chains, presentation/light leaks, seeded dates, verified intent images and recap. Go only verifies/materializes media bytes. TICKET-13 13d is DONE. |
+| [15](TICKET-15-phrase-engine-demolition.md) | P1 | PARTIAL | Rust landed 2026-11-16: `semantic-core::phrase_select` (869 LOC), the `select_phrases` worker op and a 13-test protocol contract reproducing the Go suite's fixtures in the same order; the Go seam (`PhraseSelector`, the request/profile types and `rustexec.SelectPhrases` with three fail-closed tests) exists but has no caller. Go still owns the call sites and phrase timing, so `phrases/`, `phrase_supplement.go` and `phrase_timing.go` remain; the cutover is blocked on TICKET-19 (alignment) and on sending the operator-hint spans. |
 | [16](TICKET-16-mediamemory-ranker-migration.md) | P1 | OPEN | `mediamemory` still owns final asset ranking (`PickTopFromRose`, 29 production files / 5,069 LOC). Target: `mediasampler` receives candidates + history and returns the ordered selection; Go projects. |
-| [17](TICKET-17-visual-budget-chain-cutover.md) | P1 | OPEN | Visual budget and chain coalescing are still Go (`overlays/visual_budget*`, `model/chain_coalesce.go` 732 LOC). Target: fold both into `compile_editorial_plan` v2 after TICKET-14. |
+| [17](TICKET-17-visual-budget-chain-cutover.md) | P1 | DONE (2026-11-16) | Captioned-card and general chain fusion moved to Rust and the Go chain producer plus its tests were deleted; `model/chain_coalesce.go` is wire-only. The Rust `admit` pass owns production admission after ranking and before seal; no production Go file calls the legacy budget producers, and the WP7 guard pins them. The legacy `BuildPlan`/visual-budget helpers remain only as a Go test oracle. Eight fixtures / 30 contract tests, real-worker 8/8, and `make verify-main` PASS. |
 | [18](TICKET-18-linguistics-go-demolition.md) | P2 | OPEN | Go still loads `LexiconRegistry` and applies language-aware entity rules (`translated_nlp_identity.go` 571, `entity_annotations.go` 561, `entity_projection.go` 457). Target: Rust owns lexicons, morphology and projection. |
 | [19](TICKET-19-linguistic-temporal-alignment.md) | P2 | OPEN | Phrase-to-word alignment remains Go (`audio/phrase_locator.go`, `scripts/phrase_timing.go` 340, endpoint fallback). Target: Rust returns exact local/global spans; Go only projects. |
 | [20](TICKET-20-identity-localization-consolidation.md) | P2 | OPEN | Localized identity matching/inflection remains Go (`translated_nlp_identity.go`). Target: Rust carries the source identity through translation; Go validates the verbatim surface. |
+
+## Verification — 2026-11-16 (workspace gate, Rust ↔ Go boundary)
+
+Run on the `BrainRust` + `refactored` working trees. ICU comes from
+`.cargo/config.toml` (72): the `RUST_ICU_MAJOR_VERSION_NUMBER=70` line in older
+logs is stale and now fails to link, because this host's unversioned
+`libicuuc.so` points at ICU 70 while `.cargo/icu72-link` redirects to `.so.72`.
+
+- `cargo fmt --all -- --check` — rc 0 after formatting the new
+  `semantic-core/src/phrase_select.rs`.
+- `cargo test -p overlay-compiler -p semantic-core -p semantic-engine --lib` —
+  64 + 161 + 54 passed.
+- `cargo test -p overlay-compiler --test overlay_plan_contract` — 30 passed.
+- `cargo test -p semantic-engine --test editorial_plan_protocol` — 6 passed.
+- `cargo test -p semantic-engine --test phrase_selection_protocol` — 13 passed
+  (12 in process plus the real-worker one-request path).
+- `cargo clippy --workspace --all-targets -- -D warnings` — rc 0 after removing
+  the `chars_last_cmp` lint in `phrase_select.rs`.
+- `go test ./internal/capabilities/scripts/... ./internal/platform/media/rustexec/... -count=1`
+  — every package passes (`rustexec` 81.982 s).
+- `go test ./internal/capabilities/images/entitycatalog/... ./internal/capabilities/images/... -count=1`
+  — pass (ticket 02 Go policy).
+- `make verify-agent` — PASS; every changed component ran (not cached) and the
+  `rust` (91.5 s) and `script` (32.9 s) legs were green.
+- `make verify-main` — PASS (foundation, static, unit, changed components,
+  archcheck/C2 and `CLIP_RENDER_CUTOVER=PASS`).
+- `bash contract/mediaexec.v2/check_consumer_copy.sh refactored/testdata/mediaexec/v2`
+  — PASS, consumer goldens match.
+- `python3 lexicon/tools/check_go_stopword_parity.py` — PASS, 0 drift on the six
+  shared languages.
 
 ## Verification — 2026-11-15 (ticket 14, Rust single-call compiler)
 
 - `cargo fmt --all -- --check` — rc 0.
 - `cargo test -p overlay-compiler -p semantic-core -p semantic-engine --lib`
   — 39 + 151 + 53 passed.
-- `cargo test -p overlay-compiler --test overlay_plan_contract` — 27 passed:
+- `cargo test -p overlay-compiler --test overlay_plan_contract` — 28 passed:
   frozen-golden byte comparison, determinism, verified/text-only entity media,
   entity-card motion rotation and caption/style stamping, missing-pool and
   uncertified-selector rejection, render-key clearing, map trim and final
@@ -183,15 +213,12 @@ older manifests decode with an empty projection.
 
 These do not reopen the tickets; they are owner gates outside this checkout:
 
-- **02** — the Go owner still maps an unrecognized candidate status to `fresh`
-  and still lets a verified materialization keep `retired` rows in the pool.
-  Rust deliberately fails closed on both. The shared parity fixture stays
-  blocked until PipelineGen changes those Go behaviors.
 - **06** — the 20-script run is a host observation (peak 1,418,300 KiB, P50
   0.403 s, P95 3.600 s), not a deployment SLO. The 128 MiB value remains a
   policy bound.
-- **07** — PipelineGen must send the optional manifest to realize the CPU
-  saving; the Rust contract and wire tests are complete.
+- **07** — no consumer to wire: the Rust `imagecatalog` crate is offline by the
+  13b decision and the Go `entitycatalog` is the live registry, so the manifest
+  saving stays latent. Adopting the crate would replace `entitycatalog`.
 - **08/10** — human gold annotations and the multimodal model/schema/calibrated
   association set are still required.
 - **12** — the revised measured SLO needs owner agreement. The Rust contract,

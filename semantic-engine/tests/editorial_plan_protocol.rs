@@ -26,10 +26,11 @@ fn v2_requests_are_routed_to_the_full_plan_compiler() {
     assert_eq!(response["schema_version"], "editorial_plan.v2");
     assert_eq!(response["plan"]["schema_version"], "editorial_plan.v2");
     assert_eq!(response["plan"]["plan_id"], "min-fixture");
-    assert_eq!(
-        response["plan"]["items"].as_array().expect("items").len(),
-        3
-    );
+    let items = response["plan"]["items"].as_array().expect("items");
+    assert_eq!(2, items.len(), "title filter leaves bullet + entity image");
+    assert_eq!(items[0]["kind"], "text_phrase");
+    assert_eq!(items[1]["kind"], "entity_image");
+    assert_eq!(items[1]["template_id"], "image_popup");
     assert!(
         response.get("plan").is_some(),
         "a v2 request must never degrade to the legacy sparse plan"
@@ -133,8 +134,8 @@ fn the_real_worker_answers_exactly_one_v2_compile_request() {
     assert_eq!(response["ok"], true, "worker rejected request: {response}");
     assert_eq!(response["schema_version"], "editorial_plan.v2");
     assert_eq!(response["plan"]["plan_id"], "min-fixture");
-    assert_eq!(
-        response["plan"]["items"].as_array().expect("items").len(),
-        3
-    );
+    let items = response["plan"]["items"].as_array().expect("items");
+    assert_eq!(2, items.len(), "title filter leaves bullet + entity image");
+    assert_eq!(items[0]["kind"], "text_phrase");
+    assert_eq!(items[1]["kind"], "entity_image");
 }

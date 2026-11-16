@@ -1,7 +1,7 @@
 # TICKET 02 — imagecatalog policy and snapshot integrity
 
 - Priority: P0
-- Status: DONE (Rust policy); Go/Rust parity fixture remains external
+- Status: DONE (Rust policy; Go fail-closed behavior verified 2026-11-16)
 - Source: audit roadmap PR 2
 - Files: `imagecatalog/src/catalog.rs`, `clock.rs`, `plan.rs`, `types.rs`,
   `imagecatalog/tests/manifest_reuse.rs`
@@ -59,22 +59,35 @@ go test ./internal/capabilities/entities \
 The Go `CanonicalEntityID("PERSON", name)` derivation matches the Rust
 projection for case/whitespace variants, possessives, accented names,
 punctuation and non-ASCII names; the expanded Rust battery now pins those
-cases. The two policies are deliberately **not** byte-identical today:
+cases.
 
-- Go `ClassifyCandidateStatus` still maps an unrecognized stored status to
-  `fresh`; Rust maps it to `unknown` and rejects it, as the audit requested.
-- The Go image adapter still lets a verified materialization keep a `retired`
-  row in the pool (`!IsUsableCandidateStatus(...) && !durableImage` is false);
-  Rust explicitly rejects `retired` regardless of materialization, matching
-  the documented policy.
+## Go policy verification (2026-11-16)
 
-Those are Go-owner behavior changes, not Rust defects. No Go file was modified
-here, and the shared decision fixture remains blocked until the Go policy is
-changed to the same fail-closed contract.
+The two cases the 2026-11-11 audit recorded as Go-side divergences are now
+fail-closed in PipelineGen, so the policies agree on the decision the fixture
+was meant to pin:
+
+- `ClassifyCandidateStatus` returns `CandidateStatusUnknown` for an
+  unrecognized or empty stored status, and `IsUsableCandidateStatus` excludes
+  every status outside `fresh`/`active`/`stale`
+  (`internal/capabilities/images/entitycatalog/state_policy.go`, `port.go`).
+  Rust maps the same input to `unknown` and rejects it.
+- The recertification pool selects only the usable statuses plus `broken`
+  retries (`entity_image_catalog_adapter.go` `ListCandidatesForRecertification`),
+  so a `retired` row never re-enters the pool; `TransitionCandidateStatus`
+  requires the explicit `revive` event to leave `retired`. Rust rejects
+  `retired` regardless of a durable materialization.
+- `defaultSemanticStatus` maps an empty verdict to `unknown`, never `fresh`.
+
+Evidence: `go test ./internal/capabilities/images/entitycatalog/...
+./internal/capabilities/images/... -count=1` passes on the 2026-11-16 tree;
+`state_policy_test.go` pins the unknown classification and the
+retired-only-exit transition, and `entity_image_catalog_state_test.go` covers
+the adapter reads.
 
 ## Residual
 
-The shared Go/Rust decision fixture is not committed because the two policies
-differ on the two cases above, which are owned by PipelineGen. The Rust
-behavior is fail-closed and covered; the parity gate remains owned by the Go
-catalog policy.
+None inside this checkout. The two assertions live in the owning suites (Go
+`state_policy_test.go`, Rust `imagecatalog/src/catalog.rs`) instead of one
+cross-repo file; a shared fixture would be a refactor of the test layout, not
+a behavior change.

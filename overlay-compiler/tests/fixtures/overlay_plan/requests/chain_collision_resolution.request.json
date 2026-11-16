@@ -1,0 +1,204 @@
+{
+  "operation": "compile_editorial_plan",
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "plan_id": "chain-collision-fixture",
+    "video_id": "video-chain-collision-fixture",
+    "project_id": "project-fixture",
+    "motion_seed": "seed-chain-collision-fixture",
+    "coherence_seed": "",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1
+  },
+  "language": "it",
+  "source_language": "it",
+  "seal": {
+    "audio_duration_us": 9000000,
+    "output_profile_id": "assemblyready.alpha.v1",
+    "background": null
+  },
+  "canvas": {
+    "overlay_categories": {},
+    "group_limits": {},
+    "max_phrase_overlays": 8,
+    "max_image_overlays": 5,
+    "max_map_overlays": 3,
+    "max_overlays_per_scene": 8,
+    "map_presentation": {},
+    "animation_counts": {
+      "chain_enabled": 1,
+      "chain_gap_ms": 2500
+    },
+    "phrase_motions": [],
+    "short_phrase_motion": "",
+    "long_phrase_motion": "",
+    "image_motions": [],
+    "image_with_text_motions": [],
+    "entity_image_motions": [
+      "entity_reveal_push",
+      "entity_soft_rise"
+    ],
+    "entity_caption_motions": [
+      "caption_rise",
+      "caption_fade"
+    ],
+    "image_motion_offset": 0,
+    "entity_style_id": "random",
+    "animation_directives": [],
+    "animation_contract_version": 2,
+    "animation_catalog_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "editorial": {
+    "schema_version": "editorial.v1",
+    "source_language": "it",
+    "profile_version": "highlights.v1",
+    "certified": true,
+    "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "scenes": []
+  },
+  "chapters": null,
+  "scenes": [
+    {
+      "id": "s1",
+      "text": "Nike corre al museo. Il museo apre domani.",
+      "duration_ms": 9000,
+      "execution_mode": "generated",
+      "short_phrase_overlay": false,
+      "overlay_categories": {},
+      "voiceover": {
+        "timing": {
+          "duration_us": 9000000,
+          "words": [
+            {
+              "index": 0,
+              "text": "Nike",
+              "start_us": 2200000,
+              "end_us": 2500000
+            },
+            {
+              "index": 1,
+              "text": "corre",
+              "start_us": 2500000,
+              "end_us": 2900000
+            },
+            {
+              "index": 2,
+              "text": "al",
+              "start_us": 2900000,
+              "end_us": 3100000
+            },
+            {
+              "index": 3,
+              "text": "museo",
+              "start_us": 3100000,
+              "end_us": 3400000
+            },
+            {
+              "index": 4,
+              "text": "Il",
+              "start_us": 3500000,
+              "end_us": 3700000
+            },
+            {
+              "index": 5,
+              "text": "museo",
+              "start_us": 3700000,
+              "end_us": 4000000
+            },
+            {
+              "index": 6,
+              "text": "apre",
+              "start_us": 4000000,
+              "end_us": 4300000
+            },
+            {
+              "index": 7,
+              "text": "domani",
+              "start_us": 4300000,
+              "end_us": 4700000
+            }
+          ]
+        }
+      },
+      "timeline_start_us": 0,
+      "duration_us": 9000000,
+      "annotations": {
+        "phrases": [
+          {
+            "text": "Nike corre al museo",
+            "type": "PHRASE",
+            "start_ms": 2200,
+            "end_ms": 3400,
+            "start_us": 2200000,
+            "duration_us": 1200000,
+            "score": 0.9,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          },
+          {
+            "text": "Il museo apre domani",
+            "type": "PHRASE",
+            "start_ms": 3000,
+            "end_ms": 4200,
+            "start_us": 3000000,
+            "duration_us": 1200000,
+            "score": 0.85,
+            "presentation_role": "",
+            "editorial_candidate": ""
+          }
+        ],
+        "maps": [
+          {
+            "entity_id": "place:milano",
+            "label": "Milano",
+            "scope": "city",
+            "latitude": 45.4642,
+            "longitude": 9.19,
+            "start_ms": 2000,
+            "end_ms": 4000,
+            "start_us": 2000000,
+            "duration_us": 2000000,
+            "score": 0.9
+          }
+        ],
+        "end_us": 9000000
+      }
+    }
+  ],
+  "entity_timeline": {
+    "version": 1,
+    "project_id": "project-fixture",
+    "language": "it",
+    "duration_us": 9000000,
+    "scenes": [
+      {
+        "scene_id": "s1",
+        "scene_index": 0,
+        "timeline_start_us": 0,
+        "entities": []
+      }
+    ]
+  },
+  "media": {
+    "materialized_assets": [],
+    "verified_entity_assets": [],
+    "scene_image_candidates": []
+  },
+  "budgets": {
+    "phrase_overlays": 8,
+    "image_overlays": 5,
+    "map_overlays": 3,
+    "max_per_scene": 8,
+    "short_phrase": 3,
+    "long_phrase": 5,
+    "bullet": 2
+  },
+  "scene_windows": {
+    "s1": [
+      0,
+      9000000
+    ]
+  }
+}

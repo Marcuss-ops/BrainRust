@@ -64,8 +64,28 @@ pub struct EditorialPlanV2Request {
     pub editorial: Option<EditorialManifestV2>,
     #[serde(default)]
     pub chapters: Option<ChapterManifestV2>,
+    /// Producer-side media facts and the run-level image ceiling. When present,
+    /// Rust allocates the certified scene-image candidates; Go only verified
+    /// the bytes. The plan is additive so existing fixtures keep their
+    /// pre-projected annotations.
+    #[serde(default)]
+    pub image_plan: Option<ImagePlanV2>,
+    /// Certified phrase-impact ranking; Rust raises phrase scores from it.
+    #[serde(default)]
+    pub heavy_sentences: Vec<HeavySentenceV2>,
+    /// Data-only numeric vocabulary used by the raw-surface projector.
+    #[serde(default)]
+    pub numeric_lexicon: Option<NumericLexiconV2>,
     #[serde(default)]
     pub scenes: Vec<SceneV2>,
+    /// Canonical video clips in timeline order. They are planner input for the
+    /// clip-start light-leak lane; they never carry an admitted overlay.
+    #[serde(default)]
+    pub clips: Vec<ClipV2>,
+    /// Scene-level recap sources projected by Rust from already-narrated
+    /// scenes. The planner owns placement, dedupe, score order and card timing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recap_briefs: Vec<RecapBriefV2>,
     #[serde(default)]
     pub entity_timeline: Option<EntityTimelineV2>,
     #[serde(default)]
@@ -174,7 +194,19 @@ pub struct CanvasV2 {
     #[serde(default)]
     pub disable_chart_overlays: bool,
     #[serde(default)]
+    pub disable_number_overlays: bool,
+    #[serde(default)]
     pub maps_only: bool,
+    /// Optional certified date-motion family (`typewriter`, `didone`,
+    /// `classic`). Empty/`auto` keeps the full certified date pool.
+    #[serde(default)]
+    pub date_motion_family: String,
+    /// Emit one deterministic light leak at every real video clip start.
+    #[serde(default)]
+    pub light_leak_on_clip_start: bool,
+    /// Emit one deterministic light leak at every admitted overlay start.
+    #[serde(default)]
+    pub light_leak_on_overlay_start: bool,
 }
 
 /// The resolved map presentation policy. Only the fields that change planner
@@ -215,6 +247,8 @@ pub struct SceneV2 {
     #[serde(default)]
     pub overlay_categories: BTreeMap<String, String>,
     #[serde(default)]
+    pub index: i64,
+    #[serde(default)]
     pub voiceover: Option<VoiceoverV2>,
     #[serde(default)]
     pub timeline_start_us: i64,
@@ -224,6 +258,40 @@ pub struct SceneV2 {
     /// not admitted items: Rust still applies lanes, budgets and selection.
     #[serde(default)]
     pub annotations: Option<SceneAnnotationsV2>,
+    /// Pre-selection surface. When present Rust projects it into
+    /// `annotations`; Go must not ground or time it first.
+    #[serde(default)]
+    pub raw: Option<RawSceneV2>,
+}
+
+/// One real video clip on the canonical timeline. `freeze` clips are held
+/// frames and never receive a light leak; the producer already excluded them
+/// from the source data, and this flag keeps the contract explicit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClipV2 {
+    pub scene_id: String,
+    #[serde(default)]
+    pub asset_id: String,
+    #[serde(default)]
+    pub index: i64,
+    #[serde(default)]
+    pub start_us: i64,
+    #[serde(default)]
+    pub duration_us: i64,
+    #[serde(default)]
+    pub freeze: bool,
+}
+
+/// One already-narrated scene title eligible for a recap card. This is a
+/// source candidate, not a selected card: Rust owns placement and admission.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecapBriefV2 {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub score: f64,
+    pub start_us: i64,
+    pub end_us: i64,
 }
 
 /// The scene's certified voiceover projection. Only the timing is needed by
@@ -286,6 +354,99 @@ pub struct SceneAnnotationsV2 {
     /// Absolute plan end of the owning scene; date cards are capped there.
     #[serde(default)]
     pub end_us: i64,
+}
+
+/// Pre-selection semantic surface for one scene. This is the WP4 boundary:
+/// Rust owns phrase anchoring, entity admission, numeric/date projection,
+/// map placement and chart narrowing. The producer only supplies grounded
+/// lexicon data and media facts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct RawSceneV2 {
+    #[serde(default)]
+    pub important_phrases: Vec<RawPhraseV2>,
+    #[serde(default)]
+    pub primary_entities: Vec<RawEntityV2>,
+    #[serde(default)]
+    pub secondary_entities: Vec<RawEntityV2>,
+    #[serde(default)]
+    pub chart_values: Vec<String>,
+    #[serde(default)]
+    pub charts_certified: bool,
+    #[serde(default)]
+    pub source_numeric_values: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RawPhraseV2 {
+    pub text: String,
+    #[serde(default)]
+    pub score: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RawEntityV2 {
+    #[serde(default)]
+    pub stable_entity_id: String,
+    #[serde(default)]
+    pub canonical_entity_id: String,
+    #[serde(rename = "type")]
+    pub entity_type: String,
+    pub canonical_name: String,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(default)]
+    pub geo: Option<RawGeoV2>,
+    #[serde(default)]
+    pub image: Option<RawEntityImageV2>,
+    #[serde(default)]
+    pub mentions: Vec<RawMentionV2>,
+    #[serde(default)]
+    pub plate_covered: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RawGeoV2 {
+    pub latitude: f64,
+    pub longitude: f64,
+    #[serde(default)]
+    pub scope: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RawEntityImageV2 {
+    #[serde(default)]
+    pub asset_id: String,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub sha256: String,
+    #[serde(default)]
+    pub media_type: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RawMentionV2 {
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub start_rune: i64,
+    #[serde(default)]
+    pub end_rune: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HeavySentenceV2 {
+    pub text: String,
+    #[serde(default)]
+    pub importance: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct NumericLexiconV2 {
+    #[serde(default)]
+    pub words: Vec<String>,
+    #[serde(default)]
+    pub context: Vec<String>,
 }
 
 /// One grounded text surface with exact timing. `presentation_role` and
@@ -511,6 +672,18 @@ pub struct SceneImageCandidateSetV2 {
     pub candidates: Vec<ImageCandidateV2>,
 }
 
+/// The producer-computed eligibility and run-level ceiling for generic scene
+/// images. Rust performs the actual round-robin allocation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImagePlanV2 {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub ceiling: i64,
+    #[serde(default)]
+    pub excluded_sha256: Vec<String>,
+}
+
 /// The resolved production budgets. These are the requested values, not
 /// Go-computed candidate counts: Rust owns admission and drop accounting.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -684,6 +857,31 @@ impl EditorialPlanV2Request {
                 validate_annotations(id, scene, annotations)?;
             }
         }
+        for clip in &self.clips {
+            if !scene_ids.contains(clip.scene_id.trim()) {
+                return Err(EditorialPlanError::invalid(
+                    "clips",
+                    format!("unknown scene id {:?}", clip.scene_id),
+                ));
+            }
+            if clip.start_us < 0 || clip.duration_us < 0 {
+                return Err(EditorialPlanError::invalid("clips", "negative clip window"));
+            }
+        }
+        for brief in &self.recap_briefs {
+            if brief.id.trim().is_empty() || brief.title.trim().is_empty() {
+                return Err(EditorialPlanError::invalid(
+                    "recap_briefs",
+                    "id and title are required",
+                ));
+            }
+            if brief.start_us < 0 || brief.end_us <= brief.start_us {
+                return Err(EditorialPlanError::invalid(
+                    "recap_briefs",
+                    "invalid scene window",
+                ));
+            }
+        }
         for scene_id in self.scene_windows.keys() {
             if !scene_ids.contains(scene_id.trim()) {
                 return Err(EditorialPlanError::invalid(
@@ -819,6 +1017,24 @@ impl CanvasV2 {
                     self.entity_style_id
                 ),
             ));
+        }
+        if !self.date_motion_family.trim().is_empty() {
+            let family = self.date_motion_family.trim().to_ascii_lowercase();
+            if !matches!(
+                family.as_str(),
+                "auto"
+                    | "typewriter"
+                    | "date_typewriter_v1"
+                    | "didone"
+                    | "date_didone_v1"
+                    | "classic"
+                    | "date_v1"
+            ) {
+                return Err(EditorialPlanError::invalid(
+                    "canvas.date_motion_family",
+                    format!("unsupported family {:?}", self.date_motion_family),
+                ));
+            }
         }
         for (field, value) in [
             ("max_overlays_per_scene", self.max_overlays_per_scene),
@@ -1477,12 +1693,14 @@ mod tests {
             execution_mode: "body".to_string(),
             short_phrase_overlay: false,
             overlay_categories: BTreeMap::new(),
+            index: 0,
             voiceover: Some(VoiceoverV2 {
                 timing: Some(timing()),
             }),
             timeline_start_us: 0,
             duration_us: 2_000_000,
             annotations: None,
+            raw: None,
         }
     }
 
@@ -1523,6 +1741,11 @@ mod tests {
             canvas: Default::default(),
             editorial: Some(editorial()),
             chapters: None,
+            heavy_sentences: Vec::new(),
+            numeric_lexicon: None,
+            image_plan: None,
+            clips: Vec::new(),
+            recap_briefs: Vec::new(),
             scenes: vec![scene()],
             entity_timeline: Some(EntityTimelineV2 {
                 version: 1,

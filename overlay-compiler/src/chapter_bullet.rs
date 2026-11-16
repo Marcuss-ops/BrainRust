@@ -431,10 +431,12 @@ mod tests {
             execution_mode: "generated".to_string(),
             short_phrase_overlay: false,
             overlay_categories: BTreeMap::new(),
+            index: 0,
             voiceover: None,
             timeline_start_us: start_us,
             duration_us,
             annotations: None,
+            raw: None,
         }
     }
 
@@ -459,6 +461,11 @@ mod tests {
             entity_timeline: None,
             media: None,
             budgets: None,
+            heavy_sentences: Vec::new(),
+            numeric_lexicon: None,
+            image_plan: None,
+            clips: Vec::new(),
+            recap_briefs: Vec::new(),
             scene_windows: BTreeMap::new(),
             canvas: CanvasV2::default(),
             scenes: vec![

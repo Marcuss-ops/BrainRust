@@ -11,6 +11,9 @@
 use std::io;
 use std::sync::{Arc, Mutex};
 
+use semantic_core::phrase_select::{
+    select_phrases, PhraseExtractionPolicy, PhraseProfile, SelectedPhrase,
+};
 use semantic_core::SemanticManifest;
 use serde::Deserialize;
 use serde_json::json;
@@ -37,6 +40,41 @@ struct Envelope {
 struct SplitRequest {
     transcript: String,
     language: String,
+}
+
+#[derive(Deserialize, Default)]
+struct SelectPhrasesProfileRequest {
+    #[serde(default)]
+    stop_words: Vec<String>,
+    #[serde(default)]
+    function_words: Vec<String>,
+    #[serde(default)]
+    visual_verbs: Vec<String>,
+    #[serde(default)]
+    min_words: Option<usize>,
+    #[serde(default)]
+    max_words: Option<usize>,
+    #[serde(default)]
+    max_results: Option<usize>,
+    #[serde(default)]
+    reject_verbs_when_all: Option<bool>,
+}
+
+#[derive(Deserialize, Default)]
+struct SelectPhrasesRequest {
+    text: String,
+    #[serde(default)]
+    blocked_rune_spans: Vec<[usize; 2]>,
+    #[serde(default)]
+    limit: usize,
+    #[serde(default)]
+    min_words: usize,
+    #[serde(default)]
+    max_words: usize,
+    #[serde(default)]
+    corpus: Vec<String>,
+    #[serde(default)]
+    profile: Option<SelectPhrasesProfileRequest>,
 }
 
 /// A persistent handler holding the shared manifest cache.
@@ -73,6 +111,7 @@ impl Worker {
             .to_string(),
             "analyze_script" => self.analyze(line),
             "split_sentences" => split_sentences(line),
+            "select_phrases" => select_phrases_line(line),
             "compile_editorial_plan" => compile_editorial_plan_line(line),
             "resolve_map_overlaps" => resolve_map_overlaps_line(line),
             "trim_map_windows_before_budget" => trim_map_windows_before_budget_line(line),
@@ -126,6 +165,45 @@ impl Worker {
             ndjson_stdio::workers_from_env("SEMANTIC_ENGINE_WORKERS"),
         )
     }
+}
+
+fn select_phrases_line(line: &str) -> String {
+    let request: SelectPhrasesRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid select_phrases request: {err}")),
+    };
+    if request.text.trim().is_empty() {
+        return error_response("select_phrases: text is required");
+    }
+    let profile = request.profile.map(|raw| {
+        let policy = PhraseExtractionPolicy {
+            min_words: raw.min_words.unwrap_or(2),
+            max_words: raw.max_words.unwrap_or(16),
+            max_results: raw.max_results.unwrap_or(5),
+            reject_verbs_when_all: raw.reject_verbs_when_all.unwrap_or(true),
+        };
+        PhraseProfile {
+            stop_words: raw.stop_words.into_iter().collect(),
+            function_words: raw.function_words.into_iter().collect(),
+            visual_verbs: raw.visual_verbs.into_iter().collect(),
+            policy,
+        }
+    });
+    let blocked: Vec<(usize, usize)> = request
+        .blocked_rune_spans
+        .into_iter()
+        .filter_map(|span| (span[0] < span[1]).then_some((span[0], span[1])))
+        .collect();
+    let phrases: Vec<SelectedPhrase> = select_phrases(
+        &request.text,
+        &blocked,
+        request.limit,
+        profile.as_ref(),
+        &request.corpus,
+        request.min_words,
+        request.max_words,
+    );
+    json!({"ok": true, "phrases": phrases}).to_string()
 }
 
 fn compile_editorial_plan_line(line: &str) -> String {
@@ -440,6 +518,31 @@ mod tests {
             response["completeness"]["rejections"][0]["reason"],
             "extractor refused scene two"
         );
+    }
+
+    #[test]
+    fn selects_phrases_through_the_worker_protocol() {
+        let worker = Worker::new(8);
+        let line = json!({
+            "operation": "select_phrases",
+            "text": "Ada Lovelace built props. Later, they fix costumes.",
+            "blocked_rune_spans": [[0, 12]],
+            "limit": 5,
+            "profile": {
+                "stop_words": ["they", "later"],
+                "function_words": ["they", "later"],
+                "visual_verbs": ["built", "fix"],
+                "min_words": 2,
+                "max_words": 16,
+                "max_results": 5,
+                "reject_verbs_when_all": true
+            }
+        })
+        .to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["phrases"][0]["text"], "built props");
+        assert_eq!(response["phrases"][1]["text"], "fix costumes");
     }
 
     #[test]

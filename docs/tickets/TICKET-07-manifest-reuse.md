@@ -48,6 +48,9 @@ contract-string change.
 
 ## Residual
 
-PipelineGen must populate the optional `manifest` field to get the saving; old
-scenes-only requests remain valid. The Go consumer fixture is outside this
-checkout, so cross-repo adoption is not claimed here.
+No consumer to wire yet. `imagecatalog` stays offline/experimental by the
+decision recorded in TICKET-13 13b, and the live registry is the Go
+`entitycatalog`: `grep -rn imagecatalog --include=*.go` returns no production
+file in `refactored` (2026-11-16). The saving is therefore latent for the Rust
+worker, not an open Go task; adopting the crate would be a product decision
+that replaces `entitycatalog`, not a manifest field to add.

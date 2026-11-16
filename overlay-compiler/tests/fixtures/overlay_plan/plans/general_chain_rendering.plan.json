@@ -1,0 +1,268 @@
+{
+  "ok": true,
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "schema_version": "editorial_plan.v2",
+    "plan_id": "chain-fixture",
+    "video_id": "video-chain-fixture",
+    "project_id": "project-fixture",
+    "language": "it",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_ms": 28000,
+    "items": [
+      {
+        "id": "static__nike-corre-al-museo__phrase-chain__01",
+        "scene_id": "s1",
+        "kind": "phrase_chain",
+        "start_ms": 500,
+        "end_ms": 3300,
+        "start_us": 500000,
+        "duration_us": 2800000,
+        "template_id": "PHRASE_CHAIN",
+        "text": "Nike corre al museo",
+        "caption_font_family": "playfair_display_italic",
+        "caption_layout": "below",
+        "params": {
+          "chain_camera": "fly_under_fade",
+          "chain_count": 2,
+          "chain_gap_us": 400000,
+          "chain_motions": [
+            "",
+            ""
+          ],
+          "chain_segments": [
+            {
+              "duration_us": 1200000,
+              "kind": "text_phrase",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "priority": 0.9
+              },
+              "start_us": 500000,
+              "template_id": "IMPORTANT_PHRASE",
+              "text": "Nike corre al museo"
+            },
+            {
+              "duration_us": 1200000,
+              "kind": "text_phrase",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "priority": 0.85
+              },
+              "start_us": 2100000,
+              "template_id": "IMPORTANT_PHRASE",
+              "text": "Il museo apre domani"
+            }
+          ]
+        }
+      },
+      {
+        "id": "static__s2-chain-image-0__image-chain__01",
+        "scene_id": "s2",
+        "kind": "image_chain",
+        "start_ms": 7200,
+        "end_ms": 12600,
+        "start_us": 7200000,
+        "duration_us": 5400000,
+        "template_id": "IMAGE_CHAIN",
+        "caption_font_family": "playfair_display_italic",
+        "caption_layout": "below",
+        "asset_refs": [
+          {
+            "asset_id": "asset-chain-image-a",
+            "url": "https://cdn.example/chain-image-a.jpg",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "media_type": "image/jpeg"
+          },
+          {
+            "asset_id": "asset-chain-image-b",
+            "url": "https://cdn.example/chain-image-b.jpg",
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "media_type": "image/jpeg"
+          }
+        ],
+        "params": {
+          "chain_camera": "fly_under_fade",
+          "chain_count": 2,
+          "chain_gap_us": 400000,
+          "chain_motions": [
+            "",
+            ""
+          ],
+          "chain_segments": [
+            {
+              "asset_id": "asset-chain-image-a",
+              "assets": [
+                {
+                  "asset_id": "asset-chain-image-a",
+                  "media_type": "image/jpeg",
+                  "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                  "url": "https://cdn.example/chain-image-a.jpg"
+                }
+              ],
+              "duration_us": 2500000,
+              "kind": "image",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "priority": 0.8
+              },
+              "start_us": 7200000,
+              "template_id": "IMAGE_OVERLAY"
+            },
+            {
+              "asset_id": "asset-chain-image-b",
+              "assets": [
+                {
+                  "asset_id": "asset-chain-image-b",
+                  "media_type": "image/jpeg",
+                  "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                  "url": "https://cdn.example/chain-image-b.jpg"
+                }
+              ],
+              "duration_us": 2500000,
+              "kind": "image",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "priority": 0.75
+              },
+              "start_us": 10100000,
+              "template_id": "IMAGE_OVERLAY"
+            }
+          ]
+        }
+      },
+      {
+        "id": "static__ferrari__mixed-chain__01",
+        "scene_id": "s3",
+        "kind": "mixed_chain",
+        "start_ms": 14000,
+        "end_ms": 18100,
+        "start_us": 14000000,
+        "duration_us": 4100000,
+        "template_id": "MIXED_CHAIN",
+        "text": "Ferrari",
+        "caption_font_family": "playfair_display_italic",
+        "caption_layout": "below",
+        "params": {
+          "chain_camera": "fly_under_fade",
+          "chain_count": 2,
+          "chain_gap_us": 400000,
+          "chain_motions": [
+            "",
+            ""
+          ],
+          "chain_segments": [
+            {
+              "duration_us": 2500000,
+              "entity_id": "org:ferrari",
+              "kind": "organization",
+              "params": {
+                "canonical_entity_id": "org:ferrari",
+                "entity_type": "ORG",
+                "priority": 0.95
+              },
+              "start_us": 14000000,
+              "template_id": "org_default",
+              "text": "Ferrari"
+            },
+            {
+              "duration_us": 1200000,
+              "kind": "text_phrase",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "priority": 0.9
+              },
+              "start_us": 16900000,
+              "template_id": "IMPORTANT_PHRASE",
+              "text": "La Ferrari vince a Monza"
+            }
+          ]
+        }
+      },
+      {
+        "id": "static__milano__map__01",
+        "scene_id": "s4",
+        "kind": "map",
+        "start_ms": 21200,
+        "end_ms": 22700,
+        "start_us": 21200000,
+        "duration_us": 1500000,
+        "template_id": "MAP",
+        "map": {
+          "entity_id": "place:milano",
+          "label": "Milano",
+          "latitude": 45.4642,
+          "longitude": 9.19,
+          "scope": "city"
+        },
+        "params": {
+          "priority": 0.9
+        }
+      },
+      {
+        "id": "static__roma__map__01",
+        "scene_id": "s4",
+        "kind": "map",
+        "start_ms": 23000,
+        "end_ms": 24500,
+        "start_us": 23000000,
+        "duration_us": 1500000,
+        "template_id": "MAP",
+        "map": {
+          "entity_id": "place:roma",
+          "label": "Roma",
+          "latitude": 41.9028,
+          "longitude": 12.4964,
+          "scope": "city"
+        },
+        "params": {
+          "priority": 0.8
+        }
+      }
+    ],
+    "recap_placements": 0,
+    "recap_cards": 0,
+    "chart_placements": 0,
+    "chart_cards": 0,
+    "timed_scenes": 4,
+    "intake": {
+      "scenes": 4,
+      "timed_scenes": 4,
+      "untimed_scenes": 0,
+      "budget": {
+        "phrase_overlays": 8,
+        "image_overlays": 5,
+        "map_overlays": 3,
+        "max_overlays_per_scene": 8
+      },
+      "candidates": 8,
+      "candidates_by_kind": {
+        "image": 2,
+        "map": 2,
+        "organization": 1,
+        "text_phrase": 3
+      },
+      "planned": 5,
+      "planned_by_kind": {
+        "image_chain": 1,
+        "map": 2,
+        "mixed_chain": 1,
+        "phrase_chain": 1
+      }
+    },
+    "output_profile_id": "assemblyready.alpha.v1"
+  }
+}

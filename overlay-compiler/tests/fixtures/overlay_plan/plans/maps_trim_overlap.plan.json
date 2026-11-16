@@ -14,7 +14,7 @@
     "duration_ms": 6000,
     "items": [
       {
-        "id": "s1-map-0",
+        "id": "static__milano__map__01",
         "scene_id": "s1",
         "kind": "map",
         "start_ms": 0,
@@ -33,7 +33,7 @@
         }
       },
       {
-        "id": "s1-map-1",
+        "id": "static__roma__map__01",
         "scene_id": "s1",
         "kind": "map",
         "start_ms": 1200,
@@ -53,7 +53,7 @@
         }
       },
       {
-        "id": "s2-map-0",
+        "id": "static__torino__map__01",
         "scene_id": "s2",
         "kind": "map",
         "start_ms": 3100,
@@ -88,19 +88,18 @@
         "map_overlays": 3,
         "max_overlays_per_scene": 8
       },
-      "candidates": 7,
+      "candidates": 6,
       "candidates_by_kind": {
         "image": 2,
         "important_word": 1,
-        "map": 3,
-        "text_phrase": 1
+        "map": 3
       },
       "planned": 3,
       "planned_by_kind": {
         "map": 3
       },
       "dropped_by_reason": {
-        "overlap": 4
+        "overlap": 3
       }
     },
     "output_profile_id": "assemblyready.alpha.v1"

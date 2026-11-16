@@ -36,7 +36,15 @@
     "entity_style_id": "random",
     "animation_directives": [],
     "animation_contract_version": 2,
-    "animation_catalog_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "animation_catalog_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "entity_image_motions": [
+      "entity_reveal_push",
+      "entity_soft_rise"
+    ],
+    "entity_caption_motions": [
+      "caption_rise",
+      "caption_fade"
+    ]
   },
   "editorial": {
     "schema_version": "editorial.v1",
@@ -103,47 +111,13 @@
       },
       "timeline_start_us": 0,
       "duration_us": 3000000,
-      "annotations": {
-        "phrases": [
+      "raw": {
+        "important_phrases": [
           {
             "text": "Nike corre",
-            "type": "PHRASE",
-            "start_ms": 100,
-            "end_ms": 800,
-            "start_us": 100000,
-            "duration_us": 700000,
-            "score": 0.9,
-            "presentation_role": "",
-            "editorial_candidate": ""
+            "score": 0.9
           }
-        ],
-        "keywords": [
-          {
-            "text": "museo",
-            "type": "KEYWORD",
-            "start_ms": 1000,
-            "end_ms": 1300,
-            "start_us": 1000000,
-            "duration_us": 300000,
-            "score": 0.6,
-            "presentation_role": "",
-            "editorial_candidate": ""
-          }
-        ],
-        "images": [
-          {
-            "asset_id": "asset-scene-1",
-            "url": "https://cdn.example/scene-1.jpg",
-            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-            "media_type": "image/jpeg",
-            "start_ms": 0,
-            "end_ms": 2500,
-            "start_us": 0,
-            "duration_us": 2500000,
-            "score": 0.7
-          }
-        ],
-        "end_us": 3000000
+        ]
       }
     }
   ],

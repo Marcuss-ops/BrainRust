@@ -1,7 +1,7 @@
 # TICKET 13 — Go-side demolition closeout (P2–P8)
 
 - Priority: P1
-- Status: PARTIAL
+- Status: DONE (2026-11-16; 13a–13d closed after TICKET-14 DONE)
 - Source: 2026-11-15 workspace audit ("andiamola a completare e tagliare per
   davvero") + Go→Rust migration analysis
 - Owner: any session working in `refactored` (PipelineGen)
@@ -230,7 +230,16 @@ VELOX_TTS_PROBE_SAMPLE=data/media/voiceovers/<sample>.mp3 \
   -bench '^BenchmarkProbeTTSMP3$' -benchtime=100x -count=5
 ```
 
-### 13d — the last big cut: `compile_editorial_plan` — RUST OP + BATCH PORTS DONE (2026-11-15); V2 CONTRACT LANDED, PHASE PORT OPEN
+### 13d — DONE (2026-11-16): one-call `compile_editorial_plan`
+
+**2026-11-16 closure (verified).** The four phase ports are gone from
+`refactored` (0 occurrences), `compileOverlayPlanWithMotionOffset` calls only
+`compileOverlayPlanV2`, and the Go seal no longer runs
+`CoalesceCaptionedEntityImageCards`. 13d's request-side surface builder was
+removed from production; TICKET-14 reached DONE on 2026-11-16, closing the
+remaining parity lanes. The Go editorial/card helpers that still exist have no
+production caller and are test-only. The paragraphs below are the historical
+record.
 
 `internal/capabilities/scripts/editorial_overlay.go` — 444 lines. Today it:
 
@@ -307,9 +316,34 @@ go test ./internal/platform/media/rustexec -run 'TestCompileEditorialPlan|TestOv
 go vet ./internal/platform/media/rustexec/...                                             # pass
 ```
 
-Remaining for 13d — single-call port (OPEN, tracked by
-[TICKET-14](TICKET-14-overlay-planner-single-call.md)). This is not a
-mechanical swap: the Go planner package is 15,171 non-test LOC with 14,660 LOC
+### 13d — formal closure (2026-11-16)
+
+The four per-concern ports, `legacy_overlay_plan.go` and the production
+editorial/card selection path were deleted. `compileOverlayPlanWithMotionOffset`
+now requires `OverlayPlanCompiler` and calls `CompileOverlayPlanV2` exactly
+once; the batch bridge uses the same compiler.
+`TestCompileOverlayPlanV2SendsOneCompleteRequestAndAdoptsThePlan` pins one
+request per plan.
+
+13d is DONE. TICKET-14 closed on the same date after landing the remaining
+parity lanes (chains, presentation, light leaks, seeded date/metric sampler,
+verified intent images and recaps); the six-fixture production-adapter gate,
+one-request real-worker counter, deletion guard and `make verify-main` PASS.
+The three legacy projection helpers (`projectEditorialOverlays`,
+`projectChapterBullets`, `overlaySceneInput`) still exist as test-only code
+with no production caller; they are not part of the production authority.
+The Go tree is still uncommitted.
+
+Closure checklist:
+
+- [x] one `CompileOverlayPlanV2` call per plan and sealed-plan adoption;
+- [x] four per-concern ports and the legacy planner absent from production;
+- [x] deletion guard, real-worker counter and six-fixture gate PASS;
+- [x] TICKET-14 DONE, so 13d has no downstream parity dependency;
+- [x] `make verify-agent` and `make verify-main` PASS on the closure tree.
+
+Historical acceptance plan (kept as the contract for the remaining parity
+gate) — this is not a mechanical swap: the Go planner package is 15,171 non-test LOC with 14,660 LOC
 of tests, and the scripts overlay planner/editorial/card layer is another
 6,098 non-test LOC. The four phases are interleaved because trim feeds
 `BuildPlan`'s budget, ranking feeds card resolution, cascade feeds motion
@@ -341,10 +375,11 @@ Execution plan:
 5. Run `cargo test -p overlay-compiler -p semantic-core -p semantic-engine
    --lib`, `cargo fmt --all -- --check`, `go test
    ./internal/capabilities/scripts/... ./internal/platform/media/rustexec/...`,
-   `make verify-agent`, and `make verify-main` before marking 13d DONE.
+   `make verify-agent`, and `make verify-main`; all passed at closure.
 
-Do not mark 13d DONE until steps 1–5 hold. The current verified state keeps
-the four batch ports: no silent approximation and no Go-only fallback.
+Steps 1–5 hold on the 2026-11-16 tree; step 4 is enforced by the frozen Rust
+goldens plus the six-fixture production-adapter gate. 13d closed with TICKET-14
+DONE; the deleted Go planner is not part of the closure.
 
 **Step 1 landed and extended (2026-11-15).** `overlay-compiler::editorial_plan_v2`
 defines the versioned `editorial_plan.v2` request/response envelope with
@@ -359,9 +394,9 @@ golden contract suite have also landed. `internal/kernel/overlayplan` and
 JSON round-trip). The legacy batch accepts an optional nested `v2` envelope,
 and `CompileEditorialPlanV2` exposes the projection through the same
 `compile_editorial_plan` operation, validating every returned window and scene
-id. This is still **not** the production one-call path: the Go planner keeps
-the four interleaved ports and the Go editorial/card selections until the
-TICKET-14 parity cutover.
+id. **Superseded 2026-11-16:** the production one-call path and deletion of the
+four ports/the Go editorial-card selections are in the working tree; see
+§13d above.
 
 **Verification boundary (2026-11-15).** The full
 `go test ./internal/platform/media/rustexec/...` suite passes (74s), and
@@ -417,12 +452,10 @@ fixtures.
 4. **13b — REGISTRY DONE (2026-11-15, `8b4482660`)** — verified registry
    moved to the Go `entitycatalog` owner; Rust `imagecatalog` stays offline
    by canonical design. Card selection stays with 13d's op.
-5. **13d — Rust op + Go batch ports DONE (2026-11-15); SINGLE-CALL PORT OPEN** —
-   `compile_editorial_plan` batches the four timing/ranking/cascade decisions
-   in `overlay-compiler`, and all four Go ports now use it. `make verify-agent`
-   and `make verify-main` pass. Remaining: execute the single-call port plan
-   above, now tracked by [TICKET-14](TICKET-14-overlay-planner-single-call.md);
-   do not mark 13d DONE before parity.
+5. **13d — DONE (2026-11-16)** — `compile_editorial_plan` is the single
+   production call, the four Go ports and legacy planner are deleted, and the
+   Rust parity lanes closed with [TICKET-14](TICKET-14-overlay-planner-single-call.md).
+   `make verify-agent` and `make verify-main` pass.
 
 Per-unit verification commands:
 
@@ -490,6 +523,6 @@ tracked separately so 13 can close with 14 without hiding the rest:
 | [19](TICKET-19-linguistic-temporal-alignment.md) | phrase↔word alignment | 15 |
 | [20](TICKET-20-identity-localization-consolidation.md) | localized identity | 18, 19 |
 
-TICKET-13 itself still closes only when TICKET-14 is DONE. The six tickets above
-are not a condition for 13d; they are the next demolition wave and must not be
+TICKET-13 closes with TICKET-14 DONE (2026-11-16). The six tickets above are
+not a condition for 13d; they are the next demolition wave and must not be
 reported as closed until their own parity gates pass.

@@ -21,6 +21,7 @@
 mod editorial;
 mod error;
 mod planner;
+mod projection;
 mod request;
 mod response;
 

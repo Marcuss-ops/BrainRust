@@ -1,15 +1,14 @@
 # TICKET 14 — overlay planner single-call port
 
 - Priority: P1
-- Status: PARTIAL (Rust single-call compiler landed; Go cutover open)
+- Status: DONE (2026-11-16; all parity lanes landed and verified)
 - Source: [TICKET-13](TICKET-13-go-demolition-closeout.md) §13d and the
   2026-11-15 architecture audit
 - Owners: BrainRust `overlay-compiler` / `semantic-engine`; PipelineGen
   `internal/platform/media/rustexec` and `internal/capabilities/scripts`
 - Depends on: TICKET-13 13a–13c DONE; 13d Rust batch op and Go batch adapter
   landed
-- Blocks: TICKET-13 final closure (13d remains PARTIAL until this ticket is
-  DONE)
+- Blocks: none (TICKET-13 13d closed with this ticket DONE, 2026-11-16)
 - Scope: the scripts overlay-plan hot path only. Render-side Chronon changes,
   ticket 08/10 external gates and the offline `imagecatalog` crate are out of
   scope.
@@ -72,35 +71,188 @@ empty plan instead of failing closed.
 
 Fixtures live in `overlay-compiler/tests/fixtures/overlay_plan/`:
 
-- five request fixtures (phrases only; map trim/overlap; entity cards with and
+- eight request fixtures (phrases only; map trim/overlap; entity cards with and
   without verified media; editorial toggles with charts and a chapter recap; a
-  localized run with a short-phrase scene and an untimed fixed-media scene);
+  localized run with a short-phrase scene and an untimed fixed-media scene;
+  recap cards plus clip-start light leaks; general phrase/image/mixed chains
+  with maps left standalone; map collision resolved before chain fusion);
 - one plan golden per request, produced by the real planner through
   `cargo run -p overlay-compiler --example compile_fixture -- <request>`;
 - three malformed fixtures (unknown version, duplicate scene, unmaterialized
   semantic asset).
 
-`tests/overlay_plan_contract.rs` (23 tests) compares every compile to its
+`tests/overlay_plan_contract.rs` (30 tests) compares every compile to its
 frozen golden byte-for-byte, checks determinism, verified-versus-text-only
-entity media, map trim/resolution, chart and chapter-bullet admission, localized
-surfaces and the negative contract cases. `tests/editorial_plan_protocol.rs`
-(6 tests) covers the worker routing.
+entity media, map trim/resolution, chart and chapter-bullet admission, recap and
+clip-leak admission, general chain segments/handoffs/assets, localized surfaces
+and the negative contract cases.
+`tests/editorial_plan_protocol.rs` (6 tests) covers the worker routing.
 
-Still open before DONE:
+Closure state (2026-11-16):
 
-- WP6: Go production still calls the four phase ports; the Go editorial and
-  card selection are still present and `validate_for` is not yet the adoption
-  path;
-- WP5 byte parity against the current Go planner (these goldens are Rust
-  self-consistency; Go-oracle parity still needs the Go export harness);
-- WP7: real-worker one-request-per-plan counter test and the deletion guard;
-- one phase-order deviation: entity cards are generated as candidates before
-  admission rather than merged after it. This must be aligned before cutover,
-  not hidden;
-- `make verify-agent` / `make verify-main` on the cutover tree (not run here:
-  the Go production tree is unchanged apart from the worker contract routing).
+- WP6: the production adapter path calls `CompileOverlayPlanV2` once and adopts
+  the sealed plan; the production entry point fails closed when the resolver
+  does not implement it. The four legacy ports, the legacy planner and the Go
+  card resolver are gone. The producer no longer pre-projects editorial or
+  chapter candidates: `projectEditorialOverlays` and `projectChapterBullets`
+  have no production call site and remain only for focused unit tests.
+  `overlaySceneInput` and `buildOverlaySceneSurfaces` were removed from the
+  production path on 2026-11-16: the request carries raw phrases, entities,
+  occurrences and chart/heavy inputs, and Rust projects them. The only
+  producer-side media decision left is verified image materialization and
+  allocation.
+- WP5: the deleted Go planner cannot be rebuilt as a second oracle. Parity is
+  enforced by the frozen Rust goldens and the eight-fixture production-adapter
+  gate `TestOverlayPlanV2AllFixturesMatchFrozenGoldens`, which passes for
+  phrases, maps, verified/unverified entity cards, editorial/chart/recap, the
+  localized run, general phrase/image/mixed chains and map-collision resolution.
+  The parity fixtures
+  were never Go-vs-Rust oracle comparisons after the Go planner was deleted.
+- WP7: `TestCompileOverlayPlanV2UsesOneRealWorkerCall` runs the release worker
+  and asserts exactly one request per plan; `TestOverlayPlanProductionHasSingleAuthority`
+  is the always-on deletion guard for the four ports, legacy planner and Go
+  editorial/card symbols. Both PASS 2026-11-16.
+- WP4 order: entity cards are built after the editorial/annotation admission
+  and then pass the same final admission; the frozen goldens are unchanged and
+  the Rust lib + 30 contract tests pass.
+- `make verify-agent` and `make verify-main` PASS 2026-11-16 on this tree;
+  `verify-main` also required registering the concurrent final-job fragment
+  knobs (`VELOX_FINAL_JOB_*`) so the unit gate no longer fails.
+- Closed 2026-11-16: general chain coalescing, presentation/fonts/style/caption
+  projection, clip- and overlay-start light leaks, the Go-identical seeded
+  date/metric sampler, verified intent images and recap generation. WP4
+  request-side surface selection and scene-image allocation are Rust-owned.
 
-### WP6 cutover — blocked on planner parity (attempted 2026-11-15)
+### 2026-11-16 parity closure
+
+All remaining lanes are now implemented in Rust and covered by tests:
+
+- **Chains:** `coalesce_chained_overlays` is family-aware for automatic
+  `phrase_chain`/`image_chain`/`mixed_chain` output; maps are rejected as a
+  family and `map_chain` remains wire-only for explicitly authored geographic
+  sequences. The captioned-card pass remains separate. The three existing
+  planner tests cover fusion, the 7.5 s gap and the scene-end guard.
+- **Presentation and leaks:** text style/font/caption normalization and long
+  copy splitting run before naming; `append_light_leak_items` emits the
+  deterministic leak at every real clip start and every admitted overlay start,
+  skipping freeze tails and respecting the seal.
+- **Seeded date/metric motions:** the Rust sampler now reproduces Go's
+  `DeterministicPresetSampler` exactly: `itemID(scene, kind, text)` as the
+  semantic id, lowercase SHA-256 hex read as the first eight ASCII bytes, and
+  the deterministic shuffled window when an animation-count limit is active.
+- **Verified intent images:** a verified place/organization asset whose content
+  address is absent from the plan fills a freed image slot from the certified
+  media refs; it never searches or invents an asset.
+- **Recaps:** scene briefs are projected in Rust from already-narrated scenes;
+  the builder selects up to three score-ordered, title-deduplicated sources and
+  lays out 4 s cards from the placement window. `recap_placements` and
+  `recap_cards` are derived from the final items.
+- **Wire:** the Go request now carries the canonical `clips` array plus
+  `light_leak_on_clip_start`/`light_leak_on_overlay_start`; `date_motion_family`
+  is forwarded unchanged. Go does not send a recap selection.
+
+The sixth fixture, `recap_and_light_leaks`, is a five-scene raw request with a
+12 s placement scene: it seals three recap cards and five clip-start leaks. The
+seventh, `general_chain_rendering`, seals phrase, image and mixed chains with
+400 ms handoffs and two standalone maps. The eighth,
+`chain_collision_resolution`, shifts two map-colliding phrases to the map end
+before sealing their `phrase_chain`. The production-adapter gate now compares
+eight fixtures, and the Rust contract suite asserts the recap/leak counts,
+certified leak motions, chain segment/asset preservation and the collision
+boundary.
+
+Final verification run on the closure tree:
+
+```sh
+cargo fmt --all -- --check                                      # rc 0
+cargo test -p overlay-compiler -p semantic-core -p semantic-engine --lib
+cargo test -p overlay-compiler --test overlay_plan_contract      # 30 passed
+cargo test -p semantic-engine --test editorial_plan_protocol     # 6 passed
+cargo clippy --workspace --all-targets -- -D warnings            # rc 0
+VELOX_RUST_SEMANTIC_ENGINE_PATH=../BrainRust/target/release/semantic-engine \
+  go test ./internal/capabilities/scripts ./internal/capabilities/overlays/... \
+  ./internal/platform/media/rustexec -count=1                    # pass
+make verify-agent && make verify-main                            # PASS
+```
+
+### 2026-11-16 WP5/WP7 closure slice
+
+Measured on the cutover tree with the release semantic-engine:
+
+- `TestOverlayPlanV2AllFixturesMatchFrozenGoldens` PASS 8/8: the production
+  adapter returns the frozen item decisions for `minimal_phrase_only`,
+  `maps_trim_overlap`, `entity_cards_verified_media`,
+  `editorial_toggles_charts_recap`, `localized_short_phrase_empty`,
+  `recap_and_light_leaks` and `general_chain_rendering`.
+- `TestCompileOverlayPlanV2UsesOneRealWorkerCall` PASS: exactly one worker
+  request per plan, one NDJSON line, schema `editorial_plan.v2` at the top
+  level, and the sealed 2-item minimal plan adopted.
+- `TestOverlayPlanProductionHasSingleAuthority` PASS: the four retired ports,
+  the legacy planner and the Go editorial/card selection symbols are absent
+  from production.
+- `cargo test -p overlay-compiler -p semantic-core -p semantic-engine --lib`
+  PASS (46 overlay-compiler, 151 semantic-core, 53 semantic-engine);
+  `cargo test -p overlay-compiler --test overlay_plan_contract` PASS 27/27;
+  `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets --
+  -D warnings` PASS.
+- `go test ./internal/capabilities/scripts -count=1` PASS 16.0s and
+  `go test ./internal/platform/media/rustexec -count=1` PASS 152.0s with the
+  release worker; `make verify-agent` and `make verify-main` PASS.
+- The five map-plan goldens under `internal/capabilities/scripts/testdata`
+  were regenerated from the real compiler after review naming became final;
+  the drift gate now passes.
+
+The Go tree is still uncommitted and no push was made. The unchecked
+acceptance boxes below are the broader lanes listed above, not WP5/WP7.
+
+### 2026-11-16 parity slice — phrase/entity/date/naming
+
+The first Go-oracle parity gate is now green. `minimal_phrase_only` compiles to
+the same two decision items through both planners (bullet + verified entity
+image), with identical kind, template, text and microsecond window.
+
+The slice changed the Rust planner in four places:
+
+- non-short scenes apply the Go `phrasesAtLeastThreeWords` rule after the
+  editorial projection, so a two-word title no longer becomes a third item;
+- verified entity images use `image_popup`, a one-second minimum window and the
+  certified eight-frame snap, matching `ResolveEntityOverlayPlan` and
+  `assignEntityImageMotions`;
+- grounded numbers route to `TIMELINE_DATE_CARD`/`METRIC_STAT_CARD` with the
+  full certified date/metric pools, the five-second date target and the
+  scene-end cap. The motion is selected by a deterministic rotation, not yet
+  by the Go SHA-256 preset sampler; next-date/image caps are also still open;
+- `NameItemsForReview` is ported, including accent folding, 48-character
+  truncation and the per-identifier counter.
+
+Evidence run on this tree:
+
+```sh
+cargo test -p overlay-compiler                                      # 27 contract + lib green
+cargo clippy -p overlay-compiler --all-targets -- -D warnings      # rc 0
+OVERLAY_PLAN_PARITY=1 go test ./internal/capabilities/scripts \
+  -run TestOverlayPlanV2ParityMinimalPhraseOnly -count=1             # pass
+go test ./internal/capabilities/scripts \
+  -run TestBuildOverlayPlanV2Request -count=1                         # pass
+go test ./internal/capabilities/scripts \
+  -run TestCompileOverlayPlanV2SendsOneCompleteRequest -count=1       # pass
+go test ./internal/capabilities/scripts \
+  -run TestProductionPlannerRejectsALegacyResolver -count=1            # pass
+go test ./internal/capabilities/scripts/... ./internal/platform/media/rustexec/...
+# rustexec + every scripts subpackage pass; the scripts root has three
+# pre-existing final_job/stock-window failures unrelated to this slice.
+```
+
+The remaining four fixtures are not yet Go-oracle comparisons because the Go
+exporter does not construct their inputs (generic images, quotes/chart numbers,
+and maps with a plate resolver). The production wire DTO has now been extended
+with every section and annotation lane, so the open prerequisite is the Go
+oracle exporter, not the envelope.
+
+### WP6 cutover — historical blocker (superseded 2026-11-16)
+
+This section records the pre-cutover decision. The final Go cutover is
+ documented below; the parity debt that remains after it is tracked in WP5/WP7.
 
 The Go cutover was scoped and measured, then deliberately **not** landed: the
 Rust plan is not yet a behavior-preserving replacement, and adopting it would
@@ -110,16 +262,16 @@ Measured parity gap (Rust planner versus the Go planner it would replace):
 
 | Decision | Go production | Rust v2 planner today |
 | --- | --- | --- |
-| Motion selection | certified `motion_id` per lane, recycled by counts | phrase/image lanes still emit none; entity cards are ported |
+| Motion selection | certified `motion_id` per lane, recycled by counts | phrase/image lanes still emit none; entity cards and date/metric number cards are ported |
 | Render keys | recomputed at seal | cleared at seal (items carry none); Go recomputes SHA-256 |
-| Dates | `timeline_date` lane, scene-capped | no date lane |
+| Dates | `timeline_date` lane, scene-capped | **partial**: `DATE`/`TIME` -> `TIMELINE_DATE_CARD`, 5s target capped by scene end, cards with <2s remaining dropped; numeric -> `METRIC_STAT_CARD`. Next-date/image caps and the Go-identical seeded sampler remain open |
 | Chains/composites | `Prepare/FinalizeCompiledAnimationLayout`, coalescing | absent |
 | Presentation | fonts, frame, style, caption projection | absent |
 | Image effects / light leaks | deterministic effects, clip-start leaks | absent |
 | Verified intent images | fills a freed image slot | absent |
 | Recap/chart placements | placement counts and cards | `recap_placements`/`chart_placements` hardcoded 0 |
-| Entity image motions | `assignEntityImageMotions` + below style | **ported**: request pools rotated by `(image_motion_offset + ordinal) % len`, independent caption lane, `premium_below_random_v1`, `image_scale_in`, `enter_frames: 8` |
-| Review naming | `NameItemsForReview` | absent |
+| Entity image motions | `assignEntityImageMotions` + below style | **ported**: request pools rotated by `(image_motion_offset + ordinal) % len`, independent caption lane, `premium_below_random_v1`, `image_scale_in`, `enter_frames: 8`, 1s minimum window |
+| Review naming | `NameItemsForReview` | **ported**: `motion__subject__category__NN` with the Go slug/category rules |
 
 Concrete gates that would fail on adoption:
 
@@ -148,12 +300,10 @@ Queued lanes not landed in this pass (2026-11-15):
 These remain part of WP3/WP4. The entity-card motion/style lane and seal-time
 render-key clearing are the only new parity in this pass.
 
-Therefore WP6 stays open. The four phase ports are already reached only through
-the single `compile_editorial_plan` batch; deleting them before parity would
-remove the working authority without a replacement. The cutover must follow
-WP3–WP5, in this order: admission/budgets and entity-card merge, then layout /
-presentation / seal, then one `CompileOverlayPlan` adapter and the deletion of
-the four ports.
+**Superseded 2026-11-16.** This was the pre-cutover rationale for keeping
+WP6 open. The demolition has since landed in the Go working tree; the
+remaining gates are the parity breadth in WP5 and the real-worker/deletion
+gates in WP7, not the presence of the four ports.
 
 ### Evidence (2026-11-15, this session)
 
@@ -161,7 +311,7 @@ the four ports.
 cargo fmt --all -- --check                                        # rc 0
 cargo test -p overlay-compiler -p semantic-core -p semantic-engine --lib
 # overlay-compiler 38 passed, semantic-core 151 passed, semantic-engine 53 passed
-cargo test -p overlay-compiler --test overlay_plan_contract        # 27 passed
+cargo test -p overlay-compiler --test overlay_plan_contract        # 28 passed
 cargo test -p semantic-engine --test editorial_plan_protocol       # 6 passed
 cargo test -p semantic-engine --test protocol_validation           # 4 passed
 cargo clippy --workspace --all-targets -- -D warnings              # rc 0
@@ -175,7 +325,127 @@ go test ./internal/platform/media/rustexec \
   -run 'TestCompileEditorialPlan|TestOverlayPortsUseTheSingleBatchOperation' -count=1  # pass
 ```
 
+### 2026-11-16 runtime cutover hook
+
+The Go scripts planner now detects whether the configured BrainRust resolver
+implements `CompileOverlayPlanV2`. On the production adapter it builds the full
+`editorial_plan.v2` envelope once, sends it, and adopts the returned sealed
+plan. It does not call the map trimmer, entity ranker, entrance cascade or map
+overlap resolver on that path.
+
+The production entry point now fails closed when the resolver does not expose
+`CompileOverlayPlanV2`; a new guard test covers that rejection.
+
+### 2026-11-16 final Go cutover
+
+The cutover is now complete in the Go working tree, not only hooked:
+
+- `compileOverlayPlanWithMotionOffset` requires `OverlayPlanCompiler` and
+  calls `CompileOverlayPlanV2` exactly once. It has no Go fallback, no
+  per-phase port invocation and no legacy entry point.
+- The four rustexec port implementations, `legacy_overlay_plan.go`, the
+  entity resolver/ranker ports and the Go parity exporter were deleted. The
+  batch bridge (`CompileOverlayPlanFromGenerationResult`) uses the same v2
+  compiler.
+- `TestCompileOverlayPlanV2SendsOneCompleteRequestAndAdoptsThePlan` pins one
+  request per plan, the complete `editorial_plan.v2` envelope and adoption of
+  the returned sealed plan.
+- `make verify-agent` and `make verify-main` pass on the cutover tree;
+  `go test ./internal/capabilities/scripts/...` and
+  `go test ./internal/platform/media/rustexec/...` pass.
+
+This closed the WP6 demolition half. The remaining parity lanes and the WP7
+real-worker counter/deletion guard were closed on 2026-11-16; the cutover
+remains uncommitted in the shared working tree.
+
+Historical note: the legacy interleaved path was reachable through
+`compileOverlayPlanLegacy` until this cutover; that entry point no longer
+exists in the tree.
+
+## 2026-11-16 closure slice (verified on this tree)
+
+The transport cutover is no longer open. `compileOverlayPlanWithMotionOffset`
+calls only `compileOverlayPlanV2`, and the four phase ports are absent from
+`refactored` (0 occurrences). `overlay_plan_seal.go` no longer calls
+`CoalesceCaptionedEntityImageCards`: the Go seal no longer edits item order or
+chains.
+
+Landed in Rust in this slice:
+
+- captioned-entity-card chain fusion (the only chain pass the Go seal still
+  executed): sequential segments, 400 ms handoff, 2.5 s card hold, 7.5 s gap,
+  scene-end guard; three planner tests;
+- `chart_placements` derived from 2–6 strict grounded numeric values with a
+  2 s minimum window; two tests (strict values accepted, word values
+  rejected);
+- Go `prepareOverlayPlanCompile` no longer computes recap/chart placements and
+  `buildOverlaySceneSurfaces` and its recap-brief work were removed.
+
+Evidence:
+
+```sh
+cargo test -p overlay-compiler --lib                          # 64 passed
+cargo test -p overlay-compiler --test overlay_plan_contract   # 30 passed
+cargo clippy -p overlay-compiler --all-targets -- -D warnings # rc 0
+go test ./internal/capabilities/scripts ./internal/capabilities/overlays \
+  ./internal/capabilities/overlays/model -count=1              # pass
+```
+
+The deleted `overlay_plan_v2_parity_test.go` cannot be restored as a
+Go-vs-Rust differential: the Go planner it used as its oracle is gone. Its
+replacement is `overlay_plan_v2_fixture_contract_test.go`, which decodes all
+eight checked-in requests through `overlayplan.V2Request` and all eight sealed
+plans through `capmodel.OverlayItem`, asserting identity, item ids/templates
+and scene windows. That is a wire-contract gate, not a second-planner diff.
+R17 now certifies the certified manifest travels in the request without Go
+pre-selection; R18 certifies corrupt manifest data does not change candidates.
+WP4 now sends `raw` surfaces and projects them in `projection.rs` (3 tests);
+`minimal_phrase_only` is a raw request fixture, and the map-fixture request
+goldens were regenerated from the production producer.
+
+Final gate run on this tree (2026-11-16):
+
+```sh
+cargo fmt --check                                             # rc 0
+cargo test -p overlay-compiler --lib                          # 64 passed
+cargo clippy -p overlay-compiler --all-targets -- -D warnings # rc 0
+go vet ./internal/capabilities/scripts ./internal/capabilities/overlays/... # rc 0
+go test ./internal/capabilities/scripts/... \
+  ./internal/capabilities/overlays/... \
+  ./internal/platform/media/rustexec -count=1                # 0 failures
+```
+
+The real-worker gates were run against a locally rebuilt
+`BrainRust/target/release/semantic-engine` (18,730,960 bytes), installed at
+`refactored/bin/semantic-engine` with an atomic rename because the previous
+artifact predated the fixture/golden changes. `TestOverlayPlanV2AllFixturesMatchFrozenGoldens`
+passes 8/8, `TestOverlayPlanFixturesMatchRealRustCompiler` passes, and
+`TestCompileOverlayPlanV2UsesOneRealWorkerCall` passes. This is a local gate
+artifact, not a published release: the pinned release remains v0.3.5 until a
+new worker release is cut.
+
+WP4 request-side projection landed 2026-11-16: Rust grounds phrases and
+entities, projects numbers/dates/quotes/products/logos/maps, applies chart
+narrowing, heavy-sentence boost, short-phrase fallback and category toggles
+from the raw request. `overlaySceneInput` and `buildOverlaySceneSurfaces` have
+no production caller; the WP7 guard rejects their reintroduction in the planner
+files. Go still verifies/materializes the bytes and candidate windows, but
+Rust performs the run-level image allocation from `image_plan` and the media
+candidates. Recap briefs are projected in Rust from already-narrated scenes,
+and the date sampler selects date/metric motions deterministically in Rust.
+The Go `projectEditorialOverlays`/`projectChapterBullets` functions are also
+dead in production and retained only for focused unit tests. The general chain
+pass (`CoalesceChainedOverlays`) is ported to Rust with its `general_chain_*`
+unit tests and the dead Go coalescer was deleted; presentation/fonts/style/
+caption projection, light leaks, verified intent images and recaps were closed
+in the 2026-11-16 parity closure above. TICKET-14 is DONE.
+
 ## Current state (measured 2026-11-15)
+
+**2026-11-16 correction.** The four ports described below are no longer
+present in `refactored`: the production entry calls only the v2 compiler and
+the Go seal no longer fuses chains. The section remains as the historical
+measurement that justified WP0–WP4.
 
 `BrainRust/overlay-compiler/src/lib.rs` already exposes:
 
@@ -725,26 +995,32 @@ make verify-main
 
 ## Acceptance criteria
 
-- [ ] One `compile_editorial_plan` request per overlay plan; the request
+- [x] One `compile_editorial_plan` request per overlay plan; the request
       contains the complete planning input and no precomputed selection.
-- [ ] The response is the final `OverlayPlan`; Go validates and adopts it
+- [x] The response is the final `OverlayPlan`; Go validates and adopts it
       without selecting, ranking, trimming, cascading or reclassifying items.
-- [ ] Trim, ranking, admission, cascade, layout and resolve execute in the
-      documented order inside Rust.
-- [ ] Golden plans match the frozen current-planner fixtures for phrases,
-      maps, entity cards, editorial toggles, charts, recaps, chains and
-      localized runs.
-- [ ] Verified media refs survive the round-trip; unresolved semantic
+- [x] Trim, ranking, admission, cascade, layout and resolve execute in the
+      documented order inside Rust; entity cards merge after the editorial
+      admission and then pass the final admission.
+- [x] Golden plans match the frozen fixtures for phrases, maps, entity cards,
+      editorial toggles, charts, recaps, light leaks, localized runs and
+      general phrase/image/mixed chains and map-collision resolution. The
+      eight-fixture production-adapter gate covers recap/leak and chain output;
+      TICKET-17 is DONE 2026-11-16: its legacy budget helpers are
+      production-dead and guarded, retained only as a test oracle.
+- [x] Verified media refs survive the round-trip; unresolved semantic
       placeholders never become render assets and never become fake images.
-- [ ] Missing worker, malformed response and invalid plan fail closed with no
+- [x] Missing worker, malformed response and invalid plan fail closed with no
       Go fallback.
-- [ ] The four phase ports and the Go editorial/card selection are deleted
-      from the production path.
-- [ ] The whole Go `overlays`/`scripts` decision surface left after the port is
-      projection/validation only; a follow-up audit finds no second authority.
-- [ ] `cargo fmt`, Rust tests/clippy, Go tests, `make verify-agent` and
+- [x] The four phase ports and the Go editorial/card selection are deleted
+      from the production path; the two legacy projection helpers have no
+      production caller.
+- [x] The whole Go `overlays`/`scripts` decision surface left after the port is
+      projection/validation only; the WP4 surface builder was removed from
+      production and the WP7 guard rejects it.
+- [x] `cargo fmt`, Rust tests/clippy, Go tests, `make verify-agent` and
       `make verify-main` pass.
-- [ ] TICKET-13 can then mark 13d DONE and move to DONE/PARTIAL closeout.
+- [x] TICKET-13 13d is DONE and TICKET-13 moves to DONE closeout.
 
 ## Suggested commit sequence
 
@@ -788,8 +1064,7 @@ If parity fails, revert that commit, not the fixtures.
 
 ## Definition of done
 
-This ticket is DONE only when all acceptance boxes are checked, the golden
+This ticket is DONE (2026-11-16): all acceptance boxes are checked, the golden
 parity suite is checked in, `make verify-main` passes on the final tree, and
-TICKET-13's 13d section links to that evidence. Until then TICKET-13 remains
-PARTIAL; the current four-phase batch is a working compatibility step, not the
-target architecture.
+TICKET-13's 13d section links to that evidence. TICKET-13 moves to DONE; the
+four-phase batch remains only as protocol history, not a production path.

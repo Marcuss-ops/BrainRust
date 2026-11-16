@@ -14,24 +14,7 @@
     "duration_ms": 6000,
     "items": [
       {
-        "id": "s1-phrase-0",
-        "scene_id": "s1",
-        "kind": "text_phrase",
-        "start_ms": 100,
-        "end_ms": 800,
-        "start_us": 100000,
-        "duration_us": 700000,
-        "template_id": "IMPORTANT_PHRASE",
-        "motion_params": {
-          "enter_frames": 16
-        },
-        "text": "Nike corre",
-        "params": {
-          "priority": 0.9
-        }
-      },
-      {
-        "id": "s1-word-0",
+        "id": "static__museo__important-word__01",
         "scene_id": "s1",
         "kind": "important_word",
         "start_ms": 1000,
@@ -45,7 +28,7 @@
         }
       },
       {
-        "id": "s1-image-0",
+        "id": "static__s1-image-0__image__01",
         "scene_id": "s1",
         "kind": "image",
         "start_ms": 0,
@@ -68,15 +51,15 @@
         }
       },
       {
-        "id": "overlay-s1-org:nike",
+        "id": "entity-soft-rise__nike__entity_image__01",
         "scene_id": "s1",
         "entity_id": "org:nike",
         "kind": "entity_image",
         "start_ms": 100,
-        "end_ms": 400,
+        "end_ms": 1100,
         "start_us": 100000,
-        "duration_us": 300000,
-        "template_id": "org_default",
+        "duration_us": 1000000,
+        "template_id": "image_popup",
         "image_preset_id": "image_scale_in",
         "motion_id": "entity_soft_rise",
         "entity_style_id": "premium_below_random_v1",
@@ -98,25 +81,44 @@
         ],
         "params": {
           "canonical_entity_id": "org:nike",
+          "caption_layout": "below",
           "entity_type": "ORG",
+          "position_x": 0.0,
+          "position_y": 0.0,
           "priority": 0.95
         }
       },
       {
-        "id": "overlay-s2-org:ferrari",
+        "id": "static__ferrari__organization__01",
         "scene_id": "s2",
         "entity_id": "org:ferrari",
         "kind": "organization",
         "start_ms": 3000,
-        "end_ms": 3600,
+        "end_ms": 4000,
         "start_us": 3000000,
-        "duration_us": 600000,
+        "duration_us": 1000000,
         "template_id": "org_default",
         "text": "Ferrari",
+        "style": {
+          "fill": "#000000",
+          "font_family": "playfair_display_italic",
+          "font_size": 96.0,
+          "glow": {
+            "color": "#FFFFFF"
+          }
+        },
         "params": {
           "canonical_entity_id": "org:ferrari",
           "entity_type": "ORG",
-          "priority": 0.95
+          "fill": "#000000",
+          "font_family": "playfair_display_italic",
+          "font_size_px": 96.0,
+          "glow_color": "#FFFFFF",
+          "glow_size": 10.0,
+          "height": 600.0,
+          "position": "center",
+          "priority": 0.95,
+          "width": 1700.0
         }
       }
     ],
@@ -135,21 +137,19 @@
         "map_overlays": 3,
         "max_overlays_per_scene": 8
       },
-      "candidates": 5,
+      "candidates": 4,
       "candidates_by_kind": {
         "entity_image": 1,
         "image": 1,
         "important_word": 1,
-        "organization": 1,
-        "text_phrase": 1
+        "organization": 1
       },
-      "planned": 5,
+      "planned": 4,
       "planned_by_kind": {
         "entity_image": 1,
         "image": 1,
         "important_word": 1,
-        "organization": 1,
-        "text_phrase": 1
+        "organization": 1
       }
     },
     "output_profile_id": "assemblyready.alpha.v1"

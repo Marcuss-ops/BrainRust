@@ -14,7 +14,7 @@
     "duration_ms": 8000,
     "items": [
       {
-        "id": "s1-phrase-0",
+        "id": "static__nike-runs__phrase__01",
         "scene_id": "s1",
         "kind": "text_phrase",
         "start_ms": 100,
@@ -26,12 +26,28 @@
           "enter_frames": 8
         },
         "text": "Nike runs",
+        "style": {
+          "fill": "#000000",
+          "font_family": "playfair_display_italic",
+          "font_size": 72.0,
+          "glow": {
+            "color": "#FFFFFF"
+          }
+        },
         "params": {
-          "priority": 0.9
+          "fill": "#000000",
+          "font_family": "playfair_display_italic",
+          "font_size_px": 72.0,
+          "glow_color": "#FFFFFF",
+          "glow_size": 10.0,
+          "height": 600.0,
+          "position": "center",
+          "priority": 0.9,
+          "width": 1700.0
         }
       },
       {
-        "id": "s2-word-0",
+        "id": "static__north__important-word__01",
         "scene_id": "s2",
         "kind": "important_word",
         "start_ms": 3950,

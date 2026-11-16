@@ -14,26 +14,7 @@
     "duration_ms": 3000,
     "items": [
       {
-        "id": "s1-editorial-0",
-        "scene_id": "s1",
-        "kind": "text_phrase",
-        "start_ms": 100,
-        "end_ms": 800,
-        "start_us": 100000,
-        "duration_us": 700000,
-        "template_id": "IMPORTANT_PHRASE",
-        "motion_params": {
-          "enter_frames": 8
-        },
-        "text": "Nike corre",
-        "params": {
-          "editorial_candidate": "title",
-          "editorial_role": "scene_title",
-          "priority": 1.0
-        }
-      },
-      {
-        "id": "s1-editorial-1",
+        "id": "static__nike-corre-al-museo__phrase__01",
         "scene_id": "s1",
         "kind": "text_phrase",
         "start_ms": 100,
@@ -42,30 +23,67 @@
         "duration_us": 1200000,
         "template_id": "IMPORTANT_PHRASE",
         "motion_params": {
-          "enter_frames": 20
+          "enter_frames": 8
         },
         "text": "Nike corre al museo.",
+        "style": {
+          "fill": "#000000",
+          "font_family": "playfair_display_italic",
+          "font_size": 72.0,
+          "glow": {
+            "color": "#FFFFFF"
+          }
+        },
         "params": {
           "editorial_candidate": "bullet",
           "editorial_role": "scene_bullet",
-          "priority": 0.99
+          "fill": "#000000",
+          "font_family": "playfair_display_italic",
+          "font_size_px": 72.0,
+          "glow_color": "#FFFFFF",
+          "glow_size": 10.0,
+          "height": 600.0,
+          "position": "center",
+          "priority": 0.99,
+          "width": 1700.0
         }
       },
       {
-        "id": "s1-phrase-0",
+        "id": "entity-reveal-push__nike__entity_image__01",
         "scene_id": "s1",
-        "kind": "text_phrase",
+        "entity_id": "org:nike",
+        "kind": "entity_image",
         "start_ms": 100,
-        "end_ms": 800,
+        "end_ms": 1100,
         "start_us": 100000,
-        "duration_us": 700000,
-        "template_id": "IMPORTANT_PHRASE",
+        "duration_us": 1000000,
+        "template_id": "image_popup",
+        "image_preset_id": "image_scale_in",
+        "motion_id": "entity_reveal_push",
+        "entity_style_id": "premium_below_random_v1",
         "motion_params": {
-          "enter_frames": 16
+          "enter_frames": 8
         },
-        "text": "Nike corre",
+        "entity_caption": "Nike",
+        "caption_motion_id": "caption_rise",
+        "caption_font_family": "playfair_display_italic",
+        "caption_layout": "below",
+        "caption_color": "#000000",
+        "asset_refs": [
+          {
+            "asset_id": "asset-nike",
+            "url": "https://cdn.example/nike.png",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "media_type": "image/png"
+          }
+        ],
         "params": {
-          "priority": 0.9
+          "canonical_entity_id": "org:nike",
+          "caption_layout": "below",
+          "entity_type": "ORG",
+          "position_x": 0.0,
+          "position_y": 0.0,
+          "priority": 0.95
         }
       }
     ],
@@ -84,19 +102,15 @@
         "map_overlays": 3,
         "max_overlays_per_scene": 3
       },
-      "candidates": 6,
+      "candidates": 2,
       "candidates_by_kind": {
         "entity_image": 1,
-        "image": 1,
-        "important_word": 1,
-        "text_phrase": 3
+        "text_phrase": 1
       },
-      "planned": 3,
+      "planned": 2,
       "planned_by_kind": {
-        "text_phrase": 3
-      },
-      "dropped_by_reason": {
-        "per_scene": 3
+        "entity_image": 1,
+        "text_phrase": 1
       }
     },
     "output_profile_id": "assemblyready.alpha.v1"

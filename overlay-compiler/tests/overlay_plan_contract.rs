@@ -2,9 +2,12 @@
 //!
 //! The fixtures under `tests/fixtures/overlay_plan/` are the checked-in
 //! planning-input matrix: phrases only, map trim/overlap/resolution, entity
-//! cards with and without verified media, editorial toggles with charts and a
-//! chapter recap, and a localized run with a short-phrase scene plus an untimed
-//! fixed-media scene. The plan files are produced by the real planner with
+//! cards with and without verified media, editorial toggles with charts, a
+//! localized run with a short-phrase scene plus an untimed fixed-media scene,
+//! recap cards plus clip-start light leaks, the general chain coalescer's
+//! phrase/image/mixed sequences with maps left standalone, and a map collision
+//! that is resolved before the surviving phrases fuse. The plan files are
+//! produced by the real planner with
 //! `cargo run -p overlay-compiler --example compile_fixture -- <request>`.
 //!
 //! A missing section, an unknown version, a duplicate identity, an unmaterialized
@@ -53,6 +56,25 @@ const FIXTURES: &[Fixture] = &[
             "fixtures/overlay_plan/requests/localized_short_phrase_empty.request.json"
         ),
         plan: include_str!("fixtures/overlay_plan/plans/localized_short_phrase_empty.plan.json"),
+    },
+    Fixture {
+        name: "recap_and_light_leaks",
+        request: include_str!("fixtures/overlay_plan/requests/recap_and_light_leaks.request.json"),
+        plan: include_str!("fixtures/overlay_plan/plans/recap_and_light_leaks.plan.json"),
+    },
+    Fixture {
+        name: "general_chain_rendering",
+        request: include_str!(
+            "fixtures/overlay_plan/requests/general_chain_rendering.request.json"
+        ),
+        plan: include_str!("fixtures/overlay_plan/plans/general_chain_rendering.plan.json"),
+    },
+    Fixture {
+        name: "chain_collision_resolution",
+        request: include_str!(
+            "fixtures/overlay_plan/requests/chain_collision_resolution.request.json"
+        ),
+        plan: include_str!("fixtures/overlay_plan/plans/chain_collision_resolution.plan.json"),
     },
 ];
 
@@ -195,9 +217,9 @@ fn every_golden_validates_against_its_request() {
 }
 
 #[test]
-fn editorial_projection_emits_grounded_title_and_bullet() {
+fn editorial_projection_filters_a_two_word_title_and_keeps_the_bullet() {
     let plan = compile("minimal_phrase_only").plan;
-    assert_eq!(plan.items.len(), 3);
+    assert_eq!(plan.items.len(), 2);
     let roles: Vec<&str> = plan
         .items
         .iter()
@@ -208,9 +230,11 @@ fn editorial_projection_emits_grounded_title_and_bullet() {
                 .and_then(|role| role.as_str())
         })
         .collect();
-    assert!(roles.contains(&"scene_title"));
-    assert!(roles.contains(&"scene_bullet"));
-    assert!(plan.items.iter().any(|item| item.text == "Nike corre"));
+    assert_eq!(roles, vec!["scene_bullet"]);
+    assert!(
+        plan.items.iter().all(|item| item.text != "Nike corre"),
+        "a two-word title is not a renderable block overlay"
+    );
 }
 
 #[test]
@@ -389,6 +413,171 @@ fn charts_and_chapter_recaps_reach_the_final_plan() {
 }
 
 #[test]
+fn recap_cards_and_clip_leaks_reach_the_final_plan() {
+    let plan = compile("recap_and_light_leaks").plan;
+    assert_eq!(1, plan.recap_placements);
+    assert_eq!(3, plan.recap_cards);
+    assert_eq!(
+        3,
+        plan.items
+            .iter()
+            .filter(|item| item
+                .params
+                .as_ref()
+                .and_then(|params| params.get("recap"))
+                .and_then(|recap| recap.as_bool())
+                == Some(true))
+            .count(),
+        "three narrated scenes fill the placement window"
+    );
+    let leaks = plan
+        .items
+        .iter()
+        .filter(|item| item.kind == "light_leak")
+        .collect::<Vec<_>>();
+    assert_eq!(5, leaks.len(), "one leak per real clip start");
+    assert!(
+        leaks
+            .iter()
+            .all(|item| item.motion_id.starts_with("lightleak_")),
+        "every leak carries a certified light-leak motion"
+    );
+}
+
+#[test]
+fn general_chain_rendering_covers_phrase_image_and_mixed_sequences() {
+    let plan = compile("general_chain_rendering").plan;
+    let items = |kind: &str| {
+        plan.items
+            .iter()
+            .filter(|item| item.kind == kind)
+            .collect::<Vec<_>>()
+    };
+    for kind in ["phrase_chain", "image_chain", "mixed_chain"] {
+        assert_eq!(items(kind).len(), 1, "one {kind} in the golden");
+    }
+    assert_eq!(items("map").len(), 2, "maps stay standalone");
+
+    for kind in ["phrase_chain", "image_chain", "mixed_chain"] {
+        let item = items(kind)[0];
+        let params = item.params.as_ref().expect("chain params");
+        assert_eq!(params["chain_count"].as_u64(), Some(2), "{kind}");
+        assert_eq!(params["chain_gap_us"].as_i64(), Some(400_000), "{kind}");
+        assert_eq!(
+            params["chain_camera"].as_str(),
+            Some("fly_under_fade"),
+            "{kind}"
+        );
+        assert_eq!(
+            params["chain_segments"].as_array().map(Vec::len),
+            Some(2),
+            "{kind}"
+        );
+        assert_eq!(
+            params["chain_motions"].as_array().map(Vec::len),
+            Some(2),
+            "{kind}"
+        );
+    }
+
+    let phrase = items("phrase_chain")[0];
+    let phrase_segments = phrase.params.as_ref().expect("params")["chain_segments"]
+        .as_array()
+        .expect("phrase segments");
+    let first_end = phrase_segments[0]["start_us"].as_i64().unwrap()
+        + phrase_segments[0]["duration_us"].as_i64().unwrap();
+    let second_start = phrase_segments[1]["start_us"].as_i64().unwrap();
+    assert_eq!(first_end, 1_700_000);
+    assert_eq!(second_start - first_end, 400_000, "400 ms handoff");
+    assert_eq!(
+        phrase_segments[1]["text"].as_str(),
+        Some("Il museo apre domani")
+    );
+
+    let image = items("image_chain")[0];
+    assert_eq!(image.asset_refs.len(), 2, "both image assets are preserved");
+    assert_eq!(image.asset_refs[0].asset_id, "asset-chain-image-a");
+    assert_eq!(image.asset_refs[1].asset_id, "asset-chain-image-b");
+    let image_segments = image.params.as_ref().expect("params")["chain_segments"]
+        .as_array()
+        .expect("image segments");
+    assert_eq!(
+        image_segments[0]["assets"][0]["sha256"].as_str(),
+        Some("1111111111111111111111111111111111111111111111111111111111111111")
+    );
+    assert_eq!(
+        image_segments[1]["assets"][0]["sha256"].as_str(),
+        Some("2222222222222222222222222222222222222222222222222222222222222222")
+    );
+    assert_eq!(image_segments[1]["start_us"].as_i64(), Some(10_100_000));
+
+    let mixed_segments = items("mixed_chain")[0].params.as_ref().expect("params")["chain_segments"]
+        .as_array()
+        .expect("mixed segments");
+    assert_eq!(mixed_segments[0]["kind"].as_str(), Some("organization"));
+    assert_eq!(mixed_segments[1]["kind"].as_str(), Some("text_phrase"));
+    assert!(
+        items("map").iter().all(|item| item
+            .params
+            .as_ref()
+            .is_some_and(|params| params.get("chain_count").is_none())),
+        "the map family is never fused into a chain"
+    );
+}
+
+#[test]
+fn chain_collision_resolution_shifts_map_collisions_before_fusion() {
+    let entry = fixture("chain_collision_resolution");
+    let request = parse_request(entry.request);
+    let annotations = request.scenes[0].annotations.as_ref().expect("annotations");
+    let requested_starts: Vec<i64> = annotations
+        .phrases
+        .iter()
+        .map(|phrase| phrase.start_us)
+        .collect();
+    assert_eq!(requested_starts, vec![2_200_000, 3_000_000]);
+
+    let plan = compile("chain_collision_resolution").plan;
+    let map = plan
+        .items
+        .iter()
+        .find(|item| item.kind == "map")
+        .expect("map");
+    let (map_start, map_end) = map.window_us();
+    assert_eq!((map_start, map_end), (2_000_000, 4_000_000));
+
+    let chain = plan
+        .items
+        .iter()
+        .find(|item| item.kind == "phrase_chain")
+        .expect("collision-resolved chain");
+    assert_eq!(chain.window_us(), (4_000_000, 6_800_000));
+    assert_eq!(
+        chain.window_us().0,
+        map_end,
+        "both colliding phrases must start at the map end"
+    );
+
+    let segments = chain.params.as_ref().expect("params")["chain_segments"]
+        .as_array()
+        .expect("segments");
+    assert_eq!(segments[0]["start_us"].as_i64(), Some(4_000_000));
+    assert_eq!(segments[0]["text"].as_str(), Some("Nike corre al museo"));
+    assert_eq!(segments[1]["start_us"].as_i64(), Some(5_600_000));
+    assert_eq!(segments[1]["text"].as_str(), Some("Il museo apre domani"));
+    let first_end =
+        segments[0]["start_us"].as_i64().unwrap() + segments[0]["duration_us"].as_i64().unwrap();
+    assert_eq!(
+        segments[1]["start_us"].as_i64().unwrap() - first_end,
+        400_000
+    );
+    assert!(
+        plan.items.iter().all(|item| item.kind != "text_phrase"),
+        "the colliding phrases are represented only inside the chain"
+    );
+}
+
+#[test]
 fn a_localized_run_keeps_target_language_surfaces_and_skips_untimed_scenes() {
     let plan = compile("localized_short_phrase_empty").plan;
     let texts: Vec<&str> = plan
@@ -475,8 +664,16 @@ fn an_item_outside_its_scene_is_rejected() {
 fn duplicate_item_identity_is_rejected() {
     let mut compiled = parse_plan(fixture("minimal_phrase_only").plan);
     let duplicate: PlanItemV2 = compiled.plan.items[0].clone();
+    let kind = duplicate.kind.clone();
     compiled.plan.items.push(duplicate);
     compiled.plan.intake.planned = compiled.plan.items.len() as i64;
+    compiled.plan.intake.candidates = compiled.plan.items.len() as i64;
+    *compiled
+        .plan
+        .intake
+        .planned_by_kind
+        .entry(kind)
+        .or_default() += 1;
     let error = compiled.validate().expect_err("duplicate id");
     assert!(error.to_string().contains("duplicate item id"));
 }
@@ -525,7 +722,7 @@ fn a_scene_window_that_disagrees_with_the_scene_is_rejected() {
 
 #[test]
 fn an_annotation_outside_its_scene_is_rejected() {
-    let mut request = parse_request(fixture("minimal_phrase_only").request);
+    let mut request = parse_request(fixture("entity_cards_verified_media").request);
     let span = request.scenes[0]
         .annotations
         .as_mut()
