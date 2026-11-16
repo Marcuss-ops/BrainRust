@@ -4,7 +4,12 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-15. **10 DONE, 2 PARTIAL, 0 OPEN, 2 BLOCKED.**
+Last verified: 2026-11-16. **10 DONE, 2 PARTIAL, 6 OPEN, 2 BLOCKED.**
+
+Tickets 15–20 are the 2026-11-16 external-audit follow-ups. They cover the Go
+authorities that remain outside TICKET-13's 13a–13e inventory; none of them is
+DONE. The audit reconciliation is
+[`docs/stato/AUDIT-RICONCILIAZIONE-2026-11-16.md`](../../../docs/stato/AUDIT-RICONCILIAZIONE-2026-11-16.md).
 
 Status vocabulary:
 
@@ -33,6 +38,12 @@ Status vocabulary:
 | [12](TICKET-12-mvp-semantic-contract.md) | P0 | DONE (bound/Rust) | v3 linked-entity projection, local index/linker, typed intents, Go v3 consumer, intent/index cache key, verified-hit admission, stop-on-satisfaction and cross-repo smoke pass; only the revised SLO agreement remains external. |
 | [13](TICKET-13-go-demolition-closeout.md) | P1 | PARTIAL | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d Rust op + Go batch ports DONE (`ded9f28`, `68ddb83f5`, `652c03217`): all four overlay ports use `compile_editorial_plan`, but the planner still calls them at four phases. `make verify-agent` and `make verify-main` PASS; the versioned `editorial_plan.v2` envelope + Go producer landed (2026-11-15), but the single-call planner port and deletion of Go editorial/card selection remain; tracked by [14](TICKET-14-overlay-planner-single-call.md). 13 remains PARTIAL until 14 is DONE. |
 | [14](TICKET-14-overlay-planner-single-call.md) | P1 | PARTIAL | Rust single-call compiler landed: complete `editorial_plan.v2` request (seal, annotations, entity timeline, media, budgets, windows), final-plan response with `validate_for`, and one `compile_overlay_plan_v2` call that projects editorial/chapter bullets, entity cards, budgets, map trim/resolution, cascade and seal. Five request fixtures plus five planner-generated goldens and a 27-test contract suite are checked in; the worker routes by schema version before deserializing. Entity-card motion/style selection is ported (certified pool rotation by run offset, independent caption lane, below-caption style, `image_scale_in`) and the seal clears derived render keys for Go to recompute. Open: Go cutover (the four phase ports and Go editorial/card selection remain), Go-oracle parity, the one-request-per-plan counter and `make verify-main` on the cutover tree. Blocks TICKET-13 13d closure. |
+| [15](TICKET-15-phrase-engine-demolition.md) | P1 | OPEN | Go still owns important-phrase selection and phrase timing (`phrases/` + `phrase_*.go`, 8 files / 1,846 LOC). Target: Rust returns selected spans and alignment; delete the Go selector, supplement and endpoint fallback. |
+| [16](TICKET-16-mediamemory-ranker-migration.md) | P1 | OPEN | `mediamemory` still owns final asset ranking (`PickTopFromRose`, 29 production files / 5,069 LOC). Target: `mediasampler` receives candidates + history and returns the ordered selection; Go projects. |
+| [17](TICKET-17-visual-budget-chain-cutover.md) | P1 | OPEN | Visual budget and chain coalescing are still Go (`overlays/visual_budget*`, `model/chain_coalesce.go` 732 LOC). Target: fold both into `compile_editorial_plan` v2 after TICKET-14. |
+| [18](TICKET-18-linguistics-go-demolition.md) | P2 | OPEN | Go still loads `LexiconRegistry` and applies language-aware entity rules (`translated_nlp_identity.go` 571, `entity_annotations.go` 561, `entity_projection.go` 457). Target: Rust owns lexicons, morphology and projection. |
+| [19](TICKET-19-linguistic-temporal-alignment.md) | P2 | OPEN | Phrase-to-word alignment remains Go (`audio/phrase_locator.go`, `scripts/phrase_timing.go` 340, endpoint fallback). Target: Rust returns exact local/global spans; Go only projects. |
+| [20](TICKET-20-identity-localization-consolidation.md) | P2 | OPEN | Localized identity matching/inflection remains Go (`translated_nlp_identity.go`). Target: Rust carries the source identity through translation; Go validates the verbatim surface. |
 
 ## Verification — 2026-11-15 (ticket 14, Rust single-call compiler)
 

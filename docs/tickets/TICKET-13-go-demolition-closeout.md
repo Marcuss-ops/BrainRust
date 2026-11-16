@@ -474,3 +474,22 @@ bash contract/mediaexec.v2/check_consumer_copy.sh ../refactored/testdata/mediaex
   their status in their own tickets.
 - Chronon render-side changes (card *rendering*, animations): out of scope;
   only selection/planning moves.
+
+## Phase 2 — authorities outside 13a–13e (2026-11-16)
+
+The external audit of 2026-11-16 found Go decision code that is outside this
+ticket's 4,424-line `scripts/` inventory. It does not reopen 13a–13c; it is
+tracked separately so 13 can close with 14 without hiding the rest:
+
+| Ticket | Authority still in Go | Depends on |
+|---|---|---|
+| [15](TICKET-15-phrase-engine-demolition.md) | important-phrase selection + timing | 14 |
+| [16](TICKET-16-mediamemory-ranker-migration.md) | MediaMemory ranker/diversity | — |
+| [17](TICKET-17-visual-budget-chain-cutover.md) | visual budget + chain coalescing | 14 |
+| [18](TICKET-18-linguistics-go-demolition.md) | lexicon registry + language rules | 15, 20 |
+| [19](TICKET-19-linguistic-temporal-alignment.md) | phrase↔word alignment | 15 |
+| [20](TICKET-20-identity-localization-consolidation.md) | localized identity | 18, 19 |
+
+TICKET-13 itself still closes only when TICKET-14 is DONE. The six tickets above
+are not a condition for 13d; they are the next demolition wave and must not be
+reported as closed until their own parity gates pass.
