@@ -115,8 +115,12 @@ impl PreRankGate {
     }
 }
 
-/// Slots the cascade can request. The seven values are the Go
+/// Slots the cascade can request. The seven concrete values are the Go
 /// `media.SlotKind` set; an unknown value fails closed at the boundary.
+///
+/// `Any` is the neutral value for a caller that ranks a pool BEFORE a slot is
+/// assigned (the Brain orchestrator does exactly that): it disables the
+/// aspect gate instead of pretending the pool belongs to one slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlotKind {
     PrimaryVideo,
@@ -126,6 +130,7 @@ pub enum SlotKind {
     Portrait,
     Document,
     Background,
+    Any,
 }
 
 pub fn parse_slot_kind(value: &str) -> Option<SlotKind> {
@@ -137,6 +142,7 @@ pub fn parse_slot_kind(value: &str) -> Option<SlotKind> {
         "portrait" => Some(SlotKind::Portrait),
         "document" => Some(SlotKind::Document),
         "background" => Some(SlotKind::Background),
+        "any" => Some(SlotKind::Any),
         _ => None,
     }
 }
@@ -192,6 +198,11 @@ pub struct RankCandidate {
     pub materialization_status: String,
     #[serde(default)]
     pub binding: Option<RankBinding>,
+    /// Caller-supplied ordering preference, added to the final score AFTER the
+    /// verdict is classified. It cannot resurrect a dropped candidate and it
+    /// is not part of the breakdown: the canonical seats stay auditable.
+    #[serde(default)]
+    pub bonus: f64,
 }
 
 /// One slot pool to rank.
@@ -406,6 +417,7 @@ pub fn aspect_mismatch_for(slot: SlotKind, media_type: &str) -> bool {
         return false;
     }
     match slot {
+        SlotKind::Any => false,
         SlotKind::PrimaryVideo => media_type != "video",
         SlotKind::SecondaryImage
         | SlotKind::EvidenceOverlay
@@ -602,7 +614,7 @@ fn pick_top(rose: &[ScoredCandidate], prev_video_id: &str) -> Option<usize> {
 pub fn rank_candidates(request: &RankRequest) -> Result<RankOutcome, RankError> {
     let slot = parse_slot_kind(&request.slot_kind).ok_or_else(|| {
         RankError::new(format!(
-            "unknown slot_kind {:?}: expected primary_video, secondary_image, evidence_overlay, map, portrait, document or background",
+            "unknown slot_kind {:?}: expected primary_video, secondary_image, evidence_overlay, map, portrait, document, background or any",
             request.slot_kind
         ))
     })?;
@@ -662,7 +674,9 @@ pub fn rank_candidates(request: &RankRequest) -> Result<RankOutcome, RankError> 
                 media_type: candidate.media_type.clone(),
                 duration_ms: candidate.duration_ms,
                 rights_status: candidate.rights_status.clone(),
-                final_score: score,
+                // The verdict is decided on the canonical score; the bonus is an
+                // ordering preference layered on top of it, never a rescue.
+                final_score: score + candidate.bonus,
                 verdict,
                 reason: verdict_reason(verdict).to_string(),
                 breakdown: seats,
@@ -1018,5 +1032,50 @@ mod tests {
             outcome.drops[0].reason,
             "score below drop threshold (penalty or malformed)"
         );
+    }
+
+    #[test]
+    fn caller_bonus_orders_candidates_without_touching_the_verdict() {
+        let mut strong = candidate("strong");
+        strong.candidate_score = 0.9;
+        let mut preferred = candidate("preferred");
+        preferred.candidate_score = 0.2;
+        preferred.bonus = 1.0;
+
+        let outcome = rank_candidates(&request(vec![strong, preferred])).expect("slot is valid");
+
+        assert_eq!(outcome.ranked[0].asset_id, "preferred");
+        assert_eq!(outcome.ranked[0].verdict, RankVerdict::Accept);
+        assert_eq!(
+            outcome.ranked[0].breakdown.semantic, 0.2,
+            "the bonus must not leak into the auditable breakdown"
+        );
+    }
+
+    #[test]
+    fn caller_bonus_cannot_rescue_a_gate_drop() {
+        let mut denies = candidate("denied");
+        denies.rights_status = "denied".to_string();
+        denies.bonus = 5.0;
+
+        let outcome = rank_candidates(&request(vec![denies])).expect("slot is valid");
+
+        assert!(outcome.ranked.is_empty(), "{outcome:?}");
+        assert_eq!(outcome.drops[0].gate.as_deref(), Some("valid_license"));
+    }
+
+    #[test]
+    fn any_slot_disables_the_aspect_gate_only() {
+        let mut image = candidate("still");
+        image.media_type = "image".to_string();
+
+        let mut any = request(vec![image.clone()]);
+        any.slot_kind = "any".to_string();
+        let accepted = rank_candidates(&any).expect("any is a valid slot");
+        assert_eq!(accepted.ranked.len(), 1, "{accepted:?}");
+
+        let primary = rank_candidates(&request(vec![image])).expect("slot is valid");
+        assert!(primary.ranked.is_empty(), "{primary:?}");
+        assert_eq!(primary.drops[0].gate.as_deref(), Some("compatible_aspect"));
     }
 }

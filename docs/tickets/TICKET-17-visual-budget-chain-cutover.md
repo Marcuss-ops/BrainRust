@@ -67,6 +67,11 @@ cache was disabled with `VELOX_FINAL_JOB_FRAGMENT_CACHE_DIR=off` for the gate
 because its foreign avcC corpus entry is outside this cutover; the corpus probe
 is designed to skip when the cache is disabled.
 
+The verdict is unchanged on the current tree (2026-11-16):
+`go test ./internal/capabilities/scripts -count=1` passes in 15.723 s, the
+budget symbols still have no production caller and the WP7 guard still rejects
+a Go chain producer.
+
 ## Target
 
 Fold both clusters into `compile_editorial_plan` v2:

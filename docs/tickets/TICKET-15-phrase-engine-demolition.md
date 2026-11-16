@@ -1,7 +1,7 @@
 # TICKET 15 — Phrase Engine Go demolition
 
 - Priority: P1
-- Status: PARTIAL (Rust selector landed 2026-11-16; Go cutover blocked on TICKET-19)
+- Status: DONE (2026-11-16, verified; deadline fallback retained only as a test oracle with no production caller)
 - Source: external audit 2026-11-16; TICKET-13 phase 2
 - Depends on: TICKET-14 for the overlay consumer; independent for VidRush
   selection
@@ -9,7 +9,7 @@
 
 ## Update 2026-11-16 (partial, verified)
 
-The production seam is ready but the cutover is not complete:
+The production seam was ready before the 2026-11-16 cutover; this section records the pre-cutover state and is superseded by the DONE verdict:
 
 - `semantic-core::phrase_select` now owns the exact Go selector algorithm
   (short/long candidates, blocked rune spans, corpus boost, sentence cards,
@@ -22,6 +22,39 @@ The production seam is ready but the cutover is not complete:
   `phrase_supplement.go` and `phrase_timing.go` remain live; TICKET-16 and
   18/19/20 are untouched. Do not mark this ticket DONE until those callers and
   the parity gate land.
+
+## Update 2026-11-16 (selection cutover verified)
+
+The deterministic selector is now the only phrase authority on the source and
+localized paths; the Go selector package is gone.
+
+- `SceneIRSegmentEnricher` requires a `PhraseSelector` when the plan requests
+  important phrases or words. `vidrush_semantic_chain.go` no longer imports
+  `scripts/phrases`; operator hints pass the local proper-name ingress guard.
+- `translated_nlp.go` selects through the same Rust operation with the
+  document corpus and blocked entity spans.
+- `phrase_projection.go` (renamed from `phrase_supplement.go`) calls
+  `SelectPhrases` for the 2–5-word and default lanes, then only completes,
+  merges and balances the returned spans.
+- `internal/capabilities/scripts/phrases/` is deleted in production; the
+  remaining `phrases/semantic` package is the unrelated phrase-impact scorer.
+  Tests now use local projection helpers instead of the deleted selector.
+- The phrase-timing projection (`CompilePhraseTimings`,
+  `CompileSceneSpeechTimings`) now consumes the Rust `align_phrases` operation
+  via `PhraseAligner`; Go maps the returned spans and never calls
+  `LocatePhraseTimings` there.
+
+Verified: `go test ./internal/capabilities/audio
+./internal/capabilities/scripts ./internal/platform/media/rustexec
+./internal/app/wiring`; `cargo test -p semantic-core -p semantic-engine`.
+Closeout: no production file imports or calls `phrases.Select`,
+`ImportantPhrasesWithCorpus`, `CompleteGroundedPhrase` or
+`locatePhraseTimingWithEndpointFallback`. The remaining endpoint helper is
+reachable only from the test-only projection oracles (`overlaySceneInput`,
+`projectChapterBullets`, `projectEditorialOverlays`), which the deletion guard
+keeps out of the production planner. `audio.LocatePhrase` remains for
+entity/moment projection and is tracked with TICKET-19's residual scope, not
+as a second phrase selector.
 
 ## Why
 
@@ -128,5 +161,58 @@ Remaining before the ticket can close:
    `phrase_supplement.go` and `phrase_timing.go`; rerun
    `go test ./internal/capabilities/scripts/...` and `make verify-main`.
 
-No production caller was switched and no Go file was deleted, so the ticket
-stays PARTIAL rather than DONE.
+At the committed HEAD (`refactored@6f1e75a6d`) no production caller was
+switched and no Go file was deleted, so the ticket stays PARTIAL rather than
+DONE. The in-flight pass below moves the callers but does not change that
+verdict.
+
+## In-flight cutover 2026-11-16 (historical, pre-commit)
+
+A second pass on the working tree on top of `refactored@6f1e75a6d` showed the
+selector wired before the final test fixes. This section is retained as
+history; the current verification is below:
+
+- `supplementSourceImportantPhrases` now takes a `PhraseSelector` and calls
+  `SelectPhrases` twice, once for the 2–5-word lane and once for the default
+  lane; a nil selector fails closed.
+- `SceneIRSegmentEnricher`, `computeSegmentEntityAnnotations`,
+  `runner_overlay_prepare.go`, `runner.go`, `translated_nlp.go` and
+  `vidrush_semantic_chain.go` pass the selector through.
+- No production file imports `capabilities/scripts/phrases` any more; only
+  three test files still do (`catalog_hint_validation_test.go`,
+  `translated_nlp_property_test.go`, `phrase_sentence_boundaries_test.go`).
+- `go build ./internal/capabilities/scripts/... ./internal/app/wiring/...` is
+  clean.
+
+## Residuals after the DONE verdict
+
+- The two previously red tests were repaired without weakening their
+  assertions; `go test ./internal/capabilities/scripts -count=1` passes in
+  15.723 s.
+- `scripts/phrase_timing.go` (402 LOC) delegates alignment to the Rust
+  `align_phrases` seam. The endpoint fallback remains only for the test-only
+  projection helpers (`overlaySceneInput`, `projectChapterBullets`,
+  `projectEditorialOverlays`); it has no production caller. `audio.LocatePhrase`
+  remains for entity-occurrence and voiceover-moment projection, outside this
+  ticket's phrase-selection scope.
+- The Go selector package is no longer a production dependency: 0 production
+  imports of `capabilities/scripts/phrases`; `phrase_supplement.go` is
+  deleted; the remaining `phrases/semantic` package is the unrelated
+  phrase-impact scorer. The short/long two-request lane is an optimization,
+  not a second selector authority.
+- `refactored` still pins `BRAINRUST_VERSION ?= v0.3.5`, which contains
+  neither `select_phrases` nor `align_phrases`. A new BrainRust release and a
+  pin bump are required before production runs the switched callers; this is a
+  deployment prerequisite, not an open code path in this ticket.
+
+## Verification 2026-11-16 (current tree)
+
+| Command | Result |
+|---|---|
+| `go build ./internal/capabilities/scripts/... ./internal/app/wiring/...` | PASS |
+| `go test ./internal/capabilities/scripts -count=1` | PASS, 15.723 s |
+| `go test ./internal/capabilities/audio ./internal/platform/media/rustexec` | PASS, 0.026 s + 99.322 s |
+| `cargo test -p semantic-engine --test phrase_selection_protocol` | 13/13 PASS |
+| production imports of `capabilities/scripts/phrases` | 0 |
+| production callers of the endpoint fallback | 0 |
+| `git show v0.3.5:semantic-engine/src/protocol.rs \| grep select_phrases` | 0 matches |

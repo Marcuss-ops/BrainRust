@@ -42,3 +42,21 @@ Rust owns identity across languages:
   distinguish "not present" from "unlinked".
 - The image binding belongs to the source identity; do not re-resolve it from
   the translated surface.
+
+## Verification 2026-11-16 (workspace)
+
+Still a live Go authority; no acceptance criterion has landed.
+
+- `translated_nlp.go:286` still calls `matchLocalizedSourceEntities` and
+  `:336` calls `completeOrderedPersonMatches`;
+  `translated_nlp_identity.go` (571 LOC) still owns inflection
+  (pl/de/tr) and ordered-person completion (ru/tr/pl).
+- No Rust localized-identity operation exists in
+  `semantic-engine/src/protocol.rs`.
+- The in-flight `translated_nlp.go` edits only move phrase selection to the
+  Rust selector; they do not remove identity matching or inflection.
+- The `translation` artifact checkpoint (text digest + input fingerprint) only
+  avoids re-calling the provider. It carries no source canonical id, so it is
+  not an identity contract and does not satisfy this ticket.
+- `go test ./internal/capabilities/scripts -count=1` is green (15.723 s), but
+  no acceptance criterion of this ticket has a dedicated test yet.

@@ -11,6 +11,7 @@
 use std::io;
 use std::sync::{Arc, Mutex};
 
+use semantic_core::phrase_align::{locate_phrase, LocatedPhrase, SpeechWord};
 use semantic_core::phrase_select::{
     select_phrases, PhraseExtractionPolicy, PhraseProfile, SelectedPhrase,
 };
@@ -58,6 +59,14 @@ struct SelectPhrasesProfileRequest {
     max_results: Option<usize>,
     #[serde(default)]
     reject_verbs_when_all: Option<bool>,
+}
+
+#[derive(Deserialize, Default)]
+struct AlignPhrasesRequest {
+    #[serde(default)]
+    words: Vec<SpeechWord>,
+    #[serde(default)]
+    phrases: Vec<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -112,6 +121,7 @@ impl Worker {
             "analyze_script" => self.analyze(line),
             "split_sentences" => split_sentences(line),
             "select_phrases" => select_phrases_line(line),
+            "align_phrases" => align_phrases_line(line),
             "compile_editorial_plan" => compile_editorial_plan_line(line),
             "resolve_map_overlaps" => resolve_map_overlaps_line(line),
             "trim_map_windows_before_budget" => trim_map_windows_before_budget_line(line),
@@ -204,6 +214,26 @@ fn select_phrases_line(line: &str) -> String {
         request.max_words,
     );
     json!({"ok": true, "phrases": phrases}).to_string()
+}
+
+fn align_phrases_line(line: &str) -> String {
+    let request: AlignPhrasesRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid align_phrases request: {err}")),
+    };
+    if request.phrases.is_empty() {
+        return error_response("align_phrases: phrases are required");
+    }
+    let mut alignments: Vec<LocatedPhrase> = Vec::new();
+    for (index, phrase) in request.phrases.iter().enumerate() {
+        match locate_phrase(&request.words, phrase) {
+            Ok(found) => alignments.push(found[0].clone()),
+            Err(err) => {
+                return error_response(&format!("align_phrases: phrase {index} {err}"));
+            }
+        }
+    }
+    json!({"ok": true, "alignments": alignments}).to_string()
 }
 
 fn compile_editorial_plan_line(line: &str) -> String {
@@ -543,6 +573,47 @@ mod tests {
         assert_eq!(response["ok"], true);
         assert_eq!(response["phrases"][0]["text"], "built props");
         assert_eq!(response["phrases"][1]["text"], "fix costumes");
+    }
+
+    #[test]
+    fn aligns_phrases_through_the_worker_protocol() {
+        let worker = Worker::new(8);
+        let line = json!({
+            "operation": "align_phrases",
+            "words": [
+                {"index": 0, "text": "La", "start_us": 0, "end_us": 100},
+                {"index": 1, "text": "pena", "start_us": 100, "end_us": 200},
+                {"index": 2, "text": "divenne", "start_us": 200, "end_us": 300}
+            ],
+            "phrases": ["la pena", "pena divenne"]
+        })
+        .to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["alignments"][0]["word_start"], 0);
+        assert_eq!(response["alignments"][0]["word_end"], 1);
+        assert_eq!(response["alignments"][1]["word_start"], 1);
+        assert_eq!(response["alignments"][1]["end_us"], 300);
+    }
+
+    #[test]
+    fn align_phrases_fails_closed_on_missing_interior_word() {
+        let worker = Worker::new(8);
+        let line = json!({
+            "operation": "align_phrases",
+            "words": [
+                {"index": 0, "text": "one", "start_us": 0, "end_us": 100},
+                {"index": 1, "text": "three", "start_us": 100, "end_us": 200}
+            ],
+            "phrases": ["one two three"]
+        })
+        .to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], false);
+        assert!(response["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("phrase 0"));
     }
 
     #[test]

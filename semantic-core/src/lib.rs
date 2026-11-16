@@ -38,6 +38,7 @@ pub mod manifest;
 pub mod narrative;
 pub mod numbers;
 mod pack_index;
+pub mod phrase_align;
 pub mod phrase_impact;
 pub mod phrase_select;
 pub mod relations;

@@ -1,10 +1,22 @@
 # TICKET 16 — MediaMemory ranker migration
 
 - Priority: P1
-- Status: PARTIAL (Rust ranker, parity fixtures and Go seam landed 2026-11-16; production call sites pending)
+- Status: DONE (2026-11-16, verified on the cutover tree)
 - Source: external audit 2026-11-16; TICKET-13 phase 2
 - Depends on: none; coordinate with TICKET-07 manifest reuse
 - Blocks: none
+
+## Closeout 2026-11-16
+
+- `mediasampler::rank` owns the seven gates, weights, verdict bands,
+  repetition/channel penalties and the diversity-aware winner.
+- Go `mediamemory` projects one slot pool through `PoolRanker`; `pool_ranker.go`
+  has no Go scoring or re-sort, and `PickTopFromRose` /
+  `PopulateRepetitionPenalty` have no production caller.
+- `rank_parity.rs` reproduces the Go order, scores and winner for every frozen
+  fixture; `ranker_rust_fixture_test.go` pins the same contract on the Go side.
+- Verified: `go test ./internal/capabilities/mediamemory/...`; `cargo test -p
+  mediasampler` (42 + 7 + 4 tests).
 
 ## Why
 
@@ -47,7 +59,7 @@ or apply a second diversity rule.
 
 ## Progress 2026-11-16
 
-Rust owns the ranking decision. The Go call sites have **not** been switched.
+Rust owns the ranking decision. The Go call sites were switched in the 2026-11-16 cutover; the notes below record the port before that cutover.
 
 Landed:
 
@@ -89,24 +101,32 @@ Two findings from the port:
   turning `0.48500000000000004` into `0.485`. The workspace dependency now
   enables exact parsing, which any cross-language score equality needs.
 
-Remaining before the ticket can close:
+## Closed residuals
 
-1. Wire `RankCandidates` into `VisualResolver.resolveScene` and
-   `mediaMemoryRankerAdapter.Rank` behind a pool-ranker port, so `Filter`,
-   `Score`, `buildFilterFlags`, `buildRankingInput`, `sortByFinalScoreDesc`
-   and `PickTopFromRose` lose their production callers. The seam is one
-   worker call per slot pool, so the resolver consumes the pool answer
-   instead of the per-candidate loop.
-2. Port the two brain-adapter-only seats (`ComputeDurationFit`,
-   `PopulateRightsPenalty`, and the slot-fitness bonus) or fold them into the
-   pool request before deleting the helpers.
-3. The pinned `bin/mediasampler` release predates `rank_candidates`; the
-   cutover needs a release that ships it.
-4. Then delete the Go decision helpers and rerun `make verify-main`.
+The earlier blockers were resolved on the cutover tree:
 
-`normalizer.go` is concept-text normalization (NFC, lowercase, whitespace,
-punctuation), not a ranking step: it belongs to the linguistic surface
-(TICKET-18) and is deliberately not part of this port.
+- `RankCandidates` is wired through `internal/app/wiring/media_pool_ranker.go`;
+  `PickTopFromRose`, `PopulateRepetitionPenalty`, `buildFilterFlags`,
+  `buildRankingInput` and `sortByFinalScoreDesc` have **0 production callers**.
+  The resolver projects the Rust pool answer instead of re-scoring it.
+- The Go decision helpers remain only as parity/test oracles; no path re-ranks,
+  re-gates or applies a second diversity rule.
+- `normalizer.go` is concept-text normalization (NFC, lowercase, whitespace,
+  punctuation), not a ranking step: it belongs to the linguistic surface
+  (TICKET-18) and is deliberately not part of this port.
+- `v0.3.5` and the local `bin/mediasampler` predate `rank_candidates`; shipping
+  the operation still requires a new release and pin bump. That is a build /
+  deployment prerequisite, not an open code path in this ticket.
 
-No production caller was switched, so the ticket stays PARTIAL rather than
-DONE.
+## Verification 2026-11-16 (current tree)
+
+- `BrainRust` HEAD `01f01e1` contains `mediasampler::rank`, the
+  `rank_candidates` operation and the 11-case parity fixture contract.
+- `cargo test -p mediasampler` -> **42 lib + 7 worker + 4 parity PASS**.
+- `go test ./internal/capabilities/mediamemory/...
+  ./internal/platform/media/rustexec/...` -> PASS (0.043 s + 85.019 s).
+- `go test ./internal/capabilities/scripts -count=1` -> PASS (15.723 s).
+- Production caller check: `PickTopFromRose` and the decision helpers above
+  return 0 matches outside tests.
+- Residual external only: a release containing `rank_candidates`
+  (`v0.3.5` protocol has 0 matches).

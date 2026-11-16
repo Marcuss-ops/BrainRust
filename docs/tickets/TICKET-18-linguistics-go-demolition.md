@@ -43,3 +43,26 @@ only validates them against the scene text.
   the Rust contract must cover or explicitly reject those languages.
 - Removing the registry can change startup validation; keep a fail-closed
   check on the Rust profile version.
+
+## Verification 2026-11-16 (workspace)
+
+Still a live Go authority; no acceptance criterion has landed.
+
+- `internal/app/wiring/script/lexicon.go:21` calls `NewLexiconRegistry` on the
+  production path and feeds the intent resolvers
+  (`internal/capabilities/brain/intent/registry.go`).
+- `runner_overlay_prepare.go:338` and `translated_nlp.go:429` call
+  `projectEntityAnnotations`; the language-aware rules in
+  `entity_annotations.go` (561 LOC) and `entity_projection.go` (457 LOC) are
+  live.
+- `internal/capabilities/linguistics/` is 796 non-test LOC. No Rust operation
+  returns the tokenization/morphology projection that would let Go delete the
+  registry. `semantic-engine/src/protocol.rs` now registers `select_phrases`
+  and `align_phrases` in addition to `health`, `analyze_script`,
+  `split_sentences`, `compile_editorial_plan`, `resolve_map_overlaps`,
+  `trim_map_windows_before_budget`, `rank_entity_overlays` and
+  `cascade_clustered_entrances`; none of them replaces `LexiconRegistry` or
+  `translated_nlp_identity.go`.
+- The 2026-11-16 phrase/alignment work is not a linguistics cutover: phrase
+  selection and word alignment are Rust-owned, but stopwords/morphology,
+  `projectEntityAnnotations` and localized identity matching remain Go.
