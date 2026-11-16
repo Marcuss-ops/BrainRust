@@ -23,7 +23,9 @@ jobs:
     - name: Install ICU4C development package and provisioning tools
       run: |
         apt-get update
-        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv
+        # ffmpeg is required by the canonical_render_segments projection-parity
+        # test; without it the tagged tree test fails before assets are built.
+        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv ffmpeg
 
     - name: Verify the ICU pin
       run: |

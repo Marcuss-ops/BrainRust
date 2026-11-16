@@ -20,7 +20,9 @@ jobs:
     - name: Install ICU4C development package and provisioning tools
       run: |
         apt-get update
-        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv
+        # ffmpeg is required by the canonical_render_segments projection-parity
+        # test; without it the workspace suite fails before any asset is built.
+        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv ffmpeg
 
     # The canonical major is ICU_MAJOR (72, Bookworm). Refuse to test against
     # a host that disagrees instead of silently producing a different ABI.
