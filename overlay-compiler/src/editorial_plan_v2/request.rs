@@ -143,6 +143,18 @@ pub struct CanvasV2 {
     pub image_motions: Vec<String>,
     #[serde(default)]
     pub image_with_text_motions: Vec<String>,
+    /// Certified entrance pool for entity-image cards. The planner rotates it
+    /// per admitted card; a run that admits a card without a pool fails closed.
+    #[serde(default)]
+    pub entity_image_motions: Vec<String>,
+    /// Certified entrance pool for the caption layer, rotated independently
+    /// from the portrait so neighboring cards never repeat a caption move.
+    #[serde(default)]
+    pub entity_caption_motions: Vec<String>,
+    /// Run-level rotation offset. The Go retry seam advances it; wall-clock
+    /// time never does, so replaying a request selects the same motions.
+    #[serde(default)]
+    pub image_motion_offset: i64,
     #[serde(default)]
     pub entity_style_id: String,
     /// Typed animation directives are validated by the animation catalog; the
@@ -783,6 +795,31 @@ impl CanvasV2 {
                 ));
             }
         }
+        for (field, pool) in [
+            ("image_motions", &self.image_motions),
+            ("image_with_text_motions", &self.image_with_text_motions),
+            ("entity_image_motions", &self.entity_image_motions),
+            ("entity_caption_motions", &self.entity_caption_motions),
+        ] {
+            validate_motion_pool(field, pool)?;
+        }
+        if self.image_motion_offset < 0 {
+            return Err(EditorialPlanError::invalid(
+                "canvas.image_motion_offset",
+                "must not be negative",
+            ));
+        }
+        if !self.entity_style_id.trim().is_empty()
+            && !is_certified_entity_style_selector(&self.entity_style_id)
+        {
+            return Err(EditorialPlanError::invalid(
+                "canvas.entity_style_id",
+                format!(
+                    "{:?} is not a certified entity-style selector",
+                    self.entity_style_id
+                ),
+            ));
+        }
         for (field, value) in [
             ("max_overlays_per_scene", self.max_overlays_per_scene),
             ("max_phrase_overlays", self.max_phrase_overlays),
@@ -802,6 +839,81 @@ impl CanvasV2 {
         }
         Ok(())
     }
+}
+
+/// The closed set of `entity_style_id` selector words the pipeline may put on
+/// a plan item. Mirrors `overlays.CertifiedEntityStyleSelectors`.
+const CERTIFIED_ENTITY_STYLE_SELECTORS: [&str; 10] = [
+    "random",
+    "premium_random_v1",
+    "testo_sotto",
+    "below",
+    "premium_below_random_v1",
+    "caption_below",
+    "badge",
+    "badge_random",
+    "camera",
+    "camera_random",
+];
+
+/// Legacy Apple Spatial composition ids still transportable by channel
+/// profiles (01–05 centered, 06–10 retired side layouts, 11–15 typewriter,
+/// 16–20 badges, 21–25 camera moves). Mirrors
+/// `overlays.CertifiedAppleSpatialEntityStyles`.
+const CERTIFIED_APPLE_SPATIAL_ENTITY_STYLES: [&str; 25] = [
+    "01_entity_pitch_lift_text_below",
+    "02_entity_yaw_flip_text_below",
+    "03_entity_pop_bounce_text_below",
+    "04_entity_card_swing_text_below",
+    "05_entity_depth_float_text_below",
+    "06_entity_swipe_text_right",
+    "07_entity_orbit_text_left",
+    "08_entity_counter_tilt_text_right",
+    "09_entity_dolly_settle_text_left",
+    "10_entity_parallax_drift_text_right",
+    "11_entity_typewriter_classic",
+    "12_entity_terminal_cyber",
+    "13_entity_typewriter_editorial_gold",
+    "14_entity_code_prompt_reveal",
+    "15_entity_typewriter_dolly_breath",
+    "16_entity_badge_yellow_wipe",
+    "17_entity_badge_red_impact",
+    "18_entity_badge_cyan_electric",
+    "19_entity_badge_orange_amber",
+    "20_entity_badge_green_emerald",
+    "21_entity_camera_dolly_push",
+    "22_entity_camera_orbit_yaw",
+    "23_entity_camera_crane_rise",
+    "24_entity_camera_dutch_spatial",
+    "25_entity_camera_flyby_parallax",
+];
+
+/// True when the request may transport this selector. The renderer owns the
+/// live composition registry; the planner only validates the vocabulary.
+fn is_certified_entity_style_selector(style_id: &str) -> bool {
+    let normalized = style_id.trim().to_ascii_lowercase();
+    CERTIFIED_ENTITY_STYLE_SELECTORS.contains(&normalized.as_str())
+        || CERTIFIED_APPLE_SPATIAL_ENTITY_STYLES.contains(&normalized.as_str())
+}
+
+fn validate_motion_pool(field: &str, pool: &[String]) -> Result<(), EditorialPlanError> {
+    let mut seen = BTreeSet::new();
+    for motion in pool {
+        let motion = motion.trim();
+        if motion.is_empty() {
+            return Err(EditorialPlanError::invalid(
+                format!("canvas.{field}"),
+                "motion id is empty",
+            ));
+        }
+        if !seen.insert(motion) {
+            return Err(EditorialPlanError::invalid(
+                format!("canvas.{field}"),
+                format!("duplicate motion id {motion:?}"),
+            ));
+        }
+    }
+    Ok(())
 }
 
 impl BudgetsV2 {

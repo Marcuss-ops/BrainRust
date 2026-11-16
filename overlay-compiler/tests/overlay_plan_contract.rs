@@ -79,8 +79,7 @@ fn parse_plan(fixture: &str) -> EditorialPlanV2Compiled {
 fn compile(name: &str) -> EditorialPlanV2Compiled {
     let entry = fixture(name);
     let request = parse_request(entry.request);
-    compile_overlay_plan_v2(&request)
-        .unwrap_or_else(|error| panic!("{}: {error}", entry.name))
+    compile_overlay_plan_v2(&request).unwrap_or_else(|error| panic!("{}: {error}", entry.name))
 }
 
 fn compile_json(name: &str) -> String {
@@ -97,17 +96,33 @@ fn fixture_matrix_parses_validates_and_round_trips() {
         request
             .validate_compilable()
             .unwrap_or_else(|error| panic!("{}: {error}", entry.name));
-        assert_eq!(request.schema_version, "editorial_plan.v2", "{}", entry.name);
-        assert_eq!(request.operation, "compile_editorial_plan", "{}", entry.name);
+        assert_eq!(
+            request.schema_version, "editorial_plan.v2",
+            "{}",
+            entry.name
+        );
+        assert_eq!(
+            request.operation, "compile_editorial_plan",
+            "{}",
+            entry.name
+        );
         assert!(!request.scenes.is_empty(), "{}", entry.name);
 
         let encoded = serde_json::to_string(&request).expect("encode");
         let decoded: EditorialPlanV2Request =
             serde_json::from_str(&encoded).expect("decode canonical request");
-        assert_eq!(decoded, request, "{} must round-trip without loss", entry.name);
+        assert_eq!(
+            decoded, request,
+            "{} must round-trip without loss",
+            entry.name
+        );
 
         let again = serde_json::to_string(&decoded).expect("encode twice");
-        assert_eq!(encoded, again, "{} must serialize deterministically", entry.name);
+        assert_eq!(
+            encoded, again,
+            "{} must serialize deterministically",
+            entry.name
+        );
     }
 }
 
@@ -228,15 +243,12 @@ fn a_grounded_place_renders_once_as_a_map_not_a_location_card() {
         plan.items.iter().all(|item| item.kind == "map"),
         "no location card may duplicate a map pin"
     );
-    assert!(plan
-        .items
-        .iter()
-        .any(|item| item
-            .map
-            .as_ref()
-            .and_then(|map| map.get("label"))
-            .and_then(|label| label.as_str())
-            == Some("Milano")));
+    assert!(plan.items.iter().any(|item| item
+        .map
+        .as_ref()
+        .and_then(|map| map.get("label"))
+        .and_then(|label| label.as_str())
+        == Some("Milano")));
 }
 
 #[test]
@@ -255,6 +267,31 @@ fn verified_entity_media_becomes_an_image_and_missing_media_stays_text_only() {
         "the verified content address survives unchanged"
     );
     assert_eq!(verified.entity_caption, "Nike");
+    assert_eq!(
+        verified.motion_id, "entity_soft_rise",
+        "the run offset rotates the certified entity pool"
+    );
+    assert_eq!(
+        verified.caption_motion_id, "caption_fade",
+        "the caption lane rotates independently"
+    );
+    assert_eq!(
+        verified.entity_style_id, "premium_below_random_v1",
+        "a captioned card is pinned to the below-caption composition"
+    );
+    assert_eq!(verified.caption_layout, "below");
+    assert_eq!(verified.caption_font_family, "playfair_display_italic");
+    assert_eq!(verified.caption_color, "#000000");
+    assert_eq!(verified.image_preset_id, "image_scale_in");
+    assert_eq!(
+        verified
+            .motion_params
+            .as_ref()
+            .and_then(|params| params.get("enter_frames"))
+            .and_then(|frames| frames.as_i64()),
+        Some(8),
+        "entity cards enter on the certified eight-frame cascade"
+    );
 
     let text_only = plan
         .items
@@ -267,6 +304,60 @@ fn verified_entity_media_becomes_an_image_and_missing_media_stays_text_only() {
         "an unverified entity must never become a fake image"
     );
     assert_eq!(text_only.text, "Ferrari");
+}
+
+#[test]
+fn entity_card_motions_rotate_with_the_run_offset_only() {
+    let entry = fixture("entity_cards_verified_media");
+    let request = parse_request(entry.request);
+    let first = compile_overlay_plan_v2(&request).expect("first compile");
+    let mut shifted = request.clone();
+    shifted.canvas.image_motion_offset += 1;
+    let second = compile_overlay_plan_v2(&shifted).expect("shifted compile");
+
+    let motion = |compiled: &EditorialPlanV2Compiled| {
+        compiled
+            .plan
+            .items
+            .iter()
+            .find(|item| item.kind == "entity_image")
+            .expect("entity image")
+            .motion_id
+            .clone()
+    };
+    assert_eq!(motion(&first), "entity_soft_rise");
+    assert_eq!(motion(&second), "entity_reveal_push");
+    assert_ne!(motion(&first), motion(&second));
+}
+
+#[test]
+fn an_admitted_entity_image_without_a_motion_pool_fails_closed() {
+    let mut request = parse_request(fixture("entity_cards_verified_media").request);
+    request.canvas.entity_image_motions.clear();
+    let error = compile_overlay_plan_v2(&request).expect_err("missing entity motion pool");
+    assert!(
+        error.to_string().contains("entity_image_motions"),
+        "{error}"
+    );
+}
+
+#[test]
+fn an_admitted_caption_without_a_motion_pool_fails_closed() {
+    let mut request = parse_request(fixture("entity_cards_verified_media").request);
+    request.canvas.entity_caption_motions.clear();
+    let error = compile_overlay_plan_v2(&request).expect_err("missing caption motion pool");
+    assert!(
+        error.to_string().contains("entity_caption_motions"),
+        "{error}"
+    );
+}
+
+#[test]
+fn an_uncertified_entity_style_selector_is_rejected() {
+    let mut request = parse_request(fixture("entity_cards_verified_media").request);
+    request.canvas.entity_style_id = "not_a_certified_selector".to_string();
+    let error = request.validate().expect_err("uncertified selector");
+    assert!(error.to_string().contains("entity_style_id"), "{error}");
 }
 
 #[test]
@@ -283,14 +374,12 @@ fn charts_and_chapter_recaps_reach_the_final_plan() {
         "the chart card is marked in params"
     );
     assert!(
-        plan.items
-            .iter()
-            .any(|item| item
-                .params
-                .as_ref()
-                .and_then(|params| params.get("editorial_role"))
-                .and_then(|role| role.as_str())
-                == Some("chapter_bullet")),
+        plan.items.iter().any(|item| item
+            .params
+            .as_ref()
+            .and_then(|params| params.get("editorial_role"))
+            .and_then(|role| role.as_str())
+            == Some("chapter_bullet")),
         "the chapter bullet owns the covered scene's bullet slot"
     );
     assert!(
@@ -425,7 +514,9 @@ fn a_missing_editorial_manifest_fails_closed() {
 #[test]
 fn a_scene_window_that_disagrees_with_the_scene_is_rejected() {
     let mut request = parse_request(fixture("minimal_phrase_only").request);
-    request.scene_windows.insert("s1".to_string(), [0, 1_000_000]);
+    request
+        .scene_windows
+        .insert("s1".to_string(), [0, 1_000_000]);
     let error = request.validate_compilable().expect_err("window mismatch");
     assert!(error
         .to_string()

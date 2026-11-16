@@ -77,10 +77,17 @@
         "start_us": 100000,
         "duration_us": 300000,
         "template_id": "org_default",
+        "image_preset_id": "image_scale_in",
+        "motion_id": "entity_soft_rise",
+        "entity_style_id": "premium_below_random_v1",
         "motion_params": {
           "enter_frames": 8
         },
         "entity_caption": "Nike",
+        "caption_motion_id": "caption_fade",
+        "caption_font_family": "playfair_display_italic",
+        "caption_layout": "below",
+        "caption_color": "#000000",
         "asset_refs": [
           {
             "asset_id": "asset-nike",

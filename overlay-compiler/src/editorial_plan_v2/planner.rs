@@ -53,6 +53,7 @@ pub fn compile_plan(
     let mut candidates = build_candidates(request, &editorial)?;
     trim_maps(request, &mut candidates);
     let (mut items, mut intake) = admit(request, candidates);
+    assign_entity_media(request, &mut items)?;
     cascade(&mut items, request);
     // Overlap resolution is the last layout phase: it must see the final
     // admitted and cascaded set, never the pre-budget candidates. A map can
@@ -379,8 +380,7 @@ fn scene_has_map_for(scene: &SceneV2, entity: &EntityOccurrenceV2) -> bool {
                 map.entity_id == entity.entity_id
                     || (!entity.canonical_entity_id.is_empty()
                         && map.entity_id == entity.canonical_entity_id)
-                    || (!map.label.is_empty()
-                        && map.label.eq_ignore_ascii_case(&entity.name))
+                    || (!map.label.is_empty() && map.label.eq_ignore_ascii_case(&entity.name))
             })
         })
         .unwrap_or(false)
@@ -687,6 +687,78 @@ fn is_map(item: &PlanItemV2) -> bool {
     item.kind == "map" && item.map.is_some()
 }
 
+/// Generated documentary cards keep the name below the portrait. The generic
+/// `random` selector can sample a side composition, so a captioned card is
+/// pinned to the below-caption pool exactly like Go's presentation pass.
+const ENTITY_STYLE_BELOW: &str = "premium_below_random_v1";
+const ENTITY_CARD_IMAGE_PRESET: &str = "image_scale_in";
+const ENTITY_CAPTION_FONT: &str = "playfair_display_italic";
+const ENTITY_CAPTION_COLOR: &str = "#000000";
+
+/// Assigns the run-level entity-card entrance and composition decisions after
+/// admission, so dropped cards never consume a pool slot.
+///
+/// Go's `assignEntityImageMotions` rotates the certified request pools by
+/// `(image_motion_offset + ordinal) % len`; replaying a request therefore picks
+/// the same entrance, and a retry whose offset advanced picks a different one.
+/// Captions rotate in their own lane. The composition selector is stamped only
+/// on a card that carries both a portrait and a caption — the same fail-closed
+/// precondition RenderingGen enforces. `render_key` stays empty: sealing clears
+/// it and Go recomputes it from the finished document.
+fn assign_entity_media(
+    request: &EditorialPlanV2Request,
+    items: &mut [PlanItemV2],
+) -> Result<(), EditorialPlanError> {
+    if !items.iter().any(|item| item.kind == "entity_image") {
+        return Ok(());
+    }
+    let canvas = &request.canvas;
+    if canvas.entity_image_motions.is_empty() {
+        return Err(EditorialPlanError::invalid(
+            "canvas.entity_image_motions",
+            "a non-empty certified pool is required when an entity image is admitted",
+        ));
+    }
+    let pinned = canvas.entity_style_id.trim();
+    let offset = canvas.image_motion_offset;
+    let mut caption_ordinal = 0_i64;
+    for (ordinal, item) in items
+        .iter_mut()
+        .filter(|item| item.kind == "entity_image")
+        .enumerate()
+    {
+        item.motion_id = rotate_motion(&canvas.entity_image_motions, offset, ordinal as i64);
+        item.image_preset_id = ENTITY_CARD_IMAGE_PRESET.to_string();
+        let captioned = !item.entity_caption.trim().is_empty() && !item.asset_refs.is_empty();
+        if captioned {
+            if canvas.entity_caption_motions.is_empty() {
+                return Err(EditorialPlanError::invalid(
+                    "canvas.entity_caption_motions",
+                    "a non-empty certified pool is required when an entity caption is admitted",
+                ));
+            }
+            item.caption_motion_id =
+                rotate_motion(&canvas.entity_caption_motions, offset, caption_ordinal);
+            item.caption_layout = "below".to_string();
+            item.caption_font_family = ENTITY_CAPTION_FONT.to_string();
+            item.caption_color = ENTITY_CAPTION_COLOR.to_string();
+            item.entity_style_id = ENTITY_STYLE_BELOW.to_string();
+            caption_ordinal += 1;
+        } else if !pinned.is_empty() {
+            // An uncaptioned card has no name to place below the portrait, so
+            // an explicit pinned selector survives instead of being replaced.
+            item.entity_style_id = pinned.to_string();
+        }
+    }
+    Ok(())
+}
+
+fn rotate_motion(pool: &[String], offset: i64, ordinal: i64) -> String {
+    let len = pool.len() as i64;
+    let index = (offset.rem_euclid(len) + ordinal).rem_euclid(len) as usize;
+    pool[index].clone()
+}
+
 fn cascade(items: &mut [PlanItemV2], request: &EditorialPlanV2Request) {
     for item in items.iter_mut() {
         if matches!(
@@ -776,7 +848,16 @@ fn finalize_intake(intake: &mut IntakeV2, items: &[PlanItemV2]) {
     }
 }
 
-fn seal(request: &EditorialPlanV2Request, items: Vec<PlanItemV2>, intake: IntakeV2) -> FinalPlanV2 {
+fn seal(
+    request: &EditorialPlanV2Request,
+    mut items: Vec<PlanItemV2>,
+    intake: IntakeV2,
+) -> FinalPlanV2 {
+    // Render keys are derived state, never planner input. The seal clears
+    // them; Go recomputes a SHA-256 key from the finished document.
+    for item in &mut items {
+        item.render_key.clear();
+    }
     let seal = request.seal.as_ref().expect("validated seal");
     let scene_end_ms = request
         .scenes
@@ -847,7 +928,10 @@ mod tests {
             },
             "language": "it", "source_language": "it",
             "seal": {"audio_duration_us": 2000000, "output_profile_id": "test"},
-            "canvas": {"group_limits": {}},
+            "canvas": {"group_limits": {},
+                "entity_image_motions": ["entity_reveal_push", "entity_soft_rise"],
+                "entity_caption_motions": ["caption_rise", "caption_fade"],
+                "image_motion_offset": 1},
             "scenes": [{
                 "id": "scene-1", "text": "Nike corre al museo.",
                 "duration_ms": 2000, "execution_mode": "body",
@@ -915,6 +999,20 @@ mod tests {
             .expect("entity image");
         assert_eq!("Tim Cook", image.entity_caption);
         assert_eq!(1, image.asset_refs.len());
+    }
+
+    #[test]
+    fn seal_clears_derived_render_keys() {
+        let request = request();
+        let compiled = compile_plan(&request).expect("plan");
+        assert!(
+            compiled
+                .plan
+                .items
+                .iter()
+                .all(|item| item.render_key.is_empty()),
+            "sealing must leave render-key derivation to Go"
+        );
     }
 
     #[test]

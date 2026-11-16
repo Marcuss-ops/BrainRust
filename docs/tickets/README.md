@@ -4,7 +4,7 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-15. **10 DONE, 1 PARTIAL, 2 BLOCKED.**
+Last verified: 2026-11-15. **10 DONE, 2 PARTIAL, 0 OPEN, 2 BLOCKED.**
 
 Status vocabulary:
 
@@ -15,6 +15,7 @@ Status vocabulary:
   owner, dataset, credential or cross-repo contract change.
 - **PARTIAL** — some implementation or evidence exists, but acceptance criteria
   remain open.
+- **OPEN** — scoped and ready; implementation has not started.
 
 | Ticket | Priority | Status | Outcome |
 | --- | --- | --- | --- |
@@ -30,7 +31,29 @@ Status vocabulary:
 | [10](TICKET-10-multimodal-pgvector.md) | P2 | BLOCKED | Requires SigLIP/pgvector, a schema and a calibrated held-out dataset. |
 | [11](TICKET-11-discourse-continuity.md) | P0 | DONE (deterministic core) | Additive `discourse.v1` references, ambiguity, threads and scene continuity. |
 | [12](TICKET-12-mvp-semantic-contract.md) | P0 | DONE (bound/Rust) | v3 linked-entity projection, local index/linker, typed intents, Go v3 consumer, intent/index cache key, verified-hit admission, stop-on-satisfaction and cross-repo smoke pass; only the revised SLO agreement remains external. |
-| [13](TICKET-13-go-demolition-closeout.md) | P1 | PARTIAL | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d Rust op + Go batch ports DONE (`ded9f28`, `68ddb83f5`, `652c03217`): all four overlay ports use `compile_editorial_plan`, but the planner still calls them at four phases. `make verify-agent` and `make verify-main` PASS; remaining: the single-call planner port and deletion of Go editorial/card selection (execution plan in the ticket). |
+| [13](TICKET-13-go-demolition-closeout.md) | P1 | PARTIAL | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d Rust op + Go batch ports DONE (`ded9f28`, `68ddb83f5`, `652c03217`): all four overlay ports use `compile_editorial_plan`, but the planner still calls them at four phases. `make verify-agent` and `make verify-main` PASS; the versioned `editorial_plan.v2` envelope + Go producer landed (2026-11-15), but the single-call planner port and deletion of Go editorial/card selection remain; tracked by [14](TICKET-14-overlay-planner-single-call.md). 13 remains PARTIAL until 14 is DONE. |
+| [14](TICKET-14-overlay-planner-single-call.md) | P1 | PARTIAL | Rust single-call compiler landed: complete `editorial_plan.v2` request (seal, annotations, entity timeline, media, budgets, windows), final-plan response with `validate_for`, and one `compile_overlay_plan_v2` call that projects editorial/chapter bullets, entity cards, budgets, map trim/resolution, cascade and seal. Five request fixtures plus five planner-generated goldens and a 27-test contract suite are checked in; the worker routes by schema version before deserializing. Entity-card motion/style selection is ported (certified pool rotation by run offset, independent caption lane, below-caption style, `image_scale_in`) and the seal clears derived render keys for Go to recompute. Open: Go cutover (the four phase ports and Go editorial/card selection remain), Go-oracle parity, the one-request-per-plan counter and `make verify-main` on the cutover tree. Blocks TICKET-13 13d closure. |
+
+## Verification — 2026-11-15 (ticket 14, Rust single-call compiler)
+
+- `cargo fmt --all -- --check` — rc 0.
+- `cargo test -p overlay-compiler -p semantic-core -p semantic-engine --lib`
+  — 39 + 151 + 53 passed.
+- `cargo test -p overlay-compiler --test overlay_plan_contract` — 27 passed:
+  frozen-golden byte comparison, determinism, verified/text-only entity media,
+  entity-card motion rotation and caption/style stamping, missing-pool and
+  uncertified-selector rejection, render-key clearing, map trim and final
+  resolution, chart and chapter-bullet admission, localized surfaces, malformed
+  and out-of-window rejection.
+- `cargo test -p semantic-engine --test editorial_plan_protocol` — 6 passed:
+  v2 routed to the full compiler, unknown version rejected before
+  deserialization, malformed v2 fails closed, legacy batch unchanged.
+- `cargo clippy --workspace --all-targets -- -D warnings` — rc 0.
+- `gofmt -l` on the touched Go packages — empty; `go vet` — rc 0;
+  `TestBuildOverlayPlanV2Request` and
+  `TestCompileEditorialPlan|TestOverlayPortsUseTheSingleBatchOperation` — pass.
+- Fixtures are produced by `overlay-compiler/examples/compile_fixture`, so the
+  plan goldens come from the real planner and not from a hand-written document.
 
 ## Verification — 2026-11-15 (ticket 12, Rust core)
 
@@ -72,6 +95,46 @@ Status vocabulary:
 - `cargo fmt --all -- --check` — clean.
 - `cargo test -p overlay-compiler -p semantic-core -p semantic-engine --lib`
   — pass (8 + 151 + 53 tests).
+
+## Verification — 2026-11-15 (13d v2 contract)
+
+- `cargo test -p overlay-compiler --lib` — 38 passed, including the 8
+  chapter-bullet parity cases, the editorial projection, the first
+  single-call planner slice and the v2 request/response validators.
+- `cargo test -p overlay-compiler --test overlay_plan_contract` — 23 passed
+  (frozen goldens, fixture matrix, determinism, fail-closed schemas and
+  map-trim-before-budget ordering).
+- `cargo test -p semantic-engine --lib` — 53 passed; the worker dispatches
+  `editorial_plan.v2` to `compile_overlay_plan_v2` and never parses it as the
+  sparse legacy batch.
+- `cargo fmt --all -- --check` and
+  `cargo clippy -p overlay-compiler -p semantic-engine --all-targets -- -D warnings`
+  — clean with ICU 72.
+- `go test ./internal/platform/media/rustexec -count=1` — pass (83.4 s);
+  `TestCompileEditorialPlanV2ReturnsTheChapterProjection` and the
+  out-of-window rejection pass, and the adapter validates the projection
+  without repairing it.
+- `go test ./internal/capabilities/scripts -run 'TestBuildOverlayPlanV2Request|TestProjectChapterBullets|TestChapterBullet|TestProjectEditorialOverlays' -count=1`
+  — pass; the producer now carries certified phrase annotations.
+- `go vet ./internal/platform/media/rustexec ./internal/capabilities/scripts`
+  — clean.
+- `python3 BrainRust/lexicon/tools/check_go_stopword_parity.py` — PASS, 0
+  drift on the six shared languages (de/en/es/fr/it/pt).
+
+The full `go test ./internal/capabilities/scripts -count=1` suite still fails
+on `TestBuildFinalJobPayloadsUsesLocallyRenderedStockVisual`
+(`unknown stock fixture "obama-stock-db-clip"`), a concurrent final-job
+fixture issue unrelated to the v2 compiler work.
+
+## Verification — 2026-11-15 (TICKET-14 parity harness)
+
+- `go test ./internal/capabilities/scripts -run TestOverlayPlanV2ParityFixtureShape -count=1`
+  — PASS; the `minimal_phrase_only` request/golden pair is readable and
+  internally consistent.
+- `OVERLAY_PLAN_PARITY=1 go test ./internal/capabilities/scripts -run TestOverlayPlanV2ParityMinimalPhraseOnly -count=1 -v`
+  — runs the differential and currently reports Go 2 items vs Rust 3, plus
+  item/role/window differences. This is the cutover gate, not a green parity
+  claim.
 
 ## Verification — 2026-11-15 (ticket 12, Go consumer)
 

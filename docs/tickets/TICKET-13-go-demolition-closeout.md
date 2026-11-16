@@ -63,9 +63,11 @@ Semantic-plane operations Go sends today (distinct call sites in
   per query class), plus `select`, `score_local`, `extract`, `analyze`
   one-shot helpers in adapters (`select_group`, `local_scorer`,
   `media_sampler`)
-- Overlay timing ops via `mapTiming` (one worker round-trip each):
-  `resolve_map_overlaps`, `trim_map_windows_before_budget`,
-  `rank_entity_overlays`, `cascade_clustered_entrances`
+- Overlay decisions via the single batch op `compile_editorial_plan`: the
+  four Go ports (`TrimMapWindowsBeforeBudget`, `ResolveMapOverlaps`,
+  `RankEntityOverlays`, `CascadeClusteredEntrances`) all send this one
+  operation and apply its sparse edits. The per-concern wire operations are
+  no longer part of the Go contract.
 - `link_entities` path via `semantic_engine_entity_linking.go` (adapter, 136
   lines)
 
@@ -228,7 +230,7 @@ VELOX_TTS_PROBE_SAMPLE=data/media/voiceovers/<sample>.mp3 \
   -bench '^BenchmarkProbeTTSMP3$' -benchtime=100x -count=5
 ```
 
-### 13d — the last big cut: `compile_editorial_plan` — RUST OP + BATCH PORTS DONE (2026-11-15); SINGLE-CALL CUTOVER OPEN
+### 13d — the last big cut: `compile_editorial_plan` — RUST OP + BATCH PORTS DONE (2026-11-15); V2 CONTRACT LANDED, PHASE PORT OPEN
 
 `internal/capabilities/scripts/editorial_overlay.go` — 444 lines. Today it:
 
@@ -305,7 +307,8 @@ go test ./internal/platform/media/rustexec -run 'TestCompileEditorialPlan|TestOv
 go vet ./internal/platform/media/rustexec/...                                             # pass
 ```
 
-Remaining for 13d — single-call port (OPEN, not implemented). This is not a
+Remaining for 13d — single-call port (OPEN, tracked by
+[TICKET-14](TICKET-14-overlay-planner-single-call.md)). This is not a
 mechanical swap: the Go planner package is 15,171 non-test LOC with 14,660 LOC
 of tests, and the scripts overlay planner/editorial/card layer is another
 6,098 non-test LOC. The four phases are interleaved because trim feeds
@@ -343,6 +346,23 @@ Execution plan:
 Do not mark 13d DONE until steps 1–5 hold. The current verified state keeps
 the four batch ports: no silent approximation and no Go-only fallback.
 
+**Step 1 landed and extended (2026-11-15).** `overlay-compiler::editorial_plan_v2`
+defines the versioned `editorial_plan.v2` request/response envelope with
+fail-closed validation (schema version, plan identity, scene identity/timing,
+editorial and chapter manifests, overlay categories, projected phrase
+windows). The chapter-bullet and editorial title/bullet projections are now
+Rust-owned (`chapter_bullet.rs`, `editorial.rs`) with the Go parity cases
+ported; the single-call planner first slice (`planner.rs`) and its frozen
+golden contract suite have also landed. `internal/kernel/overlayplan` and
+`internal/capabilities/scripts/overlay_plan_v2_request.go` are the Go producer
+(identity, timing, manifests, categories, certified phrase annotations and
+JSON round-trip). The legacy batch accepts an optional nested `v2` envelope,
+and `CompileEditorialPlanV2` exposes the projection through the same
+`compile_editorial_plan` operation, validating every returned window and scene
+id. This is still **not** the production one-call path: the Go planner keeps
+the four interleaved ports and the Go editorial/card selections until the
+TICKET-14 parity cutover.
+
 **Verification boundary (2026-11-15).** The full
 `go test ./internal/platform/media/rustexec/...` suite passes (74s), and
 `make verify-agent` passes end-to-end (`final: PASS`) with every component
@@ -353,6 +373,16 @@ changed-components (`final=PASS`) and architecture checks
 ./internal/capabilities/scripts/...` tree passes, and the real-worker smoke
 `TestSemanticEngineRealBinaryProjectsLinkedEntities` passes in 2.94s. No
 TICKET-13 test fails.
+
+Independent re-run on the same tree (2026-11-15, this session):
+`cargo fmt --all -- --check` rc 0; `cargo clippy --workspace --all-targets
+-- -D warnings` rc 0 with ICU 72; `cargo test -p overlay-compiler -p
+semantic-core -p semantic-engine --lib` rc 0 (53 semantic-engine tests);
+`go vet ./internal/platform/media/rustexec ./internal/capabilities/scripts`
+rc 0; `go test ./internal/capabilities/scripts -count=1` PASS 13.0s; `go test
+./internal/platform/media/rustexec -count=1` PASS 76.9s; the real-worker
+smoke PASS 2.99s; `make verify-agent` `final=PASS` (`rust` 81.5s, `stock`
+5.4s); `mediaexec.v2` consumer goldens PASS.
 
 **Final-job subtitle cleanup (2026-11-15).** The pre-render had started
 iterating `fixedRenderLanguages`, producing one fragment per target language.
@@ -391,7 +421,8 @@ fixtures.
    `compile_editorial_plan` batches the four timing/ranking/cascade decisions
    in `overlay-compiler`, and all four Go ports now use it. `make verify-agent`
    and `make verify-main` pass. Remaining: execute the single-call port plan
-   above; do not mark 13d DONE before parity.
+   above, now tracked by [TICKET-14](TICKET-14-overlay-planner-single-call.md);
+   do not mark 13d DONE before parity.
 
 Per-unit verification commands:
 
@@ -420,10 +451,13 @@ bash contract/mediaexec.v2/check_consumer_copy.sh ../refactored/testdata/mediaex
   while Rust gains new ones, both stay green and outputs diverge. Mitigation:
   each 13x unit deletes the Go rule in the same commit that makes Rust
   authoritative — never keep both temporarily.
-- **Lexicon bootstrap asymmetry**: Go's `LexiconRegistry` and Rust's
-  `lexicon/` may disagree on stop-word sets today. Before 13d, diff the two
-  sources and reconcile in Rust only; record the diff in the unit's commit
-  message.
+- **Lexicon bootstrap asymmetry — CHECKED (2026-11-15).** The Go stopword
+  files and the Rust packs are identical for every shared language
+  (de/en/es/fr/it/pt, 0 missing / 0 extra; gate
+  `BrainRust/lexicon/tools/check_go_stopword_parity.py`). The Go-only
+  `fallback` set is the cross-linguistic fallback for languages Rust does not
+  ship, not a second authority for a shared language. The editorial boundary
+  bootstrap itself is deleted.
 - **Golden regression in the hot path**: 13d touches the generation flow.
   Run the existing e2e (`map_plan_e2e_test.go` and the semantic e2e suites)
   plus a real-worker smoke (`TestSemanticEngineRealBinaryProjectsLinkedEntities`)

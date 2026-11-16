@@ -18,9 +18,6 @@ pub enum EditorialPlanError {
     MissingSection(&'static str),
     /// A required field is empty or structurally invalid.
     InvalidField { field: String, detail: String },
-    /// The request is valid input but this build has no full-plan compiler.
-    /// TICKET-14 WP2–WP5 replace this variant with the ported planner.
-    CompilerNotImplemented,
     /// The request bytes were not valid JSON for the declared envelope.
     MalformedRequest(String),
 }
@@ -43,15 +40,14 @@ impl fmt::Display for EditorialPlanError {
                 "editorial plan: unsupported schema_version {found:?}, want {expected:?}"
             ),
             Self::MissingSection(section) => {
-                write!(formatter, "editorial plan: missing required section {section:?}")
+                write!(
+                    formatter,
+                    "editorial plan: missing required section {section:?}"
+                )
             }
             Self::InvalidField { field, detail } => {
                 write!(formatter, "editorial plan: invalid {field}: {detail}")
             }
-            Self::CompilerNotImplemented => write!(
-                formatter,
-                "editorial plan: editorial_plan.v2 full-plan compiler is not implemented in this build"
-            ),
             Self::MalformedRequest(detail) => {
                 write!(formatter, "editorial plan: malformed request: {detail}")
             }

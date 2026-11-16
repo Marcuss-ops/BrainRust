@@ -218,8 +218,7 @@ fn starts_with_acronym(value: &str) -> bool {
         .chars()
         .filter(|character| character.is_alphabetic())
         .count();
-    letters >= 2
-        && letters <= 6
+    (2..=6).contains(&letters)
         && first
             .chars()
             .all(|character| !character.is_alphabetic() || character.is_uppercase())

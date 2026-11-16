@@ -33,6 +33,15 @@
     "long_phrase_motion": "",
     "image_motions": [],
     "image_with_text_motions": [],
+    "entity_image_motions": [
+      "entity_reveal_push",
+      "entity_soft_rise"
+    ],
+    "entity_caption_motions": [
+      "caption_rise",
+      "caption_fade"
+    ],
+    "image_motion_offset": 1,
     "entity_style_id": "random",
     "animation_directives": [],
     "animation_contract_version": 2,
