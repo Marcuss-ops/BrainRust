@@ -28,8 +28,13 @@
 #![deny(unsafe_code)]
 
 pub mod local_score;
+pub mod rank;
 pub mod sampler;
 pub mod types;
 
+pub use rank::{
+    rank_candidates, RankCandidate, RankOutcome, RankRequest, RankVerdict, RankedCandidate,
+    RankedDrop,
+};
 pub use sampler::{sample_scene, sample_scene_group, BoundAssets};
 pub use types::{Candidate, RejectionReason, SampleOptions, SampleResult, Scene};

@@ -1,0 +1,1093 @@
+{
+  "schema_version": "media-ranker.v1",
+  "cases": [
+    {
+      "name": "empty_pool",
+      "input": {
+        "scene_duration_ms": 4000,
+        "slot_kind": "primary_video",
+        "candidates": []
+      },
+      "expected": {
+        "ranked": [],
+        "drops": []
+      }
+    },
+    {
+      "name": "single_candidate_only",
+      "input": {
+        "scene_duration_ms": 4000,
+        "slot_kind": "primary_video",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-solo",
+            "asset_id": "asset-solo",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-solo.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "asset-solo",
+            "candidate_id": "candidate-asset-solo",
+            "source_url": "https://cdn.example/asset-solo.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [],
+        "winner_asset_id": "asset-solo"
+      }
+    },
+    {
+      "name": "repeated_source_penalty",
+      "input": {
+        "scene_duration_ms": 4000,
+        "prev_video_id": "asset-hot",
+        "slot_kind": "primary_video",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-hot",
+            "asset_id": "asset-hot",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-hot.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.9,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-cold",
+            "asset_id": "asset-cold",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-cold.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-mid",
+            "asset_id": "asset-mid",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-mid.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.5,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "asset-cold",
+            "candidate_id": "candidate-asset-cold",
+            "source_url": "https://cdn.example/asset-cold.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-mid",
+            "candidate_id": "candidate-asset-mid",
+            "source_url": "https://cdn.example/asset-mid.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.27,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.5,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-hot",
+            "candidate_id": "candidate-asset-hot",
+            "source_url": "https://cdn.example/asset-hot.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.09000000000000002,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.9,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0.3,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [],
+        "winner_asset_id": "asset-cold"
+      }
+    },
+    {
+      "name": "tie_break_by_asset_id",
+      "input": {
+        "scene_duration_ms": 4000,
+        "slot_kind": "primary_video",
+        "candidates": [
+          {
+            "candidate_id": "candidate-zeta-asset",
+            "asset_id": "zeta-asset",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/zeta-asset.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-alpha-asset",
+            "asset_id": "alpha-asset",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/alpha-asset.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-mike-asset",
+            "asset_id": "mike-asset",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/mike-asset.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "alpha-asset",
+            "candidate_id": "candidate-alpha-asset",
+            "source_url": "https://cdn.example/alpha-asset.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "mike-asset",
+            "candidate_id": "candidate-mike-asset",
+            "source_url": "https://cdn.example/mike-asset.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "zeta-asset",
+            "candidate_id": "candidate-zeta-asset",
+            "source_url": "https://cdn.example/zeta-asset.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [],
+        "winner_asset_id": "alpha-asset"
+      }
+    },
+    {
+      "name": "binding_seats_approved_and_pending",
+      "input": {
+        "scene_duration_ms": 4000,
+        "slot_kind": "secondary_image",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-approved",
+            "asset_id": "asset-approved",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-approved.mp4",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "binding": {
+              "id": "binding-asset-approved",
+              "asset_id": "asset-approved",
+              "end_ms": 3800,
+              "approval_status": "approved",
+              "manual_score": 0.95,
+              "semantic_score": 0.82,
+              "quality_score": 0.71,
+              "success_score": 0.66
+            }
+          },
+          {
+            "candidate_id": "candidate-asset-pending",
+            "asset_id": "asset-pending",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-pending.mp4",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "binding": {
+              "id": "binding-asset-pending",
+              "asset_id": "asset-pending",
+              "approval_status": "pending",
+              "manual_score": 1,
+              "semantic_score": 0.4,
+              "quality_score": 0.3,
+              "success_score": 0.2
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "asset-approved",
+            "candidate_id": "candidate-asset-approved",
+            "source_url": "https://cdn.example/asset-approved.mp4",
+            "provider": "artlist",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.8174999999999999,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.82,
+              "exact_match": 1,
+              "visual": 0.5,
+              "manual_approval": 0.95,
+              "quality": 0.71,
+              "historical_success": 0.66,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-pending",
+            "candidate_id": "candidate-asset-pending",
+            "source_url": "https://cdn.example/asset-pending.mp4",
+            "provider": "artlist",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.48500000000000004,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.4,
+              "exact_match": 1,
+              "visual": 0.5,
+              "manual_approval": 0,
+              "quality": 0.3,
+              "historical_success": 0.2,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [],
+        "winner_asset_id": "asset-approved"
+      }
+    },
+    {
+      "name": "gate_drops",
+      "input": {
+        "scene_duration_ms": 4000,
+        "slot_kind": "secondary_image",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-ok-image",
+            "asset_id": "asset-ok-image",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-ok-image.mp4",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-unknown-rights",
+            "asset_id": "asset-unknown-rights",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-unknown-rights.mp4",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "unknown",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-cold",
+            "asset_id": "asset-cold",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-cold.mp4",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "cold"
+          },
+          {
+            "candidate_id": "candidate-asset-failed",
+            "asset_id": "asset-failed",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-failed.mp4",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "failed"
+          },
+          {
+            "candidate_id": "candidate-asset-raw-format",
+            "asset_id": "asset-raw-format",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-raw-format.mp4",
+            "media_type": "raw",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-video-in-image-slot",
+            "asset_id": "asset-video-in-image-slot",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-video-in-image-slot.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-malformed",
+            "asset_id": "",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-unknown-state",
+            "asset_id": "asset-unknown-state",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-unknown-state.mp4",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "garbage",
+            "materialization_status": "warm"
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "asset-ok-image",
+            "candidate_id": "candidate-asset-ok-image",
+            "source_url": "https://cdn.example/asset-ok-image.mp4",
+            "provider": "artlist",
+            "media_type": "image",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [
+          {
+            "asset_id": "asset-unknown-rights",
+            "candidate_id": "candidate-asset-unknown-rights",
+            "reason": "dropped by the pre-rank filter"
+          },
+          {
+            "asset_id": "asset-cold",
+            "candidate_id": "candidate-asset-cold",
+            "reason": "dropped by the pre-rank filter"
+          },
+          {
+            "asset_id": "asset-failed",
+            "candidate_id": "candidate-asset-failed",
+            "reason": "dropped by the pre-rank filter"
+          },
+          {
+            "asset_id": "asset-raw-format",
+            "candidate_id": "candidate-asset-raw-format",
+            "reason": "dropped by the pre-rank filter"
+          },
+          {
+            "asset_id": "asset-video-in-image-slot",
+            "candidate_id": "candidate-asset-video-in-image-slot",
+            "reason": "dropped by the pre-rank filter"
+          },
+          {
+            "asset_id": "",
+            "candidate_id": "candidate-malformed",
+            "reason": "dropped by the pre-rank filter"
+          },
+          {
+            "asset_id": "asset-unknown-state",
+            "candidate_id": "candidate-asset-unknown-state",
+            "reason": "dropped by the pre-rank filter"
+          }
+        ],
+        "winner_asset_id": "asset-ok-image"
+      }
+    },
+    {
+      "name": "duration_fit_edges",
+      "input": {
+        "scene_duration_ms": 4000,
+        "slot_kind": "primary_video",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-fit-perfect",
+            "asset_id": "asset-fit-perfect",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-fit-perfect.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-fit-half",
+            "asset_id": "asset-fit-half",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-fit-half.mp4",
+            "media_type": "video",
+            "duration_ms": 2800,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-fit-none",
+            "asset_id": "asset-fit-none",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-fit-none.mp4",
+            "media_type": "video",
+            "duration_ms": 1000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          },
+          {
+            "candidate_id": "candidate-asset-fit-zero",
+            "asset_id": "asset-fit-zero",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-fit-zero.mp4",
+            "media_type": "video",
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm"
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "asset-fit-perfect",
+            "candidate_id": "candidate-asset-fit-perfect",
+            "source_url": "https://cdn.example/asset-fit-perfect.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-fit-half",
+            "candidate_id": "candidate-asset-fit-half",
+            "source_url": "https://cdn.example/asset-fit-half.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 2800,
+            "rights_status": "verified",
+            "final_score": 0.26,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 0.4999999999999999,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-fit-none",
+            "candidate_id": "candidate-asset-fit-none",
+            "source_url": "https://cdn.example/asset-fit-none.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 1000,
+            "rights_status": "verified",
+            "final_score": 0.23500000000000004,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 0,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-fit-zero",
+            "candidate_id": "candidate-asset-fit-zero",
+            "source_url": "https://cdn.example/asset-fit-zero.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 0,
+            "rights_status": "verified",
+            "final_score": 0.23500000000000004,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 0,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [],
+        "winner_asset_id": "asset-fit-perfect"
+      }
+    },
+    {
+      "name": "cross_channel_equal_scores",
+      "input": {
+        "scene_duration_ms": 4000,
+        "slot_kind": "primary_video",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-channel-b",
+            "asset_id": "asset-channel-b",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-channel-b.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "channel_id": "channel-b"
+          },
+          {
+            "candidate_id": "candidate-asset-channel-a",
+            "asset_id": "asset-channel-a",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-channel-a.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "channel_id": "channel-a"
+          },
+          {
+            "candidate_id": "candidate-asset-channel-c",
+            "asset_id": "asset-channel-c",
+            "provider": "youtube",
+            "source_url": "https://cdn.example/asset-channel-c.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "channel_id": "channel-c"
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "asset-channel-a",
+            "candidate_id": "candidate-asset-channel-a",
+            "source_url": "https://cdn.example/asset-channel-a.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-channel-b",
+            "candidate_id": "candidate-asset-channel-b",
+            "source_url": "https://cdn.example/asset-channel-b.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-channel-c",
+            "candidate_id": "candidate-asset-channel-c",
+            "source_url": "https://cdn.example/asset-channel-c.mp4",
+            "provider": "youtube",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.28500000000000003,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0.55,
+              "exact_match": 0,
+              "visual": 0,
+              "manual_approval": 0,
+              "quality": 0.5,
+              "historical_success": 0.4,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [],
+        "winner_asset_id": "asset-channel-a"
+      }
+    },
+    {
+      "name": "drop_band_negative_score",
+      "input": {
+        "scene_duration_ms": 4000,
+        "prev_video_id": "asset-negative",
+        "slot_kind": "primary_video",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-negative",
+            "asset_id": "asset-negative",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-negative.mp4",
+            "media_type": "video",
+            "duration_ms": 100,
+            "candidate_score": 0.55,
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "binding": {
+              "id": "binding-negative",
+              "asset_id": "asset-negative"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [],
+        "drops": [
+          {
+            "asset_id": "asset-negative",
+            "candidate_id": "candidate-asset-negative",
+            "reason": "score below drop threshold (penalty or malformed)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "diversity_swap_within_delta",
+      "input": {
+        "scene_duration_ms": 4000,
+        "prev_video_id": "asset-strong",
+        "slot_kind": "primary_video",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-strong",
+            "asset_id": "asset-strong",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-strong.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "binding": {
+              "id": "binding-strong",
+              "asset_id": "asset-strong",
+              "approval_status": "approved",
+              "manual_score": 1,
+              "semantic_score": 1,
+              "quality_score": 1,
+              "success_score": 1
+            }
+          },
+          {
+            "candidate_id": "candidate-asset-tied",
+            "asset_id": "asset-tied",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-tied.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "binding": {
+              "id": "binding-tied",
+              "asset_id": "asset-tied",
+              "semantic_score": 1
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "asset-strong",
+            "candidate_id": "candidate-asset-strong",
+            "source_url": "https://cdn.example/asset-strong.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.625,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 1,
+              "exact_match": 1,
+              "visual": 0.5,
+              "manual_approval": 1,
+              "quality": 1,
+              "historical_success": 1,
+              "duration_fit": 1,
+              "repetition_penalty": 0.3,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-tied",
+            "candidate_id": "candidate-asset-tied",
+            "source_url": "https://cdn.example/asset-tied.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.625,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 1,
+              "exact_match": 1,
+              "visual": 0.5,
+              "manual_approval": 0,
+              "quality": 0,
+              "historical_success": 0,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [],
+        "winner_asset_id": "asset-tied"
+      }
+    },
+    {
+      "name": "diversity_keeps_far_top_one",
+      "input": {
+        "scene_duration_ms": 4000,
+        "prev_video_id": "asset-strong",
+        "slot_kind": "primary_video",
+        "candidates": [
+          {
+            "candidate_id": "candidate-asset-strong",
+            "asset_id": "asset-strong",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-strong.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "binding": {
+              "id": "binding-strong",
+              "asset_id": "asset-strong",
+              "approval_status": "approved",
+              "manual_score": 1,
+              "semantic_score": 1,
+              "quality_score": 1,
+              "success_score": 1
+            }
+          },
+          {
+            "candidate_id": "candidate-asset-far",
+            "asset_id": "asset-far",
+            "provider": "artlist",
+            "source_url": "https://cdn.example/asset-far.mp4",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "candidate_score": 0.55,
+            "rights_status": "verified",
+            "discovery_status": "searched",
+            "materialization_status": "warm",
+            "binding": {
+              "id": "binding-far",
+              "asset_id": "asset-far"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "ranked": [
+          {
+            "asset_id": "asset-strong",
+            "candidate_id": "candidate-asset-strong",
+            "source_url": "https://cdn.example/asset-strong.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.625,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 1,
+              "exact_match": 1,
+              "visual": 0.5,
+              "manual_approval": 1,
+              "quality": 1,
+              "historical_success": 1,
+              "duration_fit": 1,
+              "repetition_penalty": 0.3,
+              "rights_penalty": 0
+            }
+          },
+          {
+            "asset_id": "asset-far",
+            "candidate_id": "candidate-asset-far",
+            "source_url": "https://cdn.example/asset-far.mp4",
+            "provider": "artlist",
+            "media_type": "video",
+            "duration_ms": 4000,
+            "rights_status": "verified",
+            "final_score": 0.325,
+            "verdict": "accept",
+            "reason": "score above accept threshold",
+            "breakdown": {
+              "semantic": 0,
+              "exact_match": 1,
+              "visual": 0.5,
+              "manual_approval": 0,
+              "quality": 0,
+              "historical_success": 0,
+              "duration_fit": 1,
+              "repetition_penalty": 0,
+              "rights_penalty": 0
+            }
+          }
+        ],
+        "drops": [],
+        "winner_asset_id": "asset-strong"
+      }
+    }
+  ]
+}

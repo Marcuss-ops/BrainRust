@@ -174,6 +174,9 @@ fn process_line(line: &str) -> String {
         if envelope.operation.as_deref() == Some("score_local") {
             return process_local_score(line);
         }
+        if envelope.operation.as_deref() == Some("rank_candidates") {
+            return process_rank_candidates(line);
+        }
     }
     let request: SampleRequest = match serde_json::from_str(line) {
         Ok(request) => request,
@@ -274,6 +277,73 @@ fn process_line(line: &str) -> String {
         Err(error) => error_response(&WorkerError::new(
             ErrorCode::Encode,
             format!("mediasampler encode: {error}"),
+        )),
+    }
+}
+
+/// One slot pool for the canonical media ranker. The payload is flattened so
+/// the Go adapter can send the envelope and the ranking request in one object,
+/// exactly like the other operations.
+#[derive(Debug, Deserialize)]
+struct RankCandidatesRequest {
+    #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    operation: Option<String>,
+    #[serde(flatten)]
+    request: mediasampler::rank::RankRequest,
+}
+
+fn rank_error_response(error: &WorkerError) -> String {
+    error.log();
+    serde_json::json!({
+        "ranked": [],
+        "drops": [],
+        "winner": null,
+        "error": error.message,
+        "error_code": error.code,
+    })
+    .to_string()
+}
+
+fn process_rank_candidates(line: &str) -> String {
+    let request: RankCandidatesRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(error) => {
+            return rank_error_response(&WorkerError::new(
+                ErrorCode::Decode,
+                format!("mediasampler rank_candidates decode: {error}"),
+            ));
+        }
+    };
+    if let Err(error) = check_envelope(
+        "mediasampler",
+        request.version.as_deref(),
+        "mediasampler.v1",
+        request.operation.as_deref(),
+        "rank_candidates",
+    ) {
+        return rank_error_response(&error);
+    }
+    match mediasampler::rank::rank_candidates(&request.request) {
+        Ok(outcome) => {
+            let mut value = match serde_json::to_value(&outcome) {
+                Ok(value) => value,
+                Err(error) => {
+                    return rank_error_response(&WorkerError::new(
+                        ErrorCode::Encode,
+                        format!("mediasampler rank_candidates encode: {error}"),
+                    ));
+                }
+            };
+            if let Some(object) = value.as_object_mut() {
+                object.insert("error".to_string(), serde_json::Value::Null);
+            }
+            value.to_string()
+        }
+        Err(error) => rank_error_response(&WorkerError::new(
+            ErrorCode::Execution,
+            format!("mediasampler rank_candidates: {}", error.message),
         )),
     }
 }
