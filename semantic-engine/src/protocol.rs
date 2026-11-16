@@ -67,6 +67,37 @@ struct AlignPhrasesRequest {
     words: Vec<SpeechWord>,
     #[serde(default)]
     phrases: Vec<String>,
+    // `allow_missing` keeps the batch usable for optional entity/moment
+    // annotations: a value the speech never said is skipped, not a failure
+    // for the whole scene. The default stays fail-closed for phrase timing.
+    #[serde(default)]
+    allow_missing: bool,
+    // `all_occurrences` returns every document-order match. Phrase timing
+    // needs only the first, while moment grounding renders all repetitions.
+    #[serde(default)]
+    all_occurrences: bool,
+}
+
+#[derive(Deserialize, Default)]
+struct LexiconProfileRequest {
+    #[serde(default)]
+    language: String,
+}
+
+#[derive(Deserialize, Default)]
+struct LocalizeIdentitiesRequest {
+    #[serde(default)]
+    language: String,
+    #[serde(default)]
+    mode: String,
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    sources: Vec<semantic_core::localized_identity::SourceEntity>,
+    #[serde(default)]
+    visual: Vec<semantic_core::localized_identity::VisualPerson>,
+    #[serde(default)]
+    existing: Vec<semantic_core::localized_identity::IdentityMatch>,
 }
 
 #[derive(Deserialize, Default)]
@@ -227,7 +258,14 @@ fn align_phrases_line(line: &str) -> String {
     let mut alignments: Vec<LocatedPhrase> = Vec::new();
     for (index, phrase) in request.phrases.iter().enumerate() {
         match locate_phrase(&request.words, phrase) {
-            Ok(found) => alignments.push(found[0].clone()),
+            Ok(found) => {
+                if request.all_occurrences {
+                    alignments.extend(found);
+                } else {
+                    alignments.push(found[0].clone());
+                }
+            }
+            Err(_) if request.allow_missing => {}
             Err(err) => {
                 return error_response(&format!("align_phrases: phrase {index} {err}"));
             }
@@ -594,6 +632,47 @@ mod tests {
         assert_eq!(response["alignments"][0]["word_end"], 1);
         assert_eq!(response["alignments"][1]["word_start"], 1);
         assert_eq!(response["alignments"][1]["end_us"], 300);
+    }
+
+    #[test]
+    fn align_phrases_allow_missing_skips_unknown_values() {
+        let worker = Worker::new(8);
+        let line = json!({
+            "operation": "align_phrases",
+            "words": [
+                {"index": 0, "text": "La", "start_us": 0, "end_us": 100},
+                {"index": 1, "text": "pena", "start_us": 100, "end_us": 200}
+            ],
+            "phrases": ["la pena", "assente"],
+            "allow_missing": true
+        })
+        .to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["alignments"].as_array().unwrap().len(), 1);
+        assert_eq!(response["alignments"][0]["text"], "la pena");
+    }
+
+    #[test]
+    fn align_phrases_all_occurrences_returns_repetitions() {
+        let worker = Worker::new(8);
+        let line = json!({
+            "operation": "align_phrases",
+            "words": [
+                {"index": 0, "text": "Garibaldi", "start_us": 0, "end_us": 100},
+                {"index": 1, "text": "guidò", "start_us": 100, "end_us": 200},
+                {"index": 2, "text": "Garibaldi", "start_us": 200, "end_us": 300}
+            ],
+            "phrases": ["Garibaldi"],
+            "all_occurrences": true
+        })
+        .to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], true);
+        let alignments = response["alignments"].as_array().unwrap();
+        assert_eq!(alignments.len(), 2);
+        assert_eq!(alignments[1]["occurrence"], 2);
+        assert_eq!(alignments[1]["start_us"], 200);
     }
 
     #[test]
