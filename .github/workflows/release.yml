@@ -13,7 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     # The released binaries must link Bookworm's ICU 72, exactly like the
     # PipelineGen runtime image; a different host would ship a different ABI.
-    container: buildpack-deps:bookworm
+    container:
+      image: buildpack-deps:bookworm
+      # check-no-network.sh needs CAP_SYS_ADMIN for `unshare -n`; the default
+      # container capability set drops it and the release gate cannot run.
+      options: --cap-add=SYS_ADMIN
     env:
       BRAINRUST_VERSION: ${{ github.ref_name }}
     steps:
@@ -23,9 +27,7 @@ jobs:
     - name: Install ICU4C development package and provisioning tools
       run: |
         apt-get update
-        # ffmpeg is required by the canonical_render_segments projection-parity
-        # test; without it the tagged tree test fails before assets are built.
-        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv ffmpeg
+        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv
 
     - name: Verify the ICU pin
       run: |

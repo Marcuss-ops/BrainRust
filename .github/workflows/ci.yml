@@ -12,7 +12,11 @@ jobs:
     # Bookworm is the runtime ABI of the released binaries: testing on the
     # same ICU major is what makes the pin meaningful. buildpack-deps ships
     # git/curl/build-essential so actions/checkout works before apt-get.
-    container: buildpack-deps:bookworm
+    container:
+      image: buildpack-deps:bookworm
+      # check-no-network.sh needs CAP_SYS_ADMIN for `unshare -n`; the default
+      # container capability set drops it and the OS-level gate cannot run.
+      options: --cap-add=SYS_ADMIN
     steps:
     - name: Check out code
       uses: actions/checkout@v7
@@ -20,9 +24,7 @@ jobs:
     - name: Install ICU4C development package and provisioning tools
       run: |
         apt-get update
-        # ffmpeg is required by the canonical_render_segments projection-parity
-        # test; without it the workspace suite fails before any asset is built.
-        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv ffmpeg
+        apt-get install -y --no-install-recommends libicu-dev pkg-config python3 python3-venv
 
     # The canonical major is ICU_MAJOR (72, Bookworm). Refuse to test against
     # a host that disagrees instead of silently producing a different ABI.
