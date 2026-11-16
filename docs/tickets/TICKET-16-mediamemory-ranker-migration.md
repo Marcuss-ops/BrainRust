@@ -85,7 +85,7 @@ Landed:
   candidate that is neither ranked nor dropped. 7 unit tests, plus an opt-in
   real-worker test that reproduces the Go 0.625/0.625 diversity swap.
 
-Gate: `cargo test -p mediasampler` (39 lib + 7 worker + 4 parity),
+Gate: `cargo test -p mediasampler` (42 lib + 7 worker + 4 parity),
 `cargo clippy --workspace --all-targets -- -D warnings` and
 `go test ./internal/capabilities/mediamemory/... ./internal/platform/media/rustexec/...`
 pass.
@@ -114,19 +114,55 @@ The earlier blockers were resolved on the cutover tree:
 - `normalizer.go` is concept-text normalization (NFC, lowercase, whitespace,
   punctuation), not a ranking step: it belongs to the linguistic surface
   (TICKET-18) and is deliberately not part of this port.
-- `v0.3.5` and the local `bin/mediasampler` predate `rank_candidates`; shipping
-  the operation still requires a new release and pin bump. That is a build /
-  deployment prerequisite, not an open code path in this ticket.
+- `v0.3.5` predates `rank_candidates`; shipping the operation still requires a
+  new release and pin bump. That is a build / deployment prerequisite, not an
+  open code path in this ticket. The local, untracked `bin/mediasampler` was
+  rebuilt from this tree and verified against the production bridge.
+
+## Cutover 2026-11-16 — the production path
+
+- `mediamemory.PoolRanker` (`pool_ranker.go`) is the only ranking seam. The
+  resolver builds one pool per slot and maps the answer back; `rankSlotPool`
+  fails closed on a missing ranker, a worker error, a key outside the pool or
+  survivors without a winner. `layerFromRanked` composes the Layer.
+- `WireMediaMemoryResolver` builds the bridge
+  (`internal/app/wiring/media_pool_ranker.go`) once and shares it with the
+  cascade and the Brain adapter, so both consumers see one authority.
+- The Brain ranks before slots are assigned: it sends `slot_kind: "any"` (the
+  neutral slot, aspect gate disabled) and its slot-fitness preference as the
+  per-candidate `bonus`, which the ranker adds **after** the verdict — it can
+  reorder survivors, never rescue a drop. Both are additive wire fields, so the
+  fixture contract is unchanged.
+- The frozen Go implementation moved into `_test.go` files
+  (`ranker_oracle_test.go`, `ranker_oracle_weights_test.go`,
+  `ranker_oracle_gates_test.go`, `ranker_oracle_repetition_test.go`,
+  `resolver_scoring_oracle_test.go`, `pool_ranker_oracle_test.go`). Production
+  cannot link it even by accident; the oracle's `PoolRanker` implementation is
+  what the resolver tests inject.
+- Pool identity: binding-derived candidates carry no `MediaCandidate.ID`, so the
+  caller sends an opaque, unique pool key (`<ordinal>|<candidate_id>`) and the
+  ranker echoes it. The key is never parsed; `asset_id` stays the real one.
+- End-to-end against the rebuilt worker:
+  `VELOX_RUST_MEDIASAMPLER_PATH=$PWD/bin/mediasampler go test ./internal/app/wiring -run TestMediaPoolRankerBridge_RealWorker`
+  -> PASS (approved binding wins, `0.01` bonus breaks a tie, denied rights
+  dropped with `valid_license`).
 
 ## Verification 2026-11-16 (current tree)
 
-- `BrainRust` HEAD `01f01e1` contains `mediasampler::rank`, the
-  `rank_candidates` operation and the 11-case parity fixture contract.
+- `mediasampler::rank`, the `rank_candidates` operation, the 11-case parity
+  fixture contract and the bonus/neutral-slot additions are in this tree.
 - `cargo test -p mediasampler` -> **42 lib + 7 worker + 4 parity PASS**.
-- `go test ./internal/capabilities/mediamemory/...
-  ./internal/platform/media/rustexec/...` -> PASS (0.043 s + 85.019 s).
-- `go test ./internal/capabilities/scripts -count=1` -> PASS (15.723 s).
-- Production caller check: `PickTopFromRose` and the decision helpers above
-  return 0 matches outside tests.
+- `go vet ./internal/app/wiring/... ./internal/capabilities/mediamemory/...
+  ./internal/platform/media/rustexec/...` -> clean; `go build ./...` -> clean.
+- `go test ./internal/capabilities/mediamemory/... ./internal/capabilities/brain/...
+  ./internal/platform/media/rustexec/...` -> PASS (mediamemory 0.059 s,
+  rustexec 86.500 s).
+- `go test ./internal/app/wiring` -> PASS except
+  `TestFinalJobCertifiedFragmentsShareOneDecoderConfiguration`, which fails on
+  committed `data/final-job-fragments` avcC bytes (pre-existing, no file in
+  this change touches it).
+- Production caller check: `PickTopFromRose`, `PopulateRepetitionPenalty`,
+  `buildFilterFlags`, `buildRankingInput` and `sortByFinalScoreDesc` return 0
+  matches outside `_test.go`.
 - Residual external only: a release containing `rank_candidates`
-  (`v0.3.5` protocol has 0 matches).
+  (`v0.3.5` protocol has 0 matches), plus the pin bump.
