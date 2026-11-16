@@ -86,8 +86,8 @@ jobs:
     - name: No-network semantic analysis (isolated namespace)
       run: ./scripts/ci/check-no-network.sh target/release/semantic-engine
 
-    - name: Validate the mediaexec.v1 contract
+    - name: Validate the mediaexec.v2 contract
       run: |
         python3 -m venv /tmp/contract-venv
-        /tmp/contract-venv/bin/pip install -q -r contract/mediaexec.v1/requirements.txt
-        /tmp/contract-venv/bin/python contract/mediaexec.v1/validate.py
+        /tmp/contract-venv/bin/pip install -q -r contract/mediaexec.v2/requirements.txt
+        /tmp/contract-venv/bin/python contract/mediaexec.v2/validate.py
