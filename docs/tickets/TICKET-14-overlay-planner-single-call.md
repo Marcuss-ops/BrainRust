@@ -433,8 +433,10 @@ files. Go still verifies/materializes the bytes and candidate windows, but
 Rust performs the run-level image allocation from `image_plan` and the media
 candidates. Recap briefs are projected in Rust from already-narrated scenes,
 and the date sampler selects date/metric motions deterministically in Rust.
-The Go `projectEditorialOverlays`/`projectChapterBullets` functions are also
-dead in production and retained only for focused unit tests. The general chain
+The Go `projectEditorialOverlays` function is also dead in production and
+retained only for focused unit tests. `projectChapterBullets` and the Go
+presentation layer (`overlay_plan_presentation.go`) were deleted on
+2026-11-16 together with their focused unit tests. The general chain
 pass (`CoalesceChainedOverlays`) is ported to Rust with its `general_chain_*`
 unit tests and the dead Go coalescer was deleted; presentation/fonts/style/
 caption projection, light leaks, verified intent images and recaps were closed

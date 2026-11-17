@@ -1,0 +1,626 @@
+//! Candidate construction: the plan items built from the request
+//! (scene/recap/entity-card/editorial/annotation lanes) before admission.
+//! Item constructors live here with their motion pools, so the admission and
+//! presentation stages cannot grow their own copy of the same defaults.
+
+use super::*;
+
+pub(super) fn build_base_candidates(
+    request: &EditorialPlanV2Request,
+    editorial: &super::super::response::EditorialPlanV2Response,
+) -> Result<Vec<PlanItemV2>, EditorialPlanError> {
+    let mut items = Vec::new();
+    for scene in &request.scenes {
+        if scene.duration_us <= 0 {
+            continue;
+        }
+        append_editorial(&mut items, scene, editorial);
+        if let Some(annotations) = &scene.annotations {
+            append_annotations(&mut items, scene, annotations, request);
+        }
+    }
+    Ok(items)
+}
+
+pub(super) struct RecapCandidates {
+    pub(super) items: Vec<PlanItemV2>,
+    pub(super) placements: i64,
+}
+
+/// Ports the Automatic Recap Builder over the projected scene briefs: sources
+/// are strictly before the display scene, score-ordered, title-deduplicated
+/// and never allowed to leak a later chapter into an earlier card.
+pub(super) fn build_recap_candidates(
+    request: &EditorialPlanV2Request,
+) -> Result<RecapCandidates, EditorialPlanError> {
+    if request.canvas.disable_recap_overlays || request.recap_briefs.len() < 3 {
+        return Ok(RecapCandidates {
+            items: Vec::new(),
+            placements: 0,
+        });
+    }
+    let display = (request.recap_briefs.len() / 2 + 1).min(request.recap_briefs.len() - 1);
+    if display < 1 {
+        return Ok(RecapCandidates {
+            items: Vec::new(),
+            placements: 0,
+        });
+    }
+    let mut sources = request.recap_briefs[..display]
+        .iter()
+        .filter(|brief| !brief.title.trim().is_empty())
+        .cloned()
+        .collect::<Vec<_>>();
+    sources.sort_by(|left, right| {
+        right
+            .score
+            .total_cmp(&left.score)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    let mut seen = BTreeSet::new();
+    sources.retain(|brief| seen.insert(name_slug(&brief.title)));
+    sources.truncate(3);
+    if sources.is_empty() {
+        return Ok(RecapCandidates {
+            items: Vec::new(),
+            placements: 0,
+        });
+    }
+    let window = &request.recap_briefs[display];
+    if window.end_us <= window.start_us {
+        return Ok(RecapCandidates {
+            items: Vec::new(),
+            placements: 0,
+        });
+    }
+    let Some(scene) = request.scenes.iter().find(|scene| scene.id == window.id) else {
+        return Ok(RecapCandidates {
+            items: Vec::new(),
+            placements: 0,
+        });
+    };
+    let mut cursor = window.start_us;
+    let mut items = Vec::new();
+    let mut used_ids = BTreeSet::new();
+    for source in sources {
+        let remaining = window.end_us.saturating_sub(cursor);
+        if remaining < 2_000_000 {
+            break;
+        }
+        let duration = remaining.min(4_000_000);
+        let base = format!("{}-recap-{}", scene.id, name_slug(&source.title));
+        let mut id = base.clone();
+        let mut suffix = 2;
+        while !used_ids.insert(id.clone()) {
+            id = format!("{base}-{suffix}");
+            suffix += 1;
+        }
+        let mut item = scene_item(
+            id,
+            scene,
+            "quote",
+            "QUOTE",
+            cursor,
+            duration,
+            source.title.clone(),
+        );
+        item.preset_id = "phrase_default".to_string();
+        item.params = Some(json!({
+            "position": "center",
+            "style": "quote",
+            "priority": source.score,
+            "recap": true,
+        }));
+        items.push(item);
+        cursor = cursor.saturating_add(duration);
+    }
+    Ok(RecapCandidates {
+        placements: if items.is_empty() { 0 } else { 1 },
+        items,
+    })
+}
+
+pub(super) fn build_entity_card_candidates(
+    request: &EditorialPlanV2Request,
+) -> Result<Vec<PlanItemV2>, EditorialPlanError> {
+    let mut items = Vec::new();
+    append_entity_cards(&mut items, request)?;
+    Ok(items)
+}
+
+fn append_editorial(
+    items: &mut Vec<PlanItemV2>,
+    scene: &SceneV2,
+    editorial: &super::super::response::EditorialPlanV2Response,
+) {
+    let Some(phrases) = editorial.scene_phrases.get(&scene.id) else {
+        return;
+    };
+    let title = phrases
+        .iter()
+        .find(|phrase| phrase.presentation_role == "scene_title");
+    let bullet = phrases
+        .iter()
+        .find(|phrase| phrase.presentation_role == "scene_bullet");
+    let chapter = phrases
+        .iter()
+        .find(|phrase| phrase.presentation_role == "chapter_bullet");
+    for (ordinal, phrase) in [title, bullet, chapter].into_iter().flatten().enumerate() {
+        if !scene.short_phrase_overlay && word_count(&phrase.text) < 3 {
+            // Go filters every phrase lane through `phrasesAtLeastThreeWords`
+            // after the editorial projection. A two-word title is not a
+            // renderable block overlay unless the scene explicitly owns the
+            // short-phrase lane.
+            continue;
+        }
+        let role = phrase.presentation_role.as_str();
+        let mut item = scene_item(
+            format!("{}-editorial-{ordinal}", scene.id),
+            scene,
+            "text_phrase",
+            "IMPORTANT_PHRASE",
+            phrase.start_us,
+            phrase.duration_us,
+            phrase.text.clone(),
+        );
+        item.params = Some(json!({
+            "editorial_role": role,
+            "editorial_candidate": phrase.candidate,
+            "priority": phrase.score,
+        }));
+        items.push(item);
+    }
+}
+
+fn append_annotations(
+    items: &mut Vec<PlanItemV2>,
+    scene: &SceneV2,
+    annotations: &super::super::request::SceneAnnotationsV2,
+    request: &EditorialPlanV2Request,
+) {
+    for (index, phrase) in annotations.phrases.iter().enumerate() {
+        if !phrase.presentation_role.is_empty() {
+            continue; // editorial projection owns title/bullet candidates
+        }
+        if !scene.short_phrase_overlay && word_count(&phrase.text) < 3 {
+            continue;
+        }
+        items.push(text_item(
+            scene,
+            "phrase",
+            index,
+            phrase,
+            "text_phrase",
+            "IMPORTANT_PHRASE",
+        ));
+    }
+    for (index, keyword) in annotations.keywords.iter().enumerate() {
+        items.push(text_item(
+            scene,
+            "word",
+            index,
+            keyword,
+            "important_word",
+            "IMPORTANT_WORD",
+        ));
+    }
+    for (index, quote) in annotations.quotes.iter().enumerate() {
+        items.push(text_item(scene, "quote", index, quote, "quote", "QUOTE"));
+    }
+    for (index, brand) in annotations.brand_texts.iter().enumerate() {
+        items.push(text_item(
+            scene,
+            "brand",
+            index,
+            brand,
+            "brand_text",
+            "logo_default",
+        ));
+    }
+    for (index, number) in annotations.numbers.iter().enumerate() {
+        if let Some(item) = number_item(scene, index, number, request) {
+            items.push(item);
+        }
+    }
+    for (index, number) in annotations.chart_numbers.iter().enumerate() {
+        let mut item = text_item(scene, "chart-number", index, number, "number", "NUMBER");
+        if let Some(params) = item.params.as_mut().and_then(Value::as_object_mut) {
+            params.insert("chart".to_string(), json!(true));
+        }
+        items.push(item);
+    }
+    for (index, image) in annotations.images.iter().enumerate() {
+        append_image(items, scene, "image", index, image, "IMAGE_OVERLAY");
+    }
+    for (index, product) in annotations.products.iter().enumerate() {
+        append_image(items, scene, "product", index, product, "PRODUCT");
+    }
+    for (index, logo) in annotations.logos.iter().enumerate() {
+        append_image(items, scene, "logo", index, logo, "LOGO");
+    }
+    for (index, map) in annotations.maps.iter().enumerate() {
+        append_map(items, scene, index, map);
+    }
+}
+
+/// Routes a grounded numeric surface to its certified presentation family.
+///
+/// Dates are capped at the owning scene and kept on screen for the same
+/// five-second target as the Go planner; a date with less than two readable
+/// seconds left is dropped before admission instead of consuming a slot.
+/// `42`-style values use the metric card family. Chart numbers stay separate
+/// candidates and are lowered by the chart lane.
+fn number_item(
+    scene: &SceneV2,
+    _index: usize,
+    annotation: &TimedAnnotationV2,
+    request: &EditorialPlanV2Request,
+) -> Option<PlanItemV2> {
+    let family = annotation.annotation_type.trim().to_ascii_uppercase();
+    let is_date = matches!(family.as_str(), "DATE" | "TIME");
+    let is_metric = matches!(
+        family.as_str(),
+        "NUMBER"
+            | "NUM"
+            | "CARDINAL"
+            | "ORDINAL"
+            | "MONEY"
+            | "PERCENT"
+            | "PERCENTAGE"
+            | "METRIC"
+            | "METRICS"
+            | "STATISTIC"
+            | "STATISTICS"
+            | "QUANTITY"
+    );
+    let scene_end = scene.timeline_start_us.saturating_add(scene.duration_us);
+    let mut start_us = annotation.start_us.max(scene.timeline_start_us);
+    let mut duration_us = annotation.duration_us.max(0);
+    if is_date {
+        let remaining = scene_end.saturating_sub(start_us);
+        if remaining < 2_000_000 {
+            return None;
+        }
+        duration_us = duration_us.max(5_000_000).min(remaining);
+    }
+    let id = go_item_id(&scene.id, "number", &annotation.text);
+    let mut item = scene_item(
+        id.clone(),
+        scene,
+        "number",
+        if is_date {
+            "TIMELINE_DATE_CARD"
+        } else if is_metric {
+            "METRIC_STAT_CARD"
+        } else {
+            "NUMBER"
+        },
+        start_us,
+        duration_us,
+        annotation.text.clone(),
+    );
+    start_us = item.start_us;
+    if is_date || is_metric {
+        let (pool, lane, family_key) = if is_date {
+            (
+                date_motion_pool(request),
+                "timeline_date",
+                "date_presentation",
+            )
+        } else {
+            (
+                METRIC_MOTIONS.to_vec(),
+                "metric_stat",
+                "metric_presentation",
+            )
+        };
+        let limit = request
+            .canvas
+            .animation_counts
+            .get(lane)
+            .copied()
+            .unwrap_or(0)
+            .max(0) as usize;
+        let pool = if limit > 0 {
+            limited_shuffled_pool(
+                &pool,
+                limit,
+                &format!("{}\x00{}", request.plan.plan_id, family_key),
+            )
+        } else {
+            pool
+        };
+        item.motion_id = seeded_preset(&request.plan.plan_id, &scene.id, &id, family_key, &pool)
+            .unwrap_or_default();
+    }
+    if is_date {
+        let remaining = scene_end.saturating_sub(start_us);
+        item.duration_us = item.duration_us.max(5_000_000).min(remaining);
+        item.end_ms = (item.start_us + item.duration_us + 999) / 1000;
+    }
+    let font_size = if is_date || is_metric { 140.0 } else { 112.0 };
+    item.params = Some(json!({
+        "position": "center",
+        "style": "stat",
+        "priority": annotation.score,
+        "font_size_px": font_size,
+    }));
+    Some(item)
+}
+
+fn date_motion_pool(request: &EditorialPlanV2Request) -> Vec<&'static str> {
+    let family = request
+        .canvas
+        .date_motion_family
+        .trim()
+        .to_ascii_lowercase();
+    DATE_MOTIONS
+        .iter()
+        .copied()
+        .filter(|motion| match family.as_str() {
+            "typewriter" | "date_typewriter_v1" => motion.starts_with("date_typewriter_"),
+            "didone" | "date_didone_v1" => motion.starts_with("date_didone_"),
+            "classic" | "date_v1" => {
+                !motion.starts_with("date_typewriter_") && !motion.starts_with("date_didone_")
+            }
+            _ => true,
+        })
+        .collect()
+}
+
+#[derive(Serialize)]
+pub(super) struct PresetSeed<'a> {
+    pub(super) job_fingerprint: &'a str,
+    pub(super) scene_id: &'a str,
+    pub(super) semantic_id: &'a str,
+    pub(super) preset_family: &'a str,
+}
+
+/// Mirrors Go's `DeterministicPresetSampler`: a SHA-256 over the stable JSON
+/// seed maps its first eight bytes onto the candidate list. This is the one
+/// sampler used by date cards, light leaks and every seeded presentation
+/// choice; wall-clock time never participates.
+pub(super) fn seeded_preset(
+    job_id: &str,
+    scene_id: &str,
+    item_id: &str,
+    family: &str,
+    candidates: &[&str],
+) -> Option<String> {
+    if candidates.is_empty() {
+        return None;
+    }
+    let encoded = serde_json::to_vec(&PresetSeed {
+        job_fingerprint: job_id,
+        scene_id,
+        semantic_id: item_id,
+        preset_family: family,
+    })
+    .ok()?;
+    // Go's digest.SHA256Bytes returns the lowercase hex string, and the sampler
+    // reads the first eight ASCII hex bytes as a big-endian integer. Keeping
+    // the hex form here is what makes the two planners choose the same motion.
+    let hex = format!("{:x}", Sha256::digest(encoded));
+    let bytes: [u8; 8] = hex.as_bytes().get(..8)?.try_into().ok()?;
+    let index = u64::from_be_bytes(bytes) % candidates.len() as u64;
+    Some(candidates[index as usize].to_string())
+}
+
+/// Go's `itemID`: lowercase the concatenated identity, collapse every run of
+/// non-letter/non-digit characters to one hyphen and cap the result at 110
+/// runes with a stable hash suffix.
+pub(super) fn go_item_id(scene_id: &str, kind: &str, value: &str) -> String {
+    let raw = format!("{scene_id}-{kind}-{value}").to_lowercase();
+    let mut id = String::new();
+    let mut separator = false;
+    for ch in raw.chars() {
+        if ch.is_alphanumeric() {
+            if separator && !id.is_empty() {
+                id.push('-');
+            }
+            id.push(ch);
+            separator = false;
+        } else {
+            separator = true;
+        }
+    }
+    let id = id.trim_matches('-').to_string();
+    if id.chars().count() <= 110 {
+        return id;
+    }
+    let head: String = id.chars().take(110).collect();
+    let sum = format!("{:x}", Sha256::digest(raw.as_bytes()));
+    format!("{}-{}", head.trim_end_matches('-'), &sum[..12])
+}
+
+/// Go's `limitedShuffledMotionPool`: a Fisher-Yates shuffle seeded by raw
+/// SHA-256 bytes over `seed + NUL + rune(i)`, then capped to `limit`.
+fn limited_shuffled_pool(pool: &[&'static str], limit: usize, seed: &str) -> Vec<&'static str> {
+    let mut order = pool.to_vec();
+    for i in (1..order.len()).rev() {
+        let digest = Sha256::digest(format!(
+            "{seed}\x00{}",
+            char::from_u32(i as u32).unwrap_or('\0')
+        ));
+        let bytes: [u8; 8] = digest[..8].try_into().expect("sha256 prefix");
+        let j = (u64::from_be_bytes(bytes) % (i as u64 + 1)) as usize;
+        order.swap(i, j);
+    }
+    order.truncate(limit.min(order.len()));
+    order
+}
+
+fn text_item(
+    scene: &SceneV2,
+    lane: &str,
+    index: usize,
+    annotation: &TimedAnnotationV2,
+    kind: &str,
+    template: &str,
+) -> PlanItemV2 {
+    let mut item = scene_item(
+        format!("{}-{lane}-{index}", scene.id),
+        scene,
+        kind,
+        template,
+        annotation.start_us,
+        annotation.duration_us,
+        annotation.text.clone(),
+    );
+    item.params = Some(json!({"priority": annotation.score}));
+    item
+}
+
+pub(super) fn scene_item(
+    id: String,
+    scene: &SceneV2,
+    kind: &str,
+    template: &str,
+    start_us: i64,
+    duration_us: i64,
+    text: String,
+) -> PlanItemV2 {
+    let start_us = start_us.max(scene.timeline_start_us);
+    let end_us = start_us
+        .saturating_add(duration_us.max(0))
+        .min(scene.timeline_start_us.saturating_add(scene.duration_us));
+    let duration_us = (end_us - start_us).max(0);
+    PlanItemV2 {
+        id,
+        scene_id: scene.id.clone(),
+        kind: kind.to_string(),
+        template_id: template.to_string(),
+        start_us,
+        duration_us,
+        start_ms: start_us / 1000,
+        end_ms: (start_us + duration_us + 999) / 1000,
+        text,
+        ..Default::default()
+    }
+}
+
+pub(super) fn trim_maps(request: &EditorialPlanV2Request, items: &mut [PlanItemV2]) {
+    if !items.iter().any(|item| item.map.is_some()) {
+        return;
+    }
+    let input: Vec<TimingItem> = items.iter().map(timing_item).collect();
+    let edits = crate::trim_map_windows_before_budget(crate::ResolveMapOverlapsRequest {
+        fps_num: request.plan.fps_num,
+        fps_den: request.plan.fps_den,
+        scene_windows: request.scene_windows.clone(),
+        items: input,
+    });
+    for edit in edits {
+        if let Some(item) = items.get_mut(edit.index) {
+            item.start_us = edit.start_us;
+            item.duration_us = edit.duration_us;
+            item.start_ms = edit.start_ms;
+            item.end_ms = edit.end_ms;
+        }
+    }
+}
+
+pub(super) fn timing_item(item: &PlanItemV2) -> TimingItem {
+    TimingItem {
+        id: item.id.clone(),
+        scene_id: item.scene_id.clone(),
+        kind: item.kind.clone(),
+        template_id: item.template_id.clone(),
+        start_ms: item.start_ms,
+        end_ms: item.end_ms,
+        start_us: item.start_us,
+        duration_us: item.duration_us,
+        has_map: item.map.is_some(),
+        params: item.params.clone(),
+    }
+}
+
+/// Generated documentary cards keep the name below the portrait. The generic
+/// `random` selector can sample a side composition, so a captioned card is
+/// pinned to the below-caption pool exactly like Go's presentation pass.
+/// Certified date-card and metric-card pools, in the registration order the
+/// Go accessors expose. Motion ids are renderer vocabulary, not presets.
+pub(super) const DATE_MOTIONS: &[&str] = &[
+    "date_fade_rise",
+    "date_timeline_tick",
+    "date_chronology_focus",
+    "date_calendar_drop",
+    "date_month_wipe",
+    "date_era_zoom",
+    "date_bracket_draw",
+    "date_didone_archive_fade",
+    "date_didone_chronicle_rise",
+    "date_didone_era_settle",
+    "date_didone_fade_tracking",
+    "date_didone_focus_hold",
+    "date_didone_margin_wipe",
+    "date_didone_rule_draw",
+    "date_didone_stamp_drop",
+    "date_didone_underline_hold",
+    "date_didone_year_slide",
+    "date_digit_flip",
+    "date_history_stack",
+    "date_marker_drop",
+    "date_marker_pop",
+    "date_page_turn",
+    "date_range_draw",
+    "date_segment_stagger",
+    "date_split_year",
+    "date_stamp_reveal",
+    "date_timeline_sweep",
+    "date_typewriter_bracket_tap",
+    "date_typewriter_day_stamp",
+    "date_typewriter_era_carriage",
+    "date_typewriter_ink_stamp",
+    "date_typewriter_margin_return",
+    "date_typewriter_month_strike",
+    "date_typewriter_range_type",
+    "date_typewriter_timeline_feed",
+    "date_typewriter_underline_key",
+    "date_typewriter_year_type",
+    "date_underline_focus",
+    "date_year_count",
+];
+
+pub(super) const METRIC_MOTIONS: &[&str] = &[
+    "metric_counter_scale_settle",
+    "metric_odometer_vertical",
+    "metric_digits_stagger",
+    "metric_delta_reveal",
+    "metric_focus_punch",
+    "metric_before_after",
+    "metric_count_flip",
+    "metric_split_odometer",
+    "metric_arc_sweep",
+    "metric_bar_grow",
+    "metric_bounce_settle",
+    "metric_compare_wipe",
+    "metric_counter_rise",
+    "metric_debt_flip",
+    "metric_didone_column_rise",
+    "metric_didone_drop_in",
+    "metric_didone_focus_pull",
+    "metric_didone_hairline_rise",
+    "metric_didone_hold_breathe",
+    "metric_didone_ink_settle",
+    "metric_didone_numeral_settle",
+    "metric_didone_rule_wipe",
+    "metric_didone_side_slide",
+    "metric_didone_tracking_open",
+    "metric_digit_cascade",
+    "metric_multi_stat_focus",
+    "metric_pulse_hold",
+    "metric_ribbon_unfold",
+    "metric_ring_draw",
+    "metric_slide_left",
+    "metric_typewriter_backspace_settle",
+    "metric_typewriter_carriage_slide",
+    "metric_typewriter_cursor_in",
+    "metric_typewriter_digit_tick",
+    "metric_typewriter_ink_stamp",
+    "metric_typewriter_key_strike",
+    "metric_typewriter_letter_drop",
+    "metric_typewriter_line_feed",
+    "metric_typewriter_ribbon_strike",
+    "metric_typewriter_stepped_reveal",
+];

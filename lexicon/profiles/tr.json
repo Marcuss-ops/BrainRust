@@ -1,0 +1,69 @@
+{
+  "schema": "language_profile.v1",
+  "language": "tr",
+  "source": "lexicon/languages/tr",
+  "stopwords": [],
+  "function_words": [
+    "almaya",
+    "başka",
+    "bir",
+    "birçok",
+    "bu",
+    "da",
+    "daha",
+    "de",
+    "etti",
+    "geri",
+    "gibi",
+    "her",
+    "hissettim",
+    "hizmet",
+    "ile",
+    "ilk",
+    "için",
+    "karar",
+    "olan",
+    "olarak",
+    "sadece",
+    "sonra",
+    "sık",
+    "ve",
+    "önce",
+    "şey",
+    "şeye"
+  ],
+  "entity_blocklist": [
+    "gez",
+    "gezin",
+    "görün",
+    "keşfedin",
+    "keşfet",
+    "ziyaret"
+  ],
+  "negative_particles": [],
+  "visual_verbs": [],
+  "verb_suffixes": [],
+  "word_sets": {
+    "adpositions": [
+      "beri",
+      "dair",
+      "doğru",
+      "gibi",
+      "ile",
+      "için",
+      "kadar",
+      "karşı",
+      "nazaran",
+      "rağmen",
+      "sonra",
+      "yönelik",
+      "önce"
+    ]
+  },
+  "phrase_policy": {
+    "min_words": 2,
+    "max_words": 16,
+    "max_results": 5,
+    "reject_verbs_when_all": true
+  }
+}

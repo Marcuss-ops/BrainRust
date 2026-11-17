@@ -329,9 +329,12 @@ request per plan.
 parity lanes (chains, presentation, light leaks, seeded date/metric sampler,
 verified intent images and recaps); the six-fixture production-adapter gate,
 one-request real-worker counter, deletion guard and `make verify-main` PASS.
-The three legacy projection helpers (`projectEditorialOverlays`,
-`projectChapterBullets`, `overlaySceneInput`) still exist as test-only code
-with no production caller; they are not part of the production authority.
+The remaining legacy projection helpers (`projectEditorialOverlays`,
+`overlaySceneInput`) still exist as test-only code with no production caller;
+they are not part of the production authority. `projectChapterBullets` and the
+Go presentation layer (`chapter_bullet_overlay.go`,
+`overlay_plan_presentation.go`) were deleted on 2026-11-16 together with their
+focused unit tests.
 The Go tree is still uncommitted.
 
 Closure checklist:

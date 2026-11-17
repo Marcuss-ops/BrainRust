@@ -125,29 +125,13 @@ pub(super) fn push_visual_concepts(
         for mention in &identity.mentions {
             scene_ids.insert(mention.scene_id.clone());
         }
-        candidates.push(ProductionCandidate {
-            id: String::new(),
-            recipe: "entity_search".to_string(),
-            rank: 0,
+        candidates.push(entity_search_candidate(
+            identity,
+            anchor,
             priority,
-            scene_id: anchor.scene_id.clone(),
-            scene_ids: scene_ids.into_iter().collect(),
-            entity_ids: vec![identity.id.clone()],
-            fact_ids: Vec::new(),
-            group_ids: Vec::new(),
-            title: identity.canonical.clone(),
-            evidence: anchor.surface.clone(),
-            start_byte: anchor.start,
-            end_byte: anchor.end,
-            suggested_visual: "search_asset".to_string(),
-            chart_items: Vec::new(),
-            temporal_surfaces: Vec::new(),
-            asset_key: format!("entity:{}", identity.id),
-            queries: vec![SearchQuery::literal(anchor.surface.clone())],
-            requires_media: true,
-            dedup_key: format!("entity:{}:search", identity.id),
-            covered_fact_ids: Vec::new(),
-            rationale: if is_document_anchor {
+            scene_ids.into_iter().collect(),
+            vec![SearchQuery::literal(anchor.surface.clone())],
+            if is_document_anchor {
                 vec![
                     "global_document_anchor".to_string(),
                     "most recurrent gazetteer-backed place across the document".to_string(),
@@ -165,7 +149,7 @@ pub(super) fn push_visual_concepts(
                     "the phrase remains a typed visual concept, not a named identity".to_string(),
                 ]
             },
-        });
+        ));
     }
 }
 
@@ -337,6 +321,7 @@ fn is_concrete_visual_subject(text: &str) -> bool {
         .any(|cue| normalized.contains(&cue.to_lowercase()))
 }
 
+use super::entity_search_candidate;
 use super::identities::{identity_anchor, is_named_kind};
 use super::IdentityState;
 

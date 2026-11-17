@@ -1,6 +1,5 @@
-use crate::process::FFmpegRunner;
-
 use crate::error::MuscleError;
+use crate::probe::{run_ffprobe, FfprobeFailure};
 use crate::protocol::MediaMetadata;
 
 #[derive(serde::Deserialize)]
@@ -45,25 +44,20 @@ pub(super) struct SourceProbe {
 // canonical, without paying a second subprocess per unique path.
 pub(super) fn probe_source(ffmpeg: &str, path: &str) -> Result<SourceProbe, MuscleError> {
     let ffprobe = crate::probe::ffprobe_path(ffmpeg);
-    let mut command = FFmpegRunner::from_ffprobe_path(&ffprobe).ffprobe();
-    command.args([
-        "-v",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        path,
-    ]);
-    let output = command.output().map_err(|error| {
-        MuscleError::generic(format!("ffprobe source failed to start: {error}"))
-    })?;
-    if !output.status.success() {
-        return Err(MuscleError::generic(format!(
-            "source asset is corrupt or unreadable: {path}"
-        )));
-    }
-    let probe: Probe = serde_json::from_slice(&output.stdout).map_err(|error| {
+    let raw = match run_ffprobe(&ffprobe, path, false) {
+        Ok(raw) => raw,
+        Err(FfprobeFailure::Spawn(error)) => {
+            return Err(MuscleError::generic(format!(
+                "ffprobe source failed to start: {error}"
+            )))
+        }
+        Err(FfprobeFailure::Exit(_)) => {
+            return Err(MuscleError::generic(format!(
+                "source asset is corrupt or unreadable: {path}"
+            )))
+        }
+    };
+    let probe: Probe = serde_json::from_slice(&raw).map_err(|error| {
         MuscleError::generic(format!("ffprobe source parse failed for {path}: {error}"))
     })?;
     let duration = probe
@@ -100,26 +94,20 @@ pub(super) fn probe_audio(
     expected_duration: f64,
 ) -> Result<MediaMetadata, MuscleError> {
     let ffprobe = crate::probe::ffprobe_path(ffmpeg);
-    let mut command = FFmpegRunner::from_ffprobe_path(&ffprobe).ffprobe();
-    command.args([
-        "-v",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        path,
-    ]);
-    let output = command
-        .output()
-        .map_err(|error| MuscleError::generic(format!("ffprobe failed to start: {error}")))?;
-    if !output.status.success() {
-        return Err(MuscleError::generic(format!(
-            "ffprobe exited with {}",
-            output.status
-        )));
-    }
-    let probe: Probe = serde_json::from_slice(&output.stdout)
+    let raw = match run_ffprobe(&ffprobe, path, false) {
+        Ok(raw) => raw,
+        Err(FfprobeFailure::Spawn(error)) => {
+            return Err(MuscleError::generic(format!(
+                "ffprobe failed to start: {error}"
+            )))
+        }
+        Err(FfprobeFailure::Exit(status)) => {
+            return Err(MuscleError::generic(format!(
+                "ffprobe exited with {status}"
+            )))
+        }
+    };
+    let probe: Probe = serde_json::from_slice(&raw)
         .map_err(|error| MuscleError::generic(format!("ffprobe parse failed: {error}")))?;
     let duration = probe
         .format

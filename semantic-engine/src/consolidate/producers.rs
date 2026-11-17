@@ -236,36 +236,22 @@ pub(super) fn push_named_entities(
         for mention in &identity.mentions {
             scene_ids.insert(mention.scene_id.clone());
         }
-        candidates.push(ProductionCandidate {
-            id: String::new(),
-            recipe: "entity_search".to_string(),
-            rank: 0,
+        // Keep weak identities available for contextual enrichment: they only
+        // become a media search when an asserted relation or a grounded visual
+        // context supports the mention, which is exactly the non-empty query
+        // ladder the factory turns into `requires_media`.
+        let queries = if priority > 0.0 {
+            vec![SearchQuery::literal(anchor.surface.clone())]
+        } else {
+            Vec::new()
+        };
+        candidates.push(entity_search_candidate(
+            identity,
+            anchor,
             priority,
-            scene_id: anchor.scene_id.clone(),
-            scene_ids: scene_ids.iter().cloned().collect(),
-            entity_ids: vec![identity.id.clone()],
-            fact_ids: Vec::new(),
-            group_ids: Vec::new(),
-            title: identity.canonical.clone(),
-            evidence: anchor.surface.clone(),
-            start_byte: anchor.start,
-            end_byte: anchor.end,
-            suggested_visual: "search_asset".to_string(),
-            chart_items: Vec::new(),
-            temporal_surfaces: Vec::new(),
-            asset_key: format!("entity:{}", identity.id),
-            // Keep weak identities available for contextual enrichment. They
-            // become a media search only when an asserted relation or a
-            // grounded visual context supports the mention.
-            queries: if priority > 0.0 {
-                vec![SearchQuery::literal(anchor.surface.clone())]
-            } else {
-                Vec::new()
-            },
-            requires_media: priority > 0.0,
-            dedup_key: format!("entity:{}:search", identity.id),
-            covered_fact_ids: Vec::new(),
-            rationale: vec![
+            scene_ids.iter().cloned().collect(),
+            queries,
+            vec![
                 format!(
                     "{} named identity collapsed from {} mentions",
                     identity.kind,
@@ -273,7 +259,7 @@ pub(super) fn push_named_entities(
                 ),
                 "one asset search per canonical identity".to_string(),
             ],
-        });
+        ));
         candidates.push(ProductionCandidate {
             id: String::new(),
             recipe: "entity_card".to_string(),
@@ -304,5 +290,6 @@ pub(super) fn push_named_entities(
     }
 }
 
+use super::entity_search_candidate;
 use super::identities::{identity_anchor, is_named_kind, named_priority_for_surface};
 use super::IdentityState;

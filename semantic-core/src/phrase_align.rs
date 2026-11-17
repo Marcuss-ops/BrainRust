@@ -116,10 +116,10 @@ fn tokens_match(query_token: &str, timing_token: &str) -> bool {
     if query_token.is_empty() || timing_token.is_empty() || !is_numeric_token(query_token) {
         return false;
     }
-    match timing_token.strip_suffix(query_token) {
-        Some(tail) if !tail.is_empty() && tail.ends_with('\'') => true,
-        _ => false,
-    }
+    matches!(
+        timing_token.strip_suffix(query_token),
+        Some(tail) if !tail.is_empty() && tail.ends_with('\'')
+    )
 }
 
 fn is_numeric_token(token: &str) -> bool {

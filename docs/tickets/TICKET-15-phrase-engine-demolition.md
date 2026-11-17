@@ -7,7 +7,7 @@
   selection
 - Blocks: TICKET-19 (alignment)
 
-## Update 2026-11-16 (partial, verified)
+## Update 2026-11-16 (pre-cutover, verified)
 
 The production seam was ready before the 2026-11-16 cutover; this section records the pre-cutover state and is superseded by the DONE verdict:
 

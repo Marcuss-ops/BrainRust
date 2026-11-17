@@ -88,6 +88,49 @@ pub(crate) fn ffprobe_path(ffmpeg: &str) -> String {
     "ffprobe".to_string()
 }
 
+/// Why an ffprobe invocation produced no JSON document. Callers keep their
+/// own wording (a rendered master and a source asset fail differently), but
+/// the argv shape and the start/exit classification exist once.
+pub(crate) enum FfprobeFailure {
+    /// The binary could not be spawned at all.
+    Spawn(String),
+    /// The binary ran and exited non-zero.
+    Exit(String),
+}
+
+/// Run ffprobe on one path and return its JSON stdout.
+///
+/// This is the single owner of the ffprobe invocation contract: the flags,
+/// the ordering and the fact that `-show_data` is opt-in (only the output
+/// validator needs the codec extradata). Two copies of this argv drifted
+/// apart once already — a change here lands for every probe at the same time.
+pub(crate) fn run_ffprobe(
+    ffprobe: &str,
+    path: &str,
+    show_data: bool,
+) -> Result<Vec<u8>, FfprobeFailure> {
+    let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
+    command.args([
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+    ]);
+    if show_data {
+        command.arg("-show_data");
+    }
+    command.arg(path);
+    let output = command
+        .output()
+        .map_err(|error| FfprobeFailure::Spawn(error.to_string()))?;
+    if !output.status.success() {
+        return Err(FfprobeFailure::Exit(output.status.to_string()));
+    }
+    Ok(output.stdout)
+}
+
 pub(crate) struct ValidatedOutput {
     pub duration_sec: f64,
     pub video_extradata_sha256: String,
@@ -101,27 +144,20 @@ pub(crate) fn validate_output(
     profile: &config::VideoProfile,
     encoder: &EncoderPolicy,
 ) -> Result<ValidatedOutput, MuscleError> {
-    let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
-    command.args([
-        "-v",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        "-show_data",
-        path,
-    ]);
-    let output = command
-        .output()
-        .map_err(|error| MuscleError::generic(format!("ffprobe failed to start: {error}")))?;
-    if !output.status.success() {
-        return Err(MuscleError::generic(format!(
-            "ffprobe exited with {}",
-            output.status
-        )));
-    }
-    let probe: ProbeOutput = serde_json::from_slice(&output.stdout)
+    let raw = match run_ffprobe(ffprobe, path, true) {
+        Ok(raw) => raw,
+        Err(FfprobeFailure::Spawn(error)) => {
+            return Err(MuscleError::generic(format!(
+                "ffprobe failed to start: {error}"
+            )))
+        }
+        Err(FfprobeFailure::Exit(status)) => {
+            return Err(MuscleError::generic(format!(
+                "ffprobe exited with {status}"
+            )))
+        }
+    };
+    let probe: ProbeOutput = serde_json::from_slice(&raw)
         .map_err(|error| MuscleError::generic(format!("ffprobe parse failed: {error}")))?;
     let duration = probe
         .format
@@ -304,27 +340,20 @@ fn probe(request: Request) -> Response {
 }
 
 pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, MuscleError> {
-    let mut command = FFmpegRunner::from_ffprobe_path(ffprobe).ffprobe();
-    command.args([
-        "-v",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        "-show_data",
-        path,
-    ]);
-    let output = command
-        .output()
-        .map_err(|error| MuscleError::generic(format!("ffprobe failed to start: {error}")))?;
-    if !output.status.success() {
-        return Err(MuscleError::generic(format!(
-            "ffprobe exited with {}",
-            output.status
-        )));
-    }
-    let probe: ProbeOutput = serde_json::from_slice(&output.stdout)
+    let raw = match run_ffprobe(ffprobe, path, true) {
+        Ok(raw) => raw,
+        Err(FfprobeFailure::Spawn(error)) => {
+            return Err(MuscleError::generic(format!(
+                "ffprobe failed to start: {error}"
+            )))
+        }
+        Err(FfprobeFailure::Exit(status)) => {
+            return Err(MuscleError::generic(format!(
+                "ffprobe exited with {status}"
+            )))
+        }
+    };
+    let probe: ProbeOutput = serde_json::from_slice(&raw)
         .map_err(|error| MuscleError::generic(format!("ffprobe parse failed: {error}")))?;
     let duration_sec = probe
         .format

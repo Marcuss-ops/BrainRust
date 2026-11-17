@@ -42,6 +42,49 @@ struct MentionRef {
     end: usize,
 }
 
+/// The single construction point for the `entity_search` recipe: one search
+/// asset per canonical identity, grounded on the anchor mention.
+///
+/// Two lanes emit this recipe (generic visual concepts and named identities)
+/// and they used to carry the whole 24-field literal each. Keeping the shape
+/// here means a new `ProductionCandidate` field is added once, not per lane,
+/// and the `requires_media == queries are non-empty` invariant cannot drift
+/// between them: a candidate without a query ladder has nothing to search
+/// for, so it must not ask the media layer for an asset.
+fn entity_search_candidate(
+    identity: &IdentityState,
+    anchor: &MentionRef,
+    priority: f32,
+    scene_ids: Vec<String>,
+    queries: Vec<SearchQuery>,
+    rationale: Vec<String>,
+) -> ProductionCandidate {
+    ProductionCandidate {
+        id: String::new(),
+        recipe: "entity_search".to_string(),
+        rank: 0,
+        priority,
+        scene_id: anchor.scene_id.clone(),
+        scene_ids,
+        entity_ids: vec![identity.id.clone()],
+        fact_ids: Vec::new(),
+        group_ids: Vec::new(),
+        title: identity.canonical.clone(),
+        evidence: anchor.surface.clone(),
+        start_byte: anchor.start,
+        end_byte: anchor.end,
+        suggested_visual: "search_asset".to_string(),
+        chart_items: Vec::new(),
+        temporal_surfaces: Vec::new(),
+        asset_key: format!("entity:{}", identity.id),
+        requires_media: !queries.is_empty(),
+        dedup_key: format!("entity:{}:search", identity.id),
+        covered_fact_ids: Vec::new(),
+        queries,
+        rationale,
+    }
+}
+
 #[derive(Debug, Clone)]
 struct TimelineGroup<'a> {
     group: &'a SemanticGroup,

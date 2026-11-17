@@ -7,16 +7,15 @@ use visualner::{
 #[derive(Debug, Deserialize)]
 struct ExtractRequest {
     // Envelope tolerated for forward compatibility with the Go adapter,
-    // which sends version/operation/segment_id/text_hash alongside the
-    // extraction payload. None of them change extraction semantics.
+    // which sends version/operation alongside the extraction payload. Neither
+    // changes extraction semantics. The correlation fields it also sends
+    // (segment_id, text_hash) are not part of extraction and serde ignores
+    // unknown keys, so they are not declared here: a field nothing reads is
+    // worse than no field.
     #[serde(default)]
     version: Option<String>,
     #[serde(default)]
     operation: Option<String>,
-    #[serde(default)]
-    segment_id: Option<String>,
-    #[serde(default)]
-    text_hash: Option<String>,
     source_text: String,
     language: String,
     #[serde(default)]
@@ -119,11 +118,6 @@ fn process_line(line: &str) -> String {
             ));
         }
     };
-    // Fail closed on unknown envelope values instead of silently ignoring
-    // them: a contract drift between Go and Rust must surface as an error,
-    // not as mis-extracted entities.
-    let _ = request.segment_id.as_deref();
-    let _ = request.text_hash.as_deref();
     let analyze_op = request.operation.as_deref() == Some("analyze");
     let expected_operation = if analyze_op { "analyze" } else { "extract" };
     if let Err(error) = check_envelope(

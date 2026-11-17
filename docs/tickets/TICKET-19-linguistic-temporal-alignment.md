@@ -28,9 +28,9 @@
 
 Scope closure: the phrase-timing and overlay projection owned by this ticket
 now goes through `align_phrases`. The legacy endpoint fallback lives only in
-test-only projection helpers (`overlaySceneInput`, `projectChapterBullets`,
-`projectEditorialOverlays`); it has no production caller and no test was
-weakened. `audio.LocatePhrase` remains in production for entity occurrence
+test-only projection helpers (`overlaySceneInput`, `projectEditorialOverlays`);
+it has no production caller and no test was weakened. `projectChapterBullets`
+was deleted on 2026-11-16, so it can no longer reach the fallback. `audio.LocatePhrase` remains in production for entity occurrence
 and voiceover-moment projection, which are outside this ticket's
 phrase-timing scope and are tracked as a separate follow-up.
 
@@ -95,9 +95,10 @@ fallback, no interpolation, no second word matcher.
 - `CompilePhraseTimings` and `CompileSceneSpeechTimings` call the Rust aligner
   and project exact spans; `go test ./internal/capabilities/scripts -count=1`
   -> PASS (15.723 s); `go test ./internal/capabilities/audio` -> PASS.
-- Production caller audit: `overlaySceneInput`, `projectChapterBullets` and
-  `projectEditorialOverlays` have no production caller; the endpoint fallback
-  is reachable only from those test-only projection helpers. The
+- Production caller audit: `overlaySceneInput` and
+  `projectEditorialOverlays` have no production caller; `projectChapterBullets`
+  was deleted on 2026-11-16. The endpoint fallback is reachable only from the
+  surviving test-only projection helpers. The
   phrase-timing/overlay scope therefore passes the "no production caller"
   criterion. `audio.LocatePhrase` remains in production for entity occurrence
   and voiceover-moment projection, explicitly outside this ticket's scope.

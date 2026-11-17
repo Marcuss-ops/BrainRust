@@ -236,169 +236,179 @@ fn make_fifo(path: &str) -> Result<(), String> {
     }
 }
 
-/// Wait for a child with a deadline. The streaming path cannot use
-/// `output()`: a producer blocked on `open()` of a FIFO whose reader died
-/// would wait forever, and the outer supervisor's timeout is minutes away.
-pub(super) fn execute(request: Request) -> Response {
-    let output = match request.output_path.as_deref() {
-        Some(value) if !value.is_empty() => value,
-        _ => return failed_response(None, "output_path is required".to_string()),
-    };
-    // The plan arrives typed from the protocol boundary; a malformed plan
-    // already failed request parsing fail-closed, so absence is the only
-    // rejection left here.
-    let plan: Plan = match request.audio_plan.clone() {
-        Some(value) => value,
-        None => return failed_response(None, "audio_plan is invalid".to_string()),
-    };
-    if let Err(error) = validate_plan(&plan) {
-        return failed_response(None, error.to_string());
-    }
-    // The plan carries the canonical microsecond duration, but the video
-    // renderer emits FrameAt(duration_us) whole frames, which can round the
-    // timeline up by up to half a frame. The master is padded to the
-    // frame-aligned duration (master_duration_us) so audio_duration >=
-    // video_duration instead of leaving a silent tail at the end of the mux.
-    let master_duration_us = plan.master_duration_us.unwrap_or(plan.duration_us);
-    let master_secs = master_duration_us as f64 / 1_000_000.0;
-    let by_id: HashMap<String, String> = request
-        .audio_assets
-        .unwrap_or_default()
-        .into_iter()
-        .map(|asset: AudioAsset| (asset.asset_id, asset.path))
-        .collect();
-    let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
-    let mut sources = SourceCaches::prefetch(&plan, &by_id, ffmpeg);
-    // Build the resolved chains (the "Go decides" boundary). Everything is
-    // validated here in plan order so the typed errors keep their meaning;
-    // the fan-out below only renders what this loop accepted.
-    let mut chains: Vec<ChainSpec> = Vec::new();
-    for (track_id, event) in track_events(&plan)
-        .into_iter()
-        .filter(|(_, event)| event.r#type != "SILENCE")
-    {
-        let path = match event.asset_id.as_ref().and_then(|id| by_id.get(id)) {
-            Some(path) if Path::new(path).is_file() => path,
-            Some(path) => {
-                return failed_response(
-                    Some(path.clone()),
-                    format!("audio source is not readable: {path}"),
-                )
-            }
-            None => return failed_response(None, "audio event asset is unresolved".to_string()),
-        };
-        let source_end = match event.source_in_us.checked_add(event.source_duration_us) {
-            Some(value) if event.source_duration_us > 0 => value,
-            _ => {
-                return failed_response(None, "audio event source range is incomplete".to_string())
-            }
-        };
-        let probe = match sources.ensure_source(
-            event.asset_id.as_deref().unwrap_or(""),
-            path,
-            source_end,
-        ) {
-            Ok(probe) => probe,
-            Err(error) => return failed_response(Some(path.clone()), error.to_string()),
-        };
-        let delay_ms = (event.timeline_start_us + 500) / 1000;
-        let mut targeting: Vec<(&Automation, bool)> = Vec::new();
-        for automation in &plan.automation {
-            let target = if !automation.target_track_id.trim().is_empty() {
-                &automation.target_track_id
-            } else {
-                &automation.target_layer
-            };
-            if target.eq_ignore_ascii_case(&track_id) {
-                // A triggered entry ducks under its trigger track; an
-                // untriggered one is a fade shape over the layer window.
-                targeting.push((automation, !automation.trigger_track_id.trim().is_empty()));
-            }
+/// A failed stage. The renderer signals failure with the two facts that
+/// matter — the message and the optional source path — instead of building the
+/// wire `Response` in every branch: `Response` is ~800 bytes, so returning it
+/// in `Err` on every fallible stage costs more than the error path is worth.
+/// One conversion happens at the boundary.
+struct RenderError {
+    source_path: Option<String>,
+    message: String,
+}
+
+impl RenderError {
+    fn new(source_path: Option<String>, message: impl ToString) -> Self {
+        Self {
+            source_path,
+            message: message.to_string(),
         }
-        let gain = track_gain_expr(event.gain_db, &targeting);
-        // eval=frame is mandatory for automation: the volume filter's
-        // default eval=once decides the gain at the first frame (t=0),
-        // so every event would keep ONE level for its whole duration — a
-        // duck window [0,20s) would duck a looped BGM's second event
-        // (delay 20s) instead of the first, and multi-scene clip ducking
-        // windows would never match. With eval=frame the expression is
-        // evaluated per frame and, because adelay shifts the stream PTS
-        // to absolute output time, the between(t, ...) windows land at
-        // the exact absolute positions the plan declares. Events with no
-        // targeting entries have a static gain and take eval=once instead
-        // (behaviourally identical, no per-frame expression cost).
-        chains.push(ChainSpec {
-            path: path.clone(),
-            source_in_us: event.source_in_us,
-            source_end_us: source_end,
-            delay_ms,
-            gain,
-            eval_mode: volume_eval_mode(!targeting.is_empty()),
-            // BGM enters at the canonical loudness (see
-            // BGM_SOURCE_LOUDNESS_TARGET_DB); every other role joins
-            // unmodified, exactly as before.
-            normalize: format!(
-                "{}{}",
-                source_normalize(&probe),
-                if event.r#type.eq_ignore_ascii_case("bgm") {
-                    sources.bgm_loudness_prefix(path)
-                } else {
-                    String::new()
-                }
-            ),
-        });
     }
-    for (layer_name, layers) in [("BGM", &plan.background_music), ("SFX", &plan.sfx)] {
-        for layer in layers {
-            let path = match by_id.get(&layer.asset_id) {
-                Some(path) if Path::new(path).is_file() => path,
-                Some(path) => {
-                    return failed_response(
-                        Some(path.clone()),
-                        format!("audio source is not readable: {path}"),
-                    )
+
+    fn into_response(self) -> Response {
+        failed_response(self.source_path, self.message)
+    }
+}
+
+/// Everything one render needs from the request, resolved once so the stages
+/// below take `&self` instead of threading six locals through every branch.
+struct RenderContext<'a> {
+    output: &'a str,
+    plan: &'a Plan,
+    master_secs: f64,
+    by_id: &'a HashMap<String, String>,
+    ffmpeg: &'a str,
+}
+
+/// Files this render owns: filter scripts and the per-stem FIFOs. Every path
+/// is deleted on drop, success included — the explicit `remove_files` calls
+/// this replaces were one forgotten return away from leaking a FIFO that the
+/// next render would then try to reuse.
+#[derive(Default)]
+struct Scratch {
+    paths: Vec<String>,
+}
+
+impl Scratch {
+    fn track(&mut self, path: String) {
+        self.paths.push(path);
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        remove_files(&self.paths);
+    }
+}
+
+/// The running encode: one final-pass encoder reading every stem FIFO, plus
+/// one writer process per stem. The encoder is always spawned first: it opens
+/// the FIFOs (blocking until each writer opens its end), so the other order
+/// deadlocks.
+struct EncodeRun {
+    encode: std::process::Child,
+    writers: Vec<std::process::Child>,
+    encode_started: std::time::Instant,
+    mix_started: std::time::Instant,
+}
+
+/// Per-stage timings plus the two failure modes that only exist once the
+/// children are reaped: the encoder's own exit and the first writer failure.
+struct EncodeTiming {
+    encode: Result<(), String>,
+    writer: Option<String>,
+    aac_encode_ms: i64,
+    mix_ms: i64,
+}
+
+fn kill_children(encode: &mut std::process::Child, writers: &mut [std::process::Child]) {
+    let _ = encode.kill();
+    for writer in writers {
+        let _ = writer.kill();
+    }
+}
+
+impl<'a> RenderContext<'a> {
+    /// Read the request, validate it and run one audio render.
+    fn render(&self) -> Result<Response, RenderError> {
+        let mut scratch = Scratch::default();
+        let mut sources = SourceCaches::prefetch(self.plan, self.by_id, self.ffmpeg);
+        let chains = self.chains(&mut sources)?;
+        let part = self.prepare_output()?;
+        let (jobs, stem_inputs) = self.stem_jobs(chains, &part, &mut scratch);
+        // mix_ms measures the producer wall, which overlaps the encode by
+        // construction; total_ms (measured by the caller) remains the wall.
+        let mix_started = std::time::Instant::now();
+        for job in &jobs {
+            make_fifo(&job.sink).map_err(|error| RenderError::new(None, error))?;
+        }
+        // Keep every filter graph out of argv: with many clips/scenes the
+        // graph can exceed the host ARG_MAX even though the plan is valid.
+        let filter = final_mix_script(stem_inputs.len(), self.master_secs);
+        let filter_script = format!("{part}.final.filter.txt");
+        fs::write(&filter_script, &filter).map_err(|error| {
+            RenderError::new(None, format!("write audio filter script: {error}"))
+        })?;
+        scratch.track(filter_script.clone());
+
+        let run = EncodeRun::start(
+            self,
+            &jobs,
+            &stem_inputs,
+            &filter_script,
+            &part,
+            mix_started,
+        )?;
+        let timing = run.finish(self.master_secs);
+        if let Err(error) = timing.encode {
+            let _ = fs::remove_file(&part);
+            return Err(RenderError::new(None, error));
+        }
+        if let Some(error) = timing.writer {
+            let _ = fs::remove_file(&part);
+            return Err(RenderError::new(None, error));
+        }
+        self.publish(&part, timing)
+    }
+
+    /// Resolve every compiled event and legacy layer into one chain spec.
+    fn chains(&self, sources: &mut SourceCaches) -> Result<Vec<ChainSpec>, RenderError> {
+        let mut chains = self.track_chains(sources)?;
+        chains.extend(self.layer_chains(sources)?);
+        Ok(chains)
+    }
+
+    /// Build the resolved chains from the compiled timeline (the "Go decides"
+    /// boundary). Everything is validated here in plan order so the typed
+    /// errors keep their meaning; the fan-out only renders what this accepts.
+    fn track_chains(&self, sources: &mut SourceCaches) -> Result<Vec<ChainSpec>, RenderError> {
+        let mut chains = Vec::new();
+        for (track_id, event) in track_events(self.plan)
+            .into_iter()
+            .filter(|(_, event)| event.r#type != "SILENCE")
+        {
+            let path =
+                self.resolve_asset(event.asset_id.as_deref(), "audio event asset is unresolved")?;
+            let source_end = match event.source_in_us.checked_add(event.source_duration_us) {
+                Some(value) if event.source_duration_us > 0 => value,
+                _ => {
+                    return Err(RenderError::new(
+                        None,
+                        "audio event source range is incomplete".to_string(),
+                    ))
                 }
-                None => return failed_response(None, format!("{layer_name} asset is unresolved")),
             };
-            if layer.duration_us <= 0 || layer.timeline_start_us < 0 {
-                return failed_response(None, format!("{layer_name} layer range is invalid"));
-            }
-            let probe = match sources.ensure_source(&layer.asset_id, path, layer.duration_us) {
-                Ok(probe) => probe,
-                Err(error) => return failed_response(Some(path.clone()), error.to_string()),
-            };
-            let mut targeting: Vec<(&Automation, bool)> = Vec::new();
-            for automation in &plan.automation {
-                if automation.target_track_id.eq_ignore_ascii_case(layer_name)
-                    || automation.target_layer.eq_ignore_ascii_case(layer_name)
-                {
-                    if automation.start_us < 0 || automation.end_us <= automation.start_us {
-                        return failed_response(
-                            None,
-                            "audio automation range is invalid".to_string(),
-                        );
-                    }
-                    targeting.push((automation, !automation.trigger_track_id.trim().is_empty()));
-                }
-            }
-            let gain = track_gain_expr(layer.gain_db, &targeting);
-            let delay_ms = (layer.timeline_start_us + 500) / 1000;
-            // Same eval contract as the track path above: automation
-            // windows are absolute output time and must be re-evaluated per
-            // frame (eval=frame); a static layer gain takes eval=once.
-            // Legacy BGM layers get the same canonical-loudness trim as
-            // track-role BGM events; SFX keep their canonical absolute level.
+            let probe = sources
+                .ensure_source(event.asset_id.as_deref().unwrap_or(""), path, source_end)
+                .map_err(|error| RenderError::new(Some(path.clone()), error.to_string()))?;
+            let targeting = self.track_targeting(&track_id);
             chains.push(ChainSpec {
                 path: path.clone(),
-                source_in_us: 0,
-                source_end_us: layer.duration_us,
-                delay_ms,
-                gain,
+                source_in_us: event.source_in_us,
+                source_end_us: source_end,
+                delay_ms: (event.timeline_start_us + 500) / 1000,
+                gain: track_gain_expr(event.gain_db, &targeting),
+                // eval=frame is mandatory for automation: the volume filter's
+                // default eval=once decides the gain at the first frame (t=0),
+                // so every event would keep ONE level for its whole duration.
+                // A static gain takes eval=once (behaviourally identical, no
+                // per-frame expression cost).
                 eval_mode: volume_eval_mode(!targeting.is_empty()),
+                // BGM enters at the canonical loudness; every other role joins
+                // unmodified, exactly as before.
                 normalize: format!(
                     "{}{}",
                     source_normalize(&probe),
-                    if layer_name == "BGM" {
+                    if event.r#type.eq_ignore_ascii_case("bgm") {
                         sources.bgm_loudness_prefix(path)
                     } else {
                         String::new()
@@ -406,258 +416,411 @@ pub(super) fn execute(request: Request) -> Response {
                 ),
             });
         }
-    }
-    if let Some(parent) = Path::new(output).parent() {
-        if let Err(error) = fs::create_dir_all(parent) {
-            return failed_response(None, format!("create output directory: {error}"));
-        }
-    }
-    let part = part_path(output);
-    // Keep every filter graph out of argv. With many clips/scenes the graph
-    // can exceed the host ARG_MAX limit even though the actual audio plan is
-    // valid. ffmpeg's script input has the same semantics without that limit.
-    let mut temporaries: Vec<String> = Vec::new();
-
-    // ── Fan-out phase: render the stems concurrently into FIFOs ──────────
-    let count = stem_count(chains.len());
-    let stems = partition_stems(chains, count);
-    let mut stem_inputs: Vec<String> = Vec::with_capacity(stems.len());
-    let jobs: Vec<StemJob> = stems
-        .iter()
-        .enumerate()
-        .map(|(index, chains)| StemJob {
-            script: format!("{part}.stem{index}.filter.txt"),
-            sink: format!("{part}.stem{index}.f32.fifo"),
-            filter: stem_filter_script(chains, master_secs),
-            paths: chains.iter().map(|chain| chain.path.clone()).collect(),
-        })
-        .collect();
-    for job in &jobs {
-        temporaries.push(job.script.clone());
-        temporaries.push(job.sink.clone());
-        stem_inputs.push(job.sink.clone());
-    }
-    let mix_started = std::time::Instant::now();
-    for job in &jobs {
-        if let Err(error) = make_fifo(&job.sink) {
-            remove_files(&temporaries);
-            return failed_response(None, error);
-        }
+        Ok(chains)
     }
 
-    // The encoder is spawned BEFORE the producers: it opens the FIFOs (which
-    // blocks until each writer opens its end) and consumes the raw float PCM
-    // as it is produced. Spawning in the other order would deadlock, and the
-    // old file-based shape paid a 3 × 450 MB write plus the same read back
-    // inside the encode for data the encoder can consume in one pass.
-
-    // ── Final pass: sum the stems and encode the master — ONE AAC encode ──
-    let filter = final_mix_script(stem_inputs.len(), master_secs);
-    let filter_script = format!("{part}.final.filter.txt");
-    if let Err(error) = fs::write(&filter_script, &filter) {
-        remove_files(&temporaries);
-        return failed_response(None, format!("write audio filter script: {error}"));
-    }
-    temporaries.push(filter_script.clone());
-    let mut encode_command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
-    encode_command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-    for input in &stem_inputs {
-        encode_command.args([
-            "-f",
-            "f32le",
-            "-ar",
-            "48000",
-            "-ac",
-            "2",
-            "-i",
-            input.as_str(),
-        ]);
-    }
-    encode_command.args([
-        "-filter_complex_script",
-        &filter_script,
-        "-map",
-        "[aout]",
-        "-c:a",
-        "aac",
-        "-profile:a",
-        "aac_low",
-        "-ar",
-        "48000",
-        "-ac",
-        "2",
-        "-b:a",
-        &plan.canonical_audio_profile.bitrate,
-        "-t",
-        &master_secs.to_string(),
-        &part,
-    ]);
-    let mut encode_command = encode_command.into_command();
-    encode_command
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped());
-    let encode_started = std::time::Instant::now();
-    let mut encode_child = match encode_command.spawn() {
-        Ok(child) => child,
-        Err(error) => {
-            remove_files(&temporaries);
-            return failed_response(
-                None,
-                format!("render_audio_plan encode failed to start: {error}"),
-            );
-        }
-    };
-
-    let mut writers: Vec<std::process::Child> = Vec::with_capacity(jobs.len());
-    for job in &jobs {
-        if let Err(error) = fs::write(&job.script, &job.filter) {
-            let _ = encode_child.kill();
-            for writer in &mut writers {
-                let _ = writer.kill();
+    /// The legacy `background_music`/`sfx` layers, kept on the same chain
+    /// contract as the compiled events.
+    fn layer_chains(&self, sources: &mut SourceCaches) -> Result<Vec<ChainSpec>, RenderError> {
+        let mut chains = Vec::new();
+        for (layer_name, layers) in [
+            ("BGM", &self.plan.background_music),
+            ("SFX", &self.plan.sfx),
+        ] {
+            for layer in layers {
+                let path = match self.by_id.get(&layer.asset_id) {
+                    Some(path) if Path::new(path).is_file() => path,
+                    Some(path) => {
+                        return Err(RenderError::new(
+                            Some(path.clone()),
+                            format!("audio source is not readable: {path}"),
+                        ))
+                    }
+                    None => {
+                        return Err(RenderError::new(
+                            None,
+                            format!("{layer_name} asset is unresolved"),
+                        ))
+                    }
+                };
+                if layer.duration_us <= 0 || layer.timeline_start_us < 0 {
+                    return Err(RenderError::new(
+                        None,
+                        format!("{layer_name} layer range is invalid"),
+                    ));
+                }
+                let probe = sources
+                    .ensure_source(&layer.asset_id, path, layer.duration_us)
+                    .map_err(|error| RenderError::new(Some(path.clone()), error.to_string()))?;
+                let targeting = self.layer_targeting(layer_name)?;
+                chains.push(ChainSpec {
+                    path: path.clone(),
+                    source_in_us: 0,
+                    source_end_us: layer.duration_us,
+                    delay_ms: (layer.timeline_start_us + 500) / 1000,
+                    gain: track_gain_expr(layer.gain_db, &targeting),
+                    eval_mode: volume_eval_mode(!targeting.is_empty()),
+                    normalize: format!(
+                        "{}{}",
+                        source_normalize(&probe),
+                        if layer_name == "BGM" {
+                            sources.bgm_loudness_prefix(path)
+                        } else {
+                            String::new()
+                        }
+                    ),
+                });
             }
-            remove_files(&temporaries);
-            return failed_response(None, format!("write audio filter script: {error}"));
         }
-        let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
-        command.args(["-hide_banner", "-loglevel", "error", "-y"]);
-        for input in &job.paths {
-            command.args(["-i", input]);
+        Ok(chains)
+    }
+
+    /// One asset id resolved to a readable path, with the two distinct errors
+    /// the caller wants: unreadable (carries the path) vs unresolved (none).
+    fn resolve_asset(
+        &self,
+        asset_id: Option<&str>,
+        unresolved: &str,
+    ) -> Result<&'a String, RenderError> {
+        match asset_id.and_then(|id| self.by_id.get(id)) {
+            Some(path) if Path::new(path).is_file() => Ok(path),
+            Some(path) => Err(RenderError::new(
+                Some(path.clone()),
+                format!("audio source is not readable: {path}"),
+            )),
+            None => Err(RenderError::new(None, unresolved.to_string())),
         }
-        command.args([
+    }
+
+    /// Automations that target one compiled track. A triggered entry ducks
+    /// under its trigger track; an untriggered one is a fade over the window.
+    fn track_targeting(&'a self, track_id: &str) -> Vec<(&'a Automation, bool)> {
+        self.plan
+            .automation
+            .iter()
+            .filter_map(|automation| {
+                let target = if !automation.target_track_id.trim().is_empty() {
+                    &automation.target_track_id
+                } else {
+                    &automation.target_layer
+                };
+                target
+                    .eq_ignore_ascii_case(track_id)
+                    .then_some((automation, !automation.trigger_track_id.trim().is_empty()))
+            })
+            .collect()
+    }
+
+    /// Automations that target one legacy layer. Unlike the track path this
+    /// validates the window, because a layer group carries no compiled range.
+    fn layer_targeting(
+        &'a self,
+        layer_name: &str,
+    ) -> Result<Vec<(&'a Automation, bool)>, RenderError> {
+        let mut targeting = Vec::new();
+        for automation in &self.plan.automation {
+            if automation.target_track_id.eq_ignore_ascii_case(layer_name)
+                || automation.target_layer.eq_ignore_ascii_case(layer_name)
+            {
+                if automation.start_us < 0 || automation.end_us <= automation.start_us {
+                    return Err(RenderError::new(
+                        None,
+                        "audio automation range is invalid".to_string(),
+                    ));
+                }
+                targeting.push((automation, !automation.trigger_track_id.trim().is_empty()));
+            }
+        }
+        Ok(targeting)
+    }
+
+    /// Create the output directory and claim the unique part path.
+    fn prepare_output(&self) -> Result<String, RenderError> {
+        if let Some(parent) = Path::new(self.output).parent() {
+            fs::create_dir_all(parent).map_err(|error| {
+                RenderError::new(None, format!("create output directory: {error}"))
+            })?;
+        }
+        Ok(part_path(self.output))
+    }
+
+    /// Split the chains into round-robin stems and describe one render job per
+    /// stem. Every temporary path is tracked for cleanup.
+    fn stem_jobs(
+        &self,
+        chains: Vec<ChainSpec>,
+        part: &str,
+        scratch: &mut Scratch,
+    ) -> (Vec<StemJob>, Vec<String>) {
+        let count = stem_count(chains.len());
+        let stems = partition_stems(chains, count);
+        let mut stem_inputs: Vec<String> = Vec::with_capacity(stems.len());
+        let jobs: Vec<StemJob> = stems
+            .iter()
+            .enumerate()
+            .map(|(index, chains)| StemJob {
+                script: format!("{part}.stem{index}.filter.txt"),
+                sink: format!("{part}.stem{index}.f32.fifo"),
+                filter: stem_filter_script(chains, self.master_secs),
+                paths: chains.iter().map(|chain| chain.path.clone()).collect(),
+            })
+            .collect();
+        for job in &jobs {
+            scratch.track(job.script.clone());
+            scratch.track(job.sink.clone());
+            stem_inputs.push(job.sink.clone());
+        }
+        (jobs, stem_inputs)
+    }
+
+    /// Probe the encoded master, attach the stage timings, publish atomically
+    /// and hash what was actually published. Success is reported only after
+    /// all four steps; nothing here can claim `ok` for a missing file.
+    fn publish(&self, part: &str, timing: EncodeTiming) -> Result<Response, RenderError> {
+        let probe_started = std::time::Instant::now();
+        let mut metadata = probe_audio(self.ffmpeg, part, self.master_secs).map_err(|error| {
+            let _ = fs::remove_file(part);
+            RenderError::new(None, error)
+        })?;
+        let probe_ms = probe_started.elapsed().as_millis() as i64;
+        metadata.mix_ms = Some(timing.mix_ms);
+        metadata.aac_encode_ms = Some(timing.aac_encode_ms);
+        metadata.probe_ms = Some(probe_ms);
+        // Single-encode contract, reported from the execution plane where the
+        // encode command lives: the master is AAC-LC-encoded exactly ONCE (the
+        // stems are lossless PCM mix intermediates, never an encode). If a
+        // future change encodes the master more than once, this constant is
+        // the place that must change.
+        metadata.audio_encode_passes = Some(1);
+        publish_output(part, self.output).map_err(|error| RenderError::new(None, error))?;
+        // Hash the published final audio in its owner (Rust), so the Go
+        // adapter maps hash_ms + the digest instead of re-measuring the hash
+        // round-trip as a single block.
+        let hash_started = std::time::Instant::now();
+        let digest = sha256_file(self.output).map_err(|error| RenderError::new(None, error))?;
+        metadata.hash_ms = Some((hash_started.elapsed().as_millis() as i64).max(1));
+        metadata.final_audio_sha256 = Some(digest);
+        Ok(Response {
+            ok: true,
+            operation: "render_audio_plan".into(),
+            source_path: None,
+            items: Vec::new(),
+            metadata: Some(metadata),
+            error: None,
+        })
+    }
+}
+
+impl EncodeRun {
+    fn start(
+        context: &RenderContext<'_>,
+        jobs: &[StemJob],
+        stem_inputs: &[String],
+        filter_script: &str,
+        part: &str,
+        mix_started: std::time::Instant,
+    ) -> Result<Self, RenderError> {
+        // ── Final pass: sum the stems and encode the master — ONE AAC encode ──
+        let mut encode_command = FFmpegRunner::from_ffmpeg_path(context.ffmpeg).ffmpeg();
+        encode_command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+        for input in stem_inputs {
+            encode_command.args([
+                "-f",
+                "f32le",
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
+                "-i",
+                input.as_str(),
+            ]);
+        }
+        encode_command.args([
             "-filter_complex_script",
-            &job.script,
+            filter_script,
             "-map",
-            "[astem]",
+            "[aout]",
             "-c:a",
-            "pcm_f32le",
+            "aac",
+            "-profile:a",
+            "aac_low",
             "-ar",
             "48000",
             "-ac",
             "2",
-            "-f",
-            "f32le",
-            job.sink.as_str(),
+            "-b:a",
+            &context.plan.canonical_audio_profile.bitrate,
+            "-t",
+            &context.master_secs.to_string(),
+            part,
         ]);
-        let mut command = command.into_command();
-        command
+        let mut encode_command = encode_command.into_command();
+        encode_command
+            .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped());
-        match command.spawn() {
-            Ok(child) => writers.push(child),
-            Err(error) => {
-                let _ = encode_child.kill();
-                for writer in &mut writers {
-                    let _ = writer.kill();
-                }
-                remove_files(&temporaries);
-                return failed_response(
+        let mut encode = encode_command.spawn().map_err(|error| {
+            RenderError::new(
+                None,
+                format!("render_audio_plan encode failed to start: {error}"),
+            )
+        })?;
+        let encode_started = std::time::Instant::now();
+
+        let mut writers: Vec<std::process::Child> = Vec::with_capacity(jobs.len());
+        for job in jobs {
+            if let Err(error) = fs::write(&job.script, &job.filter) {
+                kill_children(&mut encode, &mut writers);
+                return Err(RenderError::new(
                     None,
-                    format!("render_audio_plan stem render failed to start: {error}"),
-                );
+                    format!("write audio filter script: {error}"),
+                ));
             }
-        }
-    }
-    // Safety net, not a budget: the encode drains the FIFOs at ~34x realtime.
-    let encode_deadline = std::time::Instant::now()
-        + std::time::Duration::from_secs(master_secs.max(0.0) as u64 / 10 + 180);
-    let encode_output =
-        wait_child_with_deadline(encode_child, encode_deadline, "render_audio_plan encode");
-    let aac_encode_ms = encode_started.elapsed().as_millis() as i64;
-    // With the encoder gone a producer can only be blocked in open(): 30s
-    // covers the normal close path and bounds the pathological one.
-    let writer_deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-    let mut writer_error: Option<String> = None;
-    for writer in writers {
-        match wait_child_with_deadline(writer, writer_deadline, "render_audio_plan stem render") {
-            Ok(output) if output.status.success() => {}
-            Ok(output) => {
-                if writer_error.is_none() {
-                    writer_error = Some(format!(
-                        "render_audio_plan stem render failed: {}",
-                        String::from_utf8_lossy(&output.stderr).trim()
+            let mut command = FFmpegRunner::from_ffmpeg_path(context.ffmpeg).ffmpeg();
+            command.args(["-hide_banner", "-loglevel", "error", "-y"]);
+            for input in &job.paths {
+                command.args(["-i", input]);
+            }
+            command.args([
+                "-filter_complex_script",
+                &job.script,
+                "-map",
+                "[astem]",
+                "-c:a",
+                "pcm_f32le",
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
+                "-f",
+                "f32le",
+                job.sink.as_str(),
+            ]);
+            let mut command = command.into_command();
+            command
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped());
+            match command.spawn() {
+                Ok(child) => writers.push(child),
+                Err(error) => {
+                    kill_children(&mut encode, &mut writers);
+                    return Err(RenderError::new(
+                        None,
+                        format!("render_audio_plan stem render failed to start: {error}"),
                     ));
                 }
             }
-            Err(error) => {
-                if writer_error.is_none() {
-                    writer_error = Some(error.to_string());
-                }
-            }
         }
-    }
-    // mix_ms measures the producer wall, which now overlaps the encode by
-    // construction; total_ms (measured by the caller) remains the wall.
-    let mix_ms = mix_started.elapsed().as_millis() as i64;
-    remove_files(&temporaries);
-    temporaries.clear();
-    let encode_result = match encode_output {
-        Ok(output) if output.status.success() => Ok(()),
-        Ok(output) => Err(format!(
-            "render_audio_plan encode failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        )),
-        Err(error) => Err(error.to_string()),
-    };
-    if let Err(error) = encode_result {
-        let _ = fs::remove_file(&part);
-        return failed_response(None, error);
-    }
-    if let Some(error) = writer_error {
-        let _ = fs::remove_file(&part);
-        return failed_response(None, error);
+        Ok(Self {
+            encode,
+            writers,
+            encode_started,
+            mix_started,
+        })
     }
 
-    // Probe the encoded master, then attach the stage timings to the
-    // certified metadata before publishing.
-    let probe_started = std::time::Instant::now();
-    let probe_result = probe_audio(ffmpeg, &part, master_secs);
-    let probe_ms = probe_started.elapsed().as_millis() as i64;
-    match probe_result {
-        Ok(mut metadata) => {
-            // The stem fan-out is the mix phase (concurrent per-stem renders,
-            // wall time of the slowest stem); the final pass above is the
-            // single AAC encode of the total mix.
-            metadata.mix_ms = Some(mix_ms);
-            metadata.aac_encode_ms = Some(aac_encode_ms);
-            metadata.probe_ms = Some(probe_ms);
-            // Single-encode contract, reported from the execution plane
-            // where the encode command lives: the master is AAC-LC-encoded
-            // exactly ONCE (the stems are lossless PCM mix intermediates,
-            // never an encode). The Go adapter reads this instead of
-            // hard-coding the count. If a future change encodes the master
-            // more than once, this constant is the place that must change.
-            metadata.audio_encode_passes = Some(1);
-            match publish_output(&part, output) {
-                Ok(()) => {
-                    // Hash the published final audio in its owner (Rust), so
-                    // the Go adapter maps hash_ms + the digest instead of
-                    // re-measuring the hash round-trip as a single block.
-                    let hash_started = std::time::Instant::now();
-                    match sha256_file(output) {
-                        Ok(digest) => {
-                            let hash_ms = hash_started.elapsed().as_millis() as i64;
-                            metadata.hash_ms = Some(hash_ms.max(1));
-                            metadata.final_audio_sha256 = Some(digest);
-                            Response {
-                                ok: true,
-                                operation: "render_audio_plan".into(),
-                                source_path: None,
-                                items: Vec::new(),
-                                metadata: Some(metadata),
-                                error: None,
-                            }
-                        }
-                        Err(error) => failed_response(None, error),
+    /// Reap the encoder and then every writer. The encode deadline is a safety
+    /// net, not a budget: the encoder drains the FIFOs at ~34x realtime.
+    fn finish(self, master_secs: f64) -> EncodeTiming {
+        let Self {
+            encode,
+            writers,
+            encode_started,
+            mix_started,
+        } = self;
+        let encode_deadline = std::time::Instant::now()
+            + std::time::Duration::from_secs(master_secs.max(0.0) as u64 / 10 + 180);
+        let encode_output =
+            wait_child_with_deadline(encode, encode_deadline, "render_audio_plan encode");
+        let aac_encode_ms = encode_started.elapsed().as_millis() as i64;
+        // With the encoder gone a producer can only be blocked in open(): 30s
+        // covers the normal close path and bounds the pathological one.
+        let writer_deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        let mut writer_error: Option<String> = None;
+        for writer in writers {
+            match wait_child_with_deadline(writer, writer_deadline, "render_audio_plan stem render")
+            {
+                Ok(output) if output.status.success() => {}
+                Ok(output) => {
+                    if writer_error.is_none() {
+                        writer_error = Some(format!(
+                            "render_audio_plan stem render failed: {}",
+                            String::from_utf8_lossy(&output.stderr).trim()
+                        ));
                     }
                 }
-                Err(error) => failed_response(None, error),
+                Err(error) => {
+                    if writer_error.is_none() {
+                        writer_error = Some(error.to_string());
+                    }
+                }
             }
         }
-        Err(error) => {
-            let _ = fs::remove_file(&part);
-            failed_response(None, error)
+        let mix_ms = mix_started.elapsed().as_millis() as i64;
+        let encode = match encode_output {
+            Ok(output) if output.status.success() => Ok(()),
+            Ok(output) => Err(format!(
+                "render_audio_plan encode failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            )),
+            Err(error) => Err(error.to_string()),
+        };
+        EncodeTiming {
+            encode,
+            writer: writer_error,
+            aac_encode_ms,
+            mix_ms,
         }
     }
+}
+
+/// Render the compiled audio plan into one AAC-LC master.
+///
+/// The stages are separate so each one is readable on its own; the ordering
+/// between them is load-bearing and stays visible here: resolve every source
+/// (fail closed) → create the FIFOs → write the final graph → start the
+/// encoder → start the writers → reap → probe/publish/hash.
+pub(super) fn execute(request: Request) -> Response {
+    let Request {
+        output_path,
+        audio_plan,
+        audio_assets,
+        ffmpeg_path,
+        ..
+    } = request;
+    let Some(output) = output_path.filter(|value| !value.is_empty()) else {
+        return RenderError::new(None, "output_path is required".to_string()).into_response();
+    };
+    // The plan arrives typed from the protocol boundary; a malformed plan
+    // already failed request parsing fail-closed, so absence is the only
+    // rejection left here.
+    let Some(plan) = audio_plan else {
+        return RenderError::new(None, "audio_plan is invalid".to_string()).into_response();
+    };
+    if let Err(error) = validate_plan(&plan) {
+        return RenderError::new(None, error.to_string()).into_response();
+    }
+    let by_id: HashMap<String, String> = audio_assets
+        .unwrap_or_default()
+        .into_iter()
+        .map(|asset: AudioAsset| (asset.asset_id, asset.path))
+        .collect();
+    // The plan carries the canonical microsecond duration, but the video
+    // renderer emits FrameAt(duration_us) whole frames, which can round the
+    // timeline up by up to half a frame. The master is padded to the
+    // frame-aligned duration (master_duration_us) so audio_duration >=
+    // video_duration instead of leaving a silent tail at the end of the mux.
+    let context = RenderContext {
+        output: &output,
+        plan: &plan,
+        master_secs: plan.master_duration_us.unwrap_or(plan.duration_us) as f64 / 1_000_000.0,
+        by_id: &by_id,
+        ffmpeg: ffmpeg_path.as_deref().unwrap_or("ffmpeg"),
+    };
+    context
+        .render()
+        .unwrap_or_else(|error| error.into_response())
 }
 
 #[cfg(test)]

@@ -150,6 +150,8 @@ impl Worker {
             })
             .to_string(),
             "analyze_script" => self.analyze(line),
+            "lexicon_profile" => lexicon_profile_line(line),
+            "localize_identities" => localize_identities_line(line),
             "split_sentences" => split_sentences(line),
             "select_phrases" => select_phrases_line(line),
             "align_phrases" => align_phrases_line(line),
@@ -206,6 +208,70 @@ impl Worker {
             ndjson_stdio::workers_from_env("SEMANTIC_ENGINE_WORKERS"),
         )
     }
+}
+
+fn lexicon_profile_line(line: &str) -> String {
+    let request: LexiconProfileRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid lexicon_profile request: {err}")),
+    };
+    let language = request.language.trim();
+    if language.is_empty() {
+        let profiles: Vec<&semantic_core::language_profiles::LanguageProfile> =
+            semantic_core::language_profiles::supported_languages()
+                .into_iter()
+                .filter_map(semantic_core::language_profiles::get)
+                .collect();
+        return json!({
+            "ok": true,
+            "schema_version": semantic_core::language_profiles::schema_version(),
+            "profiles": profiles,
+        })
+        .to_string();
+    }
+    match semantic_core::language_profiles::get(language) {
+        Some(profile) => json!({
+            "ok": true,
+            "schema_version": semantic_core::language_profiles::schema_version(),
+            "profile": profile,
+        })
+        .to_string(),
+        None => error_response(&format!("lexicon_profile: unknown language {language:?}")),
+    }
+}
+
+fn localize_identities_line(line: &str) -> String {
+    let request: LocalizeIdentitiesRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid localize_identities request: {err}")),
+    };
+    let language = request.language.trim();
+    if language.is_empty() {
+        return error_response("localize_identities: language is required");
+    }
+    let mode = if request.mode.trim().is_empty() {
+        "match"
+    } else {
+        request.mode.trim()
+    };
+    let matches = match mode {
+        "match" => semantic_core::localized_identity::match_localized_sources(
+            &request.text,
+            language,
+            &request.sources,
+        ),
+        "complete" => semantic_core::localized_identity::complete_ordered_person_matches(
+            &request.text,
+            language,
+            &request.sources,
+            &request.visual,
+            &request.existing,
+        ),
+        other => {
+            return error_response(&format!("localize_identities: unsupported mode {other:?}"))
+        }
+    };
+    json!({"ok": true, "matches": matches}).to_string()
 }
 
 fn select_phrases_line(line: &str) -> String {

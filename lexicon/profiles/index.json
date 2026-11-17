@@ -1,0 +1,17 @@
+{
+  "schema": "language_profiles.v1",
+  "languages": [
+    "de",
+    "en",
+    "es",
+    "fallback",
+    "fr",
+    "id",
+    "it",
+    "nl",
+    "pl",
+    "pt",
+    "ru",
+    "tr"
+  ]
+}

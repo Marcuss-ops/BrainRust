@@ -1,7 +1,7 @@
 # TICKET 20 — Identity and localization consolidation
 
 - Priority: P2
-- Status: OPEN
+- Status: DONE (2026-11-16; cutover landed, gate blocked by unrelated workspace failures)
 - Source: external audit 2026-11-16; TICKET-13 phase 2
 - Depends on: TICKET-18 (linguistics), TICKET-19 (alignment)
 - Blocks: none
@@ -60,3 +60,71 @@ Still a live Go authority; no acceptance criterion has landed.
   not an identity contract and does not satisfy this ticket.
 - `go test ./internal/capabilities/scripts -count=1` is green (15.723 s), but
   no acceptance criterion of this ticket has a dedicated test yet.
+
+## Blocco misurato 2026-11-16
+
+Il seam è piccolo come API ma non è isolato: la funzione di matching dipende da
+`localizedNameTokens`, `personNameRuns`, `normalizeVisualPersonName`,
+`findEntitySpan`, `annotationCanonicalEntityID` e dai tipi
+`AnnotatedEntity`/`VisualEntity`. Non esiste in Rust né il tokenizer dei nomi
+né la tabella dei suffissi (`grep` su `semantic-core`/`semantic-engine` per
+`inflect`, `declension`, `match_localized`: **0**).
+
+Copertura Go da preservare: `translated_nlp_test.go` contiene i casi pl
+(`TestGroundLocalizedSourceEntitiesProjectsPolishInflection`), tr
+(`...TurkishCaseSuffix`), ru (`...AlignsRussianNERToSourceIdentity`) e de
+(`...KeepsGermanMentionSurfaceForTiming`), oltre a identità ereditata e geo.
+La stessa `translated_nlp_identity.go` ospita `limitTranslatedVisualEntities`
+e `translatedSpecialNames`, usati anche da `vidrush_semantic_chain.go`: il file
+non è monolitico e va separato prima di dichiarare la cancellazione.
+
+**Contratto minimo per chiudere 20.**
+
+1. `semantic-engine` espone `localize_identities` con `language`, `text`,
+   entità sorgente tipizzate (kind, canonical_name, text) e, per il fallback
+   ordinato, i candidati PERSON del NER tradotto.
+2. La risposta restituisce per ogni match `source_index`, `kind`, span rune e
+   superficie; il matching esatto e l'inflessione pl/de/tr/ru vivono in Rust.
+3. Go proietta il match sull'annotazione (id canonico, image, geo, mention) e
+   fallisce chiuso se l'id manca.
+4. Fixture di parità per pl/de/tr/ru più i casi esatti; poi
+   `matchLocalizedSourceEntities` e `completeOrderedPersonMatches` spariscono.
+5. `translatedSpecialNames`/`limitTranslatedVisualEntities` restano Go o
+   diventano un'operazione separata: non sono identity matching e non vanno
+   cancellati per effetto collaterale.
+
+## Implementazione 2026-11-16
+
+**Rust (authority).** `semantic-core/src/localized_identity.rs` possiede
+`match_localized_sources` e `complete_ordered_person_matches`: tokenizzazione,
+confronto case-insensitive, suffissi chiusi pl/de/tr, span rune e fallback
+ordinato ru/tr/pl. `semantic-engine` registra `localize_identities`
+(`mode=match|complete`) e lo copre con `tests/localized_identity_protocol.rs`.
+I test unitari coprono: esatto in de/en/es/fr/it/pt, pl (`Mike’a Tysona`), tr
+(`Mike Tyson'a`), de (`Mike Tysons`), rifiuto di un nome singolo, ru ordinato,
+conteggio non corrispondente e persona già matchata.
+
+**Go (projection only).** `translated_nlp_identity.go` è stato rinominato
+`translated_nlp_localization.go`: costruisce la richiesta tipizzata, valida
+ogni span contro il testo tradotto, proietta `CanonicalEntityID`, image, geo e
+mention. `stampLocalizedSourceIdentity` ora fallisce chiuso se un match non ha
+un id canonico derivabile. Il matching/inflessione Go non è più compilato in
+produzione: vive solo in `translated_nlp_localization_oracle_test.go` come
+oracolo dei test di integrazione esistenti. `LocalizedIdentityMatcher` è
+iniettato dal composition root (`SetLocalizedIdentityMatcher`) e il matcher
+nil fallisce chiuso.
+
+**Verifica.**
+
+| Comando | Esito |
+|---|---|
+| `cargo test -p semantic-core localized_identity --lib` | **10 passed** |
+| `cargo test -p semantic-engine --test localized_identity_protocol` | **5 passed** |
+| `go test ./internal/capabilities/scripts -count=1` | PASS (14.875 s) |
+| `go test ./internal/platform/media/rustexec -run TestSemanticEngineRealBinaryLocalizesIdentities` | PASS contro il binario Rust reale (pl + ru) |
+| `go vet ./...` | rc 0 |
+| `make verify-main` | **bloccato dalle failure preesistenti descritte in TICKET-18** (drift catalogo RenderingGen, knob e archcheck in `remote_final_job.go`, slot string in `media_ranker_adapter.go`), non da questo cutover. |
+
+**Deploy.** `v0.3.5` non contiene né `lexicon_profile` né `localize_identities`.
+Serve una release nuova e il bump di `BRAINRUST_VERSION`; senza di essa il
+worker risponde `unknown operation` e la proiezione Go fallisce chiusa.
