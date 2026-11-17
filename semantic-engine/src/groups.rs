@@ -37,10 +37,15 @@ pub struct VisualCandidate {
     pub end: usize,
 }
 
+/// One scene's source text and lexicon language.
+pub struct SceneSource<'a> {
+    pub text: &'a str,
+    pub language: &'a str,
+}
+
 /// Builds every proposal of one scene, in deterministic source order.
 pub fn build_candidates(
-    source: &str,
-    language: &str,
+    scene: SceneSource<'_>,
     entities: &[VisualEntity],
     bullets: &[Bullet],
     chart_points: &[ChartPoint],
@@ -48,6 +53,8 @@ pub fn build_candidates(
     temporal_facts: &[TemporalFact],
     identities: &IdentityLookup,
 ) -> Vec<VisualCandidate> {
+    let source = scene.text;
+    let language = scene.language;
     let mut out = Vec::new();
     entity_searches(entities, identities, &mut out);
     multiple_entities(entities, bullets, identities, &mut out);

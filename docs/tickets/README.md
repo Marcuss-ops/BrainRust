@@ -4,7 +4,7 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-17. **19 DONE, 1 PARTIAL, 3 OPEN, 3 BLOCKED (08, 10, 26).**
+Last verified: 2026-11-17. **22 DONE, 1 PARTIAL, 0 OPEN, 3 BLOCKED (08, 10, 26).**
 
 Tickets 15–20 are the 2026-11-16 external-audit follow-ups, and all six are
 now DONE (15 phrase selection, 16 MediaMemory ranker, 17 visual budget/chain,
@@ -14,7 +14,9 @@ gate to Rust (`script-qa` plus `quality_gate` on `semantic-engine`) and is
 PARTIAL (2026-11-17): the port and its 240 tests are landed, but the production
 cutover is gated on `v0.3.7`, the first release that contains `quality_gate`.
 The Go gate remains the production default. Tickets 23–26 record the measured
-engine and Gate D gaps that had no sheet. The audit reconciliation is
+engine and Gate D gaps that had no sheet; 23 (ordered sequences), 24 (Slavic
+inflected toponyms) and 25 (bare chart cue) are DONE on 2026-11-17, and 26
+remains externally blocked. The audit reconciliation is
 [`docs/stato/AUDIT-RICONCILIAZIONE-2026-11-16.md`](../../../docs/stato/AUDIT-RICONCILIAZIONE-2026-11-16.md).
 
 Status vocabulary:
@@ -52,10 +54,34 @@ Status vocabulary:
 | [20](TICKET-20-identity-localization-consolidation.md) | P2 | DONE (2026-11-16) | Rust owns localized identity matching (`localize_identities`: exact, pl/de/tr inflection, ru/tr/pl ordered fallback). Go builds the typed request, validates every span and projects the source id/image/geo; a missing id fails closed. The old Go matcher is test-only. |
 | [21](TICKET-21-hotspot-remediation.md) | P2 | DONE (2026-11-16) | Rust-side hotspot remediation: `render_audio_execution::execute` 419→39 lines with the stages split and `RenderError` at the boundary; `planner.rs` 2,671 production lines split into five modules with `compile_plan` untouched and the frozen goldens byte-identical (64 lib + 30 contract pass); one `entity_search_candidate` factory; one `run_ffprobe` invocation with per-caller wording preserved; `visualner` no-op "fail-closed" dead code deleted; pre-existing `match_like_matches_macro` lint in `phrase_align.rs` fixed. |
 | [22](TICKET-22-QUALITY-GATE-RUST-PORT.md) | P2 | PARTIAL (2026-11-17) | Rust `script-qa` implements the eight editorial rules and the `quality_gate` NDJSON operation; 28 Go parity scenarios, 3 protocol tests and the full 29-suite/240-test run are green. Not adopted: the Go gate remains the production default until `v0.3.7` ships `quality_gate` and the Go path is deleted. |
-| [23](TICKET-23-ordered-sequences.md) | P1 | OPEN | Ordered sequences: 0/80 four-step passages become groups; the capability is missing, not the threshold. |
-| [24](TICKET-24-slavic-inflected-toponyms.md) | P1 | OPEN | Inflected Slavic toponyms (`Poznaniu`, `Krakowie`, `Казани`, `Самаре`) miss the gazetteer; pl/ru contextual queries are 0/2. |
-| [25](TICKET-25-chart-bare-contrastive-cue.md) | P2 | OPEN | Chart recall is 17/20; the three misses rely on a bare `a`/`а`, which needs a context rule with a precision gate or a written bound. |
+| [23](TICKET-23-ordered-sequences.md) | P1 | DONE (2026-11-17) | Ordered sequences: **80/80** items in **20/20** grounded, source-ordered four-member groups; negative set 0 false positives. |
+| [24](TICKET-24-slavic-inflected-toponyms.md) | P1 | DONE (2026-11-17) | Locale-scoped inflected alias table resolves `Poznaniu`, `Krakowie`, `Казани`, `Самаре`; pl/ru contextual queries **2/2 each**, overall **20/20**; objects unchanged at 93/105 vs untouched HEAD. |
+| [25](TICKET-25-chart-bare-contrastive-cue.md) | P2 | DONE (2026-11-17) | Chart recall **20/20**; the bare `a`/`а` rule requires two grounded values and substantive words on both sides, and a 20-paragraph negative set produces **0 charts**. |
 | [26](TICKET-26-provider-precision-at-10.md) | P1 | BLOCKED | Provider precision@10, the real cascade and the byte-level probe need provider credentials and an independent judge. |
+
+## Verification — 2026-11-17 (tickets 23–25)
+
+Run on the `v0.3.7` release-candidate tree (`a4bbdbf` plus the final facility
+dedup and ticket closeout), with
+`VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models`.
+
+- `cargo fmt --all -- --check` — rc 0.
+- `cargo clippy -p semantic-core -p semantic-engine --all-targets --locked -- -D warnings` — rc 0.
+- `cargo test -p semantic-core -p semantic-engine --lib --locked` — rc 0
+  (61 semantic-core lib tests passed).
+- `cargo test -p semantic-core --test place_inflections` — 4 passed.
+- `cargo test -p semantic-engine --test process_sequences --test chart_bare_cue
+  --test slavic_places` — 13 + 4 + 2 passed.
+- `score_long_gold.py` — entities **88/124**, objects **93/105**, contextual
+  queries **20/20**, positive charts **20/20**, sequences **80/80** in **20/20**
+  groups, grounding errors 0, replay identical; chart negative set **20 cases /
+  0 charts**.
+- Untouched HEAD `d3b77d6` baseline in a temporary worktree — entities 86/124,
+  objects **93/105**, queries 16/20, charts 17/20. The 2026-10-28 object
+  baseline (99/105) is stale at HEAD; tickets 23–25 leave objects unchanged and
+  raise entities, queries, charts and sequences.
+- `validate_long_gold.py --require-release-size` — rc 0.
+- `git diff --check` in the root and in `BrainRust` — rc 0.
 
 ## Verification — 2026-11-17 (ticket 22, quality gate Rust port)
 
@@ -312,11 +338,14 @@ These do not reopen the tickets; they are owner gates outside this checkout:
   13b decision and the Go `entitycatalog` is the live registry, so the manifest
   saving stays latent. Adopting the crate would replace `entitycatalog`.
 - **22 / release** — `v0.3.6` is pinned in `refactored` and predates `940abcc`
-  (localized plans with disabled editorial cards) and `d3b77d6` (`quality_gate`).
-  `v0.3.7` must be tagged on `d3b77d6`, published with the eight ICU 72 assets,
-  then pinned; TICKET-22 closes only after that and the Go gate is deleted.
-- **08/10** — human gold annotations and the multimodal model/schema/calibrated
-  association set are still required.
+  (localized plans with disabled editorial cards), `d3b77d6` (`quality_gate`)
+  and the 23–25 closeout. A local `v0.3.7` release candidate is prepared
+  (eight ICU 72 assets, notes in `docs/releases/v0.3.7.md`) but not published;
+  the pin stays `v0.3.6`. Publish the tag, pin it and delete the Go gate before
+  closing TICKET-22.
+- **08/10/26** — human gold annotations, the multimodal model/schema/calibrated
+  association set, and the provider precision@10/cascade/independent judge are
+  still required.
 - **12** — the revised measured SLO needs owner agreement. The Rust contract,
   local index/linker, typed intents, Go v3 consumer, intent/index cache key,
   verified-hit admission, stop-on-satisfaction, cross-repo smoke, no-network

@@ -1,7 +1,7 @@
 # BrainRust acceptance checklist
 
 > Audit/ticket status is maintained in [`docs/tickets/README.md`](docs/tickets/README.md)
-> (last verified 2026-11-17: 19 DONE, 1 PARTIAL, 3 OPEN, 3 BLOCKED — 08, 10,
+> (last verified 2026-11-17: 22 DONE, 1 PARTIAL, 3 BLOCKED — 08, 10,
 > 26; 22 is PARTIAL until its cutover ships). This file remains the detailed
 > gate evidence and historical closeout, not a competing status matrix.
 
@@ -27,8 +27,8 @@ explicit full-workspace test below; editorial acceptance remains independent.
 ## Audit closeout verification — 2026-11-11
 
 Canonical status: [`docs/tickets/README.md`](docs/tickets/README.md). Tickets
-01–07, 09 and 11–21 are DONE; 22 is PARTIAL; 08, 10 and 26 are externally
-blocked; 23–25 are OPEN.
+01–07, 09 and 11–25 are DONE; 22 is PARTIAL; 08, 10 and 26 are externally
+blocked.
 
 | Check | Command | Result |
 |---|---|---|
@@ -235,9 +235,9 @@ quality.
   It does not infer language-wide quality from a smoke phrase. The former
   Italian compound-ORG misses (`Comune di Torino`, `Università di Torino`) and
   suffix-less company names (`Aurora Sport`, `Lumen Energia`) now pass. The
-  residual morphology limit is Slavic inflected toponyms (`Poznaniu`,
-  `Krakowie`, `Казани`, `Самаре`), which the gazetteer does not resolve; pl/ru
-  contextual queries are 0/2 and typed-object recall is 0.3 in both languages.
+  former morphology limit — Slavic inflected toponyms (`Poznaniu`,
+  `Krakowie`, `Казани`, `Самаре`) — is closed by TICKET-24: pl/ru contextual
+  queries are 2/2 and the overall surface-object count is unchanged at 93/105.
 
 ## Gate D — PipelineGen utility
 
@@ -248,10 +248,28 @@ quality.
   supporting the fact; unit-tested and confirmed by the 100-script replay.
 - [ ] Measure image-query precision@10 against independently judged provider
   results; keep literal source queries distinct from derived queries.
-- [ ] Gold-score chart validity, bullet usefulness/duplication, full sequences,
-  and preservation of all important facts in the Go contract.
+- [x] Gold-score chart validity and full four-step sequences (TICKET-23/25):
+  20/20 charts, 80/80 sequence items, 20-case negative set with 0 charts.
+- [ ] Gold-score bullet usefulness/duplication and preservation of all
+  important facts in the Go contract.
 - [ ] Verify the 1,000 overlays/minute target with PipelineGen integration
   measurements after the semantic worker contract is certified.
+
+## Engine gaps closed — 2026-11-17 (tickets 23–25)
+
+- Ordered sequences: **80/80** items in **20/20** grounded, source-ordered
+  four-member groups; negative set 0 false positives (TICKET-23).
+- Slavic inflected toponyms: `Poznaniu`, `Krakowie`, `Казани`, `Самаре`
+  resolve through the locale-scoped alias table; pl/ru contextual queries
+  **2/2 each**, overall **20/20** (TICKET-24).
+- Bare chart cue: charts **20/20**; 20-paragraph `a`/`а` negative set produces
+  **0 charts** (TICKET-25).
+- Run: `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models python3
+  semantic-engine/fixtures/gold_multilingual/long_scripts/score_long_gold.py
+  --worker target/release/semantic-engine`. Overall: entities 88/124, objects
+  93/105, queries 20/20, charts 20/20, sequences 80/80, grounding 0, replay
+  identical. The untouched HEAD `d3b77d6` also measures objects 93/105, so the
+  older 99/105 baseline is stale; these tickets do not regress objects.
 
 ## Remaining-ticket classification
 
@@ -276,15 +294,13 @@ quality.
   (`long_scripts/validate_long_gold.py` plus per-language reporting and the
   authority/certification fields); the scorer now exits 0 on the release-sized
   corpus but reports `blocked_pending_human_review`.
-- Open engine gaps measured on 2026-10-28 (none may be closed by tuning a
-  fixture): negated arbitrary predicates are not emitted (`fault = false`,
-  `demonstrated = false`) and are declared capability gaps; Slavic (pl/ru)
-  morphology still misses inflected toponyms in contextual queries, which are
-  16/20 overall and 0/2 in both languages; ordered sequences are 0/80; chart
-  recall is 17/20, and the three misses use bare `a`/`а` as their only
-  contrastive cue, which is not safe as a global rule. With only 20 chart and
-  20 query cases, those numbers are diagnostic, not certified. Evidence and
-  ranking: PER-LANGUAGE-GOLD-REPORT-2026-10-28.md §6.
+- Engine gaps measured on 2026-10-28, status 2026-11-17: negated arbitrary
+  predicates remain capability gaps; the Slavic inflected-toponym, ordered
+  sequence and bare-chart-cue gaps are closed by TICKET-24, 23 and 25 (see the
+  section above). The object baseline moved from 99/105 in the old report to
+  93/105 on untouched HEAD, so it is not a regression from these tickets.
+  With only 20 chart and 20 query cases, those numbers are diagnostic, not
+  certified. Evidence and ranking: PER-LANGUAGE-GOLD-REPORT-2026-10-28.md §6.
 - Needs provider/deployment scope: independently judged precision@10,
   production provider cascade, 1,000 overlays/minute and render-consumer
   migration. No provider requests or deployments certify these tickets.

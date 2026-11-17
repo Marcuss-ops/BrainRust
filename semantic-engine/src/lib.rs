@@ -258,6 +258,15 @@ fn analyze_scene_with_search(
     }
     let mut keep = keep.into_iter();
     entities.retain(|_| keep.next().unwrap_or(true));
+    // The extractor can return the same facility twice (for example a
+    // gazetteer hit and a facility-name run). Exact duplicate spans are one
+    // mention, not two: keeping both would duplicate the identity, the
+    // entity facts and the search proposal. Keep the first, highest-priority
+    // record; nested facilities were already collapsed above.
+    let mut seen_facility_spans = HashSet::new();
+    entities.retain(|entity| {
+        entity.r#type != "FACILITY" || seen_facility_spans.insert((entity.start, entity.end))
+    });
     let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
 
     let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context);
@@ -318,8 +327,10 @@ fn analyze_scene_with_search(
     );
     let bullets = bullet_candidates(source, &sentence_spans, &entities);
     let candidates = groups::build_candidates(
-        source,
-        language,
+        groups::SceneSource {
+            text: source,
+            language,
+        },
         &entities,
         &analysis.bullets,
         &analysis.chart_points,

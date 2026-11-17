@@ -45,9 +45,7 @@ fn russian_inflected_place_keeps_the_source_case() {
         .filter_map(|entity| Some((entity["text"].as_str()?, entity["type"].as_str()?)))
         .collect();
     assert!(
-        actual
-            .iter()
-            .any(|query| *query == "Стадион Северный Казани"),
+        actual.contains(&"Стадион Северный Казани"),
         "source-case Russian query expected: queries={actual:?} entities={entities:?}"
     );
 }

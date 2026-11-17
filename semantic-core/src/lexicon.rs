@@ -155,15 +155,15 @@ fn build_place_ambiguities(
 /// collide with person names ("João Ribeiro").
 const MINOR_PLACE_ALIAS_POPULATION: u64 = 50_000;
 
+type InflectedPlaceIndex = BTreeMap<String, std::collections::HashSet<String>>;
+type PlaceCanonicals = BTreeMap<String, BTreeMap<String, String>>;
+
 /// Builds the language-scoped alias lookup and its canonical target. The
 /// mapping is exact and data-driven: a surface is never fuzzy-matched against
 /// the 69k-place index.
 fn build_inflected_place_index(
     place_inflections: &PlaceInflections,
-) -> (
-    BTreeMap<String, std::collections::HashSet<String>>,
-    BTreeMap<String, BTreeMap<String, String>>,
-) {
+) -> (InflectedPlaceIndex, PlaceCanonicals) {
     let mut index: BTreeMap<String, std::collections::HashSet<String>> = BTreeMap::new();
     let mut canonicals: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
     for (language, table) in &place_inflections.languages {

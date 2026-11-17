@@ -1,7 +1,7 @@
 # TICKET-25 — chart recall stops at bare `a`/`а`
 
 - Priority: P2
-- Status: OPEN
+- Status: DONE (2026-11-17)
 - Source: `PER-LANGUAGE-GOLD-REPORT-2026-10-28.md` §6
 - Files: `semantic-engine` chart rules, long-gold fixtures
 
@@ -15,20 +15,26 @@ decision to keep the 17/20 bound.
 
 ## Acceptance criteria
 
-- [ ] Either 20/20 with 0 false positives on a 20-paragraph negative set where
+- [x] Either 20/20 with 0 false positives on a 20-paragraph negative set where
       `a`/`а` is an ordinary conjunction, or the 17/20 bound is accepted in
       writing and removed from the open-work list.
-- [ ] Any new rule requires a numeric/quantity contrast inside the same
+- [x] Any new rule requires a numeric/quantity contrast inside the same
       sentence or an explicit paired structure; it is not a bare cue.
-- [ ] The metric and the negative set are part of the per-language report.
-- [ ] No fixture-name or language exception.
+- [x] The metric and the negative set are part of the per-language report.
+- [x] No fixture-name or language exception.
 
 ## Non-goals
 
 - Recovering chart intent from arbitrary prose without a contrastive signal.
 - Changing the chart output schema.
 
-## Next action
+## Evidence — 2026-11-17
 
-Build the 20-paragraph negative set first, then test the contextual rule
-against the three misses and the negative set in one run.
+- Chart recall **20/20**; the 20-paragraph negative set where `a`/`а` is an
+  ordinary conjunction produces **0 charts**.
+- Rule: the bare cue binds only when two grounded values straddle it on the
+  same line and substantive words occur on both sides. It is not added to the
+  global chart vocabulary; Italian `a` remains excluded.
+- `score_long_gold.py` reports `chart_negative_set.cases = 20` and
+  `charts = 0`; the metric is part of the per-language report.
+- Tests: `cargo test -p semantic-engine --test chart_bare_cue` — 4 passed.
