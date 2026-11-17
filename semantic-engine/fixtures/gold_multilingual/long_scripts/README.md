@@ -42,6 +42,39 @@ annotation in a slice reports `recall: null` ("not measured") instead of a
 fabricated 0.0, and `annotated_categories` lists what that language actually
 scored.
 
+## Provider precision@10 harness (TICKET-26)
+
+`provider_precision.py` scores a **frozen** provider run; it never calls a
+provider and never creates relevance labels. It takes two files:
+
+- `--results`: `brainrust.provider_precision.results.v1`, with run metadata
+  (`provider`, `cascade`, `started_at`, 40-character `git_sha`) and exactly 10
+  unique HTTP results per query. Every result needs `rank`, `provider`,
+  `provenance` and positive `downloaded_bytes`.
+- `--judgments`: `brainrust.provider_precision.judgments.v1`, with an
+  independent judge (`id`, `independent: true`, `judged_at`) and one boolean
+  label for every result pair.
+
+The scorer rejects relevance labels in the results file, provider failures,
+missing/extra/duplicate judgments, ranks outside 1..10, duplicate URLs,
+missing bytes/provenance and derived queries that do not match `gold.json`
+exactly. It reports precision@10 separately for literal and derived queries.
+A run is `measured` only when at least one literal query is present; otherwise
+the status is `blocked_literal_queries_missing`. Every non-measured status
+exits 2.
+
+```sh
+python3 semantic-engine/fixtures/gold_multilingual/long_scripts/provider_precision.py \
+  --results /path/to/provider-results.json \
+  --judgments /path/to/judge-labels.json \
+  --report /tmp/provider-precision-report.json
+python3 semantic-engine/fixtures/gold_multilingual/long_scripts/provider_precision_test.py
+```
+
+The unit fixture is synthetic: it proves the fail-closed validator and the
+precision arithmetic, not provider quality. Real provider credentials and an
+independent judge are still required for TICKET-26.
+
 ## Corpus shape, provenance and certification
 
 `validate_long_gold.py` checks the shape the scorer reads plus the three things

@@ -31,7 +31,33 @@ This needs provider credentials, a production cascade owner and an independent
 judge. No code in this repository can manufacture them; a mocked provider would
 not satisfy the gate.
 
+## Local scoring harness — 2026-11-17
+
+`semantic-engine/fixtures/gold_multilingual/long_scripts/provider_precision.py`
+now validates and scores a frozen run. It does **not** call a provider and
+does not create labels. It requires:
+
+- the 20 derived queries to match `long_scripts/gold.json` exactly;
+- exactly 10 unique HTTP results per query, ranks 1..10, each with provider,
+  provenance and positive downloaded bytes;
+- a separate judgments file with an independent judge id/date and one boolean
+  label for every result;
+- no relevance labels inside the results file and no provider errors.
+
+It reports precision@10 separately for literal and derived queries. `measured`
+requires at least one literal query; otherwise the status is
+`blocked_literal_queries_missing`. The command exits 2 for every non-measured
+status.
+
+Tests: `python3 provider_precision_test.py` — **8 passed**. The fixture is
+synthetic and exercises validation/arithmetic only; it is not a provider
+measurement. The acceptance criteria above remain unchecked until a real
+production-cascade run and an independent judge provide the two artifacts.
+
 ## Next owner action
 
-PipelineGen provider owner runs the 20 queries, freezes the top-10 results and
-the judge's labels, then links the run artifact here.
+PipelineGen provider owner runs the 20 queries through the production cascade,
+freezes the top-10 results without relevance labels, and has an independent
+judge produce the separate labels. Run `provider_precision.py` over both
+artifacts, then link the report and the two frozen inputs here. The harness
+fails closed rather than treating missing credentials or judges as a pass.

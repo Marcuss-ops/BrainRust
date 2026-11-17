@@ -57,7 +57,7 @@ Status vocabulary:
 | [23](TICKET-23-ordered-sequences.md) | P1 | DONE (2026-11-17) | Ordered sequences: **80/80** items in **20/20** grounded, source-ordered four-member groups; negative set 0 false positives. |
 | [24](TICKET-24-slavic-inflected-toponyms.md) | P1 | DONE (2026-11-17) | Locale-scoped inflected alias table resolves `Poznaniu`, `Krakowie`, `Казани`, `Самаре`; pl/ru contextual queries **2/2 each**, overall **20/20**; objects unchanged at 93/105 vs untouched HEAD. |
 | [25](TICKET-25-chart-bare-contrastive-cue.md) | P2 | DONE (2026-11-17) | Chart recall **20/20**; the bare `a`/`а` rule requires two grounded values and substantive words on both sides, and a 20-paragraph negative set produces **0 charts**. |
-| [26](TICKET-26-provider-precision-at-10.md) | P1 | BLOCKED | Provider precision@10, the real cascade and the byte-level probe need provider credentials and an independent judge. |
+| [26](TICKET-26-provider-precision-at-10.md) | P1 | BLOCKED | Provider precision@10, the real cascade and the byte-level probe need provider credentials and an independent judge. The offline frozen-run scorer (`provider_precision.py`) is ready and tested (8/8), but it cannot manufacture a provider run or labels. |
 
 ## Verification — 2026-11-17 (tickets 23–25)
 
