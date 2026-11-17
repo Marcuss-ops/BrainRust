@@ -1,8 +1,9 @@
 # BrainRust acceptance checklist
 
 > Audit/ticket status is maintained in [`docs/tickets/README.md`](docs/tickets/README.md)
-> (last verified 2026-11-11). This file remains the detailed gate evidence and
-> historical closeout, not a competing status matrix.
+> (last verified 2026-11-17: 20 DONE, 0 OPEN, 0 PARTIAL, 2 BLOCKED — 08 and
+> 10). This file remains the detailed gate evidence and historical closeout,
+> not a competing status matrix.
 
 Goal: pass the four release gates with evidence. The 100-script benchmark is a
 regression suite, not a substitute for the independent editorial gold set.
@@ -18,7 +19,7 @@ explicit full-workspace test below; editorial acceptance remains independent.
 ## Audit closeout verification — 2026-11-11
 
 Canonical status: [`docs/tickets/README.md`](docs/tickets/README.md). Tickets
-01–07 and 09 are closed; 08 and 10 remain externally blocked.
+01–07, 09 and 11–22 are DONE; 08 and 10 remain externally blocked.
 
 | Check | Command | Result |
 |---|---|---|

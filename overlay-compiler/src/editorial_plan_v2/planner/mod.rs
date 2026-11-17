@@ -123,7 +123,19 @@ pub fn compile_plan(
             .entry("light_leak".to_string())
             .or_default() += added_leaks;
     }
+    let before_presentation = items.len();
     items = apply_presentation(items, &request.plan.plan_id);
+    // The long-copy split turns one admitted phrase into multiple render
+    // items. They are derived items, not new candidates, but the sealed
+    // intake contract still requires every planned item to be accounted for.
+    let added_by_presentation = items.len().saturating_sub(before_presentation) as i64;
+    if added_by_presentation > 0 {
+        intake.candidates += added_by_presentation;
+        *intake
+            .candidates_by_kind
+            .entry("text_phrase".to_string())
+            .or_default() += added_by_presentation;
+    }
     name_items_for_review(&mut items);
     finalize_intake(&mut intake, &items);
     let plan = seal(request, items, intake, recap.placements);
@@ -355,6 +367,49 @@ mod tests {
             .expect("entity image");
         assert_eq!("Tim Cook", image.entity_caption);
         assert_eq!(1, image.asset_refs.len());
+    }
+
+    #[test]
+    fn long_phrase_split_is_counted_in_intake() {
+        let mut request = request();
+        let editorial = request.editorial.as_mut().expect("editorial");
+        editorial.scenes[0].title = None;
+        editorial.scenes[0].bullets.clear();
+        request.scenes[0].annotations = Some(
+            serde_json::from_value(serde_json::json!({
+                "phrases": [{
+                    "text": "This is a deliberately long certified phrase that must be split into multiple render items without lying about the sealed intake accounting ".repeat(2),
+                    "start_us": 0,
+                    "duration_us": 2_000_000,
+                    "score": 1.0
+                }],
+                "end_us": 2_000_000
+            }))
+            .expect("annotations"),
+        );
+        let compiled = compile_plan(&request).expect("plan with split phrase");
+        let phrases = compiled
+            .plan
+            .items
+            .iter()
+            .filter(|item| item.kind == "text_phrase")
+            .count();
+        assert!(phrases >= 2, "long phrase must produce split items");
+        assert!(
+            compiled.plan.intake.candidates >= compiled.plan.intake.planned,
+            "sealed intake must account for the split items"
+        );
+        assert!(
+            compiled
+                .plan
+                .intake
+                .candidates_by_kind
+                .get("text_phrase")
+                .copied()
+                .unwrap_or(0)
+                >= 2,
+            "split items must be accounted for by kind"
+        );
     }
 
     #[test]

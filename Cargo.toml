@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["pipelinegen-muscles", "visualner", "semantic-core", "semantic-engine", "mediasampler", "imagecatalog", "ndjson-stdio", "overlay-compiler"]
+members = ["pipelinegen-muscles", "visualner", "semantic-core", "semantic-engine", "mediasampler", "imagecatalog", "ndjson-stdio", "overlay-compiler", "script-qa"]
 
 # Single source of truth for shared dependency versions. Member crates
 # reference these with `serde = { workspace = true }` so a version bump
@@ -16,6 +16,7 @@ thiserror = "2"
 ndjson-stdio = { path = "ndjson-stdio" }
 semantic-core = { path = "semantic-core" }
 overlay-compiler = { path = "overlay-compiler" }
+script-qa = { path = "script-qa" }
 
 # Shared lint baseline: every member opts in with `[lints] workspace = true`.
 # `unsafe_code = deny` locks the safe-Rust invariant (no `unsafe` blocks in

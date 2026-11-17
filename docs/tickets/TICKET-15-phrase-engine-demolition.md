@@ -200,10 +200,10 @@ history; the current verification is below:
   deleted; the remaining `phrases/semantic` package is the unrelated
   phrase-impact scorer. The short/long two-request lane is an optimization,
   not a second selector authority.
-- `refactored` still pins `BRAINRUST_VERSION ?= v0.3.5`, which contains
-  neither `select_phrases` nor `align_phrases`. A new BrainRust release and a
-  pin bump are required before production runs the switched callers; this is a
-  deployment prerequisite, not an open code path in this ticket.
+- `refactored` pinned `BRAINRUST_VERSION ?= v0.3.5` at the time, which
+  contained neither `select_phrases` nor `align_phrases`. Closed 2026-11-17:
+  release `v0.3.6` (tag `527b756`) contains both and `refactored@4bde5e66e`
+  pins `v0.3.6`, so production runs the switched callers.
 
 ## Verification 2026-11-16 (current tree)
 

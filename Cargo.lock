@@ -471,6 +471,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "script-qa"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "semantic-core",
+ "serde",
+ "serde_json",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "semantic-core"
 version = "0.1.0"
 dependencies = [
@@ -485,6 +496,7 @@ version = "0.1.0"
 dependencies = [
  "ndjson-stdio",
  "overlay-compiler",
+ "script-qa",
  "semantic-core",
  "serde",
  "serde_json",

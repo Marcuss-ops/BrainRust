@@ -10,8 +10,8 @@ application decisions, jobs, and the transactional outbox.
 ## Boundary
 
 Rust components must communicate through explicit typed contracts. They must
-not directly open PipelineGen SQLite databases, publish to Google Drive, write
-Qdrant state, or load credentials. Those responsibilities remain behind the
+not directly open PipelineGen SQLite databases, publish to Google Drive, write to an
+external vector store, or load credentials. Those responsibilities remain behind the
 existing Go application and infrastructure ports until a separate migration
 contract is approved.
 

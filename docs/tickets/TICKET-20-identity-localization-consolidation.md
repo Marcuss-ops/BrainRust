@@ -1,7 +1,7 @@
 # TICKET 20 — Identity and localization consolidation
 
 - Priority: P2
-- Status: DONE (2026-11-16; cutover landed, gate blocked by unrelated workspace failures)
+- Status: DONE (2026-11-16; cutover landed, gates green 2026-11-17)
 - Source: external audit 2026-11-16; TICKET-13 phase 2
 - Depends on: TICKET-18 (linguistics), TICKET-19 (alignment)
 - Blocks: none
@@ -125,6 +125,25 @@ nil fallisce chiuso.
 | `go vet ./...` | rc 0 |
 | `make verify-main` | **bloccato dalle failure preesistenti descritte in TICKET-18** (drift catalogo RenderingGen, knob e archcheck in `remote_final_job.go`, slot string in `media_ranker_adapter.go`), non da questo cutover. |
 
-**Deploy.** `v0.3.5` non contiene né `lexicon_profile` né `localize_identities`.
-Serve una release nuova e il bump di `BRAINRUST_VERSION`; senza di essa il
-worker risponde `unknown operation` e la proiezione Go fallisce chiusa.
+**Deploy.** *(Superato il 2026-11-17: `v0.3.6` contiene `lexicon_profile` e
+`localize_identities`, pin `v0.3.6` — vedi la verifica in fondo.)* `v0.3.5` non
+conteneva nessuna delle due operazioni; senza una release nuova e il bump di
+`BRAINRUST_VERSION` il worker rispondeva `unknown operation` e la proiezione Go
+falliva chiusa.
+
+## Verification 2026-11-17 (gate chiuso)
+
+La riga `make verify-main` della tabella precedente è superata: le failure
+preesistenti descritte in TICKET-18 sono state corrette sul tree corrente.
+
+| Comando | Esito |
+|---|---|
+| `go test ./internal/app/knobs/... ./internal/capabilities/overlays -count=1` | **PASS** (0,024 s + 11,931 s) |
+| `make verify-architecture` | **PASS** (C2-C 0/0, C2-E 0/0) |
+| `go build ./...` / `go vet ./...` | rc 0 |
+| `cargo test -p semantic-engine --test localized_identity_protocol` | **5 passed** |
+| `cargo test -p semantic-core --lib` | **184 passed** |
+
+**Deploy chiuso:** la release `v0.3.6` (tag `527b756`, 2026-11-17) contiene
+`lexicon_profile` e `localize_identities`; `refactored@4bde5e66e` pinna
+`BRAINRUST_VERSION ?= v0.3.6`.

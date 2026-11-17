@@ -114,10 +114,11 @@ The earlier blockers were resolved on the cutover tree:
 - `normalizer.go` is concept-text normalization (NFC, lowercase, whitespace,
   punctuation), not a ranking step: it belongs to the linguistic surface
   (TICKET-18) and is deliberately not part of this port.
-- `v0.3.5` predates `rank_candidates`; shipping the operation still requires a
-  new release and pin bump. That is a build / deployment prerequisite, not an
-  open code path in this ticket. The local, untracked `bin/mediasampler` was
-  rebuilt from this tree and verified against the production bridge.
+- `v0.3.5` predated `rank_candidates`; closed 2026-11-17 with release `v0.3.6`
+  (tag `527b756`; the release `mediasampler` has SHA-256
+  `86756ce95f8c6f90a2df1c8f8f3581a53d807ddcb230b7b414e5d1205404618d`) and the
+  pin `BRAINRUST_VERSION ?= v0.3.6` in `refactored@4bde5e66e`. `bin/mediasampler`
+  is now that release binary, verified against the production bridge.
 
 ## Cutover 2026-11-16 — the production path
 
@@ -164,5 +165,5 @@ The earlier blockers were resolved on the cutover tree:
 - Production caller check: `PickTopFromRose`, `PopulateRepetitionPenalty`,
   `buildFilterFlags`, `buildRankingInput` and `sortByFinalScoreDesc` return 0
   matches outside `_test.go`.
-- Residual external only: a release containing `rank_candidates`
-  (`v0.3.5` protocol has 0 matches), plus the pin bump.
+- Residual external only, closed 2026-11-17: release `v0.3.6` contains
+  `rank_candidates` and the pin is `BRAINRUST_VERSION ?= v0.3.6`.

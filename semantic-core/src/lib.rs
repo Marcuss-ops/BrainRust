@@ -24,6 +24,7 @@
 #![deny(unsafe_code)]
 
 pub mod bullets;
+pub mod cue_timing;
 pub mod dates;
 pub mod discourse;
 pub mod entity_linker;

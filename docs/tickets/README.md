@@ -4,12 +4,14 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-16. **19 DONE, 0 PARTIAL, 0 OPEN, 2 BLOCKED (08, 10).**
+Last verified: 2026-11-17. **20 DONE, 0 PARTIAL, 0 OPEN, 2 BLOCKED (08, 10).**
 
 Tickets 15–20 are the 2026-11-16 external-audit follow-ups, and all six are
 now DONE (15 phrase selection, 16 MediaMemory ranker, 17 visual budget/chain,
 18 linguistics, 19 phrase-timing alignment, 20 identity localization), along
-with 21 (Rust-side hotspot remediation). The audit reconciliation is
+with 21 (Rust-side hotspot remediation). TICKET 22 ports the editorial quality
+gate to Rust (`script-qa` plus `quality_gate` on `semantic-engine`) and is DONE
+(2026-11-17); the Go gate remains the production default. The audit reconciliation is
 [`docs/stato/AUDIT-RICONCILIAZIONE-2026-11-16.md`](../../../docs/stato/AUDIT-RICONCILIAZIONE-2026-11-16.md).
 
 Status vocabulary:
@@ -39,13 +41,29 @@ Status vocabulary:
 | [12](TICKET-12-mvp-semantic-contract.md) | P0 | DONE (bound/Rust) | v3 linked-entity projection, local index/linker, typed intents, Go v3 consumer, intent/index cache key, verified-hit admission, stop-on-satisfaction and cross-repo smoke pass; only the revised SLO agreement remains external. |
 | [13](TICKET-13-go-demolition-closeout.md) | P1 | DONE | 13a DONE (`b6f5379` + `c4c12ac98`): the linker owns NER repair, prompt-echo rejection and image admission; annotations project the decision. 13b DONE (`8b4482660`): verified assets owned by the Go `entitycatalog`, Rust `imagecatalog` remains offline by design. 13c DONE and pushed. 13d DONE 2026-11-16: the four per-concern ports and `legacy_overlay_plan.go` were deleted; production uses one `CompileOverlayPlanV2`. WP5/WP7 closed 2026-11-16: six-fixture production-adapter gate, one-request real-worker counter, deletion guard and `make verify-agent` / `make verify-main` PASS. The producer no longer calls `projectEditorialOverlays`/`projectChapterBullets`; `projectChapterBullets` and the Go presentation layer were deleted on 2026-11-16, `projectEditorialOverlays` remains a test-only helper. the request-side surface builder was removed from production on 2026-11-16; TICKET-14 closed 2026-11-16, so 13d and 13 are DONE. |
 | [14](TICKET-14-overlay-planner-single-call.md) | P1 | DONE | Rust single-call compiler landed: complete `editorial_plan.v2` request (seal, annotations, entity timeline, media, budgets, windows), final-plan response with `validate_for`, and one `compile_overlay_plan_v2` call that projects editorial/chapter bullets, entity cards, budgets, map trim/resolution, cascade and seal. Eight request fixtures plus eight planner-generated goldens and a 30-test contract suite are checked in; the worker routes by schema version before deserializing. Entity-card motion/style selection is ported and cards now merge after the editorial admission. Go cutover LANDED 2026-11-16: one `CompileOverlayPlanV2` in production, sealed-plan adoption, legacy planner and four ports deleted, captioned-card chain fusion moved to Rust, chart placements computed in Rust. WP5/WP7 closed 2026-11-16: the stale Go-vs-Rust differential was replaced by an eight-fixture production-adapter gate, the real-worker one-request counter and a deletion guard both PASS, and `make verify-agent` / `make verify-main` PASS. WP4 request-side surface projection DONE 2026-11-16: raw phrases/entities/numbers/dates/maps/charts/heavy/categories are projected in Rust; `overlaySceneInput` no longer has a production caller. All parity lanes closed 2026-11-16: general phrase/image/mixed chains, presentation/light leaks, seeded dates, verified intent images and recap. Go only verifies/materializes media bytes. TICKET-13 13d is DONE. |
-| [15](TICKET-15-phrase-engine-demolition.md) | P1 | DONE | `SceneIRSegmentEnricher`, translated NLP and the overlay projection use `select_phrases`; `scripts/phrases/` is deleted and the affected Go/Rust suites pass. No production file imports/calls the retired Go selector or `locatePhraseTimingWithEndpointFallback`; the endpoint helper survives only as a test oracle. The pinned release `v0.3.5` predates `select_phrases`/`align_phrases`, so a release and pin bump are still required for deployment. |
-| [16](TICKET-16-mediamemory-ranker-migration.md) | P1 | DONE | `mediasampler::rank` owns gates, weights, both penalty seats, duration fit, stable order and the diversity pick. `rustexec.MediaRankerAdapter` sends one `rank_candidates` call per slot pool; Go `resolver_orchestration.go` projects the result and does not re-sort. `PickTopFromRose` has no production caller; Go and Rust parity suites pass. A release/pin bump is still needed for deployment. |
+| [15](TICKET-15-phrase-engine-demolition.md) | P1 | DONE | `SceneIRSegmentEnricher`, translated NLP and the overlay projection use `select_phrases`; `scripts/phrases/` is deleted and the affected Go/Rust suites pass. No production file imports/calls the retired Go selector or `locatePhraseTimingWithEndpointFallback`; the endpoint helper survives only as a test oracle. Release `v0.3.6` contains `select_phrases`/`align_phrases` and `refactored@4bde5e66e` pins `v0.3.6`, so the deployment prerequisite is closed. |
+| [16](TICKET-16-mediamemory-ranker-migration.md) | P1 | DONE | `mediasampler::rank` owns gates, weights, both penalty seats, duration fit, stable order and the diversity pick. `rustexec.MediaRankerAdapter` sends one `rank_candidates` call per slot pool; Go `resolver_orchestration.go` projects the result and does not re-sort. `PickTopFromRose` has no production caller; Go and Rust parity suites pass. Release `v0.3.6` contains `rank_candidates` and the pin is `v0.3.6`, so the deployment prerequisite is closed. |
 | [17](TICKET-17-visual-budget-chain-cutover.md) | P1 | DONE (2026-11-16) | Captioned-card and general chain fusion moved to Rust and the Go chain producer plus its tests were deleted; `model/chain_coalesce.go` is wire-only. The Rust `admit` pass owns production admission after ranking and before seal; no production Go file calls the legacy budget producers, and the WP7 guard pins them. The legacy `BuildPlan`/visual-budget helpers remain only as a Go test oracle. Eight fixtures / 30 contract tests, real-worker 8/8, and `make verify-main` PASS. |
 | [18](TICKET-18-linguistics-go-demolition.md) | P2 | DONE (2026-11-16) | Rust owns the named-set language profiles (`lexicon_profile`, 12 languages including fallback). Go embeds a generated read-only snapshot; `config/lexicons/**`, `LexiconRegistry` and the filesystem loaders are deleted, and `lexicon_root` is no longer a config knob. Parity gate: `build_language_packs.py --check`. |
-| [19](TICKET-19-linguistic-temporal-alignment.md) | P2 | DONE | `semantic-core::phrase_align` + `align_phrases` + `SemanticEngineAdapter.AlignPhrases` own exact phrase alignment; `CompilePhraseTimings`/`CompileSceneSpeechTimings` project the worker result. The endpoint fallback has no production caller. `audio.LocatePhrase` remains for entity/moment projection as a separate follow-up. |
+| [19](TICKET-19-linguistic-temporal-alignment.md) | P2 | DONE | `semantic-core::phrase_align` + `align_phrases` + `SemanticEngineAdapter.AlignPhrases` own exact phrase alignment; `CompilePhraseTimings`/`CompileSceneSpeechTimings` project the worker result. The endpoint fallback has no production caller. The entity/moment follow-up is closed 2026-11-17: `audio/phrase_locator.go` and `audio.LocatePhrase` are gone (`refactored@8f159549b`) and the voiceover/entity paths send one `align_phrases` request per segment. |
 | [20](TICKET-20-identity-localization-consolidation.md) | P2 | DONE (2026-11-16) | Rust owns localized identity matching (`localize_identities`: exact, pl/de/tr inflection, ru/tr/pl ordered fallback). Go builds the typed request, validates every span and projects the source id/image/geo; a missing id fails closed. The old Go matcher is test-only. |
 | [21](TICKET-21-hotspot-remediation.md) | P2 | DONE (2026-11-16) | Rust-side hotspot remediation: `render_audio_execution::execute` 419→39 lines with the stages split and `RenderError` at the boundary; `planner.rs` 2,671 production lines split into five modules with `compile_plan` untouched and the frozen goldens byte-identical (64 lib + 30 contract pass); one `entity_search_candidate` factory; one `run_ffprobe` invocation with per-caller wording preserved; `visualner` no-op "fail-closed" dead code deleted; pre-existing `match_like_matches_macro` lint in `phrase_align.rs` fixed. |
+| [22](TICKET-22-QUALITY-GATE-RUST-PORT.md) | P2 | DONE (2026-11-17) | Rust `script-qa` implements the eight editorial rules and the `quality_gate` NDJSON operation; 28 Go parity scenarios, 3 protocol tests and the full 29-suite/240-test run are green. The Go gate remains the production default; no cutover. |
+
+## Verification — 2026-11-17 (ticket 22, quality gate Rust port)
+
+Run on the `BrainRust` working tree; the Go gate ran on `refactored`. No Go
+production path was changed.
+
+- `cargo fmt --all -- --check` — rc 0.
+- `cargo clippy -p script-qa -p semantic-engine --all-targets -- -D warnings` — rc 0.
+- `cargo test -p script-qa` — 28 passed, 0 failed (parity corpus).
+- `cargo test -p semantic-engine --test quality_gate_protocol` — 3 passed.
+- `cargo test -p script-qa -p semantic-engine` — 29 suites, 240 passed, 0 failed.
+- `go test ./internal/capabilities/scripts/usecase/qualitygate -count=1` — ok, 0.022 s.
+- `git diff --check` in the root and in `BrainRust` — rc 0.
+- Uncommitted working tree: new `script-qa` crate, `semantic-engine` operation,
+  `TICKET-22` and this index. The Go `qualitygate` package is untouched.
 
 ## Verification — 2026-11-16 (workspace gate, Rust ↔ Go boundary)
 
@@ -77,6 +95,35 @@ logs is stale and now fails to link, because this host's unversioned
 - `python3 lexicon/tools/check_go_stopword_parity.py` — PASS, 0 drift on the six
   shared languages.
 
+## Verification — 2026-11-17 (gates rerun, entity/moment follow-up closed)
+
+Run on `BrainRust@527b756`; the Go gates ran on `refactored@eb65a6a30`, before
+the pin commit `4bde5e66e`.
+
+- `cargo test -p semantic-core --lib` — **184 passed**.
+- `cargo test -p semantic-engine align_phrases --lib` — **3 passed**.
+- `cargo test -p semantic-engine --test phrase_selection_protocol --test language_profile_protocol --test localized_identity_protocol` — **13 + 4 + 5 passed**; the real worker answers one `select_phrases` request.
+- `cargo test -p mediasampler --test rank_parity` — **4 passed** (Go order,
+  scores and winner reproduced).
+- Production caller audit: `LocatePhrase`, `LocatePhraseTimings` and
+  `locatePhraseTimingWithEndpointFallback` have **0** non-test callers in
+  `internal/` and `cmd/`; `audio/phrase_locator.go` is deleted.
+- `go build ./...` and `go vet ./...` — rc 0.
+- `go test ./internal/app/knobs/... ./internal/capabilities/overlays -count=1`
+  — **PASS** (0.024 s + 11.931 s): the catalog drift and knob failures are
+  fixed, not sidestepped.
+- `make verify-architecture` — **PASS** (C2-C 0/0, C2-E 0/0).
+- Release prerequisite closed: `v0.3.6` was published on 2026-11-17 at tag
+  `527b756` (run `44032711209`, eight ICU 72 assets). The release binaries carry
+  all five operations and their SHA-256 match `BRAINRUST_RELEASE.json`;
+  `refactored@4bde5e66e` pins `BRAINRUST_VERSION ?= v0.3.6` and `bin/` holds the
+  release binaries (`git_sha=527b756`).
+- The downloaded release binaries were also exercised over NDJSON: the `v0.3.6`
+  `semantic-engine` returns `ok:true` for `lexicon_profile` (it) and
+  `select_phrases`, and the `v0.3.6` `mediasampler` routes `rank_candidates` and
+  applies its candidate gate (`malformed candidate envelope` for a minimal
+  candidate). No operation returns `unknown operation`.
+
 ## Verification — 2026-11-16 (second pass, phrase selector, alignment and ranker)
 
 Run on the current working trees (`refactored@c8cae4e8a` plus uncommitted
@@ -103,15 +150,14 @@ changes, `BrainRust@01f01e1` plus the uncommitted phrase/alignment work).
   production callers; the surviving overlay projection helpers that reach the
   endpoint fallback (`overlaySceneInput`, `projectEditorialOverlays`) also have
   0 production callers (`projectChapterBullets` was deleted on 2026-11-16).
-- `select_phrases`, `align_phrases` and `rank_candidates` are absent from
-  `v0.3.5`, while `refactored/make/build.mk` pins
-  `BRAINRUST_VERSION ?= v0.3.5`. A release and pin bump are still required
-  before production runs the switched callers; this is a deployment
-  prerequisite, not an open code path.
+- `select_phrases`, `align_phrases` and `rank_candidates` were absent from
+  `v0.3.5`, which `refactored/make/build.mk` pinned at the time. Closed
+  2026-11-17: release `v0.3.6` carries all five operations and the pin is
+  `BRAINRUST_VERSION ?= v0.3.6` (`refactored@4bde5e66e`).
 
-No test failure remains in the 15/16/19 scopes. 18 and 20 stay OPEN because
-their Go authorities (lexicon/morphology and localized identity) have not been
-ported.
+No test failure remains in the 15/16/19 scopes. 18 and 20 landed on
+2026-11-16 and are DONE; their previously unrelated gate failures were fixed and
+rerun on 2026-11-17.
 
 ## Verification — 2026-11-15 (ticket 14, Rust single-call compiler)
 

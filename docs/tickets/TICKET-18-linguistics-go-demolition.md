@@ -1,7 +1,7 @@
 # TICKET 18 — Linguistics Go demolition
 
 - Priority: P2
-- Status: DONE (2026-11-16; cutover landed, gate blocked by unrelated workspace failures)
+- Status: DONE (2026-11-16; cutover landed, gates green 2026-11-17)
 - Source: external audit 2026-11-16; TICKET-13 phase 2
 - Depends on: TICKET-15 (phrase selection), TICKET-20 (identity)
 - Blocks: none
@@ -144,8 +144,28 @@ morfologia e policy.
 | `go test ./internal/app/wiring -run 'TestWireServices...|TestBuildCreatorRuntime'` | PASS |
 | `make verify-main` / `make verify-architecture` | **bloccati da failure preesistenti e non correlate**: `verify-main` si ferma su 8 test `internal/capabilities/overlays` (drift del catalogo `RenderingGen` non committato) e su `internal/app/knobs` (`VELOX_ARTIFACT_TOKEN`/`VELOX_MASTER_ADMIN_TOKEN` introdotti in `remote_final_job.go` da un'altra sessione); `verify-architecture` aggiunge 4 errori (`crypto/sha256` nello stesso file, slot string in `media_ranker_adapter.go`). Nessuno tocca questo cutover; il pkg_size di `internal/capabilities/scripts` è tornato a 140. |
 
-**Deploy.** Il pin `BRAINRUST_VERSION ?= v0.3.5` non contiene `lexicon_profile`.
-Finché non viene pubblicata una release che lo include e il pin non viene
-alzato, il container usa un binario che risponde `unknown operation` e il
-bootstrap Go fallisce chiuso. Il binario locale `refactored/bin/semantic-engine`
+**Deploy.** *(Superato il 2026-11-17: `v0.3.6` contiene `lexicon_profile` e il pin
+è `v0.3.6` — vedi la verifica in fondo.)* Il pin `BRAINRUST_VERSION ?= v0.3.5`
+non conteneva `lexicon_profile`. Finché non veniva pubblicata una release che lo
+include e il pin non veniva alzato, il container usava un binario che risponde
+`unknown operation` e il bootstrap Go fallisce chiuso. Il binario locale `refactored/bin/semantic-engine`
 è aggiornato per test e sviluppo, ma non sostituisce la release.
+
+## Verification 2026-11-17 (gate chiuso)
+
+La riga ``make verify-main`` / ``make verify-architecture`` della tabella
+precedente è superata: le failure preesistenti sono state corrette, non aggirate.
+Le fixture e i knob sono stati registrati, `remote_final_job.go` usa
+`internal/kernel/digest` e `media_ranker_adapter.go` le costanti
+`internal/kernel/media`.
+
+| Comando | Esito |
+|---|---|
+| `go test ./internal/app/knobs/... ./internal/capabilities/overlays -count=1` | **PASS** (0,024 s + 11,931 s): il drift del catalogo non c'è più |
+| `make verify-architecture` | **PASS** (C2-C 0/0, C2-E 0/0, nessun errore) |
+| `go build ./...` / `go vet ./...` | rc 0 |
+| `cargo test -p semantic-core --lib` | **184 passed** |
+| `cargo test -p semantic-engine --test language_profile_protocol` | **4 passed** |
+
+**Deploy chiuso:** la release `v0.3.6` (tag `527b756`, 2026-11-17) contiene
+`lexicon_profile` e `refactored@4bde5e66e` pinna `BRAINRUST_VERSION ?= v0.3.6`.

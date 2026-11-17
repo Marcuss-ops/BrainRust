@@ -421,8 +421,8 @@ The real-worker gates were run against a locally rebuilt
 artifact predated the fixture/golden changes. `TestOverlayPlanV2AllFixturesMatchFrozenGoldens`
 passes 8/8, `TestOverlayPlanFixturesMatchRealRustCompiler` passes, and
 `TestCompileOverlayPlanV2UsesOneRealWorkerCall` passes. This is a local gate
-artifact, not a published release: the pinned release remains v0.3.5 until a
-new worker release is cut.
+artifact, not a published release at the time; since 2026-11-17 the published
+release `v0.3.6` carries the same compiler and the pin is `v0.3.6`.
 
 WP4 request-side projection landed 2026-11-16: Rust grounds phrases and
 entities, projects numbers/dates/quotes/products/logos/maps, applies chart

@@ -17,6 +17,7 @@ path = "src/main.rs"
 visualner = { path = "../visualner" }
 semantic-core = { workspace = true }
 overlay-compiler = { workspace = true }
+script-qa = { workspace = true }
 ndjson-stdio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

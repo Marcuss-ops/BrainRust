@@ -11,6 +11,7 @@
 use std::io;
 use std::sync::{Arc, Mutex};
 
+use semantic_core::cue_timing::{self, ShortFormPolicy, TimedCue};
 use semantic_core::phrase_align::{locate_phrase, LocatedPhrase, SpeechWord};
 use semantic_core::phrase_select::{
     select_phrases, PhraseExtractionPolicy, PhraseProfile, SelectedPhrase,
@@ -76,6 +77,26 @@ struct AlignPhrasesRequest {
     // needs only the first, while moment grounding renders all repetitions.
     #[serde(default)]
     all_occurrences: bool,
+}
+
+#[derive(Deserialize, Default)]
+struct SubtitlesKernelRequest {
+    #[serde(default)]
+    mode: String,
+    #[serde(default)]
+    cues: Vec<TimedCue>,
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    style_id: String,
+    #[serde(default)]
+    clip_duration_ms: i64,
+    #[serde(default)]
+    filename: String,
+    #[serde(default)]
+    content: String,
+    #[serde(default)]
+    policy: Option<ShortFormPolicy>,
 }
 
 #[derive(Deserialize, Default)]
@@ -151,10 +172,12 @@ impl Worker {
             .to_string(),
             "analyze_script" => self.analyze(line),
             "lexicon_profile" => lexicon_profile_line(line),
+            "quality_gate" => script_qa::protocol::handle_line(line),
             "localize_identities" => localize_identities_line(line),
             "split_sentences" => split_sentences(line),
             "select_phrases" => select_phrases_line(line),
             "align_phrases" => align_phrases_line(line),
+            "subtitles_kernel" => subtitles_kernel_line(line),
             "compile_editorial_plan" => compile_editorial_plan_line(line),
             "resolve_map_overlaps" => resolve_map_overlaps_line(line),
             "trim_map_windows_before_budget" => trim_map_windows_before_budget_line(line),
@@ -207,6 +230,53 @@ impl Worker {
             |line| self.handle_line(line),
             ndjson_stdio::workers_from_env("SEMANTIC_ENGINE_WORKERS"),
         )
+    }
+}
+
+fn subtitles_kernel_line(line: &str) -> String {
+    let request: SubtitlesKernelRequest = match serde_json::from_str(line) {
+        Ok(request) => request,
+        Err(err) => return error_response(&format!("invalid subtitles_kernel request: {err}")),
+    };
+    let policy = request.policy.unwrap_or_default();
+    match request.mode.trim() {
+        "normalize" => {
+            let cues = cue_timing::normalize_short_form_cues(&request.cues, policy);
+            json!({"ok": true, "cues": cues}).to_string()
+        }
+        "distribute" => {
+            if request.cues.is_empty() {
+                return error_response("subtitles_kernel: distribute requires cues");
+            }
+            let cues = cue_timing::cues_with_text(&request.cues, &request.text);
+            json!({"ok": true, "cues": cues}).to_string()
+        }
+        "compile" => match cue_timing::compile_ass_content(&request.cues, &request.style_id) {
+            Ok(content) => json!({
+                "ok": true,
+                "ass_content": content,
+                "cue_count": request.cues.len(),
+                "last_cue_end_ms": request.cues.last().map(|c| c.end_ms).unwrap_or(0),
+            })
+            .to_string(),
+            Err(err) => error_response(&err),
+        },
+        "validate" => {
+            match cue_timing::validate_ass_content(&request.content, request.clip_duration_ms) {
+                Ok(()) => json!({"ok": true}).to_string(),
+                Err(err) => error_response(&err),
+            }
+        }
+        "parse" => match cue_timing::parse_subtitle_text(&request.filename, &request.content) {
+            Ok((plain_text, cues)) => json!({
+                "ok": true,
+                "plain_text": plain_text,
+                "cues": cues,
+            })
+            .to_string(),
+            Err(err) => error_response(&err),
+        },
+        other => error_response(&format!("subtitles_kernel: unsupported mode {other:?}")),
     }
 }
 
@@ -759,6 +829,57 @@ mod tests {
             .as_str()
             .unwrap_or_default()
             .contains("phrase 0"));
+    }
+
+    #[test]
+    fn compiles_subtitles_through_the_worker_protocol() {
+        let worker = Worker::new(8);
+        let line = json!({
+            "operation": "subtitles_kernel",
+            "mode": "compile",
+            "style_id": "shorts-v1",
+            "cues": [
+                {"start_ms": 0, "end_ms": 3280, "text": "hello"},
+                {"start_ms": 3280, "end_ms": 6000, "text": "world"}
+            ]
+        })
+        .to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["cue_count"], 2);
+        assert_eq!(response["last_cue_end_ms"], 6000);
+        assert!(response["ass_content"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Dialogue: 0,0:00:00.00,0:00:03.28,shorts-v1,,0,0,0,,hello"));
+    }
+
+    #[test]
+    fn normalizes_cues_through_the_worker_protocol() {
+        let worker = Worker::new(8);
+        let line = json!({
+            "operation": "subtitles_kernel",
+            "mode": "normalize",
+            "cues": [
+                {"start_ms": 0, "end_ms": 5200, "text": "where he can tell what colored underwear a man is wearing just from looking at him"}
+            ]
+        })
+        .to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], true);
+        assert!(response["cues"].as_array().unwrap().len() >= 2);
+    }
+
+    #[test]
+    fn rejects_unknown_subtitles_kernel_mode() {
+        let worker = Worker::new(8);
+        let line = json!({"operation": "subtitles_kernel", "mode": "bogus"}).to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], false);
+        assert!(response["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("unsupported mode"));
     }
 
     #[test]

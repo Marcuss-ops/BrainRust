@@ -7,7 +7,7 @@
 //! Initial boundary rules:
 //! - SQLite remains owned by the Go application.
 //! - Transactional outbox decisions remain owned by the Go application.
-//! - Google Drive and Qdrant access must arrive through explicit contracts.
+//! - Google Drive and external vector-store access must arrive through explicit contracts.
 //! - FFmpeg invocation belongs behind a typed execution interface.
 //! - No direct credential or environment-file loading from this crate.
 
