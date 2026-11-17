@@ -31,9 +31,27 @@ pub fn project_editorial_scenes(
             "manifest is not certified",
         ));
     }
+    let localized = !request.source_language.trim().is_empty()
+        && !request
+            .source_language
+            .eq_ignore_ascii_case(request.language.trim());
+    let source_manifest_is_safe_for_localized_plan = localized
+        && manifest
+            .source_language
+            .eq_ignore_ascii_case(request.source_language.trim())
+        && request.scenes.iter().all(|scene| {
+            ["titles", "bullets"].iter().all(|category| {
+                scene
+                    .overlay_categories
+                    .get(*category)
+                    .or_else(|| request.canvas.overlay_categories.get(*category))
+                    .is_some_and(|value| value.eq_ignore_ascii_case("disabled"))
+            })
+        });
     if !manifest
         .source_language
         .eq_ignore_ascii_case(request.language.trim())
+        && !source_manifest_is_safe_for_localized_plan
     {
         return Err(EditorialPlanError::invalid(
             "editorial.source_language",
@@ -45,10 +63,6 @@ pub fn project_editorial_scenes(
     }
     // A localized run carries the manifest in the target language, so the
     // source-language equality only applies when the request is not localized.
-    let localized = !request.source_language.trim().is_empty()
-        && !request
-            .source_language
-            .eq_ignore_ascii_case(request.language.trim());
     if !request.source_language.trim().is_empty()
         && !localized
         && !manifest
@@ -413,5 +427,19 @@ mod tests {
         assert!(error
             .to_string()
             .contains("does not match the request language"));
+    }
+
+    #[test]
+    fn localized_plan_allows_source_manifest_when_editorial_cards_are_disabled() {
+        let mut request = request();
+        request.language = "en".to_string();
+        request.scenes[0]
+            .overlay_categories
+            .insert("titles".to_string(), "disabled".to_string());
+        request.scenes[0]
+            .overlay_categories
+            .insert("bullets".to_string(), "disabled".to_string());
+        let response = project_editorial_scenes(&request).expect("localized projection");
+        assert!(!response.scene_phrases.contains_key("scene-1"));
     }
 }
