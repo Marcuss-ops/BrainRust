@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["pipelinegen-muscles", "visualner", "semantic-core", "semantic-engine", "mediasampler", "imagecatalog", "ndjson-stdio", "overlay-compiler", "script-qa"]
+members = ["pipelinegen-muscles", "visualner", "semantic-core", "semantic-engine", "mediasampler", "ndjson-stdio", "overlay-compiler", "script-qa"]
+# `imagecatalog` is an offline experiment with no production consumer (13b
+# decision). Keeping it out of the workspace keeps it out of
+# `cargo test/clippy --workspace`; build it on demand with
+# `cargo test --manifest-path imagecatalog/Cargo.toml`.
+exclude = ["imagecatalog"]
 
 # Single source of truth for shared dependency versions. Member crates
 # reference these with `serde = { workspace = true }` so a version bump

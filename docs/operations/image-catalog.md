@@ -208,9 +208,8 @@ reported on the same line with `error` and `error_code`, never by exiting.
 ## Tests
 
 ```sh
-RUST_ICU_MAJOR_VERSION_NUMBER=70 \
 VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models \
-cargo test -p imagecatalog
+cargo test --manifest-path imagecatalog/Cargo.toml
 ```
 
 Unit tests cover canonical identity, the seven-day boundary, every quality

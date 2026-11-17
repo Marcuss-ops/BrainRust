@@ -97,12 +97,6 @@ mod tests {
     use super::process;
     use crate::protocol::{Operation, RenderEffectPath, RenderTransition, Request};
     use crate::render_stock::validate_resolved_render_plan;
-    use crate::COMPONENT;
-
-    #[test]
-    fn component_name_is_stable() {
-        assert_eq!(COMPONENT, "pipelinegen-muscles");
-    }
 
     #[test]
     fn render_stock_without_a_plan_fails_closed_without_rust_side_selection() {

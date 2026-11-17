@@ -6,10 +6,12 @@ mod causal;
 mod chronological;
 mod comparison;
 mod numbered;
+mod ordered;
 mod process;
 
 pub(crate) use causal::*;
 pub(crate) use chronological::*;
 pub(crate) use comparison::*;
 pub(crate) use numbered::*;
+pub(crate) use ordered::*;
 pub(crate) use process::*;

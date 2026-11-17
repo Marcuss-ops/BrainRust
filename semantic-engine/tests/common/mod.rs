@@ -10,6 +10,7 @@ pub fn scene(id: &str, text: &str) -> SceneInput {
     }
 }
 
+#[allow(dead_code)]
 pub fn request(scenes: Vec<SceneInput>) -> ScriptRequest {
     ScriptRequest {
         language: "it".to_string(),
@@ -19,8 +20,19 @@ pub fn request(scenes: Vec<SceneInput>) -> ScriptRequest {
     }
 }
 
+#[allow(dead_code)]
 pub fn manifest_value(scenes: Vec<SceneInput>) -> Value {
-    let manifest = analyze_script(&request(scenes)).expect("analysis must succeed");
+    manifest_value_for("it", scenes)
+}
+
+pub fn manifest_value_for(language: &str, scenes: Vec<SceneInput>) -> Value {
+    let manifest = analyze_script(&ScriptRequest {
+        language: language.to_string(),
+        scenes,
+        editorial: None,
+        entity_safety_cap: 0,
+    })
+    .expect("analysis must succeed");
     serde_json::to_value(manifest).expect("manifest serializes")
 }
 

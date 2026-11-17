@@ -28,7 +28,9 @@ The workspace has deliberately separate execution boundaries:
   optional semantic annotation sidecar keyed by `candidate_id` and returns
   deterministic per-scene decisions for offline analysis. It does not open
   PipelineGen's database, download assets, render, or create a second catalog.
-  No Go composition root calls it; the live flow is documented in
+  No Go composition root calls it, and the crate is excluded from the workspace
+member list so it does not enter `cargo test/clippy --workspace`; build it on
+demand with `cargo test --manifest-path imagecatalog/Cargo.toml`. The live flow is documented in
   `refactored/docs/operations/entity-image-pipeline-flow.md`. Video, stock
   clips and SFX are out of scope. The NDJSON worker accepts scenes or an
   optional `semantic_manifest.v3`; it validates the schema, scene identity and

@@ -104,6 +104,78 @@ def exact_text_score(expected: list[str], actual: list[str]) -> dict:
     }
 
 
+def score_sequence(scene: dict, source: str, expected: list[str]) -> dict:
+    """Score one ordered group: exact member count, source order and grounding."""
+    if not expected:
+        return {"items_expected": 0, "items_found": 0, "groups_expected": 0,
+                "groups_found": 0, "failures": []}
+    raw = source.encode("utf-8")
+
+    def grounded(members: list[dict]) -> bool:
+        for member in members:
+            start, end = member.get("start_byte"), member.get("end_byte")
+            if not isinstance(start, int) or not isinstance(end, int) or not 0 <= start < end <= len(raw):
+                return False
+            if raw[start:end].decode("utf-8", errors="replace") != member.get("evidence", ""):
+                return False
+        return True
+
+    best = None
+    for group in scene.get("semantic_groups", []):
+        if group.get("group_type") != "step_sequence":
+            continue
+        members = group.get("members", [])
+        if len(members) != len(expected) or not grounded(members):
+            continue
+        hits = [index for index, (item, member) in enumerate(zip(expected, members))
+                if normalize(item) in normalize(member.get("text", ""))
+                or normalize(member.get("text", "")) in normalize(item)]
+        if best is None or len(hits) > best[0]:
+            best = (len(hits), hits, members)
+    if best is None:
+        reason = f"no grounded group with {len(expected)} members"
+        return {"items_expected": len(expected), "items_found": 0, "groups_expected": 1,
+                "groups_found": 0,
+                "failures": [{"item": item, "reason": reason} for item in expected]}
+    found, hits, members = best
+    failures = [
+        {"item": item, "member": members[index].get("text", ""),
+         "reason": "member missing or out of source order"}
+        for index, item in enumerate(expected) if index not in hits
+    ]
+    return {"items_expected": len(expected), "items_found": found,
+            "groups_expected": 1, "groups_found": 1 if found == len(expected) else 0,
+            "failures": failures}
+
+
+def score_chart_negative_set(worker: "Worker", cases: list[dict]) -> dict:
+    """Run the bare-conjunction negative set and count any chart it emits."""
+    rows = []
+    for index, case in enumerate(cases):
+        response = worker.request({
+            "operation": "analyze_script",
+            "language": case["language"],
+            "scenes": [{"scene_id": f"chart_negative_{index:02}", "text": case["text"]}],
+        })
+        if not response.get("ok"):
+            raise RuntimeError(f"worker failed on chart negative {index}: {response.get('error')}")
+        charts = [
+            proposal
+            for scene in response["manifest"]["scenes"]
+            for proposal in scene.get("visual_proposals", [])
+            if proposal.get("proposal_type") == "chart"
+        ]
+        rows.append({"language": case["language"], "text": case["text"], "charts": len(charts)})
+    by_language: dict[str, dict] = {}
+    for row in rows:
+        entry = by_language.setdefault(row["language"], {"cases": 0, "charts": 0, "false_positives": []})
+        entry["cases"] += 1
+        entry["charts"] += row["charts"]
+        if row["charts"]:
+            entry["false_positives"].append(row["text"])
+    return {"cases": len(rows), "charts": sum(row["charts"] for row in rows), "languages": by_language}
+
+
 class Worker:
     def __init__(self, binary: Path):
         self.stderr = tempfile.TemporaryFile()
@@ -179,6 +251,7 @@ def score_one(worker: Worker, script_id: str, spec: dict, default_authority: str
         raise RuntimeError(f"worker failed on {script_id}: {response.get('error')}")
     manifest = response["manifest"]
     scene = manifest["scenes"][0]
+    sequence = score_sequence(scene, source, spec.get("sequence", []))
     entities = unique_candidates([x for x in scene.get("entities", []) if x.get("type") in NAMED_TYPES])
     objects = unique_candidates([x for x in scene.get("entities", []) if x.get("type") in OBJECT_TYPES])
     phrases = []
@@ -247,10 +320,11 @@ def score_one(worker: Worker, script_id: str, spec: dict, default_authority: str
         "charts": {"positive_expected": len(positive_chart), "value_matches": sum(x["value_match"] for x in positive_chart),
                    "typed_matches": sum(x["type_match"] for x in positive_chart), "negative_evidence_matches": len(negative_evidence),
                    "actual_count": len(chart_candidates)},
-        "sequence_items_expected": len(spec.get("sequence", [])),
-        "sequence_items_exactly_extracted": sum(any(normalize(item) == normalize(candidate.get("text", ""))
-                                                     for candidate in scene.get("bullets", []))
-                                                  for item in spec.get("sequence", [])),
+        "sequence_items_expected": sequence["items_expected"],
+        "sequence_items_exactly_extracted": sequence["items_found"],
+        "sequence_groups_expected": sequence["groups_expected"],
+        "sequence_groups_exactly_extracted": sequence["groups_found"],
+        "sequence_failures": sequence["failures"],
         "bullet_count": len(scene.get("bullets", [])),
         "micro_summary_count": len(scene.get("micro_summaries", [])),
         "micro_summary_review": {
@@ -319,6 +393,12 @@ def aggregate(rows: list[dict]) -> dict:
     block["sequences_exactly_extracted"] = {
         "expected": sum(row["sequence_items_expected"] for row in rows),
         "found": sum(row["sequence_items_exactly_extracted"] for row in rows),
+        "groups_expected": sum(row["sequence_groups_expected"] for row in rows),
+        "groups_found": sum(row["sequence_groups_exactly_extracted"] for row in rows),
+        "failures": [
+            {"script": row["id"], **failure}
+            for row in rows for failure in row["sequence_failures"]
+        ],
     }
     block["bullets"] = sum(row["bullet_count"] for row in rows)
     return block
@@ -342,11 +422,13 @@ def main() -> int:
     if not args.worker.exists():
         parser.error(f"worker not found: {args.worker}")
     worker = Worker(args.worker)
+    chart_negative = {"cases": 0, "charts": 0, "languages": {}}
     try:
         health = worker.request({"operation": "health"}, 30)
         if not health.get("ok"):
             raise RuntimeError(f"worker health check failed: {health}")
         results = [score_one(worker, key, spec, authority) for key, spec in sorted(specs.items())]
+        chart_negative = score_chart_negative_set(worker, gold.get("chart_negative_set", []))
     finally:
         worker.close()
     words = sum(row["words"] for row in results)
@@ -377,6 +459,7 @@ def main() -> int:
                    "certification": certification},
         "overall": aggregate(results),
         "per_language": per_language(results),
+        "chart_negative_set": chart_negative,
     }
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["corpus"], ensure_ascii=False))
@@ -387,8 +470,20 @@ def main() -> int:
         print(f"  {language}: scripts={block['scripts']} words={block['words']} "
               f"entities={ratio('named_entities')} objects={ratio('visual_objects_surface_only')} "
               f"phrases={ratio('important_phrases')} facts={ratio('facts')} charts={ratio('positive_charts')} "
+              f"sequences={block['sequences_exactly_extracted']['found']}/{block['sequences_exactly_extracted']['expected']} "
               f"annotated={','.join(block['annotated_categories']) or '-'} "
               f"grounding-errors={block['grounding_errors']} replay-identical={block['replay_identical']}")
+    overall_sequences = report["overall"]["sequences_exactly_extracted"]
+    print(f"sequences overall: {overall_sequences['found']}/{overall_sequences['expected']} items, "
+          f"{overall_sequences['groups_found']}/{overall_sequences['groups_expected']} groups")
+    for failure in overall_sequences["failures"]:
+        print(f"  SEQ-FAIL {failure['script']}: {failure['item']} ({failure['reason']})")
+    if chart_negative["cases"]:
+        print(f"chart negative set: {chart_negative['cases']} cases, {chart_negative['charts']} chart(s) emitted")
+        for language, row in sorted(chart_negative["languages"].items()):
+            print(f"  {language}: negative={row['cases']} charts={row['charts']}")
+            for text in row["false_positives"]:
+                print(f"    FP {text}")
     for row in results:
         print(f"{row['id']}: words={row['words']} entity-recall={row['named_entities']['recall']:.3f} "
               f"object-recall={row['visual_objects_surface_only']['recall']:.3f} "

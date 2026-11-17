@@ -13,6 +13,28 @@
       "date"
     ]
   },
+  "chart_negative_set": [
+    {"language": "pl", "text": "Anna poszła do sklepu a potem wróciła do domu."},
+    {"language": "pl", "text": "W 2019 roku zespół zagrał koncert a publiczność wypełniła halę."},
+    {"language": "pl", "text": "Firma zatrudniła 12 osób a biuro przeniosła do Gdańska."},
+    {"language": "pl", "text": "Kowalska miała 19 lat a jej brat uczył się w liceum."},
+    {"language": "pl", "text": "Projekt kosztował 40 tysięcy euro a budowa trwała dwa lata."},
+    {"language": "pl", "text": "Deszcz padał przez trzy godziny a wiatr uszkodził dach."},
+    {"language": "pl", "text": "W 2003 roku zapłaciła 12 euro za bilet a zwiedzanie trwało godzinę."},
+    {"language": "pl", "text": "Biuro otwarto o 8 rano a klienci czekali na zewnątrz."},
+    {"language": "pl", "text": "Rada przyjęła 27 głosów a opozycja zgłosiła poprawkę."},
+    {"language": "pl", "text": "Stadion ma 18 tysięcy miejsc a murawa jest nowa."},
+    {"language": "ru", "text": "Анна пошла в магазин, а потом вернулась домой."},
+    {"language": "ru", "text": "В 2019 году команда дала концерт, а зал был полон."},
+    {"language": "ru", "text": "Компания наняла 12 человек, а офис перенесла в Казань."},
+    {"language": "ru", "text": "Кузнецовой было 19 лет, а её брат учился в школе."},
+    {"language": "ru", "text": "Проект стоил 40 тысяч евро, а стройка длилась два года."},
+    {"language": "ru", "text": "Дождь шёл три часа, а ветер повредил крышу."},
+    {"language": "ru", "text": "В 2003 году она заплатила 12 евро за билет, а экскурсия длилась час."},
+    {"language": "ru", "text": "Офис открылся в 8 утра, а клиенты ждали на улице."},
+    {"language": "ru", "text": "Совет принял 27 голосов, а оппозиция внесла поправку."},
+    {"language": "ru", "text": "Стадион вмещает 18 тысяч мест, а поле новое."}
+  ],
   "scripts": {
     "it_stadium_long_01": {
       "language": "it",

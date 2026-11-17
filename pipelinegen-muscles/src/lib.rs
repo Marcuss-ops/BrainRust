@@ -13,9 +13,6 @@
 
 #![deny(unsafe_code)]
 
-/// Stable placeholder proving that the crate is wired and testable.
-pub const COMPONENT: &str = "pipelinegen-muscles";
-
 mod artifact;
 mod audio_copy;
 mod config;

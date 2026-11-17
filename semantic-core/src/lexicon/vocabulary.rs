@@ -85,6 +85,41 @@ pub struct ScaleWords {
     pub measurement_units: Vec<String>,
 }
 
+/// Locale-scoped inflected surfaces for places whose canonical name is in the
+/// gazetteer. `query_form` says which surface the contextual query uses:
+/// `canonical` (Polish apposition) or `source` (Russian source case).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PlaceInflections {
+    #[serde(default)]
+    pub schema: String,
+    #[serde(default)]
+    pub languages: BTreeMap<String, PlaceInflectionLanguage>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PlaceInflectionLanguage {
+    #[serde(default)]
+    pub query_form: String,
+    /// Canonical place name -> inflected surfaces that resolve to it.
+    #[serde(default)]
+    pub places: BTreeMap<String, Vec<String>>,
+    /// Common words with the same ending that must never become a place.
+    #[serde(default)]
+    pub blocklist: Vec<String>,
+}
+
+/// Four explicit ordinal markers per language. The middle list holds variants;
+/// the inner list holds the words of one marker ("na końcu", "ten slotte").
+pub type OrderedStepMarkers = Vec<Vec<Vec<String>>>;
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct OrderedSteps {
+    #[serde(default)]
+    pub schema: String,
+    #[serde(default)]
+    pub languages: BTreeMap<String, OrderedStepMarkers>,
+}
+
 /// Contextual geographic cues (no gazetteer: syntax only).
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct LocationCues {

@@ -40,6 +40,7 @@ pub struct VisualCandidate {
 /// Builds every proposal of one scene, in deterministic source order.
 pub fn build_candidates(
     source: &str,
+    language: &str,
     entities: &[VisualEntity],
     bullets: &[Bullet],
     chart_points: &[ChartPoint],
@@ -52,6 +53,7 @@ pub fn build_candidates(
     multiple_entities(entities, bullets, identities, &mut out);
     charts(
         source,
+        language,
         entities,
         bullets,
         chart_points,
@@ -168,6 +170,7 @@ fn has_renderable_pair_cue(sentence: &str) -> bool {
 
 fn charts(
     source: &str,
+    language: &str,
     entities: &[VisualEntity],
     bullets: &[Bullet],
     chart_points: &[ChartPoint],
@@ -275,7 +278,7 @@ fn charts(
         // Equal units and a shared sentence are not enough to prove that two
         // values belong in one chart. Require either an explicit comparison
         // cue or the conservative repeated-series context checked below.
-        if !comparison_cue_binds_values(bullet, chart_points, sentence)
+        if !comparison_cue_binds_values(bullet, chart_points, sentence, language)
             && !crate::chart_rules::has_series_context(&bullet.text, items.len())
         {
             continue;
@@ -741,15 +744,21 @@ fn comparison_cue_binds_values(
     bullet: &Bullet,
     chart_points: &[ChartPoint],
     sentence_index: usize,
+    language: &str,
 ) -> bool {
-    let Some((cue_start, _)) = semantic_core::discourse::comparison_cue(&bullet.text) else {
-        return false;
+    let explicit = semantic_core::discourse::comparison_cue(&bullet.text);
+    let (cue_start, bare) = match explicit {
+        Some((start, _)) => (start, false),
+        None => match bare_conjunction_cue(bullet, chart_points, sentence_index, language) {
+            Some(start) => (start, true),
+            None => return false,
+        },
     };
     let cue_line = bullet.text[..cue_start]
         .bytes()
         .filter(|byte| *byte == b'\n')
         .count();
-    let comparable_on_line = chart_points
+    let points_on_line: Vec<&ChartPoint> = chart_points
         .iter()
         .filter(|point| point.sentence_index == sentence_index)
         .filter(|point| point.start >= bullet.start && point.end <= bullet.end)
@@ -761,8 +770,68 @@ fn comparison_cue_binds_values(
                 .count()
                 == cue_line
         })
-        .count();
-    comparable_on_line >= 2
+        .collect();
+    if points_on_line.len() < 2 {
+        return false;
+    }
+    // A bare conjunction is a contrast only when the grounded values straddle
+    // it. "28% ... a ... 13%" qualifies; "a" before or after both numbers does
+    // not. The language guard is explicit: Italian/Spanish/Portuguese "a" is
+    // never passed here.
+    if bare {
+        let absolute = bullet.start + cue_start;
+        let has_before = points_on_line.iter().any(|point| point.end <= absolute);
+        let has_after = points_on_line.iter().any(|point| point.start > absolute);
+        if !has_before || !has_after {
+            return false;
+        }
+    }
+    true
+}
+
+/// Locale-scoped fallback for Polish `a` and Russian `а`, used only when the
+/// token sits between two grounded values and both sides carry a word. The cue
+/// is never added to the global comparison vocabulary: in Italian, Spanish and
+/// Portuguese the same letter is an article or preposition.
+fn bare_conjunction_cue(
+    bullet: &Bullet,
+    chart_points: &[ChartPoint],
+    sentence_index: usize,
+    language: &str,
+) -> Option<usize> {
+    let cue = match language.split(['-', '_']).next().unwrap_or("") {
+        "pl" => "a",
+        "ru" => "а",
+        _ => return None,
+    };
+    let words = semantic_core::discourse::word_spans(&bullet.text);
+    let position = words.iter().position(|word| word.lowered == cue)?;
+    let word = &words[position];
+    let absolute_start = bullet.start + word.start;
+    let absolute_end = bullet.start + word.end;
+    let points: Vec<&ChartPoint> = chart_points
+        .iter()
+        .filter(|point| point.sentence_index == sentence_index)
+        .filter(|point| point.start >= bullet.start && point.end <= bullet.end)
+        .collect();
+    if !points.iter().any(|point| point.end <= absolute_start)
+        || !points.iter().any(|point| point.start >= absolute_end)
+    {
+        return None;
+    }
+    let substantive = |spans: &[semantic_core::discourse::WordSpan]| {
+        spans.iter().any(|span| {
+            span.lowered
+                .chars()
+                .filter(|character| character.is_alphabetic())
+                .count()
+                >= 2
+        })
+    };
+    if !substantive(&words[..position]) || !substantive(&words[position + 1..]) {
+        return None;
+    }
+    Some(word.start)
 }
 
 fn timelines(bullets: &[Bullet], temporal_facts: &[TemporalFact], out: &mut Vec<VisualCandidate>) {

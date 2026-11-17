@@ -267,3 +267,189 @@ fn a_complete_dated_sequence_is_one_timeline_and_closes_coverage() {
         "every fact of a complete timeline is covered: {coverage}"
     );
 }
+
+#[test]
+fn four_explicit_ordinal_steps_form_one_ordered_group_in_every_language() {
+    let cases: Vec<(&str, &str, Vec<&str>)> = vec![
+        (
+            "de",
+            "Der Plan legte vier Schritte fest: erstens die Dichtungen tauschen, zweitens die Pumpen erneut prüfen, drittens die Sensoren nach jedem Regen kontrollieren, viertens die Ergebnisse am Saisonende veröffentlichen.",
+            vec!["die Dichtungen tauschen", "die Pumpen erneut prüfen", "die Sensoren nach jedem Regen kontrollieren", "die Ergebnisse am Saisonende veröffentlichen"],
+        ),
+        (
+            "en",
+            "The plan fixed four steps: first replace the seals, second retest the pumps, third check the sensors after every rainfall, fourth publish the results at the end of the season.",
+            vec!["replace the seals", "retest the pumps", "check the sensors after every rainfall", "publish the results at the end of the season"],
+        ),
+        (
+            "es",
+            "El acta fijó cuatro pasos: primero sustituir las juntas, segundo repetir las pruebas con la bomba, tercero revisar los sensores después de cada lluvia, cuarto publicar los resultados al final de la temporada.",
+            vec!["sustituir las juntas", "repetir las pruebas con la bomba", "revisar los sensores después de cada lluvia", "publicar los resultados al final de la temporada"],
+        ),
+        (
+            "fr",
+            "Le procès-verbal fixe quatre étapes : d'abord remplacer les joints, ensuite refaire les essais avec la pompe, puis contrôler les capteurs après chaque pluie, enfin publier les résultats en fin de saison.",
+            vec!["remplacer les joints", "refaire les essais avec la pompe", "contrôler les capteurs après chaque pluie", "publier les résultats en fin de saison"],
+        ),
+        (
+            "id",
+            "Notulen menetapkan empat langkah: pertama mengganti paking, kedua mengulang uji pompa, ketiga memeriksa sensor setelah setiap hujan, keempat menerbitkan hasil pada akhir musim.",
+            vec!["mengganti paking", "mengulang uji pompa", "memeriksa sensor setelah setiap hujan", "menerbitkan hasil pada akhir musim"],
+        ),
+        (
+            "it",
+            "Il verbale comunale fissò quattro passaggi: primo, sostituire le guarnizioni; secondo, ripetere le prove con la pompa; terzo, controllare i sensori dopo ogni pioggia; quarto, pubblicare i risultati a fine stagione.",
+            vec!["sostituire le guarnizioni", "ripetere le prove con la pompa", "controllare i sensori dopo ogni pioggia", "pubblicare i risultati a fine stagione"],
+        ),
+        (
+            "nl",
+            "Het verslag legde vier stappen vast: eerst de pakkingen vervangen, daarna de pompen opnieuw testen, vervolgens de sensoren na elke regenbui controleren, ten slotte de resultaten aan het einde van het seizoen publiceren.",
+            vec!["de pakkingen vervangen", "de pompen opnieuw testen", "de sensoren na elke regenbui controleren", "de resultaten aan het einde van het seizoen publiceren"],
+        ),
+        (
+            "pl",
+            "Protokół ustalił cztery kroki: najpierw wymienić uszczelki, następnie powtórzyć próby z pompą, potem sprawdzać czujniki po każdym deszczu, na końcu opublikować wyniki pod koniec sezonu.",
+            vec!["wymienić uszczelki", "powtórzyć próby z pompą", "sprawdzać czujniki po każdym deszczu", "opublikować wyniki pod koniec sezonu"],
+        ),
+        (
+            "pt",
+            "A ata fixou quatro passos: primeiro substituir as juntas, segundo repetir os ensaios com a bomba, terceiro verificar os sensores após cada chuva, quarto publicar os resultados no fim da época.",
+            vec!["substituir as juntas", "repetir os ensaios com a bomba", "verificar os sensores após cada chuva", "publicar os resultados no fim da época"],
+        ),
+        (
+            "ru",
+            "Протокол закрепил четыре шага: сначала заменить прокладки, затем повторить испытания с насосом, после этого проверять датчики после каждого дождя, наконец опубликовать результаты в конце сезона.",
+            vec!["заменить прокладки", "повторить испытания с насосом", "проверять датчики после каждого дождя", "опубликовать результаты в конце сезона"],
+        ),
+    ];
+    for (language, text, expected) in cases {
+        let value = manifest_value_for(language, vec![scene("ordinal-steps", text)]);
+        let groups = value["scenes"][0]["semantic_groups"].as_array().unwrap();
+        let group = groups
+            .iter()
+            .find(|group| group["group_type"] == "step_sequence")
+            .unwrap_or_else(|| panic!("{language}: ordered group expected: {value}"));
+        let members = group["members"].as_array().unwrap();
+        assert_eq!(members.len(), 4, "{language}: four members expected");
+        assert_eq!(group["target_count"], 4);
+        assert_eq!(group["complete"], true);
+        for (index, (member, expected)) in members.iter().zip(expected).enumerate() {
+            assert_eq!(member["rank"], index + 1);
+            let member_text = member["text"].as_str().unwrap();
+            assert!(
+                member_text.contains(expected),
+                "{language}: member {index} must contain {expected:?}: {member_text:?}"
+            );
+            assert_eq!(member["evidence"], member_text);
+            let start = member["start_byte"].as_u64().unwrap() as usize;
+            let end = member["end_byte"].as_u64().unwrap() as usize;
+            assert_eq!(
+                text.get(start..end),
+                Some(member_text),
+                "{language}: member {index} must be a verbatim source slice"
+            );
+        }
+    }
+}
+
+#[test]
+fn sequence_adverbs_and_postfix_first_form_ordered_groups() {
+    let cases: Vec<(&str, &str, Vec<&str>)> = vec![
+        (
+            "de",
+            "Die Reihenfolge blieb festgelegt: zuerst das Dach abdichten, dann die Fenster erneuern, danach die Heizung entlüften, schließlich die Regale zurückstellen.",
+            vec!["das Dach abdichten", "die Fenster erneuern", "die Heizung entlüften", "die Regale zurückstellen"],
+        ),
+        (
+            "en",
+            "The order of works stayed fixed: seal the roof first, then replace the windows, afterwards bleed the radiators, finally return the shelves.",
+            vec!["seal the roof", "replace the windows", "bleed the radiators", "return the shelves"],
+        ),
+        (
+            "es",
+            "El orden de los trabajos quedó fijado: primero sellar la cubierta, después cambiar las ventanas, luego purgar los radiadores, finalmente devolver las estanterías.",
+            vec!["sellar la cubierta", "cambiar las ventanas", "purgar los radiadores", "devolver las estanterías"],
+        ),
+        (
+            "id",
+            "Urutan pekerjaan tetap: pertama menutup atap, kedua mengganti jendela, ketiga membuang udara radiator, terakhir mengembalikan rak.",
+            vec!["menutup atap", "mengganti jendela", "membuang udara radiator", "mengembalikan rak"],
+        ),
+        (
+            "pl",
+            "Kolejność prac pozostała stała: najpierw uszczelnić dach, potem wymienić okna, następnie odpowietrzyć grzejniki, wreszcie odstawić regały.",
+            vec!["uszczelnić dach", "wymienić okna", "odpowietrzyć grzejniki", "odstawić regały"],
+        ),
+        (
+            "pt",
+            "A ordem dos trabalhos ficou fixa: primeiro vedar o telhado, depois substituir as janelas, a seguir purgar os radiadores, por fim repor as estantes.",
+            vec!["vedar o telhado", "substituir as janelas", "purgar os radiadores", "repor as estantes"],
+        ),
+    ];
+    for (language, text, expected) in cases {
+        let value = manifest_value_for(language, vec![scene("sequence-variants", text)]);
+        let group = value["scenes"][0]["semantic_groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|group| group["group_type"] == "step_sequence")
+            .unwrap_or_else(|| panic!("{language}: sequence expected: {value}"));
+        let members = group["members"].as_array().unwrap();
+        assert_eq!(members.len(), 4, "{language}: four members expected");
+        for (member, expected) in members.iter().zip(expected) {
+            assert!(
+                member["text"].as_str().unwrap().contains(expected),
+                "{language}: expected {expected:?}: {member:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fewer_than_four_or_unordered_steps_do_not_form_a_group() {
+    let cases = [
+        (
+            "pl",
+            "Protokół ustalił trzy kroki: najpierw wymienić uszczelki, następnie powtórzyć próby, potem sprawdzić czujniki.",
+        ),
+        (
+            "en",
+            "The plan fixed steps: first replace the seals and second retest the pumps.",
+        ),
+        (
+            "it",
+            "Il verbale ha fissato quattro passaggi: primo sostituire le guarnizioni; terzo controllare i sensori; quarto pubblicare i risultati.",
+        ),
+        (
+            "ru",
+            "Протокол закрепил шаги: сначала заменить прокладки, затем повторить испытания.",
+        ),
+        (
+            "pl",
+            "Lista: 3. wymienić uszczelki 1. powtórzyć próby 2. sprawdzić czujniki.",
+        ),
+    ];
+    for (language, text) in cases {
+        let value = manifest_value_for(language, vec![scene("not-a-sequence", text)]);
+        assert!(
+            value["scenes"][0]["semantic_groups"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|group| group["group_type"] != "step_sequence"),
+            "{language}: no sequence expected for {text:?}: {value}"
+        );
+    }
+}
+
+#[test]
+fn tied_ranking_is_not_a_step_sequence() {
+    let text = "1. Anna 1. Marek 2. Zofia";
+    let value = manifest_value_for("pl", vec![scene("tied-ranking", text)]);
+    let groups = value["scenes"][0]["semantic_groups"].as_array().unwrap();
+    assert!(
+        groups.iter().all(|group| group["group_type"] != "step_sequence"
+            && group["group_type"] != "ranking"),
+        "ties must not become a ranking or a sequence: {value}"
+    );
+}

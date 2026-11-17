@@ -155,6 +155,19 @@ fn analyze_scene_with_search(
             .iter_mut()
             .find(|entity| entity.start < facility.end && facility.start < entity.end)
         {
+            // The explicit facility cue names the venue, while the overlapping
+            // extractor entity may be only its proper-name tail ("Стадион
+            // Северный" vs "Северный"). Keep the maximal grounded span so the
+            // query does not lose the facility head.
+            if facility.start <= existing.start
+                && facility.end >= existing.end
+                && (facility.start < existing.start || existing.end < facility.end)
+            {
+                existing.text = facility.text.clone();
+                existing.start = facility.start;
+                existing.end = facility.end;
+                existing.evidence = existing.text.clone();
+            }
             existing.r#type = "FACILITY".to_string();
             existing.score = existing.score.max(facility.score);
         } else {
@@ -306,6 +319,7 @@ fn analyze_scene_with_search(
     let bullets = bullet_candidates(source, &sentence_spans, &entities);
     let candidates = groups::build_candidates(
         source,
+        language,
         &entities,
         &analysis.bullets,
         &analysis.chart_points,
@@ -341,6 +355,12 @@ fn analyze_scene_with_search(
             &relations,
         ));
         groups.extend(numbered_groups(&scene.scene_id, source, &sentence_spans));
+        groups.extend(ordered_sequence_groups(
+            &scene.scene_id,
+            source,
+            &sentence_spans,
+            language,
+        ));
         groups.extend(built.groups.clone());
         groups
     };

@@ -462,11 +462,17 @@ pub(crate) fn contextual_image_query_candidates(
     // The boolean records the origin: `true` for a fact-grounded relation
     // query that satisfies the manifest contract, `false` for a visual-context
     // family that stays out of the manifest.
-    let mut combined: Vec<(bool, ContextualImageQuery)> =
-        fact_grounded_location_queries(source, sentences, entities, entity_ids, entity_facts)
-            .into_iter()
-            .map(|query| (true, query))
-            .collect();
+    let mut combined: Vec<(bool, ContextualImageQuery)> = fact_grounded_location_queries(
+        source,
+        sentences,
+        entities,
+        entity_ids,
+        entity_facts,
+        language,
+    )
+    .into_iter()
+    .map(|query| (true, query))
+    .collect();
     for candidate in linked_clause_visual_queries(language, source, sentences, entities) {
         if combined.len() >= max_contextual_queries {
             break;
@@ -527,6 +533,7 @@ fn fact_grounded_location_queries(
     entities: &[VisualEntity],
     entity_ids: &[String],
     facts: &[semantic_core::EntityFact],
+    language: &str,
 ) -> Vec<ContextualImageQuery> {
     let mut output = Vec::new();
     for fact in facts {
@@ -582,14 +589,18 @@ fn fact_grounded_location_queries(
                     end_byte: fact.end_byte,
                 },
             ];
-            output.push(location_fact_query(source, fact, components));
+            let query_place =
+                semantic_core::lexicon::lexicon().canonical_query_place(&fact.value, language);
+            output.push(location_fact_query(source, fact, components, query_place));
             continue;
         };
         let components = vec![
             visual_entity_component(subject),
             visual_entity_component(location),
         ];
-        output.push(location_fact_query(source, fact, components));
+        let query_place =
+            semantic_core::lexicon::lexicon().canonical_query_place(&fact.value, language);
+        output.push(location_fact_query(source, fact, components, query_place));
     }
     output
 }
@@ -608,10 +619,19 @@ fn location_fact_query(
     source: &str,
     fact: &semantic_core::EntityFact,
     components: Vec<semantic_core::QueryComponent>,
+    query_place: Option<&str>,
 ) -> ContextualImageQuery {
+    let last = components.len().saturating_sub(1);
     let query = components
         .iter()
-        .map(|component| component.text.trim())
+        .enumerate()
+        .map(|(index, component)| {
+            if index == last {
+                query_place.unwrap_or(component.text.trim())
+            } else {
+                component.text.trim()
+            }
+        })
         .collect::<Vec<_>>()
         .join(" ");
     ContextualImageQuery {

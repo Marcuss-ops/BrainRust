@@ -1,0 +1,15 @@
+{
+  "schema": "lexicon.v1",
+  "languages": {
+    "de": [[["erstens"], ["zuerst"]], [["zweitens"], ["dann"]], [["drittens"], ["danach"]], [["viertens"], ["schließlich"]]],
+    "en": [[["first"]], [["second"], ["then"]], [["third"], ["afterwards"]], [["fourth"], ["finally"]]],
+    "es": [[["primero"]], [["segundo"], ["después"], ["luego"]], [["tercero"], ["después"], ["luego"]], [["cuarto"], ["finalmente"]]],
+    "fr": [[["d'abord"]], [["ensuite"], ["puis"]], [["puis"], ["ensuite"]], [["enfin"]]],
+    "id": [[["pertama"]], [["kedua"]], [["ketiga"]], [["keempat"], ["terakhir"]]],
+    "it": [[["primo"]], [["secondo"]], [["terzo"]], [["quarto"]]],
+    "nl": [[["eerst"]], [["daarna"]], [["vervolgens"]], [["ten", "slotte"]]],
+    "pl": [[["najpierw"]], [["następnie"], ["potem"]], [["potem"], ["następnie"]], [["na", "końcu"], ["wreszcie"]]],
+    "pt": [[["primeiro"]], [["segundo"], ["depois"]], [["terceiro"], ["a", "seguir"], ["em", "seguida"]], [["quarto"], ["por", "fim"]]],
+    "ru": [[["сначала"]], [["затем"]], [["после", "этого"]], [["наконец"]]]
+  }
+}

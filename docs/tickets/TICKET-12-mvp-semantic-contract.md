@@ -53,8 +53,9 @@ document-scoped.
   semantic-engine --test mvp_semantic_contract` — 7 passed. `cargo test -p
   semantic-engine --test protocol_validation` — 4 passed. `cargo test -p
   semantic-core -p semantic-engine -p visualner -p imagecatalog` — all
-  passed. `cargo fmt --all -- --check` and clippy on the touched crates are
-  clean.
+  passed (recorded before the 2026-11-17 exclusion; `imagecatalog` is now
+  standalone, `cargo test --manifest-path imagecatalog/Cargo.toml`).
+  `cargo fmt --all -- --check` and clippy on the touched crates are clean.
 
 ### Go consumer (WP5)
 

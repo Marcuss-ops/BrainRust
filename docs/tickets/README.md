@@ -4,14 +4,17 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-17. **20 DONE, 0 PARTIAL, 0 OPEN, 2 BLOCKED (08, 10).**
+Last verified: 2026-11-17. **19 DONE, 1 PARTIAL, 3 OPEN, 3 BLOCKED (08, 10, 26).**
 
 Tickets 15–20 are the 2026-11-16 external-audit follow-ups, and all six are
 now DONE (15 phrase selection, 16 MediaMemory ranker, 17 visual budget/chain,
 18 linguistics, 19 phrase-timing alignment, 20 identity localization), along
 with 21 (Rust-side hotspot remediation). TICKET 22 ports the editorial quality
-gate to Rust (`script-qa` plus `quality_gate` on `semantic-engine`) and is DONE
-(2026-11-17); the Go gate remains the production default. The audit reconciliation is
+gate to Rust (`script-qa` plus `quality_gate` on `semantic-engine`) and is
+PARTIAL (2026-11-17): the port and its 240 tests are landed, but the production
+cutover is gated on `v0.3.7`, the first release that contains `quality_gate`.
+The Go gate remains the production default. Tickets 23–26 record the measured
+engine and Gate D gaps that had no sheet. The audit reconciliation is
 [`docs/stato/AUDIT-RICONCILIAZIONE-2026-11-16.md`](../../../docs/stato/AUDIT-RICONCILIAZIONE-2026-11-16.md).
 
 Status vocabulary:
@@ -48,7 +51,11 @@ Status vocabulary:
 | [19](TICKET-19-linguistic-temporal-alignment.md) | P2 | DONE | `semantic-core::phrase_align` + `align_phrases` + `SemanticEngineAdapter.AlignPhrases` own exact phrase alignment; `CompilePhraseTimings`/`CompileSceneSpeechTimings` project the worker result. The endpoint fallback has no production caller. The entity/moment follow-up is closed 2026-11-17: `audio/phrase_locator.go` and `audio.LocatePhrase` are gone (`refactored@8f159549b`) and the voiceover/entity paths send one `align_phrases` request per segment. |
 | [20](TICKET-20-identity-localization-consolidation.md) | P2 | DONE (2026-11-16) | Rust owns localized identity matching (`localize_identities`: exact, pl/de/tr inflection, ru/tr/pl ordered fallback). Go builds the typed request, validates every span and projects the source id/image/geo; a missing id fails closed. The old Go matcher is test-only. |
 | [21](TICKET-21-hotspot-remediation.md) | P2 | DONE (2026-11-16) | Rust-side hotspot remediation: `render_audio_execution::execute` 419→39 lines with the stages split and `RenderError` at the boundary; `planner.rs` 2,671 production lines split into five modules with `compile_plan` untouched and the frozen goldens byte-identical (64 lib + 30 contract pass); one `entity_search_candidate` factory; one `run_ffprobe` invocation with per-caller wording preserved; `visualner` no-op "fail-closed" dead code deleted; pre-existing `match_like_matches_macro` lint in `phrase_align.rs` fixed. |
-| [22](TICKET-22-QUALITY-GATE-RUST-PORT.md) | P2 | DONE (2026-11-17) | Rust `script-qa` implements the eight editorial rules and the `quality_gate` NDJSON operation; 28 Go parity scenarios, 3 protocol tests and the full 29-suite/240-test run are green. The Go gate remains the production default; no cutover. |
+| [22](TICKET-22-QUALITY-GATE-RUST-PORT.md) | P2 | PARTIAL (2026-11-17) | Rust `script-qa` implements the eight editorial rules and the `quality_gate` NDJSON operation; 28 Go parity scenarios, 3 protocol tests and the full 29-suite/240-test run are green. Not adopted: the Go gate remains the production default until `v0.3.7` ships `quality_gate` and the Go path is deleted. |
+| [23](TICKET-23-ordered-sequences.md) | P1 | OPEN | Ordered sequences: 0/80 four-step passages become groups; the capability is missing, not the threshold. |
+| [24](TICKET-24-slavic-inflected-toponyms.md) | P1 | OPEN | Inflected Slavic toponyms (`Poznaniu`, `Krakowie`, `Казани`, `Самаре`) miss the gazetteer; pl/ru contextual queries are 0/2. |
+| [25](TICKET-25-chart-bare-contrastive-cue.md) | P2 | OPEN | Chart recall is 17/20; the three misses rely on a bare `a`/`а`, which needs a context rule with a precision gate or a written bound. |
+| [26](TICKET-26-provider-precision-at-10.md) | P1 | BLOCKED | Provider precision@10, the real cascade and the byte-level probe need provider credentials and an independent judge. |
 
 ## Verification — 2026-11-17 (ticket 22, quality gate Rust port)
 
@@ -62,8 +69,8 @@ production path was changed.
 - `cargo test -p script-qa -p semantic-engine` — 29 suites, 240 passed, 0 failed.
 - `go test ./internal/capabilities/scripts/usecase/qualitygate -count=1` — ok, 0.022 s.
 - `git diff --check` in the root and in `BrainRust` — rc 0.
-- Uncommitted working tree: new `script-qa` crate, `semantic-engine` operation,
-  `TICKET-22` and this index. The Go `qualitygate` package is untouched.
+- Commit state: `d3b77d6` on `HEAD`; the tag `v0.3.6` predates it. The Go
+  `qualitygate` package is untouched.
 
 ## Verification — 2026-11-16 (workspace gate, Rust ↔ Go boundary)
 
@@ -187,7 +194,8 @@ rerun on 2026-11-17.
   (T1–T7).
 - `cargo test -p semantic-engine --test protocol_validation` — 4 passed.
 - `cargo test -p semantic-core -p semantic-engine -p visualner -p imagecatalog`
-  — all passed.
+  — all passed (recorded before the 2026-11-17 exclusion: `imagecatalog` is now
+  standalone, `cargo test --manifest-path imagecatalog/Cargo.toml`).
 - `cargo fmt --all -- --check` and clippy on the touched crates — clean.
 - Release probe (20 scenes): with UDPipe p50/p95/p99 = 1.438/1.503/1.551 s;
   model-free 77.9/88.7/98.6 ms.
@@ -303,6 +311,10 @@ These do not reopen the tickets; they are owner gates outside this checkout:
 - **07** — no consumer to wire: the Rust `imagecatalog` crate is offline by the
   13b decision and the Go `entitycatalog` is the live registry, so the manifest
   saving stays latent. Adopting the crate would replace `entitycatalog`.
+- **22 / release** — `v0.3.6` is pinned in `refactored` and predates `940abcc`
+  (localized plans with disabled editorial cards) and `d3b77d6` (`quality_gate`).
+  `v0.3.7` must be tagged on `d3b77d6`, published with the eight ICU 72 assets,
+  then pinned; TICKET-22 closes only after that and the Go gate is deleted.
 - **08/10** — human gold annotations and the multimodal model/schema/calibrated
   association set are still required.
 - **12** — the revised measured SLO needs owner agreement. The Rust contract,

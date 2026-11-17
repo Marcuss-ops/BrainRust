@@ -42,6 +42,8 @@ cargo test -p semantic-engine --lib       # 47/47
 cargo test -p semantic-core --lib         # 139/139
 cargo clippy -p semantic-core -p semantic-engine -p imagecatalog \
   -p pipelinegen-muscles --all-targets -- -D warnings
+# `imagecatalog` is a standalone excluded workspace since 2026-11-17:
+# cargo clippy --manifest-path imagecatalog/Cargo.toml --all-targets
 ```
 
 ## Residual

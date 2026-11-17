@@ -173,6 +173,20 @@ def validate(gold: dict, errors: list[str], warnings: list[str]) -> dict:
         errors.append("scripts must be a non-empty object")
         return {}
 
+    negative = gold.get("chart_negative_set")
+    if not isinstance(negative, list) or len(negative) < 20:
+        errors.append("chart_negative_set must contain at least 20 paragraphs")
+        negative = []
+    else:
+        for index, case in enumerate(negative):
+            if (not isinstance(case, dict)
+                    or case.get("language") not in CORPUS_LANGUAGES
+                    or not isinstance(case.get("text"), str)
+                    or not case["text"].strip()):
+                errors.append(
+                    f"chart_negative_set[{index}] needs a corpus language and non-empty text"
+                )
+
     vocab = object_vocabulary()
     stats = {
         "scripts": 0,
@@ -181,6 +195,7 @@ def validate(gold: dict, errors: list[str], warnings: list[str]) -> dict:
         "languages": set(),
         "draft_scripts": [],
         "capability_gaps": 0,
+        "chart_negative_cases": len(negative),
     }
     for script_id, spec in sorted(scripts.items()):
         if not isinstance(spec, dict):

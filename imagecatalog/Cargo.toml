@@ -13,10 +13,14 @@ path = "src/main.rs"
 
 [dependencies]
 semantic-engine = { path = "../semantic-engine" }
-semantic-core = { workspace = true }
-ndjson-stdio = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
+semantic-core = { path = "../semantic-core" }
+ndjson-stdio = { path = "../ndjson-stdio" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
 
-[lints]
-workspace = true
+# Standalone package: excluded from the workspace root, so workspace
+# inheritance is not available here. Keep the lint invariant explicit.
+[lints.rust]
+unsafe_code = "deny"
+
+[workspace]

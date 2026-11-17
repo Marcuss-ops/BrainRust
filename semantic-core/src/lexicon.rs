@@ -66,8 +66,8 @@ pub use legal::{
 pub use orthography::{Abbreviations, EraMarker, Orthography};
 pub use profiles::{DateOrder, LanguageProfile, LanguageProfiles, ScriptProfile, Stopwords};
 pub use vocabulary::{
-    EntityGazetteer, LocationCues, MonthAlias, MonthEntry, Months, ObjectVocabulary, Place,
-    ScaleWords,
+    EntityGazetteer, LocationCues, MonthAlias, MonthEntry, Months, ObjectVocabulary, OrderedSteps,
+    Place, PlaceInflections, ScaleWords,
 };
 
 /// The complete loaded lexicon.
@@ -86,6 +86,13 @@ pub struct Lexicon {
     pub minor_place_aliases: std::collections::HashSet<String>,
     /// Lowercased ambiguous aliases per language, built once.
     pub place_ambiguities: BTreeMap<String, std::collections::HashSet<String>>,
+    /// Locale-scoped inflected place surfaces and their canonical targets.
+    pub place_inflections: PlaceInflections,
+    /// Language -> lowercased inflected surface, built once.
+    pub inflected_place_index: BTreeMap<String, std::collections::HashSet<String>>,
+    /// Language -> lowercased inflected surface -> canonical place name.
+    pub place_canonicals: BTreeMap<String, BTreeMap<String, String>>,
+    pub ordered_steps: OrderedSteps,
     pub scale_words: ScaleWords,
     pub location_cues: LocationCues,
     pub process_phases: ProcessPhases,
@@ -148,6 +155,33 @@ fn build_place_ambiguities(
 /// collide with person names ("João Ribeiro").
 const MINOR_PLACE_ALIAS_POPULATION: u64 = 50_000;
 
+/// Builds the language-scoped alias lookup and its canonical target. The
+/// mapping is exact and data-driven: a surface is never fuzzy-matched against
+/// the 69k-place index.
+fn build_inflected_place_index(
+    place_inflections: &PlaceInflections,
+) -> (
+    BTreeMap<String, std::collections::HashSet<String>>,
+    BTreeMap<String, BTreeMap<String, String>>,
+) {
+    let mut index: BTreeMap<String, std::collections::HashSet<String>> = BTreeMap::new();
+    let mut canonicals: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+    for (language, table) in &place_inflections.languages {
+        let key = language.split(['-', '_']).next().unwrap_or("").to_string();
+        for (canonical, forms) in &table.places {
+            for form in forms {
+                let lower = form.to_lowercase();
+                index.entry(key.clone()).or_default().insert(lower.clone());
+                canonicals
+                    .entry(key.clone())
+                    .or_default()
+                    .insert(lower, canonical.clone());
+            }
+        }
+    }
+    (index, canonicals)
+}
+
 fn build_place_index(
     gazetteer: &EntityGazetteer,
 ) -> (
@@ -209,6 +243,12 @@ impl Lexicon {
             }
             let (place_index, minor_place_aliases) = build_place_index(&gazetteer);
             let place_ambiguities = build_place_ambiguities(&gazetteer);
+            let place_inflections: PlaceInflections = load_table(
+                "place_inflections.json",
+                include_str!("../../lexicon/place_inflections.json"),
+            );
+            let (inflected_place_index, place_canonicals) =
+                build_inflected_place_index(&place_inflections);
             let months: Months =
                 load_table("months.json", include_str!("../../lexicon/months.json"));
             let month_date_scan_table = months.date_scan_table();
@@ -234,6 +274,13 @@ impl Lexicon {
                 place_index,
                 minor_place_aliases,
                 place_ambiguities,
+                place_inflections,
+                inflected_place_index,
+                place_canonicals,
+                ordered_steps: load_table(
+                    "ordered_steps.json",
+                    include_str!("../../lexicon/ordered_steps.json"),
+                ),
                 scale_words: load_table(
                     "scale_words.json",
                     include_str!("../../lexicon/scale_words.json"),
@@ -303,6 +350,28 @@ impl Lexicon {
         if self.minor_place_aliases.contains(&lower) {
             return false;
         }
+        // A named negative word with the same ending is never a place in its
+        // own language, even when the global index would accept it.
+        if self
+            .place_inflections
+            .languages
+            .get(key)
+            .is_some_and(|table| {
+                table
+                    .blocklist
+                    .iter()
+                    .any(|word| word.to_lowercase() == lower)
+            })
+        {
+            return false;
+        }
+        if self
+            .inflected_place_index
+            .get(key)
+            .is_some_and(|forms| forms.contains(&lower))
+        {
+            return true;
+        }
         // A month name of the current language is a calendar word, not a
         // place. The closed month table (CLDR-derived `months.json`) decides
         // this — the same seam as the ambiguity table for words like
@@ -316,6 +385,28 @@ impl Lexicon {
             return false;
         }
         self.place_index.contains(&lower)
+    }
+
+    /// Canonical place name for a locale-scoped inflected surface. This is
+    /// exact alias resolution, never a fuzzy match against the gazetteer.
+    pub fn canonical_place(&self, surface: &str, language: &str) -> Option<&str> {
+        let key = language.split(['-', '_']).next().unwrap_or("");
+        self.place_canonicals
+            .get(key)?
+            .get(&surface.to_lowercase())
+            .map(String::as_str)
+    }
+
+    /// Canonical surface for query composition when the language's documented
+    /// policy uses the nominative apposition (Polish). `None` keeps the source
+    /// surface (Russian).
+    pub fn canonical_query_place(&self, surface: &str, language: &str) -> Option<&str> {
+        let key = language.split(['-', '_']).next().unwrap_or("");
+        self.place_inflections
+            .languages
+            .get(key)
+            .filter(|table| table.query_form == "canonical")?;
+        self.canonical_place(surface, language)
     }
 
     /// Object terms of one BCP-47 language; empty for unsupported languages.

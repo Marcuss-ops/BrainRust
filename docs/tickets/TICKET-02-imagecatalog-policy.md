@@ -33,7 +33,7 @@
 ## Acceptance evidence
 
 ```sh
-cargo test -p imagecatalog --lib --tests
+cargo test --manifest-path imagecatalog/Cargo.toml --lib --tests
 ```
 
 39/39 tests pass:

@@ -16,3 +16,7 @@ __pycache__/
 
 # Release binaries are published through GitHub Releases, not the source tree.
 /dist-icu72/
+
+# `imagecatalog` is a standalone workspace (excluded from the root).
+/imagecatalog/target/
+/imagecatalog/Cargo.lock

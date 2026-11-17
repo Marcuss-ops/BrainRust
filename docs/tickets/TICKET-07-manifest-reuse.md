@@ -36,7 +36,7 @@ owned the certified manifest for the same scenes, duplicating CPU work.
 ## Acceptance evidence
 
 ```sh
-cargo test -p imagecatalog --lib --tests
+cargo test --manifest-path imagecatalog/Cargo.toml --lib --tests
 ```
 
 39/39 tests pass: 24 catalog/unit tests, 3 live-fixture tests, 7 manifest

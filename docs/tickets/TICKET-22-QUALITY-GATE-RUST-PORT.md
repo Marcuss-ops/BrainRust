@@ -1,7 +1,8 @@
 # TICKET-22 — Port the editorial quality gate to Rust
 
 - Priority: P2
-- Status: DONE (2026-11-17)
+- Status: PARTIAL (2026-11-17) — implemented and gate-tested; production
+  cutover gated on a release containing `quality_gate`
 - Source: follow-up to the 2026-11-16 architecture audit
 - Depends on: TICKET-18 (Rust language profiles)
 - Blocks: none
@@ -28,6 +29,15 @@ Request: `{ "operation": "quality_gate", "item", "plan", "result" }`.
 Response: `{ "ok": true, "quality": { ... }, "reasons": [...] }`.
 `ok` is protocol success; `quality.passed` is the gate verdict. A malformed
 request returns `{ "ok": false, "error": "..." }`.
+
+## Decision — 2026-11-17
+
+The port stays, but it is not adopted. The chosen path is the cutover in the
+next release, not a deletion: `quality_gate` exists on `HEAD` (`d3b77d6`) and
+not in `v0.3.6`, so the Go gate remains the production default until `v0.3.7`
+is published and `BRAINRUST_VERSION` is bumped. TICKET-22 is PARTIAL, not
+DONE, until `generation_finalize.go` calls the Rust operation and the Go
+implementation is deleted.
 
 ## Acceptance criteria
 
@@ -63,9 +73,8 @@ production path was changed.
 - `go test ./internal/capabilities/scripts/usecase/qualitygate -count=1` —
   **ok, 0.022 s**.
 - `git diff --check` in the root and in `BrainRust` — **rc 0**.
-- Commit state: **uncommitted working tree**. The new crate, the
-  `semantic-engine` operation and this ticket are staged nowhere; the Go
-  `qualitygate` package is untouched.
+- Commit state: `d3b77d6` (local). The earlier "uncommitted working tree"
+  note is superseded by that commit; the tag `v0.3.6` predates it.
 
 ## Non-goals
 

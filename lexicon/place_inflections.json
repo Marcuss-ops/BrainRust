@@ -1,0 +1,27 @@
+{
+  "schema": "lexicon.v1",
+  "languages": {
+    "pl": {
+      "query_form": "canonical",
+      "places": {
+        "Poznań": ["Poznaniu"],
+        "Kraków": ["Krakowie"],
+        "Warszawa": ["Warszawie"],
+        "Gdańsk": ["Gdańsku"],
+        "Wrocław": ["Wrocławiu"]
+      },
+      "blocklist": ["daniu", "staniu", "panu", "domu", "potem", "następnie", "wreszcie"]
+    },
+    "ru": {
+      "query_form": "source",
+      "places": {
+        "Казань": ["Казани"],
+        "Самара": ["Самаре"],
+        "Москва": ["Москве"],
+        "Новосибирск": ["Новосибирске"],
+        "Екатеринбург": ["Екатеринбурге"]
+      },
+      "blocklist": ["бане", "маме", "папе", "руке", "доме", "затем", "наконец"]
+    }
+  }
+}
