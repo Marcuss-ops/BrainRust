@@ -367,9 +367,22 @@ pub(super) fn attach_resolved_entity_images(mut items: Vec<PlanItemV2>) -> Vec<P
         if chain_family(&item.kind) != "card" && chain_family(&item.kind) != "image" {
             continue;
         }
-        donors
-            .entry(id.to_string())
-            .or_insert_with(|| item.asset_refs.clone());
+        // Only a renderable, content-addressed asset may be copied onto a card.
+        // The same rule guards `append_verified_intent_images`: an unverified
+        // portrait would reach the renderer as an impossible path and fail the
+        // whole plan downstream.
+        let verified: Vec<AssetRefV2> = item
+            .asset_refs
+            .iter()
+            .filter(|asset| {
+                !asset.url.trim().is_empty() && asset.sha256.trim().len() == 64
+            })
+            .cloned()
+            .collect();
+        if verified.is_empty() {
+            continue;
+        }
+        donors.entry(id.to_string()).or_insert(verified);
     }
     if donors.is_empty() {
         return items;
@@ -391,6 +404,13 @@ pub(super) fn attach_resolved_entity_images(mut items: Vec<PlanItemV2>) -> Vec<P
     items
 }
 
+// Identity ownership (ADR-029 exception 2): the planner carries the bytes a card
+// needs, but it never takes the card→image decision. The catalog-backed half of
+// that decision needs the certified-portrait index (PostgreSQL, PipelineGen) and
+// the seeded preset sampler whose candidate vocabulary is Chronon-owned, so
+// PipelineGen promotes the card and this file only supplies assets. The test
+// below pins that split: a future edit that starts writing `kind` or
+// `preset_id` here would create a second decision site and fail loudly.
 const ENTITY_STYLE_BELOW: &str = "premium_below_random_v1";
 
 const ENTITY_CARD_IMAGE_PRESET: &str = "image_scale_in";
@@ -398,6 +418,80 @@ const ENTITY_CARD_IMAGE_PRESET: &str = "image_scale_in";
 const ENTITY_CAPTION_FONT: &str = "playfair_display_italic";
 
 const ENTITY_CAPTION_COLOR: &str = "#000000";
+
+#[cfg(test)]
+mod identity_ownership_tests {
+    use super::*;
+
+    fn asset(id: &str, sha: &str) -> AssetRefV2 {
+        AssetRefV2 {
+            asset_id: id.to_string(),
+            url: format!("https://example.test/{id}.jpg"),
+            sha256: sha.to_string(),
+            media_type: "image/jpeg".to_string(),
+        }
+    }
+
+    /// A card that already has a donor portrait in the request must keep its
+    /// own kind, text and (empty) preset: attaching bytes is not promoting.
+    #[test]
+    fn attaching_a_resolved_image_never_takes_the_identity_decision() {
+        let card = PlanItemV2 {
+            id: "card-ada".to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "entity_card".to_string(),
+            template_id: "person_default".to_string(),
+            entity_id: "ent_ada".to_string(),
+            text: "Ada Lovelace".to_string(),
+            entity_caption: "Matematica".to_string(),
+            start_us: 0,
+            duration_us: 2_000_000,
+            ..Default::default()
+        };
+        let donor = PlanItemV2 {
+            id: "image-ada".to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "image".to_string(),
+            entity_id: "ent_ada".to_string(),
+            asset_refs: vec![asset("portrait-ada", &"1".repeat(64))],
+            ..Default::default()
+        };
+
+        let out = attach_resolved_entity_images(vec![card, donor]);
+        let card = &out[0];
+        assert_eq!("entity_card", card.kind, "the planner must not promote the card");
+        assert_eq!("person_default", card.template_id);
+        assert_eq!("Ada Lovelace", card.text, "the card keeps its own text");
+        assert!(card.preset_id.is_empty(), "preset selection belongs to the Go sampler");
+        assert!(card.image_preset_id.is_empty());
+        assert_eq!(1, card.asset_refs.len(), "the donor bytes are attached");
+        assert_eq!("portrait-ada", card.asset_refs[0].asset_id);
+    }
+
+    /// A card whose donor carries no content-hashed asset is not promoted and
+    /// gets no bytes: an unverified portrait must never reach the renderer.
+    #[test]
+    fn unverified_donors_attach_nothing() {
+        let card = PlanItemV2 {
+            id: "card-ada".to_string(),
+            kind: "entity_card".to_string(),
+            entity_id: "ent_ada".to_string(),
+            text: "Ada Lovelace".to_string(),
+            ..Default::default()
+        };
+        let donor = PlanItemV2 {
+            id: "image-ada".to_string(),
+            kind: "image".to_string(),
+            entity_id: "ent_ada".to_string(),
+            asset_refs: vec![asset("portrait-ada", "")],
+            ..Default::default()
+        };
+
+        let out = attach_resolved_entity_images(vec![card, donor]);
+        assert_eq!("entity_card", out[0].kind);
+        assert!(out[0].asset_refs.is_empty());
+    }
+}
 
 /// Assigns the run-level entity-card entrance and composition decisions after
 /// admission, so dropped cards never consume a pool slot.
