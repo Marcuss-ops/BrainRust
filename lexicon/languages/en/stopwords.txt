@@ -1,5 +1,5 @@
 # English stopwords — one word per line, lowercase
-# Merged from config/stopwords/en.txt and brain/intent/stopwords.go englishStopWords
+# Merged from the legacy Go stopword list (removed 2026-11-18) and brain/intent/stopwords.go englishStopWords
 the
 a
 an

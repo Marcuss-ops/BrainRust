@@ -23,14 +23,9 @@ The workspace has deliberately separate execution boundaries:
   linked ids, roles, glosses, negative constraints and typed intents from the
   packaged `entity_index.v1`; it does not search for assets or perform media
   I/O.
-- `imagecatalog` is an **experimental, unwired** snapshot planner. It consumes
-  an exported snapshot of the existing `entity_image_catalog_*` rows plus an
-  optional semantic annotation sidecar keyed by `candidate_id` and returns
-  deterministic per-scene decisions for offline analysis. It does not open
-  PipelineGen's database, download assets, render, or create a second catalog.
-  No Go composition root calls it, and the crate is excluded from the workspace
-member list so it does not enter `cargo test/clippy --workspace`; build it on
-demand with `cargo test --manifest-path imagecatalog/Cargo.toml`. The live flow is documented in
+- `imagecatalog` was **retired on 2026-11-18** (TICKET-28) and its crate
+  directory was deleted. It was an offline experiment with no Go consumer and
+  a second copy of the catalog policy; the live flow is documented in
   `refactored/docs/operations/entity-image-pipeline-flow.md`. Video, stock
   clips and SFX are out of scope. The NDJSON worker accepts scenes or an
   optional `semantic_manifest.v3`; it validates the schema, scene identity and
@@ -90,6 +85,34 @@ are computed inside the same unified worker batch. The legacy standalone
 Phrase Impact worker and the opt-in Scene Intelligence shadow path were
 retired on 2026-10-25 after parity evidence was recorded (see
 [`../docs/stato/brainrust.md`](../docs/stato/brainrust.md)).
+
+## Shared text knowledge
+
+Text normalization lives in **one** place: `semantic-core/src/text.rs`. It owns
+the NFC + apostrophe folding, the token splitters (`normalize_token`,
+`fragment_tokens`, `phrase_tokens`) and the classification predicates
+(`is_numeric_token`, `is_dash_separator`, `is_edge_punctuation`). Callers do not
+carry local copies: `semantic-core::phrase_align`, the editorial planner
+(`overlay-compiler::editorial_plan_v2::{projection,planner}`) and
+`overlay-compiler::chapter_bullet` all import the shared module.
+
+The single edge-trim policy is a reasoned superset of the three former local
+policies: ASCII punctuation (including `$` and `+`) plus the Unicode
+punctuation ranges are stripped at both ends; the apostrophe is never removed
+from the middle of a word and only trimmed at the tail, so `'ndrangheta` stays
+intact while a dangling `l'` is cut. Chart values are parsed by the one
+`overlay-compiler/src/numeric.rs::parse_chart_value`; the planner and the
+projection both import it instead of keeping a copy each.
+
+The dependency direction follows that rule: `overlay-compiler` depends on
+`semantic-core` (never the reverse) because the compiler consumes semantic
+tokens; `pipelinegen-muscles` keeps its plan types (`render_audio_plan`,
+`render_stock_canonical_plan`) at the crate root and its canonical A/V
+constants in the leaf `config` module, so `protocol` never imports a renderer
+and the crate has no module cycle. `semantic-engine` answers every failure with
+the additive envelope `{ok:false, error_code:"decode"|"unsupported_operation"|
+"execution", error:"human readable"}`; `error_code` is machine-stable while
+`error` keeps the pre-existing text for current consumers.
 
 ## Local check
 

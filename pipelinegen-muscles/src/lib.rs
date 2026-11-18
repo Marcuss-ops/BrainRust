@@ -30,7 +30,13 @@ mod probe;
 mod process;
 mod protocol;
 mod render_audio;
+// Compiled plans are contract inputs, not executor internals: the request DTO
+// holds them, so they must sit *below* `protocol` in the module graph. They
+// were compiled as submodules of the executors, which made the wire contract
+// depend on the implementation and closed a module cycle.
+mod render_audio_plan;
 mod render_stock;
+mod render_stock_canonical_plan;
 mod transform;
 
 pub use dispatcher::{process, run_stdio};

@@ -3,7 +3,8 @@
 
 use super::Era::Bce;
 use super::{
-    RawFact, TemporalFact, PRECISION_DAY, PRECISION_MONTH, PRECISION_UNRESOLVED, PRECISION_YEAR,
+    days_in_month, RawFact, TemporalFact, PRECISION_DAY, PRECISION_MONTH, PRECISION_UNRESOLVED,
+    PRECISION_YEAR,
 };
 
 //–––––––––––––––––––––––––– Resolution pass –––––––––––––––––––––––––––––––
@@ -68,14 +69,5 @@ fn iso_fact(year: i32, month: Option<u8>, day: Option<u8>) -> String {
         (Some(month), Some(day)) => format!("{year_text}-{month:02}-{day:02}"),
         (Some(month), None) => format!("{year_text}-{month:02}"),
         _ => year_text,
-    }
-}
-fn days_in_month(month: u8, year: i32) -> u8 {
-    match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
-        2 => 28,
-        _ => 0,
     }
 }

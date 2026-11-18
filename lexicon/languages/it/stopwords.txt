@@ -1,5 +1,5 @@
 # Italian stopwords — one word per line, lowercase
-# Merged from config/stopwords/it.txt and brain/intent/stopwords.go italianStopWords
+# Merged from the legacy Go stopword list (removed 2026-11-18) and brain/intent/stopwords.go italianStopWords
 il
 lo
 la

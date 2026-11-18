@@ -1,5 +1,5 @@
 # Portuguese stopwords — one word per line, lowercase
-# From config/stopwords/pt.txt
+# From the legacy Go stopword list (removed 2026-11-18)
 o
 a
 os

@@ -11,14 +11,14 @@ use event_filter::*;
 use loudness::*;
 use sources::SourceCaches;
 
-use super::plan::{track_events, validate_plan};
+use crate::render_audio_plan::{track_events, validate_plan};
 
-use super::plan::{Automation, Plan};
 use super::probe::{probe_audio, probe_source, SourceProbe};
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::hash::sha256_file;
 use crate::process::{wait_child_with_deadline, FFmpegRunner};
 use crate::protocol::{AudioAsset, Request, Response};
+use crate::render_audio_plan::{Automation, Plan};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;

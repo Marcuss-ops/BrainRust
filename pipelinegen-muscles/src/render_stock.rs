@@ -7,12 +7,6 @@ use std::path::Path;
 mod effects;
 #[path = "render_stock_canonical_executor.rs"]
 mod executor;
-#[path = "render_stock_canonical_plan.rs"]
-pub(crate) mod plan;
-
-/// Sealed canonical plan, re-exported so the protocol boundary holds the
-/// typed plan instead of an untyped JSON value.
-pub(crate) use plan::CanonicalRenderPlan as SealedCanonicalPlan;
 
 // Runtime stock rendering is canonical-plan-only. Legacy render implementations
 // have been physically removed; requests without render_plan fail closed.
@@ -29,7 +23,7 @@ pub(crate) fn execute(request: Request) -> Response {
             );
         }
     };
-    if let Err(error) = plan::validate_canonical_plan(&plan) {
+    if let Err(error) = crate::render_stock_canonical_plan::validate_canonical_plan(&plan) {
         return failed_response(None, error);
     }
     let output = match request.output_path.as_deref() {

@@ -32,6 +32,7 @@ mod numeric;
 mod phrases;
 mod pipeline;
 mod pos;
+pub use pos::cached_model_slots;
 mod ranking;
 mod stopwords;
 mod tokenizer;

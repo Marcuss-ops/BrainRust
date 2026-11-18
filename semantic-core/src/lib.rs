@@ -16,10 +16,11 @@
 //!   └── semantic-engine   (the NDJSON worker)  -> builds the manifest
 //! ```
 //!
-//! Unification here means ONE numeric parser, ONE date normalizer, ONE
-//! identity registry and ONE relation vocabulary — not one giant file. Each
-//! collector keeps its tokenizer-specific span detection; the parse and the
-//! typed projection live here so two paths can never disagree about a value.
+//! Unification here means ONE numeric parser, ONE date normalizer, ONE token
+//! normalizer (`text`), ONE identity registry and ONE relation vocabulary — not
+//! one giant file. Each collector keeps its tokenizer-specific span detection;
+//! the parse and the typed projection live here so two paths can never
+//! disagree about a value or about which phrase matches a timing stream.
 
 #![deny(unsafe_code)]
 
@@ -47,6 +48,7 @@ pub mod phrase_impact;
 pub mod phrase_select;
 pub mod relations;
 pub mod sentences;
+pub mod text;
 
 pub use bullets::{BulletCandidate, BulletSignal, SignalKind};
 pub use dates::{temporal_facts, TemporalFact};

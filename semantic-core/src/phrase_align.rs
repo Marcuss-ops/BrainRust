@@ -10,7 +10,8 @@
 //! timestamp is interpolated: a phrase that does not align fails closed.
 
 use serde::{Deserialize, Serialize};
-use unicode_normalization::UnicodeNormalization;
+
+use crate::text::{fragment_tokens, is_numeric_token, phrase_tokens};
 
 /// One certified word boundary, in the same order as the speech artifact.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -122,19 +123,6 @@ fn tokens_match(query_token: &str, timing_token: &str) -> bool {
     )
 }
 
-fn is_numeric_token(token: &str) -> bool {
-    let mut seen_dot = false;
-    let mut seen_digit = false;
-    for r in token.chars() {
-        match r {
-            '0'..='9' => seen_digit = true,
-            '.' | ',' if !seen_dot => seen_dot = true,
-            _ => return false,
-        }
-    }
-    seen_digit
-}
-
 fn describe_mismatch(query: &[String], normalized: &[String]) -> String {
     let limit = query.len().min(normalized.len());
     for i in 0..limit {
@@ -154,84 +142,6 @@ fn describe_mismatch(query: &[String], normalized: &[String]) -> String {
         "query={} tokens, timing={} tokens (shared prefix, no full alignment)",
         query.len(),
         normalized.len()
-    )
-}
-
-fn phrase_tokens(phrase: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for field in phrase.split_whitespace() {
-        out.extend(fragment_tokens(field));
-    }
-    out
-}
-
-fn fragment_tokens(field: &str) -> Vec<String> {
-    field
-        .split(|r: char| r.is_whitespace() || is_dash_separator(r))
-        .filter_map(normalize_token)
-        .collect()
-}
-
-fn normalize_token(fragment: &str) -> Option<String> {
-    let nfc: String = fragment.nfc().collect();
-    let mut folded = String::with_capacity(nfc.len());
-    for r in nfc.chars().flat_map(char::to_lowercase) {
-        folded.push(fold_apostrophe(r));
-    }
-    let trimmed = folded.trim_matches(is_unicode_punctuation);
-    let trimmed = trimmed.trim_end_matches('\'');
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
-fn fold_apostrophe(r: char) -> char {
-    match r {
-        '\u{2018}' | '\u{2019}' | '\u{201B}' | '\u{02BC}' => '\'',
-        other => other,
-    }
-}
-
-fn is_dash_separator(r: char) -> bool {
-    matches!(
-        r,
-        '-' | '\u{2010}'
-            | '\u{2011}'
-            | '\u{2012}'
-            | '\u{2013}'
-            | '\u{2014}'
-            | '\u{2015}'
-            | '\u{2212}'
-    )
-}
-
-/// Unicode punctuation used by the canonical token edge trim. Rust's std does
-/// not expose a stable Unicode general-category predicate, so this covers the
-/// ASCII/Latin/GPP/CJK punctuation ranges the pipeline actually receives.
-fn is_unicode_punctuation(r: char) -> bool {
-    matches!(
-        r,
-        '!'..='#'
-            | '%'..='*'
-            | ','..='/'
-            | ':'..='@'
-            | '['..=']'
-            | '_'
-            | '{'..='~'
-            | '\u{00A1}'
-            | '\u{00AB}'
-            | '\u{00B7}'
-            | '\u{00BB}'
-            | '\u{00BF}'
-            | '\u{2010}'..='\u{2027}'
-            | '\u{2030}'..='\u{205E}'
-            | '\u{3001}'..='\u{303F}'
-            | '\u{FF01}'..='\u{FF0F}'
-            | '\u{FF1A}'..='\u{FF20}'
-            | '\u{FF3B}'..='\u{FF40}'
-            | '\u{FF5B}'..='\u{FF65}'
     )
 }
 

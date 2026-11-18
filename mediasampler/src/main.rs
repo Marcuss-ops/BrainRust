@@ -99,6 +99,8 @@ struct LocalScoreQueryOwned {
     source: String,
     #[serde(default)]
     min_duration_ms: i64,
+    #[serde(default)]
+    language: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,6 +114,8 @@ struct LocalScoreCandidateOwned {
     source: String,
     #[serde(default)]
     duration_ms: i64,
+    #[serde(default)]
+    language: String,
 }
 
 /// Applies the optional data-driven table overrides from the request.
@@ -372,6 +376,7 @@ fn process_local_score(line: &str) -> String {
         tags: &request.query.tags,
         source: &request.query.source,
         min_duration_ms: request.query.min_duration_ms,
+        language: &request.query.language,
     };
     let candidates: Vec<_> = request
         .candidates
@@ -382,6 +387,7 @@ fn process_local_score(line: &str) -> String {
             tags: &candidate.tags,
             source: &candidate.source,
             duration_ms: candidate.duration_ms,
+            language: &candidate.language,
         })
         .collect();
     let scores = score_local(&query, &candidates);

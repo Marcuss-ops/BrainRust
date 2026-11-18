@@ -8,6 +8,9 @@ pub struct LocalScoreCandidate<'a> {
     pub tags: &'a [String],
     pub source: &'a str,
     pub duration_ms: i64,
+    /// BCP-47 language of the catalog row (media_assets.language). Empty
+    /// means unknown and is never penalised.
+    pub language: &'a str,
 }
 
 #[derive(Debug, Clone)]
@@ -16,6 +19,9 @@ pub struct LocalScoreQuery<'a> {
     pub tags: &'a [String],
     pub source: &'a str,
     pub min_duration_ms: i64,
+    /// Requested BCP-47 language. Empty means "no language preference", so
+    /// existing callers keep their scores unchanged.
+    pub language: &'a str,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -43,7 +49,9 @@ pub fn score_local(
                     + 0.25 * tag_overlap_score(candidate.tags, query.tags)
                     + 0.10 * exact_match_score(candidate.source, query.source)
                     + 0.10 * duration_fit_score(candidate.duration_ms, query.min_duration_ms)
-            };
+                    + 0.10 * language_match_score(candidate.language, query.language)
+            }
+            .clamp(0.0, 1.0);
             LocalScoreResult {
                 id: candidate.id.to_string(),
                 score,
@@ -118,6 +126,22 @@ fn duration_fit_score(duration_ms: i64, min_duration_ms: i64) -> f64 {
     }
 }
 
+/// Language is a symmetric soft signal: +1.0 for the requested language,
+/// -1.0 for a known different one, 0.0 when either side is unknown. The
+/// weight (0.10) makes language worth exactly one duration-fit seat, which is
+/// the documented amount in TICKET-MEDIA-ASSETS-LANGUAGE-COLUMN.
+fn language_match_score(candidate: &str, query: &str) -> f64 {
+    let candidate = candidate.trim().to_lowercase();
+    let query = query.trim().to_lowercase();
+    if candidate.is_empty() || query.is_empty() {
+        0.0
+    } else if candidate == query {
+        1.0
+    } else {
+        -1.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,6 +155,7 @@ mod tests {
             tags: &query_tags,
             source: "artlist",
             min_duration_ms: 1_000,
+            language: "",
         };
         let candidates = [LocalScoreCandidate {
             id: "apple",
@@ -138,6 +163,7 @@ mod tests {
             tags: &candidate_tags,
             source: "artlist",
             duration_ms: 1_000,
+            language: "",
         }];
 
         let scores = score_local(&query, &candidates);
@@ -153,6 +179,7 @@ mod tests {
             tags: &[],
             source: "",
             min_duration_ms: 0,
+            language: "",
         };
         let candidates = [LocalScoreCandidate {
             id: "blank",
@@ -160,6 +187,7 @@ mod tests {
             tags: &[],
             source: "",
             duration_ms: 1_000,
+            language: "",
         }];
 
         assert_eq!(score_local(&query, &candidates)[0].score, 0.50);
@@ -172,6 +200,7 @@ mod tests {
             tags: &[],
             source: "",
             min_duration_ms: 1_000,
+            language: "",
         };
         let candidates = [LocalScoreCandidate {
             id: "short",
@@ -179,8 +208,46 @@ mod tests {
             tags: &[],
             source: "",
             duration_ms: 999,
+            language: "",
         }];
 
         assert_eq!(score_local(&query, &candidates)[0].score, 0.40);
+    }
+
+    #[test]
+    fn language_changes_the_score_by_the_documented_weight() {
+        let tags = vec!["fruit".to_string()];
+        let query = LocalScoreQuery {
+            text: "red apple",
+            tags: &tags,
+            source: "artlist",
+            min_duration_ms: 1_000,
+            language: "it",
+        };
+        let same = LocalScoreCandidate {
+            id: "same",
+            title: "red apple",
+            tags: &tags,
+            source: "artlist",
+            duration_ms: 1_000,
+            language: "it",
+        };
+        let cross = LocalScoreCandidate {
+            language: "en",
+            id: "cross",
+            ..same.clone()
+        };
+        let unknown = LocalScoreCandidate {
+            language: "",
+            id: "unknown",
+            ..same.clone()
+        };
+
+        let scores = score_local(&query, &[same, cross, unknown]);
+        // Same language: base 0.85 + 0.10. Cross language: 0.85 - 0.10.
+        assert_eq!(scores[0].score, 0.95);
+        assert_eq!(scores[1].score, 0.75);
+        // Unknown is neutral: the pre-language score is preserved.
+        assert_eq!(scores[2].score, 0.85);
     }
 }

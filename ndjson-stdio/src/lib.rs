@@ -236,7 +236,8 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
-    /// The request line is not valid JSON for the worker's request type.
+    /// The request line is not valid JSON for the worker's request type, or
+    /// it decodes into a shape the worker refuses before executing anything.
     Decode,
     /// The envelope `version` is not one the worker implements.
     UnsupportedVersion,

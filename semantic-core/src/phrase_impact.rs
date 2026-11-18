@@ -224,7 +224,7 @@ pub struct Request {
     #[serde(default)]
     pub lexical_only: bool,
     /// The caller-supplied phrase stop-word set for `language`, resolved from
-    /// the repository lexicon (config/lexicons/<lang>/) at request time. This
+    /// the Rust lexicon packs (`lexicon/packs/<lang>.json`) at request time. This
     /// crate carries no language word lists of its own: keyphrase extraction is
     /// ONE language-independent algorithm whose only language-specific input is
     /// this set, so the same code path serves every language the lexicon

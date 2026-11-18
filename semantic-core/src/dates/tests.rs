@@ -28,6 +28,20 @@ fn assert_grounded(text: &str, all: &[TemporalFact]) {
     }
 }
 
+#[test]
+fn calendar_math_matches_the_gregorian_rule_everywhere() {
+    assert!(is_leap_year(2000));
+    assert!(!is_leap_year(1900));
+    assert!(is_leap_year(2024));
+    assert!(!is_leap_year(2023));
+    assert_eq!(days_in_month(2, 2024), 29);
+    assert_eq!(days_in_month(2, 2023), 28);
+    assert_eq!(days_in_month(4, 2023), 30);
+    assert_eq!(days_in_month(12, 2023), 31);
+    assert_eq!(days_in_month(0, 2023), 0);
+    assert_eq!(days_in_month(13, 2023), 0);
+}
+
 fn spelled(text: &str, surface: &str, value: i64) -> SpelledNumber {
     let start = text.find(surface).expect("fixture surface");
     SpelledNumber {

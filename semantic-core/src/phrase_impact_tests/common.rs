@@ -6,7 +6,7 @@ use super::super::*;
 /// Reading real word lists keeps these tests honest: the crate holds NO language
 /// word list of its own, so a test that needs linguistic data must take it from
 /// the same data the production registry is seeded with. The vendored copy is
-/// refreshed from `PipelineGen/config/lexicons/` when that source changes; a
+/// refreshed from `lexicon/packs/` when that source changes; a
 /// language it does not enumerate resolves to the cross-linguistic `fallback`
 /// profile, exactly as the registry does it in Go.
 pub(super) fn lexicon_stopwords(language: &str) -> Vec<String> {

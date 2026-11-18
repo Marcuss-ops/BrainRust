@@ -4,16 +4,18 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-17. **22 DONE, 1 PARTIAL, 0 OPEN, 3 BLOCKED (08, 10, 26).**
+Last verified: 2026-11-18. **24 DONE, 0 PARTIAL, 0 OPEN, 4 BLOCKED (08, 10, 26, 27).**
 
 Tickets 15–20 are the 2026-11-16 external-audit follow-ups, and all six are
 now DONE (15 phrase selection, 16 MediaMemory ranker, 17 visual budget/chain,
 18 linguistics, 19 phrase-timing alignment, 20 identity localization), along
 with 21 (Rust-side hotspot remediation). TICKET 22 ports the editorial quality
-gate to Rust (`script-qa` plus `quality_gate` on `semantic-engine`) and is
-PARTIAL (2026-11-17): the port and its 240 tests are landed, but the production
-cutover is gated on `v0.3.7`, the first release that contains `quality_gate`.
-The Go gate remains the production default. Tickets 23–26 record the measured
+gate to Rust (`script-qa` plus `quality_gate` on `semantic-engine`) and is DONE
+in the working tree as of 2026-11-18: the Go implementation, its flag and its
+knob are deleted, the pin is `v0.3.7`, and a 27-scenario Go↔Rust differential
+is byte-identical. The cutover and the Rust goldens are committed as of
+2026-11-18 (see TICKET-22); publishing the `v0.3.7` release (TICKET-27) is the
+other external step. Tickets 23–26 record the measured
 engine and Gate D gaps that had no sheet; 23 (ordered sequences), 24 (Slavic
 inflected toponyms) and 25 (bare chart cue) are DONE on 2026-11-17, and 26
 remains externally blocked. The audit reconciliation is
@@ -53,11 +55,13 @@ Status vocabulary:
 | [19](TICKET-19-linguistic-temporal-alignment.md) | P2 | DONE | `semantic-core::phrase_align` + `align_phrases` + `SemanticEngineAdapter.AlignPhrases` own exact phrase alignment; `CompilePhraseTimings`/`CompileSceneSpeechTimings` project the worker result. The endpoint fallback has no production caller. The entity/moment follow-up is closed 2026-11-17: `audio/phrase_locator.go` and `audio.LocatePhrase` are gone (`refactored@8f159549b`) and the voiceover/entity paths send one `align_phrases` request per segment. |
 | [20](TICKET-20-identity-localization-consolidation.md) | P2 | DONE (2026-11-16) | Rust owns localized identity matching (`localize_identities`: exact, pl/de/tr inflection, ru/tr/pl ordered fallback). Go builds the typed request, validates every span and projects the source id/image/geo; a missing id fails closed. The old Go matcher is test-only. |
 | [21](TICKET-21-hotspot-remediation.md) | P2 | DONE (2026-11-16) | Rust-side hotspot remediation: `render_audio_execution::execute` 419→39 lines with the stages split and `RenderError` at the boundary; `planner.rs` 2,671 production lines split into five modules with `compile_plan` untouched and the frozen goldens byte-identical (64 lib + 30 contract pass); one `entity_search_candidate` factory; one `run_ffprobe` invocation with per-caller wording preserved; `visualner` no-op "fail-closed" dead code deleted; pre-existing `match_like_matches_macro` lint in `phrase_align.rs` fixed. |
-| [22](TICKET-22-QUALITY-GATE-RUST-PORT.md) | P2 | PARTIAL (2026-11-17) | Rust `script-qa` implements the eight editorial rules and the `quality_gate` NDJSON operation; 28 Go parity scenarios, 3 protocol tests and the full 29-suite/240-test run are green. Not adopted: the Go gate remains the production default until `v0.3.7` ships `quality_gate` and the Go path is deleted. |
+| [22](TICKET-22-QUALITY-GATE-RUST-PORT.md) | P2 | DONE (committed 2026-11-18; bound: v0.3.7 publication) | Rust `script-qa` is the only editorial gate in the working tree: 8 rules, `quality_gate` on `semantic-engine`, 27 frozen Go goldens plus 3 protocol tests green, and a 27/27 byte-identical Go↔Rust differential against the release binary. The Go package (866 lines), `VELOX_RUST_QUALITY_GATE` and the knob are deleted; the pin is `v0.3.7`. The PipelineGen deletion and the BrainRust goldens are uncommitted; publishing the tag is TICKET-27. |
 | [23](TICKET-23-ordered-sequences.md) | P1 | DONE (2026-11-17) | Ordered sequences: **80/80** items in **20/20** grounded, source-ordered four-member groups; negative set 0 false positives. |
 | [24](TICKET-24-slavic-inflected-toponyms.md) | P1 | DONE (2026-11-17) | Locale-scoped inflected alias table resolves `Poznaniu`, `Krakowie`, `Казани`, `Самаре`; pl/ru contextual queries **2/2 each**, overall **20/20**; objects unchanged at 93/105 vs untouched HEAD. |
 | [25](TICKET-25-chart-bare-contrastive-cue.md) | P2 | DONE (2026-11-17) | Chart recall **20/20**; the bare `a`/`а` rule requires two grounded values and substantive words on both sides, and a 20-paragraph negative set produces **0 charts**. |
 | [26](TICKET-26-provider-precision-at-10.md) | P1 | BLOCKED | Provider precision@10, the real cascade and the byte-level probe need provider credentials and an independent judge. The offline frozen-run scorer (`provider_precision.py`) is ready and tested (8/8), but it cannot manufacture a provider run or labels. |
+| [27](TICKET-27-publish-v0.3.7.md) | P0 | BLOCKED | The tag `v0.3.7` and the eight assets are prepared and checksum-verified locally, but this workspace has no GitHub credentials. `scripts/release/publish-v0.3.7.sh` is the single publish command. |
+| [28](TICKET-28-imagecatalog-retirement.md) | P2 | CLOSED (2026-11-18) | The Rust `imagecatalog` crate is retired: workspace entry, crate and tests deleted, shared policy fixture moved under the surviving Go `entitycatalog` test. |
 
 ## Verification — 2026-11-17 (tickets 23–25)
 
@@ -125,8 +129,9 @@ logs is stale and now fails to link, because this host's unversioned
   archcheck/C2 and `CLIP_RENDER_CUTOVER=PASS`).
 - `bash contract/mediaexec.v2/check_consumer_copy.sh refactored/testdata/mediaexec/v2`
   — PASS, consumer goldens match.
-- `python3 lexicon/tools/check_go_stopword_parity.py` — PASS, 0 drift on the six
-  shared languages.
+- `python3 lexicon/tools/check_go_stopword_parity.py` — PASS, 0 drift on the
+  eleven shared languages (gate repointed to the Go embedded projection on
+  2026-11-18).
 
 ## Verification — 2026-11-17 (gates rerun, entity/moment follow-up closed)
 
@@ -278,7 +283,8 @@ rerun on 2026-11-17.
 - `go vet ./internal/platform/media/rustexec ./internal/capabilities/scripts`
   — clean.
 - `python3 BrainRust/lexicon/tools/check_go_stopword_parity.py` — PASS, 0
-  drift on the six shared languages (de/en/es/fr/it/pt).
+  drift on the eleven shared languages (gate repointed to the Go embedded
+  projection on 2026-11-18).
 
 The full `go test ./internal/capabilities/scripts -count=1` suite still fails
 on `TestBuildFinalJobPayloadsUsesLocallyRenderedStockVisual`

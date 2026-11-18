@@ -1,8 +1,8 @@
-use super::plan::CanonicalRenderPlan;
 use crate::artifact::{failed_response, part_path, publish_output};
 use crate::encoder::append_video_args;
 use crate::process::{FFmpegRunner, ProcessCommand};
 use crate::protocol::{MediaMetadata, Request, Response};
+use crate::render_stock_canonical_plan::CanonicalRenderPlan;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};

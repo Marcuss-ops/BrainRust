@@ -44,6 +44,10 @@ pub struct EntityGazetteer {
     /// ("Aurora Sport", "Lumen Energia") are an organization, never a person.
     #[serde(default)]
     pub company_head_words: Vec<String>,
+    /// Event/competition/exhibition head nouns that close an event name even
+    /// without an organization marker ("Black Expo", "Film Festival").
+    #[serde(default)]
+    pub event_head_words: Vec<String>,
     /// Language-specific institution heads/tails that type a capitalized
     /// multiword name as an organization (e.g. "Prism Laboratory").
     #[serde(default)]

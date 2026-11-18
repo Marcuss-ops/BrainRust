@@ -196,6 +196,13 @@ pub struct RankCandidate {
     pub discovery_status: String,
     #[serde(default)]
     pub materialization_status: String,
+    /// BCP-47 language of the candidate. It travels with the pool for audit
+    /// and for callers that filter pre-rank; it intentionally does NOT add a
+    /// seat, so the canonical weighted formula and its parity fixtures stay
+    /// bit-identical. Language scoring lives in `local_score` (the catalog
+    /// lexical path), where it is a ±0.10 soft signal.
+    #[serde(default)]
+    pub language: String,
     #[serde(default)]
     pub binding: Option<RankBinding>,
     /// Caller-supplied ordering preference, added to the final score AFTER the
@@ -212,6 +219,9 @@ pub struct RankRequest {
     pub scene_duration_ms: i64,
     #[serde(default)]
     pub prev_video_id: String,
+    /// Scene language (BCP-47). Contract-only: see RankCandidate::language.
+    #[serde(default)]
+    pub scene_language: String,
     pub slot_kind: String,
     #[serde(default)]
     pub candidates: Vec<RankCandidate>,
@@ -728,6 +738,7 @@ mod tests {
         RankRequest {
             scene_duration_ms: 4_000,
             prev_video_id: String::new(),
+            scene_language: String::new(),
             slot_kind: "primary_video".to_string(),
             candidates,
         }
@@ -1062,6 +1073,34 @@ mod tests {
 
         assert!(outcome.ranked.is_empty(), "{outcome:?}");
         assert_eq!(outcome.drops[0].gate.as_deref(), Some("valid_license"));
+    }
+
+    #[test]
+    fn language_travels_with_the_pool_without_changing_the_score() {
+        let base = rank_candidates(&request(vec![candidate("a")])).expect("slot is valid");
+
+        let mut same = candidate("a");
+        same.language = "it".to_string();
+        let mut same_request = request(vec![same]);
+        same_request.scene_language = "it".to_string();
+        let same_outcome = rank_candidates(&same_request).expect("slot is valid");
+
+        let mut cross = candidate("a");
+        cross.language = "en".to_string();
+        let mut cross_request = request(vec![cross]);
+        cross_request.scene_language = "it".to_string();
+        let cross_outcome = rank_candidates(&cross_request).expect("slot is valid");
+
+        assert_eq!(
+            same_outcome.ranked[0].final_score,
+            base.ranked[0].final_score
+        );
+        assert_eq!(
+            cross_outcome.ranked[0].final_score,
+            base.ranked[0].final_score
+        );
+        assert_eq!(same_outcome.ranked[0].breakdown, base.ranked[0].breakdown);
+        assert_eq!(cross_outcome.ranked[0].breakdown, base.ranked[0].breakdown);
     }
 
     #[test]

@@ -9,6 +9,7 @@
 //! can never serve a result computed by a different request or extractor build.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 
 use semantic_core::{AnalyzerVersions, ScriptRequest, SemanticManifest};
 
@@ -17,7 +18,7 @@ use semantic_core::{AnalyzerVersions, ScriptRequest, SemanticManifest};
 pub const DEFAULT_MAX_BYTES: usize = 128 * 1024 * 1024;
 
 struct CacheEntry {
-    manifest: SemanticManifest,
+    manifest: Arc<SemanticManifest>,
     bytes: usize,
 }
 
@@ -64,15 +65,17 @@ impl ManifestCache {
         crate::request_fingerprint(request, analyzers)
     }
 
-    /// Returns the cached manifest for `key`, if present.
-    pub fn get(&mut self, key: &str) -> Option<SemanticManifest> {
+    /// Returns the cached manifest for `key`, if present. The returned
+    /// [`Arc`] shares the stored allocation: a cache hit must not deep-clone
+    /// a manifest that can be megabytes of grounded facts.
+    pub fn get(&mut self, key: &str) -> Option<Arc<SemanticManifest>> {
         if self.max_entries == 0 || self.max_bytes == 0 {
             return None;
         }
         match self.entries.get(key) {
             Some(entry) => {
                 self.hits += 1;
-                Some(entry.manifest.clone())
+                Some(Arc::clone(&entry.manifest))
             }
             None => {
                 self.misses += 1;
@@ -84,11 +87,11 @@ impl ManifestCache {
     /// Stores a manifest under `key`, evicting the oldest entries until both
     /// the entry cap and the serialized-byte budget hold. A manifest larger
     /// than the whole budget is not cached.
-    pub fn insert(&mut self, key: String, manifest: SemanticManifest) {
+    pub fn insert(&mut self, key: String, manifest: Arc<SemanticManifest>) {
         if self.max_entries == 0 || self.max_bytes == 0 {
             return;
         }
-        let bytes = serde_json::to_vec(&manifest)
+        let bytes = serde_json::to_vec(manifest.as_ref())
             .map(|encoded| encoded.len())
             .unwrap_or(usize::MAX);
         if bytes > self.max_bytes {
@@ -184,7 +187,7 @@ mod tests {
         assert!(cache.get(&key).is_none(), "cold cache must miss");
 
         let manifest = manifest_with("it", &scenes);
-        cache.insert(key.clone(), manifest.clone());
+        cache.insert(key.clone(), Arc::new(manifest.clone()));
 
         let hit = cache.get(&key).expect("warm cache must hit");
         assert_eq!(hit.fingerprint, manifest.fingerprint);
@@ -225,9 +228,9 @@ mod tests {
         let ka = cache_key("it", &a);
         let kb = cache_key("it", &b);
         let kc = cache_key("it", &c);
-        cache.insert(ka.clone(), manifest_with("it", &a));
-        cache.insert(kb.clone(), manifest_with("it", &b));
-        cache.insert(kc, manifest_with("it", &c));
+        cache.insert(ka.clone(), Arc::new(manifest_with("it", &a)));
+        cache.insert(kb.clone(), Arc::new(manifest_with("it", &b)));
+        cache.insert(kc, Arc::new(manifest_with("it", &c)));
         assert_eq!(cache.len(), 2, "cap must be respected");
         assert!(cache.get(&ka).is_none(), "oldest entry evicted");
         assert!(cache.get(&kb).is_some());
@@ -245,8 +248,8 @@ mod tests {
         let mut cache = ManifestCache::with_budget(8, budget);
         let ka = cache_key("it", &scenes_a);
         let kb = cache_key("it", &scenes_b);
-        cache.insert(ka.clone(), manifest_a);
-        cache.insert(kb.clone(), manifest_b);
+        cache.insert(ka.clone(), Arc::new(manifest_a));
+        cache.insert(kb.clone(), Arc::new(manifest_b));
         assert_eq!(cache.len(), 1, "byte budget must evict before entry cap");
         assert!(cache.get(&ka).is_none());
         assert!(cache.get(&kb).is_some());
@@ -258,7 +261,7 @@ mod tests {
         let scenes = vec![scene("s1", "Testo.")];
         let key = cache_key("it", &scenes);
         let mut cache = ManifestCache::with_budget(8, 1);
-        cache.insert(key.clone(), manifest_with("it", &scenes));
+        cache.insert(key.clone(), Arc::new(manifest_with("it", &scenes)));
         assert!(cache.is_empty());
         assert!(cache.get(&key).is_none());
     }
@@ -268,7 +271,7 @@ mod tests {
         let mut cache = ManifestCache::new(0);
         let scenes = vec![scene("s1", "Testo.")];
         let key = cache_key("it", &scenes);
-        cache.insert(key.clone(), manifest_with("it", &scenes));
+        cache.insert(key.clone(), Arc::new(manifest_with("it", &scenes)));
         assert!(cache.get(&key).is_none());
         assert!(cache.is_empty());
     }
@@ -311,12 +314,27 @@ mod tests {
         let first = manifest_with("it", &scenes);
         let mut cache = ManifestCache::new(4);
         let key = cache_key("it", &scenes);
-        cache.insert(key.clone(), first.clone());
+        cache.insert(key.clone(), Arc::new(first.clone()));
         let cached = cache.get(&key).unwrap();
         // The cached copy is byte-identical to a fresh analysis (idempotent).
         assert_eq!(
-            serde_json::to_vec(&cached).unwrap(),
+            serde_json::to_vec(cached.as_ref()).unwrap(),
             serde_json::to_vec(&first).unwrap()
+        );
+    }
+
+    #[test]
+    fn cache_returns_the_shared_manifest_allocation() {
+        let scenes = vec![scene("s1", "Testo condiviso.")];
+        let key = cache_key("it", &scenes);
+        let manifest = Arc::new(manifest_with("it", &scenes));
+        let mut cache = ManifestCache::new(4);
+        cache.insert(key.clone(), Arc::clone(&manifest));
+
+        let hit = cache.get(&key).expect("warm cache must hit");
+        assert!(
+            Arc::ptr_eq(&manifest, &hit),
+            "a cache hit must reuse the stored manifest allocation"
         );
     }
 }

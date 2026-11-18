@@ -7,6 +7,16 @@
 use crate::error::MuscleError;
 use serde::Deserialize;
 
+// Canonical publish contract for every output this worker produces: AAC-LC,
+// 48 kHz stereo. These live in a leaf module because three layers need them
+// (the wire contract validates audio metadata against them, the compiled audio
+// plan validates its profile, and the copy-eligibility rule certifies the
+// master). Keeping them in an executor would make the contract depend on the
+// implementation.
+pub const CANONICAL_CODEC: &str = "aac";
+pub const CANONICAL_SAMPLE_RATE: i64 = 48000;
+pub const CANONICAL_CHANNELS: i64 = 2;
+
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct MediaConfig {
     pub codec: Option<String>,

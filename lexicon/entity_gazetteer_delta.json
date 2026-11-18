@@ -1,8 +1,27 @@
 {
   "remove_brands": ["nasa"],
   "product_names": ["macintosh", "ipad"],
+  "event_head_words": [
+    "expo",
+    "festival",
+    "championship",
+    "championships",
+    "trophy",
+    "award",
+    "awards",
+    "conference",
+    "summit",
+    "pageant",
+    "tournament",
+    "concorso",
+    "campionato",
+    "torneo",
+    "fiera",
+    "salone"
+  ],
   "typed_entities": {
     "ORG": ["NASA", "ESA", "CERN", "ANSA", "l’ansa", "l’esa", "Chicago Bulls", "SpaceX"],
-    "BRAND": ["Air Jordan"]
+    "BRAND": ["Air Jordan"],
+    "EVENT": ["Miss Black America", "Miss America", "Miss Universe", "Miss World", "Miss Italia"]
   }
 }

@@ -1,9 +1,13 @@
 # TICKET-22 — Port the editorial quality gate to Rust
 
 - Priority: P2
-- Status: PARTIAL (2026-11-17) — Rust evaluator ported and the opt-in cutover
-  is implemented behind `VELOX_RUST_QUALITY_GATE`; the Go gate remains the
-  production default until `v0.3.7` is published and the pin is bumped
+- Status: DONE (committed 2026-11-18; bound: v0.3.7 publication). Rust
+  `quality_gate` is the only production gate: the Go implementation, the
+  opt-in flag and the knob are deleted, and the Go↔Rust differential is
+  byte-identical on 27 scenarios. The cutover and the Rust goldens are
+  committed (see “Repository state”). Publishing the `v0.3.7` tag (TICKET-27)
+  is the other remaining external step; `make rust-fetch` consumes the
+  hash-verified local bundle in the meantime.
 - Source: follow-up to the 2026-11-16 architecture audit
 - Depends on: TICKET-18 (Rust language profiles)
 - Blocks: none
@@ -20,9 +24,9 @@ BrainRust.
 ## Target
 
 Rust owns the evaluator and exposes it as one `quality_gate` operation on the
-persistent `semantic-engine` worker. Go keeps the policy (status, skip and
-`QualityGateError`) and the production default. The cutover is opt-in behind
-`VELOX_RUST_QUALITY_GATE`; it is not the default path in this change.
+persistent `semantic-engine` worker. Go keeps only the policy (status, skip and
+`QualityGateError`) and the request projection. Since 2026-11-18 the Rust path
+is unconditional: there is no flag and no Go implementation.
 
 ## Contract
 
@@ -31,7 +35,7 @@ Response: `{ "ok": true, "quality": { ... }, "reasons": [...] }`.
 `ok` is protocol success; `quality.passed` is the gate verdict. A malformed
 request returns `{ "ok": false, "error": "..." }`.
 
-## Decision — 2026-11-17
+## Decision — 2026-11-17 (superseded by the 2026-11-18 cutover)
 
 The port stays, but it is not adopted by default. The chosen path is an
 opt-in cutover in the next release, not a deletion: `quality_gate` exists on
@@ -71,11 +75,46 @@ is deleted.
 - [x] Unit tests cover the request projection, typed failure, protocol failure
       and injected-finalizer path; the real local `v0.3.7` binary passes the
       clean fixture.
-- [ ] Switch the production default to Rust, bump the BrainRust pin and delete
-      the Go gate after `v0.3.7` is published.
+- [x] Switch the production default to Rust, bump the BrainRust pin and delete
+      the Go gate (2026-11-18; the flag was removed outright, see the cutover
+      section). Publication of `v0.3.7` remains TICKET-27.
 - [x] The docs record the exact commands, counts and commit state.
 
-## Verification — 2026-11-17
+## Cutover — 2026-11-18
+
+The Rust gate is now the only implementation. The flag was deleted instead of
+flipped, so no deployment order can leave production calling an operation the
+installed worker does not serve.
+
+- **Parity corpus.** 27 scenarios cover all eight rules (language match whole
+  text and per scene, source coverage per policy, source dates, clip coverage,
+  unsupported claims, research candidates, segment narrative, target words)
+  plus both pre-metric hard stops. The canonical Go verdicts were frozen to
+  [`script-qa/tests/fixtures/quality_gate/goldens.json`](../../script-qa/tests/fixtures/quality_gate/goldens.json)
+  before deletion and are enforced by
+  [`script-qa/tests/quality_gate_goldens.rs`](../../script-qa/tests/quality_gate_goldens.rs)
+  (3 tests: verdict reproduction, pass/fail reason invariants, unique names).
+- **Differential against the real release.**
+  `VELOX_RUST_SEMANTIC_ENGINE_PATH=…/dist-v0.3.7/semantic-engine go test
+  ./internal/platform/media/rustexec -run TestQualityGateGoRustParity` —
+  **27/27 PASS**, metrics and reason strings identical. The differential test
+  was removed with the Go gate; the frozen goldens keep enforcing the behavior.
+- **Pin.** `BRAINRUST_VERSION ?= v0.3.7`; `bin/BRAINRUST_RELEASE.json` =
+  `v0.3.7`, `git_sha 2ca3603`, ICU 72; all four binary SHA-256 digests match the
+  release manifest. `TestSemanticEngineRealBinaryEvaluatesQualityGate` passes
+  against the installed pin (no skip).
+- **Go deletion.** `internal/capabilities/scripts/usecase/qualitygate/`
+  (10 production files, 866 lines), `VELOX_RUST_QUALITY_GATE`, the config field,
+  the knob entry and the generated artifacts are gone. `go build ./...` and
+  `go vet` on the touched packages are green; the finalizer fails closed with
+  `quality gate evaluator is not configured` when the port is missing, covered
+  by `TestGenerationFinalizerFailsClosedWithoutQualityGate`.
+- **Publication.** `git ls-remote --tags origin v0.3.7` returns nothing on
+  2026-11-18: the tag and bundle exist only locally. TICKET-27 tracks the
+  publish; until then an offline install uses
+  `make rust-fetch RUST_ARTIFACTS_DIR=<BrainRust>/dist-v0.3.7`.
+
+## Verification — 2026-11-17 (opt-in era)
 
 Run on the `BrainRust` working tree; the Go gate ran on `refactored`. No Go
 production path was changed.
@@ -121,10 +160,37 @@ VELOX_RUST_SEMANTIC_ENGINE_PATH=/path/to/BrainRust/dist-v0.3.7/semantic-engine \
   <pipelinegen process>
 ```
 
-## Non-goals
+## Repository state — 2026-11-18
 
-- No change to the production default in this change; `VELOX_RUST_QUALITY_GATE`
-  defaults to `false`.
-- No deletion of the Go `qualitygate` package until the release is published
-  and the pin is bumped.
-- No changes to SQLite, outbox, Drive, provider or prompt ownership.
+The cutover is committed in this change (2026-11-18):
+
+- `refactored` tracks the deletion of
+  `internal/capabilities/scripts/usecase/qualitygate/` (14 files: 10
+  production files, 866 lines, plus tests) and pins
+  `BRAINRUST_VERSION ?= v0.3.7`. `bin/` is a local, untracked install; after
+  `make rust-fetch RUST_ARTIFACTS_DIR=…/BrainRust/dist-v0.3.7` its manifest is
+  `version: v0.3.7`, `git_sha: 2ca3603…`, and all four SHA-256 digests match
+  `dist-v0.3.7/sha256sums.txt`.
+- `BrainRust` tracks `script-qa/tests/quality_gate_goldens.rs` and
+  `script-qa/tests/fixtures/`.
+- Gates rerun from this tree on 2026-11-18: `cargo fmt --all -- --check` rc 0;
+  `cargo clippy -p script-qa -p semantic-engine --all-targets -- -D warnings`
+  rc 0; `cargo test -p script-qa -p semantic-engine` rc 0 (all suites,
+  doctests included); `go build ./...` rc 0; `go vet ./...` rc 0;
+  `go test ./internal/capabilities/scripts/...` rc 0;
+  `TestSemanticEngineRealBinaryEvaluatesQualityGate` PASS on the restored
+  release binary.
+- The earlier doctest `E0463` and clippy `E0425` were not reproducible; after
+  formatting `semantic-core/src/lexicon.rs` and
+  `visualner/src/extractor/values.rs`, both gates are green above.
+
+A clean checkout now contains the Go gate removal, the Rust goldens and the
+`v0.3.7` pin. Publishing `v0.3.7` remains TICKET-27 because this workspace has
+no GitHub credentials.
+
+## Non-goals (pre-cutover, superseded 2026-11-18)
+
+The 2026-11-17 opt-in plan did not change the production default, delete the
+Go gate or touch SQLite/outbox/Drive/provider/prompt ownership. The
+2026-11-18 cutover supersedes the first two points; the ownership boundary
+still holds.

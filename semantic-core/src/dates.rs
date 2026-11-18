@@ -181,6 +181,24 @@ impl RawFact {
     }
 }
 
+/// Gregorian leap-year rule shared by every date consumer. Keeping it here
+/// (instead of one copy per parser) is what makes the gate and the engine
+/// agree on February 29 across century boundaries.
+pub fn is_leap_year(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+/// Days in `month` for `year`, or 0 when `month` is outside 1..=12.
+pub fn days_in_month(month: u8, year: i32) -> u8 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
 mod era;
 mod month_word;
 mod numeric;

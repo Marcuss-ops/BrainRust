@@ -12,7 +12,7 @@
 //! Model directory: `$VISUALNER_MODEL_DIR`, or `$HOME/.local/share/visualner/models`.
 //! Models are not bundled; download them from the UDPipe model page.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -24,22 +24,85 @@ use super::tokenizer::Token;
 /// `OnceLock` keeps the exact once-per-language contract for the whole process
 /// while `Model`'s documented Send + Sync lets every worker share the loaded
 /// bytes.
-type ModelSlots = HashMap<String, Arc<OnceLock<Option<Arc<udpipe_rs::Model>>>>>;
+type ModelSlot = Arc<OnceLock<Option<Arc<udpipe_rs::Model>>>>;
+
+/// Sixteen slots cover the thirteen certified language profiles with room for
+/// a few caller variants. The cap is what turns a caller-controlled language
+/// string into a bounded cache instead of an unbounded map; eviction only
+/// drops the map entry, never a model another thread is still using.
+const DEFAULT_MODEL_SLOTS: usize = 16;
+
+fn model_slot_limit() -> usize {
+    std::env::var("VISUALNER_MODEL_CACHE_SLOTS")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MODEL_SLOTS)
+}
+
+struct ModelSlots {
+    limit: usize,
+    slots: HashMap<String, ModelSlot>,
+    order: VecDeque<String>,
+}
+
+impl ModelSlots {
+    fn new(limit: usize) -> Self {
+        Self {
+            limit,
+            slots: HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+
+    /// Returns the language's slot, creating it on first use and evicting the
+    /// oldest slot when the cap is exceeded. FIFO is enough here: slots are
+    /// cheap and the loaded models are shared, so recency bookkeeping would
+    /// not change correctness or the memory bound.
+    fn get_or_create(&mut self, language: &str) -> ModelSlot {
+        if let Some(slot) = self.slots.get(language) {
+            return Arc::clone(slot);
+        }
+        let slot = Arc::new(OnceLock::new());
+        self.slots.insert(language.to_string(), Arc::clone(&slot));
+        self.order.push_back(language.to_string());
+        while self.slots.len() > self.limit {
+            let Some(oldest) = self.order.pop_front() else {
+                break;
+            };
+            self.slots.remove(&oldest);
+        }
+        slot
+    }
+
+    fn len(&self) -> usize {
+        self.slots.len()
+    }
+}
 
 static MODELS: OnceLock<Mutex<ModelSlots>> = OnceLock::new();
 
-fn model_slot(language: &str) -> Arc<OnceLock<Option<Arc<udpipe_rs::Model>>>> {
-    let slots = MODELS.get_or_init(|| Mutex::new(HashMap::new()));
+fn model_slot(language: &str) -> ModelSlot {
+    let slots = MODELS.get_or_init(|| Mutex::new(ModelSlots::new(model_slot_limit())));
     let mut guard = match slots.lock() {
         Ok(guard) => guard,
         // A panicked loader must not take the cache down for every later
         // request: the slot itself has no invariant that a panic can break.
         Err(poisoned) => poisoned.into_inner(),
     };
-    guard
-        .entry(language.to_string())
-        .or_insert_with(|| Arc::new(OnceLock::new()))
-        .clone()
+    guard.get_or_create(language)
+}
+
+/// Number of language slots currently held by the process-wide model cache.
+/// Exposed in the worker health response; it never loads a model.
+pub fn cached_model_slots() -> usize {
+    MODELS
+        .get()
+        .map(|slots| match slots.lock() {
+            Ok(guard) => guard.len(),
+            Err(poisoned) => poisoned.into_inner().len(),
+        })
+        .unwrap_or(0)
 }
 
 /// Universal POS tags that are phrase material (nouns, proper nouns, numbers).
@@ -382,5 +445,22 @@ mod tests {
             Arc::ptr_eq(&first, &second),
             "the process-wide cache must return one loaded model per language"
         );
+    }
+
+    #[test]
+    fn slot_cache_evicts_the_oldest_language_at_the_cap() {
+        let mut cache = ModelSlots::new(2);
+        let first = cache.get_or_create("alpha");
+        let second = cache.get_or_create("beta");
+        assert!(
+            Arc::ptr_eq(&first, &cache.get_or_create("alpha")),
+            "an existing slot must be reused, not recreated"
+        );
+        let _third = cache.get_or_create("gamma");
+        assert_eq!(cache.len(), 2, "the cache must stay at its configured cap");
+        assert!(!cache.slots.contains_key("alpha"));
+        assert!(cache.slots.contains_key("beta"));
+        assert!(cache.slots.contains_key("gamma"));
+        drop(second);
     }
 }

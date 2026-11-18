@@ -88,65 +88,89 @@ pub fn analyze_scene(
     analyze_scene_with_search(scene, language, safety_cap, registry, &context).0
 }
 
-/// Same analysis, also returning the asset-search entries the script-level
-/// manifest aggregates and the production-candidate seeds for the visual
-/// context queries. Retrieval never happens here: every entry is `pending`.
-fn analyze_scene_with_search(
+/// A scene the extractor refused, materialized as the same empty manifest a
+/// successful path would produce. Keeping the literal out of the orchestration
+/// makes the rejection contract explicit and testable on its own.
+fn rejected_scene(
     scene: &SceneInput,
-    language: &str,
-    safety_cap: usize,
-    registry: &mut IdentityRegistry,
-    context: &visualner::ScriptContext,
+    reason: String,
 ) -> (
     SceneManifest,
     Vec<SearchFeedbackEntry>,
-    Vec<semantic_core::ContextualImageQuery>,
+    Vec<ContextualImageQuery>,
 ) {
-    let options = ExtractOptions {
-        language: language.to_string(),
-        // The extractor keeps every grounded entity up to the safety cap; the
-        // editorial top-N belongs to the planner.
-        entity_count: safety_cap,
-    };
-    let mut analysis =
-        match visualner::analyze_with_context_preserving_mentions(&scene.text, &options, context) {
-            Ok(analysis) => analysis,
-            Err(reason) => {
-                return (
-                    SceneManifest {
-                        scene_id: scene.scene_id.clone(),
-                        status: "rejected".to_string(),
-                        reason: Some(reason),
-                        entities: Vec::new(),
-                        identities: Vec::new(),
-                        relations: RelationView::default(),
-                        numeric_facts: Vec::new(),
-                        temporal_facts: Vec::new(),
-                        entity_facts: Vec::new(),
-                        bullets: Vec::new(),
-                        short_phrases: Vec::new(),
-                        long_phrases: Vec::new(),
-                        quotes: Vec::new(),
-                        important_words: Vec::new(),
-                        important_segments: Vec::new(),
-                        composed_image_queries: Vec::new(),
-                        contextual_image_queries: Vec::new(),
-                        visual_proposals: Vec::new(),
-                        semantic_groups: Vec::new(),
-                        micro_summaries: Vec::new(),
-                        rejected_items: 0,
-                    },
-                    Vec::new(),
-                    Vec::new(),
-                );
-            }
-        };
+    (
+        SceneManifest {
+            scene_id: scene.scene_id.clone(),
+            status: "rejected".to_string(),
+            reason: Some(reason),
+            entities: Vec::new(),
+            identities: Vec::new(),
+            relations: RelationView::default(),
+            numeric_facts: Vec::new(),
+            temporal_facts: Vec::new(),
+            entity_facts: Vec::new(),
+            bullets: Vec::new(),
+            short_phrases: Vec::new(),
+            long_phrases: Vec::new(),
+            quotes: Vec::new(),
+            important_words: Vec::new(),
+            important_segments: Vec::new(),
+            composed_image_queries: Vec::new(),
+            contextual_image_queries: Vec::new(),
+            visual_proposals: Vec::new(),
+            semantic_groups: Vec::new(),
+            micro_summaries: Vec::new(),
+            rejected_items: 0,
+        },
+        Vec::new(),
+        Vec::new(),
+    )
+}
 
-    let source = scene.text.as_str();
-    // One canonical segmentation per scene. Every downstream builder consumes
-    // these spans instead of re-splitting the source (the previous per-entity
-    // split made analysis O(entities x text)).
-    let sentence_spans = semantic_core::split_sentences(source, language, None);
+/// Collapses a facility fragment into the maximal facility span that contains
+/// it, then removes exact duplicate facility spans. Other entity types may
+/// legitimately nest (an acronym inside an organization, a place inside an
+/// organization), so only facilities are collapsed.
+fn collapse_facility_fragments(entities: &mut Vec<VisualEntity>) {
+    let mut keep = vec![true; entities.len()];
+    for (index, entity) in entities.iter().enumerate() {
+        if !keep[index] || entity.r#type != "FACILITY" {
+            continue;
+        }
+        for (other_index, other) in entities.iter().enumerate() {
+            if index != other_index
+                && keep[other_index]
+                && other.r#type == "FACILITY"
+                && other.start <= entity.start
+                && entity.end <= other.end
+                && (other.start < entity.start || entity.end < other.end)
+            {
+                keep[index] = false;
+                break;
+            }
+        }
+    }
+    let mut keep = keep.into_iter();
+    entities.retain(|_| keep.next().unwrap_or(true));
+    let mut seen_facility_spans = HashSet::new();
+    entities.retain(|entity| {
+        entity.r#type != "FACILITY" || seen_facility_spans.insert((entity.start, entity.end))
+    });
+}
+
+/// Facility/legal augmentation, surname promotion, grounding retention and the
+/// facility collapse, in the order the manifest contract requires. The main
+/// analyzer treats this as one stage instead of carrying a hundred lines of
+/// mutable entity bookkeeping inline.
+fn prepare_entities(
+    source: &str,
+    language: &str,
+    safety_cap: usize,
+    context: &visualner::ScriptContext,
+    registry: &IdentityRegistry,
+    analysis: &mut visualner::Analysis,
+) -> (Vec<VisualEntity>, usize) {
     let facility_entities =
         collect_facilities(source, safety_cap.saturating_sub(analysis.entities.len()));
     for facility in facility_entities {
@@ -232,41 +256,51 @@ fn analyze_scene_with_search(
         &known_person_surnames,
         language,
     );
-    let (mut entities, rejected_entities) = retain_grounded_entities(source, analysis.entities);
-    // Preserving mentions keeps a nested facility surface such as "Aurora"
-    // alongside "Stadio Aurora". The maximal span names the venue, so the
-    // fragment must not get its own identity, fact or query. Other types may
-    // legitimately nest (an acronym inside "RIS di Parma", a place inside an
-    // organization), so only facilities collapse.
-    let mut keep = vec![true; entities.len()];
-    for (index, entity) in entities.iter().enumerate() {
-        if !keep[index] || entity.r#type != "FACILITY" {
-            continue;
-        }
-        for (other_index, other) in entities.iter().enumerate() {
-            if index != other_index
-                && keep[other_index]
-                && other.r#type == "FACILITY"
-                && other.start <= entity.start
-                && entity.end <= other.end
-                && (other.start < entity.start || entity.end < other.end)
-            {
-                keep[index] = false;
-                break;
-            }
-        }
-    }
-    let mut keep = keep.into_iter();
-    entities.retain(|_| keep.next().unwrap_or(true));
-    // The extractor can return the same facility twice (for example a
-    // gazetteer hit and a facility-name run). Exact duplicate spans are one
-    // mention, not two: keeping both would duplicate the identity, the
-    // entity facts and the search proposal. Keep the first, highest-priority
-    // record; nested facilities were already collapsed above.
-    let mut seen_facility_spans = HashSet::new();
-    entities.retain(|entity| {
-        entity.r#type != "FACILITY" || seen_facility_spans.insert((entity.start, entity.end))
-    });
+    let (mut entities, rejected_entities) =
+        retain_grounded_entities(source, std::mem::take(&mut analysis.entities));
+    collapse_facility_fragments(&mut entities);
+    (entities, rejected_entities)
+}
+
+/// Same analysis, also returning the asset-search entries the script-level
+/// manifest aggregates and the production-candidate seeds for the visual
+/// context queries. Retrieval never happens here: every entry is `pending`.
+fn analyze_scene_with_search(
+    scene: &SceneInput,
+    language: &str,
+    safety_cap: usize,
+    registry: &mut IdentityRegistry,
+    context: &visualner::ScriptContext,
+) -> (
+    SceneManifest,
+    Vec<SearchFeedbackEntry>,
+    Vec<semantic_core::ContextualImageQuery>,
+) {
+    let options = ExtractOptions {
+        language: language.to_string(),
+        // The extractor keeps every grounded entity up to the safety cap; the
+        // editorial top-N belongs to the planner.
+        entity_count: safety_cap,
+    };
+    let mut analysis =
+        match visualner::analyze_with_context_preserving_mentions(&scene.text, &options, context) {
+            Ok(analysis) => analysis,
+            Err(reason) => return rejected_scene(scene, reason),
+        };
+
+    let source = scene.text.as_str();
+    // One canonical segmentation per scene. Every downstream builder consumes
+    // these spans instead of re-splitting the source (the previous per-entity
+    // split made analysis O(entities x text)).
+    let sentence_spans = semantic_core::split_sentences(source, language, None);
+    let (entities, rejected_entities) = prepare_entities(
+        source,
+        language,
+        safety_cap,
+        context,
+        registry,
+        &mut analysis,
+    );
     let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
 
     let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context);

@@ -1,0 +1,1505 @@
+{
+  "version": 1,
+  "generator": "refactored/internal/capabilities/scripts/usecase/qualitygate (canonical Go gate, frozen before the Rust cutover)",
+  "cases": [
+    {
+      "name": "hard_stop_empty_text",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "",
+            "word_count": 0,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "",
+          "source_text_coverage": 0,
+          "source_text_coverage_status": "",
+          "clip_evidence_coverage": 0,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 0,
+          "passed": false
+        },
+        "reasons": [
+          "generated text is empty"
+        ]
+      }
+    },
+    {
+      "name": "hard_stop_generic_text",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+            "word_count": 8,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "",
+          "source_text_coverage": 0,
+          "source_text_coverage_status": "",
+          "clip_evidence_coverage": 0,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 8,
+          "passed": false
+        },
+        "reasons": [
+          "generated text is generic or placeholder"
+        ]
+      }
+    },
+    {
+      "name": "clean_italian_pass",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "language_mismatch_whole_text",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "The factory closed in the spring of that year and the workers were told that the company had sold the building to a group of investors from the north of the country.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "The factory closed in the spring of that year and the workers were told that the company had sold the building to a group of investors from the north of the country.",
+            "word_count": 32,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "en",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 32,
+          "passed": false
+        },
+        "reasons": [
+          "detected language en does not match requested language it"
+        ]
+      }
+    },
+    {
+      "name": "language_mismatch_single_scene",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-it",
+                  "index": 0,
+                  "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+                  "kind": "",
+                  "bindings": {}
+                },
+                {
+                  "id": "scene-en",
+                  "index": 0,
+                  "text": "The factory closed in the spring of that year and the workers were told that the company had sold the building to a group of investors from the north of the country.",
+                  "kind": "",
+                  "bindings": {}
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": false
+        },
+        "reasons": [
+          "scene scene-en detected language en does not match requested language it"
+        ]
+      }
+    },
+    {
+      "name": "source_absent_is_not_evaluated",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 0,
+          "source_text_coverage_status": "NOT_EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "clips_primary_source_coverage_below_threshold",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "kilo alfa lima bravo mike november oscar papa quebec romeo",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "clips_primary",
+          "source_kind": "clip",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "alfa bravo charlie delta eco foxtrot golf hotel india juliet",
+            "word_count": 10,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "",
+          "source_text_coverage": 0.2,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 10,
+          "passed": false
+        },
+        "reasons": [
+          "source_text coverage below threshold"
+        ]
+      }
+    },
+    {
+      "name": "source_primary_requires_high_coverage",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "alfa bravo charlie delta eco foxtrot kilo lima mike november",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "source_primary",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "alfa bravo charlie delta eco foxtrot golf hotel india juliet",
+            "word_count": 10,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "",
+          "source_text_coverage": 0.6,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 10,
+          "passed": false
+        },
+        "reasons": [
+          "source_text coverage below threshold"
+        ]
+      }
+    },
+    {
+      "name": "balanced_clip_coverage_below_threshold",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "balanced",
+          "source_kind": "clip",
+          "num_clips": 2,
+          "clip_evidence": {
+            "accepted_clip_ids": [
+              "c1",
+              "c2"
+            ],
+            "clip_count": 0,
+            "narrative_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere."
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-1",
+                  "index": 0,
+                  "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+                  "kind": "",
+                  "bindings": {}
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 0,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": false
+        },
+        "reasons": [
+          "clip_evidence coverage below threshold for balanced"
+        ]
+      }
+    },
+    {
+      "name": "absent_clip_evidence_relaxes_clip_minimum",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "clips_primary",
+          "source_kind": "clip",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "unsupported_claims_are_blocking_for_grounded_sources",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "balanced",
+          "source_kind": "clip",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {
+            "entities": {
+              "persons": [
+                {
+                  "value": "Zelensky",
+                  "type": "PERSON"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 1,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": false
+        },
+        "reasons": [
+          "unsupported claims detected"
+        ]
+      }
+    },
+    {
+      "name": "unsupported_claims_are_diagnostic_for_text",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {
+            "entities": {
+              "persons": [
+                {
+                  "value": "Zelensky",
+                  "type": "PERSON"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 1,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "target_words_below_tolerance",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 100,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 50,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 100,
+          "actual_words": 50,
+          "passed": false
+        },
+        "reasons": [
+          "actual word count outside target tolerance"
+        ]
+      }
+    },
+    {
+      "name": "target_words_above_tolerance",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 100,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 130,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 100,
+          "actual_words": 130,
+          "passed": false
+        },
+        "reasons": [
+          "actual word count outside target tolerance"
+        ]
+      }
+    },
+    {
+      "name": "target_words_within_tolerance",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 100,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 90,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 100,
+          "actual_words": 90,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "target_words_skipped_when_translating",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 100,
+          "translate_to": "en",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 10,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 100,
+          "actual_words": 10,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "target_words_skipped_with_clip_evidence",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 100,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "clip",
+          "num_clips": 1,
+          "clip_evidence": {
+            "accepted_clip_ids": [
+              "c1"
+            ],
+            "clip_count": 0,
+            "narrative_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere."
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 10,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-c1",
+                  "index": 0,
+                  "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c1"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 100,
+          "actual_words": 10,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "clip_intro_short_segment_is_allowed",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Questa è una breve introduzione al documentario che racconta la storia della città e dei suoi abitanti.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "clip",
+          "num_clips": 1,
+          "segments": [
+            {
+              "id": "seg-1",
+              "topic": "",
+              "source_text": "Questa è una breve introduzione al documentario che racconta la storia della città e dei suoi abitanti."
+            }
+          ],
+          "clip_evidence": {
+            "accepted_clip_ids": [
+              "c1"
+            ],
+            "clip_count": 0,
+            "narrative_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere."
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Questa è una breve introduzione al documentario che racconta la storia della città e dei suoi abitanti.",
+            "word_count": 18,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-c1",
+                  "segment_id": "seg-1",
+                  "index": 0,
+                  "text": "Questa è una breve introduzione al documentario che racconta la storia della città e dei suoi abitanti.",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c1"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 18,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "source_date_preserved",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Il delitto avvenne il 15 marzo 2008 nella villa.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "clip",
+          "num_clips": 1,
+          "segments": [
+            {
+              "id": "seg-1",
+              "topic": "",
+              "source_text": "Il delitto avvenne il 15 marzo 2008 nella villa."
+            }
+          ],
+          "clip_evidence": {
+            "accepted_clip_ids": [
+              "c1"
+            ],
+            "clip_count": 0,
+            "narrative_text": "Il delitto avvenne il 15 marzo 2008 nella villa."
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Il delitto avvenne il 15 marzo 2008 nella villa.",
+            "word_count": 10,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-c1",
+                  "segment_id": "seg-1",
+                  "index": 0,
+                  "text": "Il delitto avvenne il 15 marzo 2008 nella villa.",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c1"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 10,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "source_date_changed",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Il delitto avvenne il 15 marzo 2008 nella villa.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "clip",
+          "num_clips": 1,
+          "segments": [
+            {
+              "id": "seg-1",
+              "topic": "",
+              "source_text": "Il delitto avvenne il 15 marzo 2008 nella villa."
+            }
+          ],
+          "clip_evidence": {
+            "accepted_clip_ids": [
+              "c1"
+            ],
+            "clip_count": 0,
+            "narrative_text": "Il delitto avvenne il 15 marzo 2008 nella villa."
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Il delitto avvenne il 16 marzo 2008 nella villa.",
+            "word_count": 10,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-c1",
+                  "segment_id": "seg-1",
+                  "index": 0,
+                  "text": "Il delitto avvenne il 16 marzo 2008 nella villa.",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c1"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 0.8888888888888888,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 10,
+          "passed": false
+        },
+        "reasons": [
+          "segment \"seg-1\" does not preserve source date 15-03-2008"
+        ]
+      }
+    },
+    {
+      "name": "source_date_numeric_equivalent",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Il delitto avvenne il 15/03/2008 nella villa.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "clip",
+          "num_clips": 1,
+          "segments": [
+            {
+              "id": "seg-1",
+              "topic": "",
+              "source_text": "Il delitto avvenne il 15/03/2008 nella villa."
+            }
+          ],
+          "clip_evidence": {
+            "accepted_clip_ids": [
+              "c1"
+            ],
+            "clip_count": 0,
+            "narrative_text": "Il delitto avvenne il 15/03/2008 nella villa."
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Il delitto avvenne il 15 marzo 2008 nella villa.",
+            "word_count": 10,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-c1",
+                  "segment_id": "seg-1",
+                  "index": 0,
+                  "text": "Il delitto avvenne il 15 marzo 2008 nella villa.",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c1"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 0.8888888888888888,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 10,
+          "passed": true
+        },
+        "reasons": []
+      }
+    },
+    {
+      "name": "segment_count_mismatch",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0,
+          "segments": [
+            {
+              "id": "seg-1",
+              "topic": "",
+              "source_text": "uno"
+            },
+            {
+              "id": "seg-2",
+              "topic": "",
+              "source_text": "due"
+            }
+          ]
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-1",
+                  "segment_id": "seg-1",
+                  "index": 0,
+                  "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+                  "kind": "",
+                  "bindings": {}
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 0,
+          "source_text_coverage_status": "NOT_EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": false
+        },
+        "reasons": [
+          "explicit segment scene count mismatch: got 1, want 2"
+        ]
+      }
+    },
+    {
+      "name": "segment_shorter_than_chapter_minimum",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "text",
+          "num_clips": 0,
+          "segments": [
+            {
+              "id": "seg-1",
+              "topic": "",
+              "source_text": "fonte"
+            }
+          ]
+        },
+        "result": {
+          "output": {
+            "text": "Testo breve.",
+            "word_count": 2,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-1",
+                  "segment_id": "seg-1",
+                  "index": 0,
+                  "text": "Testo breve.",
+                  "kind": "",
+                  "bindings": {}
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "",
+          "source_text_coverage": 0,
+          "source_text_coverage_status": "NOT_EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 2,
+          "passed": false
+        },
+        "reasons": [
+          "segment \"seg-1\" contains fewer than 100 words"
+        ]
+      }
+    },
+    {
+      "name": "boxer_segment_omits_declared_topic",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Il racconto del primo incontro senza il nome del campione. Il secondo capitolo racconta sugar nel dettaglio.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "clip",
+          "num_clips": 2,
+          "segments": [
+            {
+              "id": "boxer-1",
+              "topic": "floyd",
+              "source_text": "Il racconto del primo incontro senza il nome del campione."
+            },
+            {
+              "id": "boxer-2",
+              "topic": "sugar",
+              "source_text": "Il secondo capitolo racconta sugar nel dettaglio."
+            }
+          ],
+          "clip_evidence": {
+            "accepted_clip_ids": [
+              "c1",
+              "c2"
+            ],
+            "clip_count": 0,
+            "narrative_text": "Il racconto del primo incontro senza il nome del campione. Il secondo capitolo racconta sugar nel dettaglio."
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Il racconto del primo incontro senza il nome del campione. Il secondo capitolo racconta sugar nel dettaglio.",
+            "word_count": 20,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-1",
+                  "segment_id": "boxer-1",
+                  "index": 0,
+                  "text": "Il racconto del primo incontro senza il nome del campione.",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c1"
+                    }
+                  }
+                },
+                {
+                  "id": "scene-2",
+                  "segment_id": "boxer-2",
+                  "index": 0,
+                  "text": "Il secondo capitolo racconta sugar nel dettaglio.",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c2"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 20,
+          "passed": false
+        },
+        "reasons": [
+          "segment \"boxer-1\" does not mention its declared topic \"floyd\""
+        ]
+      }
+    },
+    {
+      "name": "boxer_segment_contains_other_topic",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "floyd ha incontrato sugar in una serata memorabile Il secondo capitolo racconta sugar nel dettaglio.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "clip",
+          "num_clips": 2,
+          "segments": [
+            {
+              "id": "boxer-1",
+              "topic": "floyd",
+              "source_text": "floyd ha incontrato sugar in una serata memorabile"
+            },
+            {
+              "id": "boxer-2",
+              "topic": "sugar",
+              "source_text": "Il secondo capitolo racconta sugar nel dettaglio."
+            }
+          ],
+          "clip_evidence": {
+            "accepted_clip_ids": [
+              "c1",
+              "c2"
+            ],
+            "clip_count": 0,
+            "narrative_text": "floyd ha incontrato sugar in una serata memorabile Il secondo capitolo racconta sugar nel dettaglio."
+          }
+        },
+        "result": {
+          "output": {
+            "text": "floyd ha incontrato sugar in una serata memorabile Il secondo capitolo racconta sugar nel dettaglio.",
+            "word_count": 20,
+            "specscene": {
+              "scenes": [
+                {
+                  "id": "scene-1",
+                  "segment_id": "boxer-1",
+                  "index": 0,
+                  "text": "floyd ha incontrato sugar in una serata memorabile",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c1"
+                    }
+                  }
+                },
+                {
+                  "id": "scene-2",
+                  "segment_id": "boxer-2",
+                  "index": 0,
+                  "text": "Il secondo capitolo racconta sugar nel dettaglio.",
+                  "kind": "",
+                  "bindings": {
+                    "clip": {
+                      "clip_id": "c2"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 20,
+          "passed": false
+        },
+        "reasons": [
+          "segment \"boxer-1\" contains the declared topic of \"boxer-2\""
+        ]
+      }
+    },
+    {
+      "name": "research_candidate_omitted",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "research",
+          "num_clips": 0,
+          "research_evidence": {
+            "version": "",
+            "topic": "",
+            "fingerprint": "",
+            "candidates": [
+              {
+                "candidate_id": "",
+                "label": "José Álvarez",
+                "rank": 0,
+                "fingerprint": "",
+                "sources": null,
+                "claims": null
+              }
+            ]
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere.",
+            "word_count": 33,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 33,
+          "passed": false
+        },
+        "reasons": [
+          "research output omits 1 ranked candidate(s): José Álvarez"
+        ]
+      }
+    },
+    {
+      "name": "research_candidate_matches_accents",
+      "request": {
+        "operation": "quality_gate",
+        "item": {
+          "id": "parity-item"
+        },
+        "plan": {
+          "language": "it",
+          "source_text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere. Il campione Jose Alvarez ha vinto.",
+          "target_words": 0,
+          "translate_to": "",
+          "grounding_policy": "",
+          "source_kind": "research",
+          "num_clips": 0,
+          "research_evidence": {
+            "version": "",
+            "topic": "",
+            "fingerprint": "",
+            "candidates": [
+              {
+                "candidate_id": "",
+                "label": "José Álvarez",
+                "rank": 0,
+                "fingerprint": "",
+                "sources": null,
+                "claims": null
+              }
+            ]
+          }
+        },
+        "result": {
+          "output": {
+            "text": "Nel corso degli anni la città ha cambiato volto e molti dei suoi abitanti hanno visto partire le fabbriche che un tempo davano lavoro a quasi tutte le famiglie del quartiere. Il campione Jose Alvarez ha vinto.",
+            "word_count": 40,
+            "specscene": {
+              "scenes": []
+            }
+          },
+          "artifacts": {}
+        }
+      },
+      "expected": {
+        "quality": {
+          "language_requested": "it",
+          "language_detected": "it",
+          "source_text_coverage": 1,
+          "source_text_coverage_status": "EVALUATED",
+          "clip_evidence_coverage": 1,
+          "unsupported_claims": 0,
+          "target_words": 0,
+          "actual_words": 40,
+          "passed": true
+        },
+        "reasons": []
+      }
+    }
+  ]
+}

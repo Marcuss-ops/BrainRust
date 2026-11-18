@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use crate::error::MuscleError;
 
 use crate::config;
-use crate::render_audio::CompiledAudioPlan;
-use crate::render_stock::SealedCanonicalPlan;
+use crate::render_audio_plan::Plan as CompiledAudioPlan;
+use crate::render_stock_canonical_plan::CanonicalRenderPlan as SealedCanonicalPlan;
 
 pub const PROTOCOL_VERSION: &str = "mediaexec.v2";
 
@@ -882,9 +882,8 @@ impl CopyCertification {
             if metadata.audio_codec.as_deref() != Some("aac")
                 || metadata.audio_profile.as_deref() != Some("LC")
                 || metadata.audio_time_base_num != Some(1)
-                || metadata.audio_time_base_den
-                    != Some(crate::audio_copy::CANONICAL_SAMPLE_RATE as u32)
-                || metadata.sample_rate != Some(crate::audio_copy::CANONICAL_SAMPLE_RATE as u32)
+                || metadata.audio_time_base_den != Some(config::CANONICAL_SAMPLE_RATE as u32)
+                || metadata.sample_rate != Some(config::CANONICAL_SAMPLE_RATE as u32)
                 || metadata.channels != Some(2)
                 || metadata.channel_layout.as_deref() != Some("stereo")
                 || metadata.audio_bitrate != Some(192000)

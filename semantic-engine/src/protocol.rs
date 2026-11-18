@@ -22,6 +22,7 @@ use serde_json::json;
 
 use crate::cache::ManifestCache;
 use crate::{analyze_script, analyzer_versions, ScriptRequest, SCHEMA_VERSION};
+use ndjson_stdio::ErrorCode;
 use overlay_compiler::{
     cascade_clustered_entrances, compile_editorial_plan, compile_overlay_plan_v2,
     rank_entity_overlays, resolve_map_overlaps, trim_map_windows_before_budget,
@@ -160,16 +161,29 @@ impl Worker {
     pub fn handle_line(&self, line: &str) -> String {
         let envelope: Envelope = match serde_json::from_str(line) {
             Ok(envelope) => envelope,
-            Err(err) => return error_response(&format!("invalid request: {err}")),
+            Err(err) => {
+                return error_response(ErrorCode::Decode, &format!("invalid request: {err}"))
+            }
         };
         match envelope.operation.as_str() {
-            "health" => json!({
-                "ok": true,
-                "schema_version": SCHEMA_VERSION,
-                "entity_index_version": semantic_core::entity_linker::entity_index_version(),
-                "entity_index_entries": semantic_core::entity_linker::entity_index().entry_count(),
-            })
-            .to_string(),
+            "health" => {
+                let lexicon = semantic_core::lexicon::provenance();
+                json!({
+                    "ok": true,
+                    "schema_version": SCHEMA_VERSION,
+                    "entity_index_version": semantic_core::entity_linker::entity_index_version(),
+                    "entity_index_entries": semantic_core::entity_linker::entity_index().entry_count(),
+                    "lexicon": {
+                        "version": lexicon.version,
+                        "source": lexicon.source(),
+                        "override_dir": lexicon.override_dir,
+                        "tables_from_override": lexicon.overrides_loaded,
+                        "tables_failed": lexicon.overrides_failed,
+                    },
+                    "udpipe_model_slots": visualner::cached_model_slots(),
+                })
+                .to_string()
+            }
             "analyze_script" => self.analyze(line),
             "lexicon_profile" => lexicon_profile_line(line),
             "quality_gate" => script_qa::protocol::handle_line(line),
@@ -183,21 +197,29 @@ impl Worker {
             "trim_map_windows_before_budget" => trim_map_windows_before_budget_line(line),
             "rank_entity_overlays" => rank_entity_overlays_line(line),
             "cascade_clustered_entrances" => cascade_clustered_entrances_line(line),
-            other => error_response(&format!("unknown operation: {other}")),
+            other => error_response(
+                ErrorCode::UnsupportedOperation,
+                &format!("unknown operation: {other}"),
+            ),
         }
     }
 
     fn analyze(&self, line: &str) -> String {
         let request: ScriptRequest = match serde_json::from_str(line) {
             Ok(request) => request,
-            Err(err) => return error_response(&format!("invalid analyze_script request: {err}")),
+            Err(err) => {
+                return error_response(
+                    ErrorCode::Decode,
+                    &format!("invalid analyze_script request: {err}"),
+                )
+            }
         };
         let key = ManifestCache::request_key(&request, &analyzer_versions());
         if let Some(manifest) = self.cache.lock().ok().and_then(|mut cache| cache.get(&key)) {
-            let completeness = manifest_completeness(&manifest);
+            let completeness = manifest_completeness(manifest.as_ref());
             return json!({
                 "ok": true,
-                "manifest": manifest,
+                "manifest": manifest.as_ref(),
                 "cached": true,
                 "completeness": completeness
             })
@@ -205,19 +227,20 @@ impl Worker {
         }
         match analyze_script(&request) {
             Ok(manifest) => {
+                let manifest = Arc::new(manifest);
                 if let Ok(mut cache) = self.cache.lock() {
-                    cache.insert(key, manifest.clone());
+                    cache.insert(key, Arc::clone(&manifest));
                 }
-                let completeness = manifest_completeness(&manifest);
+                let completeness = manifest_completeness(manifest.as_ref());
                 json!({
                     "ok": true,
-                    "manifest": manifest,
+                    "manifest": manifest.as_ref(),
                     "cached": false,
                     "completeness": completeness
                 })
                 .to_string()
             }
-            Err(message) => error_response(&message),
+            Err(message) => error_response(ErrorCode::Execution, &message),
         }
     }
 
@@ -236,7 +259,12 @@ impl Worker {
 fn subtitles_kernel_line(line: &str) -> String {
     let request: SubtitlesKernelRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid subtitles_kernel request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid subtitles_kernel request: {err}"),
+            )
+        }
     };
     let policy = request.policy.unwrap_or_default();
     match request.mode.trim() {
@@ -246,7 +274,10 @@ fn subtitles_kernel_line(line: &str) -> String {
         }
         "distribute" => {
             if request.cues.is_empty() {
-                return error_response("subtitles_kernel: distribute requires cues");
+                return error_response(
+                    ErrorCode::Execution,
+                    "subtitles_kernel: distribute requires cues",
+                );
             }
             let cues = cue_timing::cues_with_text(&request.cues, &request.text);
             json!({"ok": true, "cues": cues}).to_string()
@@ -259,12 +290,12 @@ fn subtitles_kernel_line(line: &str) -> String {
                 "last_cue_end_ms": request.cues.last().map(|c| c.end_ms).unwrap_or(0),
             })
             .to_string(),
-            Err(err) => error_response(&err),
+            Err(err) => error_response(ErrorCode::Execution, &err),
         },
         "validate" => {
             match cue_timing::validate_ass_content(&request.content, request.clip_duration_ms) {
                 Ok(()) => json!({"ok": true}).to_string(),
-                Err(err) => error_response(&err),
+                Err(err) => error_response(ErrorCode::Execution, &err),
             }
         }
         "parse" => match cue_timing::parse_subtitle_text(&request.filename, &request.content) {
@@ -274,16 +305,24 @@ fn subtitles_kernel_line(line: &str) -> String {
                 "cues": cues,
             })
             .to_string(),
-            Err(err) => error_response(&err),
+            Err(err) => error_response(ErrorCode::Execution, &err),
         },
-        other => error_response(&format!("subtitles_kernel: unsupported mode {other:?}")),
+        other => error_response(
+            ErrorCode::UnsupportedOperation,
+            &format!("subtitles_kernel: unsupported mode {other:?}"),
+        ),
     }
 }
 
 fn lexicon_profile_line(line: &str) -> String {
     let request: LexiconProfileRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid lexicon_profile request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid lexicon_profile request: {err}"),
+            )
+        }
     };
     let language = request.language.trim();
     if language.is_empty() {
@@ -306,18 +345,29 @@ fn lexicon_profile_line(line: &str) -> String {
             "profile": profile,
         })
         .to_string(),
-        None => error_response(&format!("lexicon_profile: unknown language {language:?}")),
+        None => error_response(
+            ErrorCode::Execution,
+            &format!("lexicon_profile: unknown language {language:?}"),
+        ),
     }
 }
 
 fn localize_identities_line(line: &str) -> String {
     let request: LocalizeIdentitiesRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid localize_identities request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid localize_identities request: {err}"),
+            )
+        }
     };
     let language = request.language.trim();
     if language.is_empty() {
-        return error_response("localize_identities: language is required");
+        return error_response(
+            ErrorCode::Execution,
+            "localize_identities: language is required",
+        );
     }
     let mode = if request.mode.trim().is_empty() {
         "match"
@@ -338,7 +388,10 @@ fn localize_identities_line(line: &str) -> String {
             &request.existing,
         ),
         other => {
-            return error_response(&format!("localize_identities: unsupported mode {other:?}"))
+            return error_response(
+                ErrorCode::UnsupportedOperation,
+                &format!("localize_identities: unsupported mode {other:?}"),
+            )
         }
     };
     json!({"ok": true, "matches": matches}).to_string()
@@ -347,10 +400,15 @@ fn localize_identities_line(line: &str) -> String {
 fn select_phrases_line(line: &str) -> String {
     let request: SelectPhrasesRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid select_phrases request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid select_phrases request: {err}"),
+            )
+        }
     };
     if request.text.trim().is_empty() {
-        return error_response("select_phrases: text is required");
+        return error_response(ErrorCode::Execution, "select_phrases: text is required");
     }
     let profile = request.profile.map(|raw| {
         let policy = PhraseExtractionPolicy {
@@ -386,10 +444,15 @@ fn select_phrases_line(line: &str) -> String {
 fn align_phrases_line(line: &str) -> String {
     let request: AlignPhrasesRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid align_phrases request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid align_phrases request: {err}"),
+            )
+        }
     };
     if request.phrases.is_empty() {
-        return error_response("align_phrases: phrases are required");
+        return error_response(ErrorCode::Execution, "align_phrases: phrases are required");
     }
     let mut alignments: Vec<LocatedPhrase> = Vec::new();
     for (index, phrase) in request.phrases.iter().enumerate() {
@@ -403,7 +466,10 @@ fn align_phrases_line(line: &str) -> String {
             }
             Err(_) if request.allow_missing => {}
             Err(err) => {
-                return error_response(&format!("align_phrases: phrase {index} {err}"));
+                return error_response(
+                    ErrorCode::Execution,
+                    &format!("align_phrases: phrase {index} {err}"),
+                );
             }
         }
     }
@@ -415,7 +481,7 @@ fn compile_editorial_plan_line(line: &str) -> String {
         Some(version) if version == EDITORIAL_PLAN_V2_SCHEMA_VERSION => {
             compile_full_editorial_plan_line(line)
         }
-        Some(version) => error_response(&format!(
+        Some(version) => error_response(ErrorCode::UnsupportedVersion, &format!(
             "unsupported compile_editorial_plan schema_version {version:?}, want {EDITORIAL_PLAN_V2_SCHEMA_VERSION:?}"
         )),
         None => compile_legacy_editorial_plan_line(line),
@@ -437,14 +503,22 @@ fn declared_schema_version(line: &str) -> Option<String> {
 fn compile_full_editorial_plan_line(line: &str) -> String {
     let request: EditorialPlanV2Request = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid editorial_plan.v2 request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid editorial_plan.v2 request: {err}"),
+            )
+        }
     };
     match compile_overlay_plan_v2(&request) {
         Ok(plan) => match serde_json::to_string(&plan) {
             Ok(response) => response,
-            Err(err) => error_response(&format!("encode editorial_plan.v2 response: {err}")),
+            Err(err) => error_response(
+                ErrorCode::Encode,
+                &format!("encode editorial_plan.v2 response: {err}"),
+            ),
         },
-        Err(err) => error_response(&err.to_string()),
+        Err(err) => error_response(ErrorCode::Execution, &err.to_string()),
     }
 }
 
@@ -452,7 +526,10 @@ fn compile_legacy_editorial_plan_line(line: &str) -> String {
     let request: CompileEditorialPlanRequest = match serde_json::from_str(line) {
         Ok(request) => request,
         Err(err) => {
-            return error_response(&format!("invalid compile_editorial_plan request: {err}"))
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid compile_editorial_plan request: {err}"),
+            )
         }
     };
     let plan = compile_editorial_plan(request);
@@ -462,7 +539,12 @@ fn compile_legacy_editorial_plan_line(line: &str) -> String {
 fn resolve_map_overlaps_line(line: &str) -> String {
     let request: ResolveMapOverlapsRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid resolve_map_overlaps request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid resolve_map_overlaps request: {err}"),
+            )
+        }
     };
     let edits = resolve_map_overlaps(request);
     json!({ "ok": true, "edits": edits }).to_string()
@@ -472,7 +554,10 @@ fn trim_map_windows_before_budget_line(line: &str) -> String {
     let request: ResolveMapOverlapsRequest = match serde_json::from_str(line) {
         Ok(request) => request,
         Err(err) => {
-            return error_response(&format!("invalid map-window budget request: {err}"));
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid map-window budget request: {err}"),
+            );
         }
     };
     let edits = trim_map_windows_before_budget(request);
@@ -482,7 +567,12 @@ fn trim_map_windows_before_budget_line(line: &str) -> String {
 fn rank_entity_overlays_line(line: &str) -> String {
     let request: RankEntityOverlaysRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid entity overlay rank request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid entity overlay rank request: {err}"),
+            )
+        }
     };
     let selected_indices = rank_entity_overlays(request);
     json!({ "ok": true, "selected_indices": selected_indices }).to_string()
@@ -491,7 +581,12 @@ fn rank_entity_overlays_line(line: &str) -> String {
 fn cascade_clustered_entrances_line(line: &str) -> String {
     let request: CascadeEntrancesRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid entrance cascade request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid entrance cascade request: {err}"),
+            )
+        }
     };
     let edits = cascade_clustered_entrances(request);
     json!({ "ok": true, "edits": edits }).to_string()
@@ -500,11 +595,16 @@ fn cascade_clustered_entrances_line(line: &str) -> String {
 fn split_sentences(line: &str) -> String {
     let request: SplitRequest = match serde_json::from_str(line) {
         Ok(request) => request,
-        Err(err) => return error_response(&format!("invalid split_sentences request: {err}")),
+        Err(err) => {
+            return error_response(
+                ErrorCode::Decode,
+                &format!("invalid split_sentences request: {err}"),
+            )
+        }
     };
     let language = request.language.trim();
     if language.is_empty() {
-        return error_response("split_sentences language is required");
+        return error_response(ErrorCode::Execution, "split_sentences language is required");
     }
     let sentences: Vec<_> =
         semantic_core::phrase_impact::split_sentences(&request.transcript, language)
@@ -520,8 +620,13 @@ fn split_sentences(line: &str) -> String {
     json!({ "ok": true, "sentences": sentences }).to_string()
 }
 
-fn error_response(message: &str) -> String {
-    json!({ "ok": false, "error": message }).to_string()
+/// One rejection envelope for every operation. `ok` and `error` stay exactly
+/// as before (existing clients read the message); `error_code` is the additive
+/// machine-readable category `ndjson-stdio` already defines for the other
+/// workers, so a caller no longer has to parse English to distinguish a
+/// malformed line from a failed operation.
+fn error_response(code: ErrorCode, message: &str) -> String {
+    json!({ "ok": false, "error_code": code, "error": message }).to_string()
 }
 
 /// Aggregates scene-level rejection into a response-level contract. `ok` only
@@ -644,6 +749,24 @@ mod tests {
     }
 
     #[test]
+    fn health_reports_lexicon_provenance_and_model_slots() {
+        let worker = Worker::new(1);
+        let response: serde_json::Value =
+            serde_json::from_str(&worker.handle_line(r#"{"operation":"health"}"#)).unwrap();
+        assert_eq!(response["ok"], true);
+        assert_eq!(
+            response["lexicon"]["version"],
+            semantic_core::lexicon::LEXICON_VERSION
+        );
+        assert!(["embedded", "override", "mixed"]
+            .contains(&response["lexicon"]["source"].as_str().unwrap_or("")));
+        assert!(response["lexicon"]["tables_from_override"]
+            .as_u64()
+            .is_some());
+        assert!(response["udpipe_model_slots"].as_u64().is_some());
+    }
+
+    #[test]
     fn completeness_reports_partial_and_rejected_manifests() {
         let mut manifest = analyze_script(&ScriptRequest {
             language: "it".to_string(),
@@ -711,7 +834,7 @@ mod tests {
             .cache
             .lock()
             .expect("cache lock")
-            .insert(key, manifest);
+            .insert(key, Arc::new(manifest));
 
         let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
         assert_eq!(response["cached"], true);
@@ -891,5 +1014,29 @@ mod tests {
             serde_json::from_str(&worker.handle_line(&request("Secondo testo."))).unwrap();
         assert_eq!(a["cached"], false);
         assert_eq!(b["cached"], false, "different text must miss the cache");
+    }
+
+    #[test]
+    fn error_envelopes_carry_a_machine_readable_code() {
+        let worker = Worker::default();
+
+        let decode: serde_json::Value =
+            serde_json::from_str(&worker.handle_line("not json")).unwrap();
+        assert_eq!(decode["ok"], false);
+        assert_eq!(decode["error_code"], "decode");
+
+        let unsupported: serde_json::Value =
+            serde_json::from_str(&worker.handle_line(r#"{"operation":"nope"}"#)).unwrap();
+        assert_eq!(unsupported["ok"], false);
+        assert_eq!(unsupported["error_code"], "unsupported_operation");
+
+        let execution: serde_json::Value =
+            serde_json::from_str(&worker.handle_line(
+                r#"{"operation":"split_sentences","transcript":"ciao","language":""}"#,
+            ))
+            .unwrap();
+        assert_eq!(execution["ok"], false);
+        assert_eq!(execution["error_code"], "execution");
+        assert_eq!(execution["error"], "split_sentences language is required");
     }
 }

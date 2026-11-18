@@ -19,6 +19,7 @@
 //! [`crate::AnalyzerVersions`], so a vocabulary change can never serve a
 //! stale cached analysis.
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
 /// Version of the lexicon tables. Bump whenever a table changes semantics.
@@ -27,12 +28,68 @@ pub const LEXICON_VERSION: &str = "lexicon.v6";
 /// Environment variable naming a directory of overriding table files.
 pub const LEXICON_DIR_ENV: &str = "SEMANTIC_LEXICON_DIR";
 
+/// Tables loaded from `$SEMANTIC_LEXICON_DIR` instead of the embedded copy.
+static OVERRIDES_LOADED: AtomicUsize = AtomicUsize::new(0);
+/// Override files that were present but unreadable/malformed, and therefore
+/// fell back to the embedded copy.
+static OVERRIDES_FAILED: AtomicUsize = AtomicUsize::new(0);
+/// The override directory as it was when the lexicon was first loaded; the
+/// environment cannot change the provenance of an already-loaded lexicon.
+static OVERRIDE_DIR: OnceLock<Option<String>> = OnceLock::new();
+
+fn override_dir() -> Option<&'static str> {
+    OVERRIDE_DIR
+        .get_or_init(|| {
+            std::env::var(LEXICON_DIR_ENV)
+                .ok()
+                .filter(|dir| !dir.trim().is_empty())
+        })
+        .as_deref()
+}
+
+/// Where the running lexicon actually came from. A deployment that sets
+/// `SEMANTIC_LEXICON_DIR` but ships a broken table used to leave only a stderr
+/// warning; exposing this in `health` makes the fallback observable instead of
+/// silent. `source` is `embedded` when no table was overridden, `override`
+/// when every attempted table was valid, and `mixed` when some tables were
+/// overridden and others fell back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LexiconProvenance {
+    pub version: &'static str,
+    pub override_dir: Option<String>,
+    pub overrides_loaded: usize,
+    pub overrides_failed: usize,
+}
+
+impl LexiconProvenance {
+    pub fn source(&self) -> &'static str {
+        match (self.overrides_loaded > 0, self.overrides_failed > 0) {
+            (true, true) => "mixed",
+            (true, false) => "override",
+            _ => "embedded",
+        }
+    }
+}
+
+/// Forces the lexicon to load (once) and reports its provenance.
+pub fn provenance() -> LexiconProvenance {
+    let _ = Lexicon::global();
+    LexiconProvenance {
+        version: LEXICON_VERSION,
+        override_dir: override_dir().map(str::to_string),
+        overrides_loaded: OVERRIDES_LOADED.load(Ordering::Relaxed),
+        overrides_failed: OVERRIDES_FAILED.load(Ordering::Relaxed),
+    }
+}
+
 #[derive(Debug, Default, serde::Deserialize)]
 struct EntityGazetteerDelta {
     #[serde(default)]
     remove_brands: Vec<String>,
     #[serde(default)]
     product_names: Vec<String>,
+    #[serde(default)]
+    event_head_words: Vec<String>,
     #[serde(default)]
     typed_entities: BTreeMap<String, Vec<String>>,
 }
@@ -112,16 +169,21 @@ pub struct Lexicon {
 /// falls back so a broken deployment can never crash or silently change an
 /// analysis.
 fn load_table<T: serde::de::DeserializeOwned>(file: &str, embedded: &'static str) -> T {
-    if let Ok(dir) = std::env::var(LEXICON_DIR_ENV) {
-        let path = std::path::Path::new(&dir).join(file);
+    if let Some(dir) = override_dir() {
+        let path = std::path::Path::new(dir).join(file);
         match std::fs::read_to_string(&path) {
             Ok(text) => match serde_json::from_str(&text) {
-                Ok(table) => return table,
+                Ok(table) => {
+                    OVERRIDES_LOADED.fetch_add(1, Ordering::Relaxed);
+                    return table;
+                }
                 Err(error) => {
+                    OVERRIDES_FAILED.fetch_add(1, Ordering::Relaxed);
                     eprintln!("semantic-core lexicon: ignoring {path:?}: {error}");
                 }
             },
             Err(error) => {
+                OVERRIDES_FAILED.fetch_add(1, Ordering::Relaxed);
                 eprintln!("semantic-core lexicon: using embedded default for {path:?}: {error}");
             }
         }
@@ -238,6 +300,10 @@ impl Lexicon {
                 .brands
                 .retain(|brand| !entity_delta.remove_brands.contains(brand));
             extend_unique(&mut gazetteer.product_names, entity_delta.product_names);
+            extend_unique(
+                &mut gazetteer.event_head_words,
+                entity_delta.event_head_words,
+            );
             for (kind, names) in entity_delta.typed_entities {
                 extend_unique(gazetteer.typed_entities.entry(kind).or_default(), names);
             }

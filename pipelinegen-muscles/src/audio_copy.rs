@@ -28,9 +28,10 @@ pub fn is_compatible(source: &MediaMetadata, codec: &str, sample_rate: i64, chan
 
 /// Canonical contract for everything the pipeline publishes: AAC-LC,
 // 48kHz stereo. `mux_audio_copy` certifies the final master against this.
-pub const CANONICAL_CODEC: &str = "aac";
-pub const CANONICAL_SAMPLE_RATE: i64 = 48000;
-pub const CANONICAL_CHANNELS: i64 = 2;
+/// Declared in `config` (a leaf module) so the protocol and the compiled plan
+/// can reference it without importing an executor; re-exported here because
+/// this module owns the rule that consumes it.
+pub use crate::config::{CANONICAL_CHANNELS, CANONICAL_CODEC, CANONICAL_SAMPLE_RATE};
 
 /// Returns true when the probed stream is publishable as-is.
 pub fn is_canonically_compatible(source: &MediaMetadata) -> bool {

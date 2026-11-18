@@ -105,7 +105,7 @@ pub(super) fn chapter_title(
         .collect();
     // Every language-specific token this function filters on arrives through
     // `stopwords`. The authoritative multi-language resource is the repository
-    // lexicon (config/lexicons/<lang>/, injected through the Go adapter), so the
+    // lexicon (`lexicon/packs/<lang>.json`, injected through the Go adapter), so the
     // crate needs no hand-maintained list per language and a language the
     // lexicon does not enumerate degrades to the cross-linguistic fallback
     // profile instead of to an unrelated language's words.

@@ -215,7 +215,11 @@ fn classify_type(
     }
     // The hand-curated seed is explicit and always wins, even when a tagger
     // mislabels the city ("Cagliari" as NOUN): it is high-precision data.
-    if contains(&gazetteer.locations, &lower) {
+    // Keep lowercase common nouns ("potenza") out of LOCATION in cased scripts.
+    if (!lexicon.language_profiles.is_cased(language)
+        || text.chars().next().is_some_and(char::is_uppercase))
+        && contains(&gazetteer.locations, &lower)
+    {
         return "LOCATION".to_string();
     }
     // Exact, curated multiword names outrank title-case person guessing. This
@@ -321,6 +325,12 @@ fn classify_type(
     {
         return "ORGANIZATION".to_string();
     }
+    if text.split_whitespace().count() >= 2
+        && title_tokens >= 2
+        && contains(&gazetteer.event_head_words, head_word)
+    {
+        return "EVENT".to_string();
+    }
     if case_is_evidence
         && name_evidence
         && !opens_with_acronym
@@ -364,6 +374,7 @@ pub(super) fn curated_typed_entity(text: &str) -> Option<String> {
                     | "BRAND"
                     | "PRODUCT"
                     | "WORK"
+                    | "EVENT"
             ) && names.iter().any(|name| {
                 let name_lower = name.to_lowercase();
                 if name_lower != lower {
@@ -838,6 +849,30 @@ mod tests {
         assert_eq!(
             classify_type("日本", true, true, true, "zh"),
             "VISUAL_CONCEPT"
+        );
+    }
+
+    #[test]
+    fn event_heads_pageants_and_lowercase_city_homographs_stay_non_person_non_gpe() {
+        assert_eq!(
+            classify_type("Black Expo", true, false, true, "it"),
+            "EVENT"
+        );
+        assert_eq!(
+            classify_type("Indiana Black Expo", true, false, true, "it"),
+            "EVENT"
+        );
+        assert_eq!(
+            classify_type("Miss Black America", true, false, true, "it"),
+            "EVENT"
+        );
+        assert_ne!(
+            classify_type("potenza", true, false, true, "it"),
+            "LOCATION"
+        );
+        assert_eq!(
+            classify_type("Potenza", true, false, true, "it"),
+            "LOCATION"
         );
     }
 }
