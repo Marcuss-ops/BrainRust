@@ -229,16 +229,74 @@ pub(super) fn chain_exceeds_scene_end(group: &[PlanItemV2], scene_end: Option<i6
     matches!(scene_end, Some(end) if end > 0 && group.len() >= 2 && projected_chain_end_us(group) > end)
 }
 
-fn insert_non_empty(object: &mut serde_json::Map<String, Value>, key: &str, value: &str) {
-    if !value.trim().is_empty() {
-        object.insert(key.to_string(), json!(value));
-    }
+/// One segment of a chain container: the typed producer side of the
+/// `chain_segments` wire shared with PipelineGen's `capmodel.ChainSegment` and
+/// RenderingGen's `chainSegment` mirror. The serialized key set IS the
+/// contract — every key below appears in the canonical list pinned by
+/// `chain_segment_wire_keys_are_the_documented_contract`.
+///
+/// `is_blank` reproduces the former `insert_non_empty` helper exactly (a
+/// whitespace-only value was never emitted), and every optional payload keeps
+/// `skip_serializing_if`, so a plan whose chain carries the same content still
+/// serializes to the same JSON as before this struct existed.
+#[derive(Debug, Clone, serde::Serialize)]
+struct ChainSegment {
+    #[serde(skip_serializing_if = "is_blank")]
+    text: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    group_id: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    subgroup_id: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    motion_id: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    preset_id: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    image_preset_id: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    template_id: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    kind: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    entity_id: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    entity_caption: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    caption_motion_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    caption_motion_params: Option<Value>,
+    #[serde(skip_serializing_if = "is_blank")]
+    caption_font_family: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    caption_layout: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    caption_color: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    entity_style_id: String,
+    #[serde(skip_serializing_if = "is_blank")]
+    camera_motion_id: String,
+    start_us: i64,
+    duration_us: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    motion_params: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    asset_id: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    assets: Vec<AssetRefV2>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_layers: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frame: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    params: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    style: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    map: Option<Value>,
 }
 
-fn insert_optional(object: &mut serde_json::Map<String, Value>, key: &str, value: &Option<Value>) {
-    if let Some(value) = value.as_ref() {
-        object.insert(key.to_string(), value.clone());
-    }
+fn is_blank(value: &str) -> bool {
+    value.trim().is_empty()
 }
 
 /// Builds one chain container exactly like the former Go `model.fuseChain`:
@@ -284,46 +342,35 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64) -> PlanItemV2 {
         } else {
             cursor_us.saturating_add(400_000)
         };
-        let mut segment = serde_json::Map::new();
-        insert_non_empty(&mut segment, "text", &item.text);
-        insert_non_empty(&mut segment, "group_id", &item.group_id);
-        insert_non_empty(&mut segment, "subgroup_id", &item.subgroup_id);
-        insert_non_empty(&mut segment, "motion_id", &item.motion_id);
-        insert_non_empty(&mut segment, "preset_id", &item.preset_id);
-        insert_non_empty(&mut segment, "image_preset_id", &item.image_preset_id);
-        insert_non_empty(&mut segment, "template_id", &item.template_id);
-        insert_non_empty(&mut segment, "kind", &item.kind);
-        insert_non_empty(&mut segment, "entity_id", &item.entity_id);
-        insert_non_empty(&mut segment, "entity_caption", &item.entity_caption);
-        insert_non_empty(&mut segment, "caption_motion_id", &item.caption_motion_id);
-        insert_optional(
-            &mut segment,
-            "caption_motion_params",
-            &item.caption_motion_params,
-        );
-        insert_non_empty(
-            &mut segment,
-            "caption_font_family",
-            &item.caption_font_family,
-        );
-        insert_non_empty(&mut segment, "caption_layout", &item.caption_layout);
-        insert_non_empty(&mut segment, "caption_color", &item.caption_color);
-        insert_non_empty(&mut segment, "entity_style_id", &item.entity_style_id);
-        insert_non_empty(&mut segment, "camera_motion_id", &item.camera_motion_id);
-        segment.insert("start_us".to_string(), json!(segment_start_us));
-        segment.insert("duration_us".to_string(), json!(duration_us));
-        insert_optional(&mut segment, "motion_params", &item.motion_params);
-        if let Some(asset) = item.asset_refs.first() {
-            segment.insert("asset_id".to_string(), json!(asset.asset_id));
-        }
-        if !item.asset_refs.is_empty() {
-            segment.insert("assets".to_string(), json!(item.asset_refs));
-        }
-        insert_optional(&mut segment, "image_layers", &item.image_layers);
-        insert_optional(&mut segment, "frame", &item.frame);
-        insert_optional(&mut segment, "params", &item.params);
-        insert_optional(&mut segment, "style", &item.style);
-        insert_optional(&mut segment, "map", &item.map);
+        let segment = ChainSegment {
+            text: item.text.clone(),
+            group_id: item.group_id.clone(),
+            subgroup_id: item.subgroup_id.clone(),
+            motion_id: item.motion_id.clone(),
+            preset_id: item.preset_id.clone(),
+            image_preset_id: item.image_preset_id.clone(),
+            template_id: item.template_id.clone(),
+            kind: item.kind.clone(),
+            entity_id: item.entity_id.clone(),
+            entity_caption: item.entity_caption.clone(),
+            caption_motion_id: item.caption_motion_id.clone(),
+            caption_motion_params: item.caption_motion_params.clone(),
+            caption_font_family: item.caption_font_family.clone(),
+            caption_layout: item.caption_layout.clone(),
+            caption_color: item.caption_color.clone(),
+            entity_style_id: item.entity_style_id.clone(),
+            camera_motion_id: item.camera_motion_id.clone(),
+            start_us: segment_start_us,
+            duration_us,
+            motion_params: item.motion_params.clone(),
+            asset_id: item.asset_refs.first().map(|asset| asset.asset_id.clone()),
+            assets: item.asset_refs.clone(),
+            image_layers: item.image_layers.clone(),
+            frame: item.frame.clone(),
+            params: item.params.clone(),
+            style: item.style.clone(),
+            map: item.map.clone(),
+        };
         if item
             .params
             .as_ref()
@@ -333,7 +380,7 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64) -> PlanItemV2 {
         {
             recap_count += 1;
         }
-        segments.push(Value::Object(segment));
+        segments.push(serde_json::to_value(&segment).expect("chain segment serializes"));
         motions.push(json!(item.motion_id));
         cursor_us = segment_start_us.saturating_add(duration_us);
         for asset in &item.asset_refs {
@@ -468,4 +515,127 @@ pub(super) fn fuse_captioned_entity_image_chains(
             .then_with(|| left.id.cmp(&right.id))
     });
     out
+}
+
+#[cfg(test)]
+mod segment_contract_tests {
+    use super::*;
+
+    /// The canonical key set of one `chain_segments` entry. PipelineGen
+    /// (`capmodel.ChainSegment`) and RenderingGen (`chainSegment`) decode these
+    /// exact names, so adding or renaming a key here is a port-wide contract
+    /// change, not a local refactor.
+    const CANONICAL_KEYS: [&str; 27] = [
+        "asset_id",
+        "assets",
+        "camera_motion_id",
+        "caption_color",
+        "caption_font_family",
+        "caption_layout",
+        "caption_motion_id",
+        "caption_motion_params",
+        "duration_us",
+        "entity_caption",
+        "entity_id",
+        "entity_style_id",
+        "frame",
+        "group_id",
+        "image_layers",
+        "image_preset_id",
+        "kind",
+        "map",
+        "motion_id",
+        "motion_params",
+        "params",
+        "preset_id",
+        "start_us",
+        "style",
+        "subgroup_id",
+        "template_id",
+        "text",
+    ];
+
+    fn fully_populated(id: &str, start_us: i64) -> PlanItemV2 {
+        PlanItemV2 {
+            id: id.to_string(),
+            scene_id: "scene-1".to_string(),
+            group_id: "group-a".to_string(),
+            subgroup_id: "subgroup-a".to_string(),
+            entity_id: "ent_ada".to_string(),
+            kind: "entity_card".to_string(),
+            start_ms: start_us / 1000,
+            end_ms: (start_us + 2_000_000) / 1000,
+            start_us,
+            duration_us: 2_000_000,
+            template_id: "person_default".to_string(),
+            preset_id: "card_default".to_string(),
+            image_preset_id: "image_scale_in".to_string(),
+            motion_id: "card_reveal".to_string(),
+            camera_motion_id: "camera_push".to_string(),
+            entity_style_id: "premium_below_random_v1".to_string(),
+            motion_params: Some(json!({"enter_frames": 17})),
+            text: "Ada Lovelace".to_string(),
+            entity_caption: "Matematica".to_string(),
+            caption_motion_id: "caption_rise".to_string(),
+            caption_motion_params: Some(json!({"rise_px": 12})),
+            caption_font_family: "playfair_display_italic".to_string(),
+            caption_layout: "below".to_string(),
+            caption_color: "#000000".to_string(),
+            style: Some(json!({"font_family": "Inter"})),
+            asset_refs: vec![AssetRefV2 {
+                asset_id: "portrait-ada".to_string(),
+                url: "https://example.test/ada.jpg".to_string(),
+                sha256: "1".repeat(64),
+                media_type: "image/jpeg".to_string(),
+            }],
+            image_layers: Some(json!([{"asset_id": "layer-a"}])),
+            frame: Some(json!({"x": 0})),
+            map: Some(json!({"provider": "local"})),
+            params: Some(json!({"recap": true})),
+            ..Default::default()
+        }
+    }
+
+    fn fused_segments(group: Vec<PlanItemV2>) -> Vec<Value> {
+        let chain = fuse_chain(&group, 0);
+        chain.params.as_ref().expect("chain params")["chain_segments"]
+            .as_array()
+            .expect("chain segments")
+            .clone()
+    }
+
+    #[test]
+    fn chain_segment_wire_keys_are_the_documented_contract() {
+        let segments = fused_segments(vec![
+            fully_populated("a", 100_000),
+            fully_populated("b", 3_000_000),
+        ]);
+        assert_eq!(2, segments.len());
+        let keys: std::collections::BTreeSet<&str> = segments[0]
+            .as_object()
+            .expect("segment object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        let want: std::collections::BTreeSet<&str> = CANONICAL_KEYS.iter().copied().collect();
+        assert_eq!(want, keys, "chain segment wire keys drifted");
+    }
+
+    #[test]
+    fn blank_string_fields_stay_off_the_wire() {
+        let mut first = fully_populated("a", 0);
+        first.caption_color = "   ".to_string();
+        let mut second = fully_populated("b", 3_000_000);
+        second.caption_color = "#ffffff".to_string();
+        let segments = fused_segments(vec![first, second]);
+        assert!(
+            segments[0].get("caption_color").is_none(),
+            "a whitespace-only segment field must not be emitted"
+        );
+        assert_eq!(
+            Some("#ffffff"),
+            segments[1]["caption_color"].as_str(),
+            "a populated segment field must reach the wire"
+        );
+    }
 }
