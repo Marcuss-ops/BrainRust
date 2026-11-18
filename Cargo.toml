@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = ["pipelinegen-muscles", "visualner", "semantic-core", "semantic-engine", "mediasampler", "ndjson-stdio", "overlay-compiler", "script-qa"]
-# `imagecatalog` is an offline experiment with no production consumer (13b
-# decision). Keeping it out of the workspace keeps it out of
-# `cargo test/clippy --workspace`; build it on demand with
-# `cargo test --manifest-path imagecatalog/Cargo.toml`.
-exclude = ["imagecatalog"]
+# `imagecatalog` was RETIRED on 2026-11-18 (TICKET-28, 13b decision): it was an
+# offline experiment with no production consumer and a second catalog-policy
+# implementation. Its shared policy fixture moved to
+# refactored/internal/capabilities/images/entitycatalog/testdata/ where the
+# surviving Go test owns it. The crate directory is gone.
 
 # Single source of truth for shared dependency versions. Member crates
 # reference these with `serde = { workspace = true }` so a version bump

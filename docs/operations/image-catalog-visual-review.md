@@ -1,5 +1,9 @@
 # Image catalog visual review (2026-11-10)
 
+> **Historical note — 2026-11-18:** `BrainRust/imagecatalog` was retired
+> (TICKET-28) and its fixtures were deleted. The observations below remain
+> valid evidence; the fixture paths are historical and no longer resolve.
+
 This note records what was actually visible in the images available in the
 existing databases. It is evidence for the semantic annotations, not a new
 catalog and not a biometric identity claim.
