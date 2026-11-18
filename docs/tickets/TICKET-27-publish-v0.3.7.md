@@ -105,6 +105,8 @@ duplicate asset names. The earlier version of this runbook did exactly that.
 
 Verified offline on 2026-11-18: local tag `v0.3.7` → `2ca3603…`, manifest
 `version: v0.3.7` / `git_sha: 2ca3603…` / `icu_major: 72`, `sha256sum -c`
-passes on all eight assets, release notes present. No push or release was
-attempted without credentials; the ticket stays BLOCKED until an authenticated
-operator runs the script.
+passes on all eight assets, release notes present. The script's dry run
+(`./scripts/release/publish-v0.3.7.sh`, default mode) exits 0 and reports
+`manifest: v0.3.7 2ca3603 icu 72`, `checksums: ok` and the eight asset names.
+No push or release was attempted without credentials; the ticket stays BLOCKED
+until an authenticated operator runs `--publish`.
