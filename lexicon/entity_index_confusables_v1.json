@@ -1,0 +1,2352 @@
+{
+  "schema_version": "entity_index_confusables.v1",
+  "annotation_authority": "curated regression fixtures; Wikidata identities CC0-1.0",
+  "surfaces": [
+    {
+      "surface": "amazon",
+      "senses": [
+        {
+          "id": "wd:Q177567",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "amazon rainforest",
+            "amazon Amazon basin",
+            "amazon tropical forest"
+          ],
+          "negative_contexts": [
+            {
+              "context": "amazon ecommerce",
+              "expected_id": "wd:Q3884"
+            },
+            {
+              "context": "amazon online retailer",
+              "expected_id": "wd:Q3884"
+            },
+            {
+              "context": "amazon Seattle",
+              "expected_id": "wd:Q3884"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q3884",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "amazon ecommerce",
+            "amazon online retailer",
+            "amazon Seattle"
+          ],
+          "negative_contexts": [
+            {
+              "context": "amazon rainforest",
+              "expected_id": "wd:Q177567"
+            },
+            {
+              "context": "amazon Amazon basin",
+              "expected_id": "wd:Q177567"
+            },
+            {
+              "context": "amazon tropical forest",
+              "expected_id": "wd:Q177567"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "amazonas",
+      "senses": [
+        {
+          "id": "wd:Q170453",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "amazonas Venezuela",
+            "amazonas Puerto Ayacucho",
+            "amazonas Venezuelan state"
+          ],
+          "negative_contexts": [
+            {
+              "context": "amazonas Brazil",
+              "expected_id": "wd:Q40040"
+            },
+            {
+              "context": "amazonas Manaus",
+              "expected_id": "wd:Q40040"
+            },
+            {
+              "context": "amazonas Brazilian state",
+              "expected_id": "wd:Q40040"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q40040",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "amazonas Brazil",
+            "amazonas Manaus",
+            "amazonas Brazilian state"
+          ],
+          "negative_contexts": [
+            {
+              "context": "amazonas Venezuela",
+              "expected_id": "wd:Q170453"
+            },
+            {
+              "context": "amazonas Puerto Ayacucho",
+              "expected_id": "wd:Q170453"
+            },
+            {
+              "context": "amazonas Venezuelan state",
+              "expected_id": "wd:Q170453"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "apple",
+      "senses": [
+        {
+          "id": "wd:Q312",
+          "entity_type": "BRAND",
+          "positive_contexts": [
+            "apple iPhone",
+            "apple Cupertino",
+            "apple MacBook"
+          ],
+          "negative_contexts": [
+            {
+              "context": "apple orchard",
+              "expected_id": "wd:Q89"
+            },
+            {
+              "context": "apple fruit",
+              "expected_id": "wd:Q89"
+            },
+            {
+              "context": "apple apple tree",
+              "expected_id": "wd:Q89"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q89",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "apple orchard",
+            "apple fruit",
+            "apple apple tree"
+          ],
+          "negative_contexts": [
+            {
+              "context": "apple iPhone",
+              "expected_id": "wd:Q312"
+            },
+            {
+              "context": "apple Cupertino",
+              "expected_id": "wd:Q312"
+            },
+            {
+              "context": "apple MacBook",
+              "expected_id": "wd:Q312"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "arsenal",
+      "senses": [
+        {
+          "id": "wd:Q81669",
+          "entity_type": "FACILITY",
+          "positive_contexts": [
+            "arsenal weapons depot",
+            "arsenal ammunition",
+            "arsenal armory"
+          ],
+          "negative_contexts": [
+            {
+              "context": "arsenal football club",
+              "expected_id": "wd:Q9617"
+            },
+            {
+              "context": "arsenal Premier League",
+              "expected_id": "wd:Q9617"
+            },
+            {
+              "context": "arsenal Emirates Stadium",
+              "expected_id": "wd:Q9617"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q9617",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "arsenal football club",
+            "arsenal Premier League",
+            "arsenal Emirates Stadium"
+          ],
+          "negative_contexts": [
+            {
+              "context": "arsenal weapons depot",
+              "expected_id": "wd:Q81669"
+            },
+            {
+              "context": "arsenal ammunition",
+              "expected_id": "wd:Q81669"
+            },
+            {
+              "context": "arsenal armory",
+              "expected_id": "wd:Q81669"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "cairo",
+      "senses": [
+        {
+          "id": "wd:Q575306",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "cairo Illinois",
+            "cairo American city",
+            "cairo Mississippi River"
+          ],
+          "negative_contexts": [
+            {
+              "context": "cairo Egypt",
+              "expected_id": "wd:Q85"
+            },
+            {
+              "context": "cairo Nile",
+              "expected_id": "wd:Q85"
+            },
+            {
+              "context": "cairo capital",
+              "expected_id": "wd:Q85"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q85",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "cairo Egypt",
+            "cairo Nile",
+            "cairo capital"
+          ],
+          "negative_contexts": [
+            {
+              "context": "cairo Illinois",
+              "expected_id": "wd:Q575306"
+            },
+            {
+              "context": "cairo American city",
+              "expected_id": "wd:Q575306"
+            },
+            {
+              "context": "cairo Mississippi River",
+              "expected_id": "wd:Q575306"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "cambridge",
+      "senses": [
+        {
+          "id": "wd:Q350",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "cambridge Cambridgeshire",
+            "cambridge River Cam",
+            "cambridge England"
+          ],
+          "negative_contexts": [
+            {
+              "context": "cambridge college",
+              "expected_id": "wd:Q35794"
+            },
+            {
+              "context": "cambridge university",
+              "expected_id": "wd:Q35794"
+            },
+            {
+              "context": "cambridge research",
+              "expected_id": "wd:Q35794"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q35794",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "cambridge college",
+            "cambridge university",
+            "cambridge research"
+          ],
+          "negative_contexts": [
+            {
+              "context": "cambridge Cambridgeshire",
+              "expected_id": "wd:Q350"
+            },
+            {
+              "context": "cambridge River Cam",
+              "expected_id": "wd:Q350"
+            },
+            {
+              "context": "cambridge England",
+              "expected_id": "wd:Q350"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "chelsea",
+      "senses": [
+        {
+          "id": "wd:Q743535",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "chelsea London",
+            "chelsea area",
+            "chelsea River Thames"
+          ],
+          "negative_contexts": [
+            {
+              "context": "chelsea football club",
+              "expected_id": "wd:Q9616"
+            },
+            {
+              "context": "chelsea Premier League",
+              "expected_id": "wd:Q9616"
+            },
+            {
+              "context": "chelsea Stamford Bridge",
+              "expected_id": "wd:Q9616"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q9616",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "chelsea football club",
+            "chelsea Premier League",
+            "chelsea Stamford Bridge"
+          ],
+          "negative_contexts": [
+            {
+              "context": "chelsea London",
+              "expected_id": "wd:Q743535"
+            },
+            {
+              "context": "chelsea area",
+              "expected_id": "wd:Q743535"
+            },
+            {
+              "context": "chelsea River Thames",
+              "expected_id": "wd:Q743535"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "columbia",
+      "senses": [
+        {
+          "id": "wd:Q38453",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "columbia South Carolina",
+            "columbia city",
+            "columbia Richland County"
+          ],
+          "negative_contexts": [
+            {
+              "context": "columbia university",
+              "expected_id": "wd:Q49088"
+            },
+            {
+              "context": "columbia campus",
+              "expected_id": "wd:Q49088"
+            },
+            {
+              "context": "columbia students",
+              "expected_id": "wd:Q49088"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q49088",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "columbia university",
+            "columbia campus",
+            "columbia students"
+          ],
+          "negative_contexts": [
+            {
+              "context": "columbia South Carolina",
+              "expected_id": "wd:Q38453"
+            },
+            {
+              "context": "columbia city",
+              "expected_id": "wd:Q38453"
+            },
+            {
+              "context": "columbia Richland County",
+              "expected_id": "wd:Q38453"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "delta",
+      "senses": [
+        {
+          "id": "wd:Q188920",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "delta airline",
+            "delta airport",
+            "delta flight"
+          ],
+          "negative_contexts": [
+            {
+              "context": "delta Nigeria",
+              "expected_id": "wd:Q503910"
+            },
+            {
+              "context": "delta state",
+              "expected_id": "wd:Q503910"
+            },
+            {
+              "context": "delta Asaba",
+              "expected_id": "wd:Q503910"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q503910",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "delta Nigeria",
+            "delta state",
+            "delta Asaba"
+          ],
+          "negative_contexts": [
+            {
+              "context": "delta airline",
+              "expected_id": "wd:Q188920"
+            },
+            {
+              "context": "delta airport",
+              "expected_id": "wd:Q188920"
+            },
+            {
+              "context": "delta flight",
+              "expected_id": "wd:Q188920"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "dove",
+      "senses": [
+        {
+          "id": "wd:Q13634093",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "dove surname",
+            "dove last name",
+            "dove family lineage"
+          ],
+          "negative_contexts": [
+            {
+              "context": "dove given name",
+              "expected_id": "wd:Q5302386"
+            },
+            {
+              "context": "dove first name",
+              "expected_id": "wd:Q5302386"
+            },
+            {
+              "context": "dove baby name",
+              "expected_id": "wd:Q5302386"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q5302386",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "dove given name",
+            "dove first name",
+            "dove baby name"
+          ],
+          "negative_contexts": [
+            {
+              "context": "dove surname",
+              "expected_id": "wd:Q13634093"
+            },
+            {
+              "context": "dove last name",
+              "expected_id": "wd:Q13634093"
+            },
+            {
+              "context": "dove family lineage",
+              "expected_id": "wd:Q13634093"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "esa",
+      "senses": [
+        {
+          "id": "wd:Q1133229",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "esa videogioco",
+            "esa videogiochi",
+            "esa e3"
+          ],
+          "negative_contexts": [
+            {
+              "context": "esa spazio",
+              "expected_id": "wd:Q42262"
+            },
+            {
+              "context": "esa spaziale",
+              "expected_id": "wd:Q42262"
+            },
+            {
+              "context": "esa nasa",
+              "expected_id": "wd:Q42262"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q42262",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "esa spazio",
+            "esa spaziale",
+            "esa spaziali"
+          ],
+          "negative_contexts": [
+            {
+              "context": "esa videogioco",
+              "expected_id": "wd:Q1133229"
+            },
+            {
+              "context": "esa videogiochi",
+              "expected_id": "wd:Q1133229"
+            },
+            {
+              "context": "esa e3",
+              "expected_id": "wd:Q1133229"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "ford",
+      "senses": [
+        {
+          "id": "wd:Q11247279",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "ford surname",
+            "ford family name",
+            "ford named person"
+          ],
+          "negative_contexts": [
+            {
+              "context": "ford automaker",
+              "expected_id": "wd:Q44294"
+            },
+            {
+              "context": "ford Detroit",
+              "expected_id": "wd:Q44294"
+            },
+            {
+              "context": "ford automobile",
+              "expected_id": "wd:Q44294"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q44294",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "ford automaker",
+            "ford Detroit",
+            "ford automobile"
+          ],
+          "negative_contexts": [
+            {
+              "context": "ford surname",
+              "expected_id": "wd:Q11247279"
+            },
+            {
+              "context": "ford family name",
+              "expected_id": "wd:Q11247279"
+            },
+            {
+              "context": "ford named person",
+              "expected_id": "wd:Q11247279"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "genesis",
+      "senses": [
+        {
+          "id": "wd:Q151012",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "genesis rock band",
+            "genesis Phil Collins",
+            "genesis progressive rock"
+          ],
+          "negative_contexts": [
+            {
+              "context": "genesis Bible",
+              "expected_id": "wd:Q9184"
+            },
+            {
+              "context": "genesis scripture",
+              "expected_id": "wd:Q9184"
+            },
+            {
+              "context": "genesis Old Testament",
+              "expected_id": "wd:Q9184"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q9184",
+          "entity_type": "WORK",
+          "positive_contexts": [
+            "genesis Bible",
+            "genesis scripture",
+            "genesis Old Testament"
+          ],
+          "negative_contexts": [
+            {
+              "context": "genesis rock band",
+              "expected_id": "wd:Q151012"
+            },
+            {
+              "context": "genesis Phil Collins",
+              "expected_id": "wd:Q151012"
+            },
+            {
+              "context": "genesis progressive rock",
+              "expected_id": "wd:Q151012"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "georgia",
+      "senses": [
+        {
+          "id": "wd:Q1428",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "georgia Atlanta",
+            "georgia American state",
+            "georgia Savannah"
+          ],
+          "negative_contexts": [
+            {
+              "context": "georgia Tbilisi",
+              "expected_id": "wd:Q230"
+            },
+            {
+              "context": "georgia Caucasus",
+              "expected_id": "wd:Q230"
+            },
+            {
+              "context": "georgia country",
+              "expected_id": "wd:Q230"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q230",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "georgia Tbilisi",
+            "georgia Caucasus",
+            "georgia country"
+          ],
+          "negative_contexts": [
+            {
+              "context": "georgia Atlanta",
+              "expected_id": "wd:Q1428"
+            },
+            {
+              "context": "georgia American state",
+              "expected_id": "wd:Q1428"
+            },
+            {
+              "context": "georgia Savannah",
+              "expected_id": "wd:Q1428"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "geórgia",
+      "senses": [
+        {
+          "id": "wd:Q1428",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "geórgia Atlanta",
+            "geórgia American state",
+            "geórgia Savannah"
+          ],
+          "negative_contexts": [
+            {
+              "context": "geórgia Tbilisi",
+              "expected_id": "wd:Q230"
+            },
+            {
+              "context": "geórgia Caucasus",
+              "expected_id": "wd:Q230"
+            },
+            {
+              "context": "geórgia country",
+              "expected_id": "wd:Q230"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q230",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "geórgia Tbilisi",
+            "geórgia Caucasus",
+            "geórgia country"
+          ],
+          "negative_contexts": [
+            {
+              "context": "geórgia Atlanta",
+              "expected_id": "wd:Q1428"
+            },
+            {
+              "context": "geórgia American state",
+              "expected_id": "wd:Q1428"
+            },
+            {
+              "context": "geórgia Savannah",
+              "expected_id": "wd:Q1428"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "jaguar",
+      "senses": [
+        {
+          "id": "wd:Q21170490",
+          "entity_type": "BRAND",
+          "positive_contexts": [
+            "jaguar automobile",
+            "jaguar car marque",
+            "jaguar vehicle"
+          ],
+          "negative_contexts": [
+            {
+              "context": "jaguar big cat",
+              "expected_id": "wd:Q35694"
+            },
+            {
+              "context": "jaguar rainforest",
+              "expected_id": "wd:Q35694"
+            },
+            {
+              "context": "jaguar feline",
+              "expected_id": "wd:Q35694"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q35694",
+          "entity_type": "ANIMAL",
+          "positive_contexts": [
+            "jaguar big cat",
+            "jaguar rainforest",
+            "jaguar feline"
+          ],
+          "negative_contexts": [
+            {
+              "context": "jaguar automobile",
+              "expected_id": "wd:Q21170490"
+            },
+            {
+              "context": "jaguar car marque",
+              "expected_id": "wd:Q21170490"
+            },
+            {
+              "context": "jaguar vehicle",
+              "expected_id": "wd:Q21170490"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "java",
+      "senses": [
+        {
+          "id": "wd:Q251",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "java programming",
+            "java bytecode",
+            "java JVM"
+          ],
+          "negative_contexts": [
+            {
+              "context": "java Indonesia",
+              "expected_id": "wd:Q3757"
+            },
+            {
+              "context": "java island",
+              "expected_id": "wd:Q3757"
+            },
+            {
+              "context": "java Jakarta",
+              "expected_id": "wd:Q3757"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q3757",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "java Indonesia",
+            "java island",
+            "java Jakarta"
+          ],
+          "negative_contexts": [
+            {
+              "context": "java programming",
+              "expected_id": "wd:Q251"
+            },
+            {
+              "context": "java bytecode",
+              "expected_id": "wd:Q251"
+            },
+            {
+              "context": "java JVM",
+              "expected_id": "wd:Q251"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "lima",
+      "senses": [
+        {
+          "id": "wd:Q11255517",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "lima surname",
+            "lima family name",
+            "lima named person"
+          ],
+          "negative_contexts": [
+            {
+              "context": "lima Peru",
+              "expected_id": "wd:Q2868"
+            },
+            {
+              "context": "lima capital",
+              "expected_id": "wd:Q2868"
+            },
+            {
+              "context": "lima Pacific coast",
+              "expected_id": "wd:Q2868"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q2868",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "lima Peru",
+            "lima capital",
+            "lima Pacific coast"
+          ],
+          "negative_contexts": [
+            {
+              "context": "lima surname",
+              "expected_id": "wd:Q11255517"
+            },
+            {
+              "context": "lima family name",
+              "expected_id": "wd:Q11255517"
+            },
+            {
+              "context": "lima named person",
+              "expected_id": "wd:Q11255517"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "lotus",
+      "senses": [
+        {
+          "id": "wd:Q35935",
+          "entity_type": "BRAND",
+          "positive_contexts": [
+            "lotus sports car",
+            "lotus car maker",
+            "lotus racing car"
+          ],
+          "negative_contexts": [
+            {
+              "context": "lotus plant genus",
+              "expected_id": "wd:Q3645698"
+            },
+            {
+              "context": "lotus Fabaceae",
+              "expected_id": "wd:Q3645698"
+            },
+            {
+              "context": "lotus flowering plant",
+              "expected_id": "wd:Q3645698"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q3645698",
+          "entity_type": "PLANT",
+          "positive_contexts": [
+            "lotus plant genus",
+            "lotus Fabaceae",
+            "lotus flowering plant"
+          ],
+          "negative_contexts": [
+            {
+              "context": "lotus sports car",
+              "expected_id": "wd:Q35935"
+            },
+            {
+              "context": "lotus car maker",
+              "expected_id": "wd:Q35935"
+            },
+            {
+              "context": "lotus racing car",
+              "expected_id": "wd:Q35935"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "mercurio",
+      "senses": [
+        {
+          "id": "wd:Q308",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "mercurio planet",
+            "mercurio orbit",
+            "mercurio solar system"
+          ],
+          "negative_contexts": [
+            {
+              "context": "mercurio element",
+              "expected_id": "wd:Q925"
+            },
+            {
+              "context": "mercurio Hg",
+              "expected_id": "wd:Q925"
+            },
+            {
+              "context": "mercurio thermometer",
+              "expected_id": "wd:Q925"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q925",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "mercurio element",
+            "mercurio Hg",
+            "mercurio thermometer"
+          ],
+          "negative_contexts": [
+            {
+              "context": "mercurio planet",
+              "expected_id": "wd:Q308"
+            },
+            {
+              "context": "mercurio orbit",
+              "expected_id": "wd:Q308"
+            },
+            {
+              "context": "mercurio solar system",
+              "expected_id": "wd:Q308"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "mercury",
+      "senses": [
+        {
+          "id": "wd:Q308",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "mercury planet",
+            "mercury orbit",
+            "mercury solar system"
+          ],
+          "negative_contexts": [
+            {
+              "context": "mercury element",
+              "expected_id": "wd:Q925"
+            },
+            {
+              "context": "mercury Hg",
+              "expected_id": "wd:Q925"
+            },
+            {
+              "context": "mercury thermometer",
+              "expected_id": "wd:Q925"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q925",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "mercury element",
+            "mercury Hg",
+            "mercury thermometer"
+          ],
+          "negative_contexts": [
+            {
+              "context": "mercury planet",
+              "expected_id": "wd:Q308"
+            },
+            {
+              "context": "mercury orbit",
+              "expected_id": "wd:Q308"
+            },
+            {
+              "context": "mercury solar system",
+              "expected_id": "wd:Q308"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "mercúrio",
+      "senses": [
+        {
+          "id": "wd:Q308",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "mercúrio planet",
+            "mercúrio orbit",
+            "mercúrio solar system"
+          ],
+          "negative_contexts": [
+            {
+              "context": "mercúrio element",
+              "expected_id": "wd:Q925"
+            },
+            {
+              "context": "mercúrio Hg",
+              "expected_id": "wd:Q925"
+            },
+            {
+              "context": "mercúrio thermometer",
+              "expected_id": "wd:Q925"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q925",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "mercúrio element",
+            "mercúrio Hg",
+            "mercúrio thermometer"
+          ],
+          "negative_contexts": [
+            {
+              "context": "mercúrio planet",
+              "expected_id": "wd:Q308"
+            },
+            {
+              "context": "mercúrio orbit",
+              "expected_id": "wd:Q308"
+            },
+            {
+              "context": "mercúrio solar system",
+              "expected_id": "wd:Q308"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "milan",
+      "senses": [
+        {
+          "id": "wd:Q1076681",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "milan given name",
+            "milan first name",
+            "milan named person"
+          ],
+          "negative_contexts": [
+            {
+              "context": "milan Lombardy",
+              "expected_id": "wd:Q490"
+            },
+            {
+              "context": "milan Italy",
+              "expected_id": "wd:Q490"
+            },
+            {
+              "context": "milan cathedral",
+              "expected_id": "wd:Q490"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q490",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "milan Lombardy",
+            "milan Italy",
+            "milan cathedral"
+          ],
+          "negative_contexts": [
+            {
+              "context": "milan given name",
+              "expected_id": "wd:Q1076681"
+            },
+            {
+              "context": "milan first name",
+              "expected_id": "wd:Q1076681"
+            },
+            {
+              "context": "milan named person",
+              "expected_id": "wd:Q1076681"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "mustang",
+      "senses": [
+        {
+          "id": "wd:Q183476",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "mustang Ford car",
+            "mustang muscle car",
+            "mustang automobile"
+          ],
+          "negative_contexts": [
+            {
+              "context": "mustang feral horse",
+              "expected_id": "wd:Q211848"
+            },
+            {
+              "context": "mustang wild horse",
+              "expected_id": "wd:Q211848"
+            },
+            {
+              "context": "mustang equine",
+              "expected_id": "wd:Q211848"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q211848",
+          "entity_type": "ANIMAL",
+          "positive_contexts": [
+            "mustang feral horse",
+            "mustang wild horse",
+            "mustang equine"
+          ],
+          "negative_contexts": [
+            {
+              "context": "mustang Ford car",
+              "expected_id": "wd:Q183476"
+            },
+            {
+              "context": "mustang muscle car",
+              "expected_id": "wd:Q183476"
+            },
+            {
+              "context": "mustang automobile",
+              "expected_id": "wd:Q183476"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "nike",
+      "senses": [
+        {
+          "id": "wd:Q193845",
+          "entity_type": "WORK",
+          "positive_contexts": [
+            "nike statua",
+            "nike mitologia",
+            "nike grecia"
+          ],
+          "negative_contexts": [
+            {
+              "context": "nike scarpe",
+              "expected_id": "wd:Q483859"
+            },
+            {
+              "context": "nike sneakers",
+              "expected_id": "wd:Q483859"
+            },
+            {
+              "context": "nike sportswear",
+              "expected_id": "wd:Q483859"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q483859",
+          "entity_type": "BRAND",
+          "positive_contexts": [
+            "nike scarpe",
+            "nike sneakers",
+            "nike sportswear"
+          ],
+          "negative_contexts": [
+            {
+              "context": "nike statua",
+              "expected_id": "wd:Q193845"
+            },
+            {
+              "context": "nike mitologia",
+              "expected_id": "wd:Q193845"
+            },
+            {
+              "context": "nike grecia",
+              "expected_id": "wd:Q193845"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "nile",
+      "senses": [
+        {
+          "id": "wd:Q3392",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "nile river",
+            "nile Egypt",
+            "nile Africa"
+          ],
+          "negative_contexts": [
+            {
+              "context": "nile death metal",
+              "expected_id": "wd:Q660835"
+            },
+            {
+              "context": "nile band",
+              "expected_id": "wd:Q660835"
+            },
+            {
+              "context": "nile music",
+              "expected_id": "wd:Q660835"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q660835",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "nile death metal",
+            "nile band",
+            "nile music"
+          ],
+          "negative_contexts": [
+            {
+              "context": "nile river",
+              "expected_id": "wd:Q3392"
+            },
+            {
+              "context": "nile Egypt",
+              "expected_id": "wd:Q3392"
+            },
+            {
+              "context": "nile Africa",
+              "expected_id": "wd:Q3392"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "orange",
+      "senses": [
+        {
+          "id": "wd:Q1431486",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "orange telecommunications",
+            "orange mobile network",
+            "orange operator"
+          ],
+          "negative_contexts": [
+            {
+              "context": "orange Vaucluse",
+              "expected_id": "wd:Q187796"
+            },
+            {
+              "context": "orange France",
+              "expected_id": "wd:Q187796"
+            },
+            {
+              "context": "orange commune",
+              "expected_id": "wd:Q187796"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q187796",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "orange Vaucluse",
+            "orange France",
+            "orange commune"
+          ],
+          "negative_contexts": [
+            {
+              "context": "orange telecommunications",
+              "expected_id": "wd:Q1431486"
+            },
+            {
+              "context": "orange mobile network",
+              "expected_id": "wd:Q1431486"
+            },
+            {
+              "context": "orange operator",
+              "expected_id": "wd:Q1431486"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "panther",
+      "senses": [
+        {
+          "id": "wd:Q7131761",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "panther 1975 release",
+            "panther Panther 1975",
+            "panther arcade software"
+          ],
+          "negative_contexts": [
+            {
+              "context": "panther 1988 release",
+              "expected_id": "wd:Q7131763"
+            },
+            {
+              "context": "panther Panther 1988",
+              "expected_id": "wd:Q7131763"
+            },
+            {
+              "context": "panther Atari game",
+              "expected_id": "wd:Q7131763"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q7131763",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "panther 1988 release",
+            "panther Panther 1988",
+            "panther Atari game"
+          ],
+          "negative_contexts": [
+            {
+              "context": "panther 1975 release",
+              "expected_id": "wd:Q7131761"
+            },
+            {
+              "context": "panther Panther 1975",
+              "expected_id": "wd:Q7131761"
+            },
+            {
+              "context": "panther arcade software",
+              "expected_id": "wd:Q7131761"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "paris",
+      "senses": [
+        {
+          "id": "wd:Q1158980",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "paris given name",
+            "paris named person",
+            "paris first name"
+          ],
+          "negative_contexts": [
+            {
+              "context": "paris France",
+              "expected_id": "wd:Q90"
+            },
+            {
+              "context": "paris Seine",
+              "expected_id": "wd:Q90"
+            },
+            {
+              "context": "paris Eiffel Tower",
+              "expected_id": "wd:Q90"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q90",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "paris France",
+            "paris Seine",
+            "paris Eiffel Tower"
+          ],
+          "negative_contexts": [
+            {
+              "context": "paris given name",
+              "expected_id": "wd:Q1158980"
+            },
+            {
+              "context": "paris named person",
+              "expected_id": "wd:Q1158980"
+            },
+            {
+              "context": "paris first name",
+              "expected_id": "wd:Q1158980"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "phoenix",
+      "senses": [
+        {
+          "id": "wd:Q10441",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "phoenix constellation",
+            "phoenix stars",
+            "phoenix celestial hemisphere"
+          ],
+          "negative_contexts": [
+            {
+              "context": "phoenix Arizona",
+              "expected_id": "wd:Q16556"
+            },
+            {
+              "context": "phoenix Maricopa County",
+              "expected_id": "wd:Q16556"
+            },
+            {
+              "context": "phoenix city",
+              "expected_id": "wd:Q16556"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q16556",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "phoenix Arizona",
+            "phoenix Maricopa County",
+            "phoenix city"
+          ],
+          "negative_contexts": [
+            {
+              "context": "phoenix constellation",
+              "expected_id": "wd:Q10441"
+            },
+            {
+              "context": "phoenix stars",
+              "expected_id": "wd:Q10441"
+            },
+            {
+              "context": "phoenix celestial hemisphere",
+              "expected_id": "wd:Q10441"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "polo",
+      "senses": [
+        {
+          "id": "wd:Q134211",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "polo equestrian",
+            "polo sport",
+            "polo horses"
+          ],
+          "negative_contexts": [
+            {
+              "context": "polo surname",
+              "expected_id": "wd:Q18331415"
+            },
+            {
+              "context": "polo family name",
+              "expected_id": "wd:Q18331415"
+            },
+            {
+              "context": "polo named person",
+              "expected_id": "wd:Q18331415"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q18331415",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "polo surname",
+            "polo family name",
+            "polo named person"
+          ],
+          "negative_contexts": [
+            {
+              "context": "polo equestrian",
+              "expected_id": "wd:Q134211"
+            },
+            {
+              "context": "polo sport",
+              "expected_id": "wd:Q134211"
+            },
+            {
+              "context": "polo horses",
+              "expected_id": "wd:Q134211"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "puma",
+      "senses": [
+        {
+          "id": "wd:Q157064",
+          "entity_type": "BRAND",
+          "positive_contexts": [
+            "puma sportswear",
+            "puma sneakers",
+            "puma apparel"
+          ],
+          "negative_contexts": [
+            {
+              "context": "puma cougar",
+              "expected_id": "wd:Q270748"
+            },
+            {
+              "context": "puma mammal",
+              "expected_id": "wd:Q270748"
+            },
+            {
+              "context": "puma feline",
+              "expected_id": "wd:Q270748"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q270748",
+          "entity_type": "ANIMAL",
+          "positive_contexts": [
+            "puma cougar",
+            "puma mammal",
+            "puma feline"
+          ],
+          "negative_contexts": [
+            {
+              "context": "puma sportswear",
+              "expected_id": "wd:Q157064"
+            },
+            {
+              "context": "puma sneakers",
+              "expected_id": "wd:Q157064"
+            },
+            {
+              "context": "puma apparel",
+              "expected_id": "wd:Q157064"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "rome",
+      "senses": [
+        {
+          "id": "wd:Q220",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "rome Italy",
+            "rome Tiber",
+            "rome capital"
+          ],
+          "negative_contexts": [
+            {
+              "context": "rome Georgia",
+              "expected_id": "wd:Q6580"
+            },
+            {
+              "context": "rome Floyd County",
+              "expected_id": "wd:Q6580"
+            },
+            {
+              "context": "rome American city",
+              "expected_id": "wd:Q6580"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q6580",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "rome Georgia",
+            "rome Floyd County",
+            "rome American city"
+          ],
+          "negative_contexts": [
+            {
+              "context": "rome Italy",
+              "expected_id": "wd:Q220"
+            },
+            {
+              "context": "rome Tiber",
+              "expected_id": "wd:Q220"
+            },
+            {
+              "context": "rome capital",
+              "expected_id": "wd:Q220"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "sahara",
+      "senses": [
+        {
+          "id": "wd:Q20001018",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "sahara given name",
+            "sahara first name",
+            "sahara named person"
+          ],
+          "negative_contexts": [
+            {
+              "context": "sahara desert",
+              "expected_id": "wd:Q6583"
+            },
+            {
+              "context": "sahara North Africa",
+              "expected_id": "wd:Q6583"
+            },
+            {
+              "context": "sahara dunes",
+              "expected_id": "wd:Q6583"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q6583",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "sahara desert",
+            "sahara North Africa",
+            "sahara dunes"
+          ],
+          "negative_contexts": [
+            {
+              "context": "sahara given name",
+              "expected_id": "wd:Q20001018"
+            },
+            {
+              "context": "sahara first name",
+              "expected_id": "wd:Q20001018"
+            },
+            {
+              "context": "sahara named person",
+              "expected_id": "wd:Q20001018"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "santiago",
+      "senses": [
+        {
+          "id": "wd:Q13422956",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "santiago given name",
+            "santiago first name",
+            "santiago named person"
+          ],
+          "negative_contexts": [
+            {
+              "context": "santiago Chile",
+              "expected_id": "wd:Q2887"
+            },
+            {
+              "context": "santiago Andes",
+              "expected_id": "wd:Q2887"
+            },
+            {
+              "context": "santiago capital",
+              "expected_id": "wd:Q2887"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q2887",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "santiago Chile",
+            "santiago Andes",
+            "santiago capital"
+          ],
+          "negative_contexts": [
+            {
+              "context": "santiago given name",
+              "expected_id": "wd:Q13422956"
+            },
+            {
+              "context": "santiago first name",
+              "expected_id": "wd:Q13422956"
+            },
+            {
+              "context": "santiago named person",
+              "expected_id": "wd:Q13422956"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "saturn",
+      "senses": [
+        {
+          "id": "wd:Q134388",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "saturn Roman god",
+            "saturn mythology",
+            "saturn agriculture"
+          ],
+          "negative_contexts": [
+            {
+              "context": "saturn planet",
+              "expected_id": "wd:Q193"
+            },
+            {
+              "context": "saturn rings",
+              "expected_id": "wd:Q193"
+            },
+            {
+              "context": "saturn solar system",
+              "expected_id": "wd:Q193"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q193",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "saturn planet",
+            "saturn rings",
+            "saturn solar system"
+          ],
+          "negative_contexts": [
+            {
+              "context": "saturn Roman god",
+              "expected_id": "wd:Q134388"
+            },
+            {
+              "context": "saturn mythology",
+              "expected_id": "wd:Q134388"
+            },
+            {
+              "context": "saturn agriculture",
+              "expected_id": "wd:Q134388"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "saturno",
+      "senses": [
+        {
+          "id": "wd:Q134388",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "saturno Roman god",
+            "saturno mythology",
+            "saturno agriculture"
+          ],
+          "negative_contexts": [
+            {
+              "context": "saturno planet",
+              "expected_id": "wd:Q193"
+            },
+            {
+              "context": "saturno rings",
+              "expected_id": "wd:Q193"
+            },
+            {
+              "context": "saturno solar system",
+              "expected_id": "wd:Q193"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q193",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "saturno planet",
+            "saturno rings",
+            "saturno solar system"
+          ],
+          "negative_contexts": [
+            {
+              "context": "saturno Roman god",
+              "expected_id": "wd:Q134388"
+            },
+            {
+              "context": "saturno mythology",
+              "expected_id": "wd:Q134388"
+            },
+            {
+              "context": "saturno agriculture",
+              "expected_id": "wd:Q134388"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "shell",
+      "senses": [
+        {
+          "id": "wd:Q154950",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "shell petroleum",
+            "shell oil company",
+            "shell energy"
+          ],
+          "negative_contexts": [
+            {
+              "context": "shell beach",
+              "expected_id": "wd:Q213096"
+            },
+            {
+              "context": "shell mollusc",
+              "expected_id": "wd:Q213096"
+            },
+            {
+              "context": "shell marine animal",
+              "expected_id": "wd:Q213096"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q213096",
+          "entity_type": "PRODUCT",
+          "positive_contexts": [
+            "shell beach",
+            "shell mollusc",
+            "shell marine animal"
+          ],
+          "negative_contexts": [
+            {
+              "context": "shell petroleum",
+              "expected_id": "wd:Q154950"
+            },
+            {
+              "context": "shell oil company",
+              "expected_id": "wd:Q154950"
+            },
+            {
+              "context": "shell energy",
+              "expected_id": "wd:Q154950"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "tesla",
+      "senses": [
+        {
+          "id": "wd:Q478214",
+          "entity_type": "BRAND",
+          "positive_contexts": [
+            "tesla electric car",
+            "tesla battery",
+            "tesla automaker"
+          ],
+          "negative_contexts": [
+            {
+              "context": "tesla inventor",
+              "expected_id": "wd:Q9036"
+            },
+            {
+              "context": "tesla alternating current",
+              "expected_id": "wd:Q9036"
+            },
+            {
+              "context": "tesla engineer",
+              "expected_id": "wd:Q9036"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q9036",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "tesla inventor",
+            "tesla alternating current",
+            "tesla engineer"
+          ],
+          "negative_contexts": [
+            {
+              "context": "tesla electric car",
+              "expected_id": "wd:Q478214"
+            },
+            {
+              "context": "tesla battery",
+              "expected_id": "wd:Q478214"
+            },
+            {
+              "context": "tesla automaker",
+              "expected_id": "wd:Q478214"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "turkey",
+      "senses": [
+        {
+          "id": "wd:Q43",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "turkey Ankara",
+            "turkey country",
+            "turkey Istanbul"
+          ],
+          "negative_contexts": [
+            {
+              "context": "turkey bird",
+              "expected_id": "wd:Q848706"
+            },
+            {
+              "context": "turkey poultry",
+              "expected_id": "wd:Q848706"
+            },
+            {
+              "context": "turkey feathers",
+              "expected_id": "wd:Q848706"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q848706",
+          "entity_type": "ANIMAL",
+          "positive_contexts": [
+            "turkey bird",
+            "turkey poultry",
+            "turkey feathers"
+          ],
+          "negative_contexts": [
+            {
+              "context": "turkey Ankara",
+              "expected_id": "wd:Q43"
+            },
+            {
+              "context": "turkey country",
+              "expected_id": "wd:Q43"
+            },
+            {
+              "context": "turkey Istanbul",
+              "expected_id": "wd:Q43"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "united",
+      "senses": [
+        {
+          "id": "wd:Q174769",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "united airline",
+            "united aircraft",
+            "united airport"
+          ],
+          "negative_contexts": [
+            {
+              "context": "united football club",
+              "expected_id": "wd:Q18656"
+            },
+            {
+              "context": "united Old Trafford",
+              "expected_id": "wd:Q18656"
+            },
+            {
+              "context": "united Premier League",
+              "expected_id": "wd:Q18656"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q18656",
+          "entity_type": "ORG",
+          "positive_contexts": [
+            "united football club",
+            "united Old Trafford",
+            "united Premier League"
+          ],
+          "negative_contexts": [
+            {
+              "context": "united airline",
+              "expected_id": "wd:Q174769"
+            },
+            {
+              "context": "united aircraft",
+              "expected_id": "wd:Q174769"
+            },
+            {
+              "context": "united airport",
+              "expected_id": "wd:Q174769"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "venere",
+      "senses": [
+        {
+          "id": "wd:Q313",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "venere planet",
+            "venere orbit",
+            "venere solar system"
+          ],
+          "negative_contexts": [
+            {
+              "context": "venere goddess",
+              "expected_id": "wd:Q47652"
+            },
+            {
+              "context": "venere Roman mythology",
+              "expected_id": "wd:Q47652"
+            },
+            {
+              "context": "venere deity",
+              "expected_id": "wd:Q47652"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q47652",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "venere goddess",
+            "venere Roman mythology",
+            "venere deity"
+          ],
+          "negative_contexts": [
+            {
+              "context": "venere planet",
+              "expected_id": "wd:Q313"
+            },
+            {
+              "context": "venere orbit",
+              "expected_id": "wd:Q313"
+            },
+            {
+              "context": "venere solar system",
+              "expected_id": "wd:Q313"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "venus",
+      "senses": [
+        {
+          "id": "wd:Q313",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "venus planet",
+            "venus orbit",
+            "venus solar system"
+          ],
+          "negative_contexts": [
+            {
+              "context": "venus goddess",
+              "expected_id": "wd:Q47652"
+            },
+            {
+              "context": "venus Roman mythology",
+              "expected_id": "wd:Q47652"
+            },
+            {
+              "context": "venus deity",
+              "expected_id": "wd:Q47652"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q47652",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "venus goddess",
+            "venus Roman mythology",
+            "venus deity"
+          ],
+          "negative_contexts": [
+            {
+              "context": "venus planet",
+              "expected_id": "wd:Q313"
+            },
+            {
+              "context": "venus orbit",
+              "expected_id": "wd:Q313"
+            },
+            {
+              "context": "venus solar system",
+              "expected_id": "wd:Q313"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "victoria",
+      "senses": [
+        {
+          "id": "wd:Q36687",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "victoria Australia",
+            "victoria Melbourne",
+            "victoria Australian state"
+          ],
+          "negative_contexts": [
+            {
+              "context": "victoria given name",
+              "expected_id": "wd:Q590893"
+            },
+            {
+              "context": "victoria first name",
+              "expected_id": "wd:Q590893"
+            },
+            {
+              "context": "victoria named person",
+              "expected_id": "wd:Q590893"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q590893",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "victoria given name",
+            "victoria first name",
+            "victoria named person"
+          ],
+          "negative_contexts": [
+            {
+              "context": "victoria Australia",
+              "expected_id": "wd:Q36687"
+            },
+            {
+              "context": "victoria Melbourne",
+              "expected_id": "wd:Q36687"
+            },
+            {
+              "context": "victoria Australian state",
+              "expected_id": "wd:Q36687"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "vénus",
+      "senses": [
+        {
+          "id": "wd:Q313",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "vénus planet",
+            "vénus orbit",
+            "vénus solar system"
+          ],
+          "negative_contexts": [
+            {
+              "context": "vénus goddess",
+              "expected_id": "wd:Q47652"
+            },
+            {
+              "context": "vénus Roman mythology",
+              "expected_id": "wd:Q47652"
+            },
+            {
+              "context": "vénus deity",
+              "expected_id": "wd:Q47652"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q47652",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "vénus goddess",
+            "vénus Roman mythology",
+            "vénus deity"
+          ],
+          "negative_contexts": [
+            {
+              "context": "vénus planet",
+              "expected_id": "wd:Q313"
+            },
+            {
+              "context": "vénus orbit",
+              "expected_id": "wd:Q313"
+            },
+            {
+              "context": "vénus solar system",
+              "expected_id": "wd:Q313"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface": "washington",
+      "senses": [
+        {
+          "id": "wd:Q1223",
+          "entity_type": "LOCATION",
+          "positive_contexts": [
+            "washington Olympia",
+            "washington American state",
+            "washington Pacific Northwest"
+          ],
+          "negative_contexts": [
+            {
+              "context": "washington surname",
+              "expected_id": "wd:Q2550388"
+            },
+            {
+              "context": "washington family name",
+              "expected_id": "wd:Q2550388"
+            },
+            {
+              "context": "washington named person",
+              "expected_id": "wd:Q2550388"
+            }
+          ]
+        },
+        {
+          "id": "wd:Q2550388",
+          "entity_type": "PERSON",
+          "positive_contexts": [
+            "washington surname",
+            "washington family name",
+            "washington named person"
+          ],
+          "negative_contexts": [
+            {
+              "context": "washington Olympia",
+              "expected_id": "wd:Q1223"
+            },
+            {
+              "context": "washington American state",
+              "expected_id": "wd:Q1223"
+            },
+            {
+              "context": "washington Pacific Northwest",
+              "expected_id": "wd:Q1223"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

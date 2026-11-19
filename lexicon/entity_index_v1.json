@@ -2,46 +2,68 @@
   "version": "entity_index.v1",
   "entries": [
     {
-      "id": "wd:Q42262",
-      "canonical_name": "European Space Agency",
-      "entity_type": "ORG",
-      "gloss": "European intergovernmental space agency",
-      "negative_constraints": ["entertainment software association", "video games"],
+      "id": "wd:Q10441",
+      "canonical_name": "Phoenix",
+      "entity_type": "LOCATION",
+      "gloss": "constellation in the southern celestial hemisphere",
+      "negative_constraints": [
+        "Arizona",
+        "Maricopa County",
+        "city"
+      ],
       "aliases": {
-        "en": ["ESA", "European Space Agency"],
-        "it": ["ESA", "Agenzia Spaziale Europea"],
-        "pt": ["ESA", "Agência Espacial Europeia"]
+        "en": [
+          "Phoenix"
+        ],
+        "it": [
+          "Fenice"
+        ],
+        "pt": [
+          "Phoenix"
+        ]
       },
-      "context_terms": ["spazio", "spaziale", "spaziali", "nasa", "marte", "missione", "missioni", "satellite", "astronauta", "razzo", "space", "mars", "mission"],
-      "counter_terms": ["videogioco", "videogiochi", "e3", "software", "entertainment", "video game"]
+      "context_terms": [
+        "constellation",
+        "stars",
+        "celestial hemisphere"
+      ],
+      "counter_terms": [
+        "Arizona",
+        "Maricopa County",
+        "city"
+      ]
     },
     {
-      "id": "wd:Q1133229",
-      "canonical_name": "Entertainment Software Association",
-      "entity_type": "ORG",
-      "gloss": "American trade association for the video game industry",
-      "negative_constraints": ["space agency", "space missions"],
+      "id": "wd:Q1076681",
+      "canonical_name": "Milan",
+      "entity_type": "PERSON",
+      "gloss": "male given name",
+      "negative_constraints": [
+        "Lombardy",
+        "Italy",
+        "cathedral"
+      ],
       "aliases": {
-        "en": ["ESA", "Entertainment Software Association"],
-        "it": ["ESA"],
-        "pt": ["ESA"]
+        "en": [
+          "Milan"
+        ],
+        "it": [
+          "Milan"
+        ],
+        "pt": [
+          "Milan"
+        ]
       },
-      "context_terms": ["videogioco", "videogiochi", "e3", "software", "entertainment", "video game", "industria"],
-      "counter_terms": ["spazio", "spaziale", "nasa", "marte", "missione", "satellite", "razzo"]
-    },
-    {
-      "id": "wd:Q23548",
-      "canonical_name": "NASA",
-      "entity_type": "ORG",
-      "gloss": "United States National Aeronautics and Space Administration",
-      "negative_constraints": [],
-      "aliases": {
-        "en": ["NASA", "National Aeronautics and Space Administration"],
-        "it": ["NASA"],
-        "pt": ["NASA"]
-      },
-      "context_terms": ["spazio", "spaziale", "marte", "missione", "satellite", "astronauta", "razzo", "space", "mars"],
-      "counter_terms": []
+      "context_terms": [
+        "given name",
+        "first name",
+        "named person"
+      ],
+      "counter_terms": [
+        "Lombardy",
+        "Italy",
+        "cathedral"
+      ]
     },
     {
       "id": "wd:Q1094480",
@@ -50,12 +72,546 @@
       "gloss": "Italian national news agency",
       "negative_constraints": [],
       "aliases": {
-        "en": ["ANSA", "Agenzia Nazionale Stampa Associata"],
-        "it": ["ANSA", "Agenzia Nazionale Stampa Associata"],
-        "pt": ["ANSA"]
+        "en": [
+          "ANSA",
+          "Agenzia Nazionale Stampa Associata"
+        ],
+        "it": [
+          "ANSA",
+          "Agenzia Nazionale Stampa Associata"
+        ],
+        "pt": [
+          "ANSA"
+        ]
       },
-      "context_terms": ["notizie", "agenzia", "giornalismo", "stampa", "news"],
+      "context_terms": [
+        "notizie",
+        "agenzia",
+        "giornalismo",
+        "stampa",
+        "news"
+      ],
       "counter_terms": []
+    },
+    {
+      "id": "wd:Q11247279",
+      "canonical_name": "Ford",
+      "entity_type": "PERSON",
+      "gloss": "family name",
+      "negative_constraints": [
+        "automaker",
+        "Detroit",
+        "automobile"
+      ],
+      "aliases": {
+        "en": [
+          "Ford"
+        ],
+        "it": [
+          "Ford"
+        ],
+        "pt": [
+          "Ford"
+        ]
+      },
+      "context_terms": [
+        "surname",
+        "family name",
+        "named person"
+      ],
+      "counter_terms": [
+        "automaker",
+        "Detroit",
+        "automobile"
+      ]
+    },
+    {
+      "id": "wd:Q11255517",
+      "canonical_name": "Lima",
+      "entity_type": "PERSON",
+      "gloss": "family name",
+      "negative_constraints": [
+        "Peru",
+        "capital",
+        "Pacific coast"
+      ],
+      "aliases": {
+        "en": [
+          "Lima"
+        ],
+        "it": [
+          "Lima"
+        ],
+        "pt": [
+          "Lima"
+        ]
+      },
+      "context_terms": [
+        "surname",
+        "family name",
+        "named person"
+      ],
+      "counter_terms": [
+        "Peru",
+        "capital",
+        "Pacific coast"
+      ]
+    },
+    {
+      "id": "wd:Q1133229",
+      "canonical_name": "Entertainment Software Association",
+      "entity_type": "ORG",
+      "gloss": "American trade association for the video game industry",
+      "negative_constraints": [
+        "space agency",
+        "space missions"
+      ],
+      "aliases": {
+        "en": [
+          "ESA",
+          "Entertainment Software Association"
+        ],
+        "it": [
+          "ESA"
+        ],
+        "pt": [
+          "ESA"
+        ]
+      },
+      "context_terms": [
+        "videogioco",
+        "videogiochi",
+        "e3",
+        "software",
+        "entertainment",
+        "video game",
+        "industria"
+      ],
+      "counter_terms": [
+        "spazio",
+        "spaziale",
+        "nasa",
+        "marte",
+        "missione",
+        "satellite",
+        "razzo"
+      ]
+    },
+    {
+      "id": "wd:Q1158980",
+      "canonical_name": "Paris",
+      "entity_type": "PERSON",
+      "gloss": "unisex given name",
+      "negative_constraints": [
+        "France",
+        "Seine",
+        "Eiffel Tower"
+      ],
+      "aliases": {
+        "en": [
+          "Paris"
+        ],
+        "it": [
+          "Paris"
+        ],
+        "pt": [
+          "Paris"
+        ]
+      },
+      "context_terms": [
+        "given name",
+        "named person",
+        "first name"
+      ],
+      "counter_terms": [
+        "France",
+        "Seine",
+        "Eiffel Tower"
+      ]
+    },
+    {
+      "id": "wd:Q1223",
+      "canonical_name": "Washington",
+      "entity_type": "LOCATION",
+      "gloss": "state of the United States",
+      "negative_constraints": [
+        "surname",
+        "family name",
+        "named person"
+      ],
+      "aliases": {
+        "en": [
+          "Washington"
+        ],
+        "it": [
+          "Washington"
+        ],
+        "pt": [
+          "Washington"
+        ]
+      },
+      "context_terms": [
+        "Olympia",
+        "American state",
+        "Pacific Northwest"
+      ],
+      "counter_terms": [
+        "surname",
+        "family name",
+        "named person"
+      ]
+    },
+    {
+      "id": "wd:Q134211",
+      "canonical_name": "polo",
+      "entity_type": "PRODUCT",
+      "gloss": "equestrian team sport",
+      "negative_constraints": [
+        "surname",
+        "family name",
+        "named person"
+      ],
+      "aliases": {
+        "en": [
+          "Polo"
+        ],
+        "it": [
+          "polo"
+        ],
+        "pt": [
+          "polo"
+        ]
+      },
+      "context_terms": [
+        "equestrian",
+        "sport",
+        "horses"
+      ],
+      "counter_terms": [
+        "surname",
+        "family name",
+        "named person"
+      ]
+    },
+    {
+      "id": "wd:Q13422956",
+      "canonical_name": "Santiago",
+      "entity_type": "PERSON",
+      "gloss": "male given name",
+      "negative_constraints": [
+        "Chile",
+        "Andes",
+        "capital"
+      ],
+      "aliases": {
+        "en": [
+          "Santiago"
+        ],
+        "it": [
+          "Santiago"
+        ],
+        "pt": [
+          "Santiago"
+        ]
+      },
+      "context_terms": [
+        "given name",
+        "first name",
+        "named person"
+      ],
+      "counter_terms": [
+        "Chile",
+        "Andes",
+        "capital"
+      ]
+    },
+    {
+      "id": "wd:Q134388",
+      "canonical_name": "Saturn",
+      "entity_type": "PERSON",
+      "gloss": "god in ancient Roman mythology",
+      "negative_constraints": [
+        "planet",
+        "rings",
+        "solar system"
+      ],
+      "aliases": {
+        "en": [
+          "Saturn"
+        ],
+        "it": [
+          "Saturno"
+        ],
+        "pt": [
+          "Saturno"
+        ]
+      },
+      "context_terms": [
+        "Roman god",
+        "mythology",
+        "agriculture"
+      ],
+      "counter_terms": [
+        "planet",
+        "rings",
+        "solar system"
+      ]
+    },
+    {
+      "id": "wd:Q13634093",
+      "canonical_name": "Dove",
+      "entity_type": "PERSON",
+      "gloss": "family name",
+      "negative_constraints": [
+        "given name",
+        "first name",
+        "baby name"
+      ],
+      "aliases": {
+        "en": [
+          "Dove"
+        ],
+        "it": [
+          "Dove"
+        ],
+        "pt": [
+          "Dove"
+        ]
+      },
+      "context_terms": [
+        "surname",
+        "last name",
+        "family lineage"
+      ],
+      "counter_terms": [
+        "given name",
+        "first name",
+        "baby name"
+      ]
+    },
+    {
+      "id": "wd:Q1428",
+      "canonical_name": "Georgia",
+      "entity_type": "LOCATION",
+      "gloss": "state of the United States",
+      "negative_constraints": [
+        "Tbilisi",
+        "Caucasus",
+        "country"
+      ],
+      "aliases": {
+        "en": [
+          "Georgia"
+        ],
+        "it": [
+          "Georgia"
+        ],
+        "pt": [
+          "Geórgia"
+        ]
+      },
+      "context_terms": [
+        "Atlanta",
+        "American state",
+        "Savannah"
+      ],
+      "counter_terms": [
+        "Tbilisi",
+        "Caucasus",
+        "country"
+      ]
+    },
+    {
+      "id": "wd:Q1431486",
+      "canonical_name": "Orange",
+      "entity_type": "ORG",
+      "gloss": "French multinational telecommunications enterprise",
+      "negative_constraints": [
+        "Vaucluse",
+        "France",
+        "commune"
+      ],
+      "aliases": {
+        "en": [
+          "Orange"
+        ],
+        "it": [
+          "Orange"
+        ],
+        "pt": [
+          "Orange"
+        ]
+      },
+      "context_terms": [
+        "telecommunications",
+        "mobile network",
+        "operator"
+      ],
+      "counter_terms": [
+        "Vaucluse",
+        "France",
+        "commune"
+      ]
+    },
+    {
+      "id": "wd:Q151012",
+      "canonical_name": "Genesis",
+      "entity_type": "ORG",
+      "gloss": "English rock band",
+      "negative_constraints": [
+        "Bible",
+        "scripture",
+        "Old Testament"
+      ],
+      "aliases": {
+        "en": [
+          "Genesis"
+        ],
+        "it": [
+          "Genesis"
+        ],
+        "pt": [
+          "Genesis"
+        ]
+      },
+      "context_terms": [
+        "rock band",
+        "Phil Collins",
+        "progressive rock"
+      ],
+      "counter_terms": [
+        "Bible",
+        "scripture",
+        "Old Testament"
+      ]
+    },
+    {
+      "id": "wd:Q154950",
+      "canonical_name": "Shell",
+      "entity_type": "ORG",
+      "gloss": "British multinational oil and gas company",
+      "negative_constraints": [
+        "beach",
+        "mollusc",
+        "marine animal"
+      ],
+      "aliases": {
+        "en": [
+          "Shell"
+        ],
+        "it": [
+          "Royal Dutch Shell"
+        ],
+        "pt": [
+          "Shell plc"
+        ]
+      },
+      "context_terms": [
+        "petroleum",
+        "oil company",
+        "energy"
+      ],
+      "counter_terms": [
+        "beach",
+        "mollusc",
+        "marine animal"
+      ]
+    },
+    {
+      "id": "wd:Q157064",
+      "canonical_name": "Puma",
+      "entity_type": "BRAND",
+      "gloss": "German multinational corporation",
+      "negative_constraints": [
+        "cougar",
+        "mammal",
+        "feline"
+      ],
+      "aliases": {
+        "en": [
+          "Puma"
+        ],
+        "it": [
+          "Puma"
+        ],
+        "pt": [
+          "Puma SE"
+        ]
+      },
+      "context_terms": [
+        "sportswear",
+        "sneakers",
+        "apparel"
+      ],
+      "counter_terms": [
+        "cougar",
+        "mammal",
+        "feline"
+      ]
+    },
+    {
+      "id": "wd:Q16556",
+      "canonical_name": "Phoenix",
+      "entity_type": "LOCATION",
+      "gloss": "capital city of Arizona",
+      "negative_constraints": [
+        "constellation",
+        "stars",
+        "celestial hemisphere"
+      ],
+      "aliases": {
+        "en": [
+          "Phoenix"
+        ],
+        "it": [
+          "Phoenix"
+        ],
+        "pt": [
+          "Phoenix"
+        ]
+      },
+      "context_terms": [
+        "Arizona",
+        "Maricopa County",
+        "city"
+      ],
+      "counter_terms": [
+        "constellation",
+        "stars",
+        "celestial hemisphere"
+      ]
+    },
+    {
+      "id": "wd:Q170453",
+      "canonical_name": "Amazonas",
+      "entity_type": "LOCATION",
+      "gloss": "Venezuelan state",
+      "negative_constraints": [
+        "Brazil",
+        "Manaus",
+        "Brazilian state"
+      ],
+      "aliases": {
+        "en": [
+          "Amazonas"
+        ],
+        "it": [
+          "Amazonas"
+        ],
+        "pt": [
+          "Amazonas"
+        ]
+      },
+      "context_terms": [
+        "Venezuela",
+        "Puerto Ayacucho",
+        "Venezuelan state"
+      ],
+      "counter_terms": [
+        "Brazil",
+        "Manaus",
+        "Brazilian state"
+      ]
     },
     {
       "id": "wd:Q17334",
@@ -64,12 +620,703 @@
       "gloss": "European Organization for Nuclear Research",
       "negative_constraints": [],
       "aliases": {
-        "en": ["CERN", "European Organization for Nuclear Research"],
-        "it": ["CERN", "Organizzazione Europea per la Ricerca Nucleare"],
-        "pt": ["CERN"]
+        "en": [
+          "CERN",
+          "European Organization for Nuclear Research"
+        ],
+        "it": [
+          "CERN",
+          "Organizzazione Europea per la Ricerca Nucleare"
+        ],
+        "pt": [
+          "CERN"
+        ]
       },
-      "context_terms": ["particelle", "rivelatori", "ginevra", "fisica", "acceleratore", "nucleare"],
+      "context_terms": [
+        "particelle",
+        "rivelatori",
+        "ginevra",
+        "fisica",
+        "acceleratore",
+        "nucleare"
+      ],
       "counter_terms": []
+    },
+    {
+      "id": "wd:Q174769",
+      "canonical_name": "United Airlines",
+      "entity_type": "ORG",
+      "gloss": "American airline",
+      "negative_constraints": [
+        "football club",
+        "Old Trafford",
+        "Premier League"
+      ],
+      "aliases": {
+        "en": [
+          "United"
+        ],
+        "it": [
+          "United Airlines"
+        ],
+        "pt": [
+          "United Airlines"
+        ]
+      },
+      "context_terms": [
+        "airline",
+        "aircraft",
+        "airport"
+      ],
+      "counter_terms": [
+        "football club",
+        "Old Trafford",
+        "Premier League"
+      ]
+    },
+    {
+      "id": "wd:Q177567",
+      "canonical_name": "Amazon rainforest",
+      "entity_type": "LOCATION",
+      "gloss": "large rainforest in South America",
+      "negative_constraints": [
+        "ecommerce",
+        "online retailer",
+        "Seattle"
+      ],
+      "aliases": {
+        "en": [
+          "Amazon"
+        ],
+        "it": [
+          "Amazzonia"
+        ],
+        "pt": [
+          "Floresta amazônica"
+        ]
+      },
+      "context_terms": [
+        "rainforest",
+        "Amazon basin",
+        "tropical forest"
+      ],
+      "counter_terms": [
+        "ecommerce",
+        "online retailer",
+        "Seattle"
+      ]
+    },
+    {
+      "id": "wd:Q18331415",
+      "canonical_name": "Polo",
+      "entity_type": "PERSON",
+      "gloss": "family name",
+      "negative_constraints": [
+        "equestrian",
+        "sport",
+        "horses"
+      ],
+      "aliases": {
+        "en": [
+          "Polo"
+        ],
+        "it": [
+          "Polo"
+        ],
+        "pt": [
+          "Polo"
+        ]
+      },
+      "context_terms": [
+        "surname",
+        "family name",
+        "named person"
+      ],
+      "counter_terms": [
+        "equestrian",
+        "sport",
+        "horses"
+      ]
+    },
+    {
+      "id": "wd:Q183476",
+      "canonical_name": "Ford Mustang",
+      "entity_type": "PRODUCT",
+      "gloss": "American muscle car model",
+      "negative_constraints": [
+        "feral horse",
+        "wild horse",
+        "equine"
+      ],
+      "aliases": {
+        "en": [
+          "Mustang"
+        ],
+        "it": [
+          "Ford Mustang"
+        ],
+        "pt": [
+          "Ford Mustang"
+        ]
+      },
+      "context_terms": [
+        "Ford car",
+        "muscle car",
+        "automobile"
+      ],
+      "counter_terms": [
+        "feral horse",
+        "wild horse",
+        "equine"
+      ]
+    },
+    {
+      "id": "wd:Q18656",
+      "canonical_name": "Manchester United F.C.",
+      "entity_type": "ORG",
+      "gloss": "association football club in Manchester",
+      "negative_constraints": [
+        "airline",
+        "aircraft",
+        "airport"
+      ],
+      "aliases": {
+        "en": [
+          "United"
+        ],
+        "it": [
+          "Manchester United FC"
+        ],
+        "pt": [
+          "Manchester United Football Club"
+        ]
+      },
+      "context_terms": [
+        "football club",
+        "Old Trafford",
+        "Premier League"
+      ],
+      "counter_terms": [
+        "airline",
+        "aircraft",
+        "airport"
+      ]
+    },
+    {
+      "id": "wd:Q187796",
+      "canonical_name": "Orange",
+      "entity_type": "LOCATION",
+      "gloss": "commune in Vaucluse, France",
+      "negative_constraints": [
+        "telecommunications",
+        "mobile network",
+        "operator"
+      ],
+      "aliases": {
+        "en": [
+          "Orange"
+        ],
+        "it": [
+          "Orange"
+        ],
+        "pt": [
+          "Orange"
+        ]
+      },
+      "context_terms": [
+        "Vaucluse",
+        "France",
+        "commune"
+      ],
+      "counter_terms": [
+        "telecommunications",
+        "mobile network",
+        "operator"
+      ]
+    },
+    {
+      "id": "wd:Q188920",
+      "canonical_name": "Delta Air Lines",
+      "entity_type": "ORG",
+      "gloss": "airline in the United States",
+      "negative_constraints": [
+        "Nigeria",
+        "state",
+        "Asaba"
+      ],
+      "aliases": {
+        "en": [
+          "Delta"
+        ],
+        "it": [
+          "Delta Air Lines"
+        ],
+        "pt": [
+          "Delta Air Lines"
+        ]
+      },
+      "context_terms": [
+        "airline",
+        "airport",
+        "flight"
+      ],
+      "counter_terms": [
+        "Nigeria",
+        "state",
+        "Asaba"
+      ]
+    },
+    {
+      "id": "wd:Q1924529",
+      "canonical_name": "Michael B. Jordan",
+      "entity_type": "PERSON",
+      "gloss": "American actor",
+      "negative_constraints": [
+        "basketball player",
+        "Chicago Bulls"
+      ],
+      "aliases": {
+        "en": [
+          "Michael B. Jordan"
+        ],
+        "it": [
+          "Michael B. Jordan"
+        ],
+        "pt": [
+          "Michael B. Jordan"
+        ]
+      },
+      "context_terms": [
+        "attore",
+        "actor",
+        "creed",
+        "adonis",
+        "film",
+        "cinema"
+      ],
+      "counter_terms": [
+        "basket",
+        "bulls",
+        "chicago",
+        "nba"
+      ]
+    },
+    {
+      "id": "wd:Q193",
+      "canonical_name": "Saturn",
+      "entity_type": "LOCATION",
+      "gloss": "sixth planet in the Solar System",
+      "negative_constraints": [
+        "Roman god",
+        "mythology",
+        "agriculture"
+      ],
+      "aliases": {
+        "en": [
+          "Saturn"
+        ],
+        "it": [
+          "Saturno"
+        ],
+        "pt": [
+          "Saturno"
+        ]
+      },
+      "context_terms": [
+        "planet",
+        "rings",
+        "solar system"
+      ],
+      "counter_terms": [
+        "Roman god",
+        "mythology",
+        "agriculture"
+      ]
+    },
+    {
+      "id": "wd:Q193845",
+      "canonical_name": "Nike of Samothrace",
+      "entity_type": "WORK",
+      "gloss": "Hellenistic sculpture of the goddess Nike",
+      "negative_constraints": [
+        "sportswear",
+        "footwear"
+      ],
+      "aliases": {
+        "en": [
+          "Nike",
+          "Nike of Samothrace",
+          "Winged Victory"
+        ],
+        "it": [
+          "Nike",
+          "Nike di Samotracia"
+        ],
+        "pt": [
+          "Nike",
+          "Nike de Samotrácia"
+        ]
+      },
+      "context_terms": [
+        "statua",
+        "mitologia",
+        "grecia",
+        "greca",
+        "museo",
+        "samotracia",
+        "vittoria",
+        "louvre",
+        "scultura"
+      ],
+      "counter_terms": [
+        "scarpe",
+        "sneakers",
+        "sportswear",
+        "abbigliamento",
+        "atleta"
+      ]
+    },
+    {
+      "id": "wd:Q19927",
+      "canonical_name": "Michael Jordan",
+      "entity_type": "PERSON",
+      "gloss": "American basketball player",
+      "negative_constraints": [
+        "Michael B. Jordan",
+        "actor"
+      ],
+      "aliases": {
+        "en": [
+          "Michael Jordan"
+        ],
+        "it": [
+          "Michael Jordan"
+        ],
+        "pt": [
+          "Michael Jordan"
+        ]
+      },
+      "context_terms": [
+        "basket",
+        "bulls",
+        "chicago",
+        "nba",
+        "basketball"
+      ],
+      "counter_terms": [
+        "attore",
+        "actor",
+        "creed",
+        "adonis",
+        "film"
+      ]
+    },
+    {
+      "id": "wd:Q20001018",
+      "canonical_name": "Sahara",
+      "entity_type": "PERSON",
+      "gloss": "female given name",
+      "negative_constraints": [
+        "desert",
+        "North Africa",
+        "dunes"
+      ],
+      "aliases": {
+        "en": [
+          "Sahara"
+        ],
+        "it": [
+          "Sahara"
+        ],
+        "pt": [
+          "Sahara"
+        ]
+      },
+      "context_terms": [
+        "given name",
+        "first name",
+        "named person"
+      ],
+      "counter_terms": [
+        "desert",
+        "North Africa",
+        "dunes"
+      ]
+    },
+    {
+      "id": "wd:Q21170490",
+      "canonical_name": "Jaguar",
+      "entity_type": "BRAND",
+      "gloss": "British car marque",
+      "negative_constraints": [
+        "big cat",
+        "rainforest",
+        "feline"
+      ],
+      "aliases": {
+        "en": [
+          "Jaguar"
+        ]
+      },
+      "context_terms": [
+        "automobile",
+        "car marque",
+        "vehicle"
+      ],
+      "counter_terms": [
+        "big cat",
+        "rainforest",
+        "feline"
+      ]
+    },
+    {
+      "id": "wd:Q211848",
+      "canonical_name": "mustang",
+      "entity_type": "ANIMAL",
+      "gloss": "feral domestic horse",
+      "negative_constraints": [
+        "Ford car",
+        "muscle car",
+        "automobile"
+      ],
+      "aliases": {
+        "en": [
+          "Mustang"
+        ],
+        "it": [
+          "Mustang"
+        ],
+        "pt": [
+          "mustangue"
+        ]
+      },
+      "context_terms": [
+        "feral horse",
+        "wild horse",
+        "equine"
+      ],
+      "counter_terms": [
+        "Ford car",
+        "muscle car",
+        "automobile"
+      ]
+    },
+    {
+      "id": "wd:Q213096",
+      "canonical_name": "seashell",
+      "entity_type": "PRODUCT",
+      "gloss": "hard protective outer layer created by a marine animal",
+      "negative_constraints": [
+        "petroleum",
+        "oil company",
+        "energy"
+      ],
+      "aliases": {
+        "en": [
+          "Shell"
+        ],
+        "it": [
+          "conchiglia"
+        ],
+        "pt": [
+          "concha"
+        ]
+      },
+      "context_terms": [
+        "beach",
+        "mollusc",
+        "marine animal"
+      ],
+      "counter_terms": [
+        "petroleum",
+        "oil company",
+        "energy"
+      ]
+    },
+    {
+      "id": "wd:Q220",
+      "canonical_name": "Rome",
+      "entity_type": "LOCATION",
+      "gloss": "capital and largest city of Italy",
+      "negative_constraints": [
+        "Georgia",
+        "Floyd County",
+        "American city"
+      ],
+      "aliases": {
+        "en": [
+          "Rome"
+        ],
+        "it": [
+          "Roma"
+        ],
+        "pt": [
+          "Roma"
+        ]
+      },
+      "context_terms": [
+        "Italy",
+        "Tiber",
+        "capital"
+      ],
+      "counter_terms": [
+        "Georgia",
+        "Floyd County",
+        "American city"
+      ]
+    },
+    {
+      "id": "wd:Q230",
+      "canonical_name": "Georgia",
+      "entity_type": "LOCATION",
+      "gloss": "country in the Caucasus",
+      "negative_constraints": [
+        "Atlanta",
+        "American state",
+        "Savannah"
+      ],
+      "aliases": {
+        "en": [
+          "Georgia"
+        ],
+        "it": [
+          "Georgia"
+        ],
+        "pt": [
+          "Geórgia"
+        ]
+      },
+      "context_terms": [
+        "Tbilisi",
+        "Caucasus",
+        "country"
+      ],
+      "counter_terms": [
+        "Atlanta",
+        "American state",
+        "Savannah"
+      ]
+    },
+    {
+      "id": "wd:Q23548",
+      "canonical_name": "NASA",
+      "entity_type": "ORG",
+      "gloss": "United States National Aeronautics and Space Administration",
+      "negative_constraints": [],
+      "aliases": {
+        "en": [
+          "NASA",
+          "National Aeronautics and Space Administration"
+        ],
+        "it": [
+          "NASA"
+        ],
+        "pt": [
+          "NASA"
+        ]
+      },
+      "context_terms": [
+        "spazio",
+        "spaziale",
+        "marte",
+        "missione",
+        "satellite",
+        "astronauta",
+        "razzo",
+        "space",
+        "mars"
+      ],
+      "counter_terms": []
+    },
+    {
+      "id": "wd:Q251",
+      "canonical_name": "Java",
+      "entity_type": "PRODUCT",
+      "gloss": "object-oriented programming language",
+      "negative_constraints": [
+        "Indonesia",
+        "island",
+        "Jakarta"
+      ],
+      "aliases": {
+        "en": [
+          "Java"
+        ]
+      },
+      "context_terms": [
+        "programming",
+        "bytecode",
+        "JVM"
+      ],
+      "counter_terms": [
+        "Indonesia",
+        "island",
+        "Jakarta"
+      ]
+    },
+    {
+      "id": "wd:Q2550388",
+      "canonical_name": "Washington",
+      "entity_type": "PERSON",
+      "gloss": "family name",
+      "negative_constraints": [
+        "Olympia",
+        "American state",
+        "Pacific Northwest"
+      ],
+      "aliases": {
+        "en": [
+          "Washington"
+        ],
+        "it": [
+          "Washington"
+        ],
+        "pt": [
+          "Washington"
+        ]
+      },
+      "context_terms": [
+        "surname",
+        "family name",
+        "named person"
+      ],
+      "counter_terms": [
+        "Olympia",
+        "American state",
+        "Pacific Northwest"
+      ]
+    },
+    {
+      "id": "wd:Q270748",
+      "canonical_name": "Puma",
+      "entity_type": "ANIMAL",
+      "gloss": "genus of mammals",
+      "negative_constraints": [
+        "sportswear",
+        "sneakers",
+        "apparel"
+      ],
+      "aliases": {
+        "en": [
+          "Puma"
+        ],
+        "it": [
+          "Puma"
+        ],
+        "pt": [
+          "Puma"
+        ]
+      },
+      "context_terms": [
+        "cougar",
+        "mammal",
+        "feline"
+      ],
+      "counter_terms": [
+        "sportswear",
+        "sneakers",
+        "apparel"
+      ]
     },
     {
       "id": "wd:Q286442",
@@ -78,68 +1325,1436 @@
       "gloss": "American aerospace manufacturer and space transportation company",
       "negative_constraints": [],
       "aliases": {
-        "en": ["SpaceX", "Space Exploration Technologies"],
-        "it": ["SpaceX"],
-        "pt": ["SpaceX"]
+        "en": [
+          "SpaceX",
+          "Space Exploration Technologies"
+        ],
+        "it": [
+          "SpaceX"
+        ],
+        "pt": [
+          "SpaceX"
+        ]
       },
-      "context_terms": ["razzi", "lancio", "starship", "spazio", "aerospaziale", "falcon", "space", "rocket"],
+      "context_terms": [
+        "razzi",
+        "lancio",
+        "starship",
+        "spazio",
+        "aerospaziale",
+        "falcon",
+        "space",
+        "rocket"
+      ],
       "counter_terms": []
+    },
+    {
+      "id": "wd:Q2868",
+      "canonical_name": "Lima",
+      "entity_type": "LOCATION",
+      "gloss": "capital and largest city of Peru",
+      "negative_constraints": [
+        "surname",
+        "family name",
+        "named person"
+      ],
+      "aliases": {
+        "en": [
+          "Lima"
+        ],
+        "it": [
+          "Lima"
+        ],
+        "pt": [
+          "Lima"
+        ]
+      },
+      "context_terms": [
+        "Peru",
+        "capital",
+        "Pacific coast"
+      ],
+      "counter_terms": [
+        "surname",
+        "family name",
+        "named person"
+      ]
+    },
+    {
+      "id": "wd:Q2887",
+      "canonical_name": "Santiago",
+      "entity_type": "LOCATION",
+      "gloss": "capital city of Chile",
+      "negative_constraints": [
+        "given name",
+        "first name",
+        "named person"
+      ],
+      "aliases": {
+        "en": [
+          "Santiago"
+        ],
+        "it": [
+          "Santiago del Cile"
+        ],
+        "pt": [
+          "Santiago"
+        ]
+      },
+      "context_terms": [
+        "Chile",
+        "Andes",
+        "capital"
+      ],
+      "counter_terms": [
+        "given name",
+        "first name",
+        "named person"
+      ]
+    },
+    {
+      "id": "wd:Q308",
+      "canonical_name": "Mercury",
+      "entity_type": "LOCATION",
+      "gloss": "first planet from the Sun",
+      "negative_constraints": [
+        "element",
+        "Hg",
+        "thermometer"
+      ],
+      "aliases": {
+        "en": [
+          "Mercury"
+        ],
+        "it": [
+          "Mercurio"
+        ],
+        "pt": [
+          "Mercúrio"
+        ]
+      },
+      "context_terms": [
+        "planet",
+        "orbit",
+        "solar system"
+      ],
+      "counter_terms": [
+        "element",
+        "Hg",
+        "thermometer"
+      ]
+    },
+    {
+      "id": "wd:Q312",
+      "canonical_name": "Apple Inc.",
+      "entity_type": "BRAND",
+      "gloss": "technology company based in Cupertino",
+      "negative_constraints": [
+        "orchard",
+        "fruit",
+        "apple tree"
+      ],
+      "aliases": {
+        "en": [
+          "Apple"
+        ],
+        "it": [
+          "Apple"
+        ]
+      },
+      "context_terms": [
+        "iPhone",
+        "Cupertino",
+        "MacBook"
+      ],
+      "counter_terms": [
+        "orchard",
+        "fruit",
+        "apple tree"
+      ]
+    },
+    {
+      "id": "wd:Q313",
+      "canonical_name": "Venus",
+      "entity_type": "LOCATION",
+      "gloss": "second planet from the Sun",
+      "negative_constraints": [
+        "goddess",
+        "Roman mythology",
+        "deity"
+      ],
+      "aliases": {
+        "en": [
+          "Venus"
+        ],
+        "it": [
+          "Venere"
+        ],
+        "pt": [
+          "Vénus"
+        ]
+      },
+      "context_terms": [
+        "planet",
+        "orbit",
+        "solar system"
+      ],
+      "counter_terms": [
+        "goddess",
+        "Roman mythology",
+        "deity"
+      ]
+    },
+    {
+      "id": "wd:Q3392",
+      "canonical_name": "Nile",
+      "entity_type": "LOCATION",
+      "gloss": "major river in northeastern Africa",
+      "negative_constraints": [
+        "death metal",
+        "band",
+        "music"
+      ],
+      "aliases": {
+        "en": [
+          "Nile"
+        ],
+        "it": [
+          "Nilo"
+        ],
+        "pt": [
+          "Rio Nilo"
+        ]
+      },
+      "context_terms": [
+        "river",
+        "Egypt",
+        "Africa"
+      ],
+      "counter_terms": [
+        "death metal",
+        "band",
+        "music"
+      ]
+    },
+    {
+      "id": "wd:Q350",
+      "canonical_name": "Cambridge",
+      "entity_type": "LOCATION",
+      "gloss": "city in Cambridgeshire, England",
+      "negative_constraints": [
+        "college",
+        "university",
+        "research"
+      ],
+      "aliases": {
+        "en": [
+          "Cambridge"
+        ],
+        "it": [
+          "Cambridge"
+        ],
+        "pt": [
+          "Cambridge"
+        ]
+      },
+      "context_terms": [
+        "Cambridgeshire",
+        "River Cam",
+        "England"
+      ],
+      "counter_terms": [
+        "college",
+        "university",
+        "research"
+      ]
+    },
+    {
+      "id": "wd:Q35694",
+      "canonical_name": "jaguar",
+      "entity_type": "ANIMAL",
+      "gloss": "species of big cat native to the Americas",
+      "negative_constraints": [
+        "automobile",
+        "car marque",
+        "vehicle"
+      ],
+      "aliases": {
+        "en": [
+          "Jaguar"
+        ],
+        "it": [
+          "giaguaro"
+        ],
+        "pt": [
+          "onça-pintada"
+        ]
+      },
+      "context_terms": [
+        "big cat",
+        "rainforest",
+        "feline"
+      ],
+      "counter_terms": [
+        "automobile",
+        "car marque",
+        "vehicle"
+      ]
+    },
+    {
+      "id": "wd:Q35794",
+      "canonical_name": "University of Cambridge",
+      "entity_type": "ORG",
+      "gloss": "collegiate public research university",
+      "negative_constraints": [
+        "Cambridgeshire",
+        "River Cam",
+        "England"
+      ],
+      "aliases": {
+        "en": [
+          "Cambridge"
+        ],
+        "it": [
+          "Università di Cambridge"
+        ],
+        "pt": [
+          "Universidade de Cambridge"
+        ]
+      },
+      "context_terms": [
+        "college",
+        "university",
+        "research"
+      ],
+      "counter_terms": [
+        "Cambridgeshire",
+        "River Cam",
+        "England"
+      ]
+    },
+    {
+      "id": "wd:Q35935",
+      "canonical_name": "Lotus Cars",
+      "entity_type": "BRAND",
+      "gloss": "British manufacturer of sports and racing cars",
+      "negative_constraints": [
+        "plant genus",
+        "Fabaceae",
+        "flowering plant"
+      ],
+      "aliases": {
+        "en": [
+          "Lotus"
+        ],
+        "it": [
+          "Lotus Cars"
+        ],
+        "pt": [
+          "Lotus Cars"
+        ]
+      },
+      "context_terms": [
+        "sports car",
+        "car maker",
+        "racing car"
+      ],
+      "counter_terms": [
+        "plant genus",
+        "Fabaceae",
+        "flowering plant"
+      ]
+    },
+    {
+      "id": "wd:Q3645698",
+      "canonical_name": "Lotus",
+      "entity_type": "PLANT",
+      "gloss": "genus of flowering plants in the bean family",
+      "negative_constraints": [
+        "sports car",
+        "car maker",
+        "racing car"
+      ],
+      "aliases": {
+        "en": [
+          "Lotus"
+        ],
+        "it": [
+          "Lotus"
+        ],
+        "pt": [
+          "Lotus"
+        ]
+      },
+      "context_terms": [
+        "plant genus",
+        "Fabaceae",
+        "flowering plant"
+      ],
+      "counter_terms": [
+        "sports car",
+        "car maker",
+        "racing car"
+      ]
+    },
+    {
+      "id": "wd:Q36687",
+      "canonical_name": "Victoria",
+      "entity_type": "LOCATION",
+      "gloss": "state of Australia",
+      "negative_constraints": [
+        "given name",
+        "first name",
+        "named person"
+      ],
+      "aliases": {
+        "en": [
+          "Victoria"
+        ],
+        "it": [
+          "Victoria"
+        ],
+        "pt": [
+          "Vitória"
+        ]
+      },
+      "context_terms": [
+        "Australia",
+        "Melbourne",
+        "Australian state"
+      ],
+      "counter_terms": [
+        "given name",
+        "first name",
+        "named person"
+      ]
+    },
+    {
+      "id": "wd:Q3757",
+      "canonical_name": "Java",
+      "entity_type": "LOCATION",
+      "gloss": "island of Indonesia",
+      "negative_constraints": [
+        "programming",
+        "bytecode",
+        "JVM"
+      ],
+      "aliases": {
+        "en": [
+          "Java"
+        ],
+        "it": [
+          "Giava"
+        ],
+        "pt": [
+          "Java"
+        ]
+      },
+      "context_terms": [
+        "Indonesia",
+        "island",
+        "Jakarta"
+      ],
+      "counter_terms": [
+        "programming",
+        "bytecode",
+        "JVM"
+      ]
+    },
+    {
+      "id": "wd:Q38453",
+      "canonical_name": "Columbia",
+      "entity_type": "LOCATION",
+      "gloss": "capital city of South Carolina",
+      "negative_constraints": [
+        "university",
+        "campus",
+        "students"
+      ],
+      "aliases": {
+        "en": [
+          "Columbia"
+        ],
+        "it": [
+          "Columbia"
+        ],
+        "pt": [
+          "Colúmbia"
+        ]
+      },
+      "context_terms": [
+        "South Carolina",
+        "city",
+        "Richland County"
+      ],
+      "counter_terms": [
+        "university",
+        "campus",
+        "students"
+      ]
+    },
+    {
+      "id": "wd:Q3884",
+      "canonical_name": "Amazon",
+      "entity_type": "ORG",
+      "gloss": "multinational technology company",
+      "negative_constraints": [
+        "rainforest",
+        "Amazon basin",
+        "tropical forest"
+      ],
+      "aliases": {
+        "en": [
+          "Amazon"
+        ],
+        "it": [
+          "Amazon.com"
+        ]
+      },
+      "context_terms": [
+        "ecommerce",
+        "online retailer",
+        "Seattle"
+      ],
+      "counter_terms": [
+        "rainforest",
+        "Amazon basin",
+        "tropical forest"
+      ]
+    },
+    {
+      "id": "wd:Q40040",
+      "canonical_name": "Amazonas",
+      "entity_type": "LOCATION",
+      "gloss": "state in the North Region of Brazil",
+      "negative_constraints": [
+        "Venezuela",
+        "Puerto Ayacucho",
+        "Venezuelan state"
+      ],
+      "aliases": {
+        "en": [
+          "Amazonas"
+        ],
+        "it": [
+          "Amazonas"
+        ],
+        "pt": [
+          "Amazonas"
+        ]
+      },
+      "context_terms": [
+        "Brazil",
+        "Manaus",
+        "Brazilian state"
+      ],
+      "counter_terms": [
+        "Venezuela",
+        "Puerto Ayacucho",
+        "Venezuelan state"
+      ]
+    },
+    {
+      "id": "wd:Q42262",
+      "canonical_name": "European Space Agency",
+      "entity_type": "ORG",
+      "gloss": "European intergovernmental space agency",
+      "negative_constraints": [
+        "entertainment software association",
+        "video games"
+      ],
+      "aliases": {
+        "en": [
+          "ESA",
+          "European Space Agency"
+        ],
+        "it": [
+          "ESA",
+          "Agenzia Spaziale Europea"
+        ],
+        "pt": [
+          "ESA",
+          "Agência Espacial Europeia"
+        ]
+      },
+      "context_terms": [
+        "spazio",
+        "spaziale",
+        "spaziali",
+        "nasa",
+        "marte",
+        "missione",
+        "missioni",
+        "satellite",
+        "astronauta",
+        "razzo",
+        "space",
+        "mars",
+        "mission"
+      ],
+      "counter_terms": [
+        "videogioco",
+        "videogiochi",
+        "e3",
+        "software",
+        "entertainment",
+        "video game"
+      ]
+    },
+    {
+      "id": "wd:Q43",
+      "canonical_name": "Turkey",
+      "entity_type": "LOCATION",
+      "gloss": "country in West Asia and Southeast Europe",
+      "negative_constraints": [
+        "bird",
+        "poultry",
+        "feathers"
+      ],
+      "aliases": {
+        "en": [
+          "Turkey"
+        ],
+        "it": [
+          "Turchia"
+        ],
+        "pt": [
+          "Turquia"
+        ]
+      },
+      "context_terms": [
+        "Ankara",
+        "country",
+        "Istanbul"
+      ],
+      "counter_terms": [
+        "bird",
+        "poultry",
+        "feathers"
+      ]
+    },
+    {
+      "id": "wd:Q44294",
+      "canonical_name": "Ford Motor Company",
+      "entity_type": "ORG",
+      "gloss": "American multinational automotive company",
+      "negative_constraints": [
+        "surname",
+        "family name",
+        "named person"
+      ],
+      "aliases": {
+        "en": [
+          "Ford"
+        ],
+        "it": [
+          "Ford"
+        ]
+      },
+      "context_terms": [
+        "automaker",
+        "Detroit",
+        "automobile"
+      ],
+      "counter_terms": [
+        "surname",
+        "family name",
+        "named person"
+      ]
+    },
+    {
+      "id": "wd:Q47652",
+      "canonical_name": "Venus",
+      "entity_type": "PERSON",
+      "gloss": "Roman goddess of love and pleasure",
+      "negative_constraints": [
+        "planet",
+        "orbit",
+        "solar system"
+      ],
+      "aliases": {
+        "en": [
+          "Venus"
+        ],
+        "it": [
+          "Venere"
+        ],
+        "pt": [
+          "Vénus"
+        ]
+      },
+      "context_terms": [
+        "goddess",
+        "Roman mythology",
+        "deity"
+      ],
+      "counter_terms": [
+        "planet",
+        "orbit",
+        "solar system"
+      ]
+    },
+    {
+      "id": "wd:Q478214",
+      "canonical_name": "Tesla",
+      "entity_type": "BRAND",
+      "gloss": "American automotive and clean energy company",
+      "negative_constraints": [
+        "inventor",
+        "alternating current",
+        "engineer"
+      ],
+      "aliases": {
+        "en": [
+          "Tesla"
+        ],
+        "it": [
+          "Tesla"
+        ],
+        "pt": [
+          "Tesla"
+        ]
+      },
+      "context_terms": [
+        "electric car",
+        "battery",
+        "automaker"
+      ],
+      "counter_terms": [
+        "inventor",
+        "alternating current",
+        "engineer"
+      ]
     },
     {
       "id": "wd:Q483859",
       "canonical_name": "Nike",
       "entity_type": "BRAND",
       "gloss": "American sportswear and footwear brand",
-      "negative_constraints": ["Nike of Samothrace", "Greek mythology"],
+      "negative_constraints": [
+        "Nike of Samothrace",
+        "Greek mythology"
+      ],
       "aliases": {
-        "en": ["Nike", "Nike Inc"],
-        "it": ["Nike"],
-        "pt": ["Nike"]
+        "en": [
+          "Nike",
+          "Nike Inc"
+        ],
+        "it": [
+          "Nike"
+        ],
+        "pt": [
+          "Nike"
+        ]
       },
-      "context_terms": ["scarpe", "sneakers", "sportswear", "abbigliamento", "atleta", "atleti", "basket", "calcio", "sponsor", "swoosh", "running"],
-      "counter_terms": ["statua", "mitologia", "grecia", "museo", "samotracia", "vittoria", "louvre"]
+      "context_terms": [
+        "scarpe",
+        "sneakers",
+        "sportswear",
+        "abbigliamento",
+        "atleta",
+        "atleti",
+        "basket",
+        "calcio",
+        "sponsor",
+        "swoosh",
+        "running"
+      ],
+      "counter_terms": [
+        "statua",
+        "mitologia",
+        "grecia",
+        "museo",
+        "samotracia",
+        "vittoria",
+        "louvre"
+      ]
     },
     {
-      "id": "wd:Q193845",
-      "canonical_name": "Nike of Samothrace",
+      "id": "wd:Q490",
+      "canonical_name": "Milan",
+      "entity_type": "LOCATION",
+      "gloss": "Italian commune and capital city of Lombardy",
+      "negative_constraints": [
+        "given name",
+        "first name",
+        "named person"
+      ],
+      "aliases": {
+        "en": [
+          "Milan"
+        ],
+        "it": [
+          "Milano"
+        ],
+        "pt": [
+          "Milão"
+        ]
+      },
+      "context_terms": [
+        "Lombardy",
+        "Italy",
+        "cathedral"
+      ],
+      "counter_terms": [
+        "given name",
+        "first name",
+        "named person"
+      ]
+    },
+    {
+      "id": "wd:Q49088",
+      "canonical_name": "Columbia University",
+      "entity_type": "ORG",
+      "gloss": "private university in New York City",
+      "negative_constraints": [
+        "South Carolina",
+        "city",
+        "Richland County"
+      ],
+      "aliases": {
+        "en": [
+          "Columbia"
+        ],
+        "it": [
+          "Università Columbia"
+        ],
+        "pt": [
+          "Universidade Columbia"
+        ]
+      },
+      "context_terms": [
+        "university",
+        "campus",
+        "students"
+      ],
+      "counter_terms": [
+        "South Carolina",
+        "city",
+        "Richland County"
+      ]
+    },
+    {
+      "id": "wd:Q503910",
+      "canonical_name": "Delta State",
+      "entity_type": "LOCATION",
+      "gloss": "state in Nigeria",
+      "negative_constraints": [
+        "airline",
+        "airport",
+        "flight"
+      ],
+      "aliases": {
+        "en": [
+          "Delta"
+        ],
+        "it": [
+          "Delta"
+        ],
+        "pt": [
+          "Delta"
+        ]
+      },
+      "context_terms": [
+        "Nigeria",
+        "state",
+        "Asaba"
+      ],
+      "counter_terms": [
+        "airline",
+        "airport",
+        "flight"
+      ]
+    },
+    {
+      "id": "wd:Q5302386",
+      "canonical_name": "Dove",
+      "entity_type": "PERSON",
+      "gloss": "unisex given name",
+      "negative_constraints": [
+        "surname",
+        "last name",
+        "family lineage"
+      ],
+      "aliases": {
+        "en": [
+          "Dove"
+        ],
+        "it": [
+          "Dove"
+        ],
+        "pt": [
+          "Dove"
+        ]
+      },
+      "context_terms": [
+        "given name",
+        "first name",
+        "baby name"
+      ],
+      "counter_terms": [
+        "surname",
+        "last name",
+        "family lineage"
+      ]
+    },
+    {
+      "id": "wd:Q575306",
+      "canonical_name": "Cairo",
+      "entity_type": "LOCATION",
+      "gloss": "city in Illinois, United States",
+      "negative_constraints": [
+        "Egypt",
+        "Nile",
+        "capital"
+      ],
+      "aliases": {
+        "en": [
+          "Cairo"
+        ],
+        "it": [
+          "Cairo"
+        ],
+        "pt": [
+          "Cairo"
+        ]
+      },
+      "context_terms": [
+        "Illinois",
+        "American city",
+        "Mississippi River"
+      ],
+      "counter_terms": [
+        "Egypt",
+        "Nile",
+        "capital"
+      ]
+    },
+    {
+      "id": "wd:Q590893",
+      "canonical_name": "Victoria",
+      "entity_type": "PERSON",
+      "gloss": "female given name",
+      "negative_constraints": [
+        "Australia",
+        "Melbourne",
+        "Australian state"
+      ],
+      "aliases": {
+        "en": [
+          "Victoria"
+        ]
+      },
+      "context_terms": [
+        "given name",
+        "first name",
+        "named person"
+      ],
+      "counter_terms": [
+        "Australia",
+        "Melbourne",
+        "Australian state"
+      ]
+    },
+    {
+      "id": "wd:Q6580",
+      "canonical_name": "Rome",
+      "entity_type": "LOCATION",
+      "gloss": "county seat of Floyd County, Georgia, United States",
+      "negative_constraints": [
+        "Italy",
+        "Tiber",
+        "capital"
+      ],
+      "aliases": {
+        "en": [
+          "Rome"
+        ],
+        "it": [
+          "Rome"
+        ],
+        "pt": [
+          "Rome"
+        ]
+      },
+      "context_terms": [
+        "Georgia",
+        "Floyd County",
+        "American city"
+      ],
+      "counter_terms": [
+        "Italy",
+        "Tiber",
+        "capital"
+      ]
+    },
+    {
+      "id": "wd:Q6583",
+      "canonical_name": "Sahara",
+      "entity_type": "LOCATION",
+      "gloss": "desert on the African continent",
+      "negative_constraints": [
+        "given name",
+        "first name",
+        "named person"
+      ],
+      "aliases": {
+        "en": [
+          "Sahara"
+        ],
+        "it": [
+          "deserto del Sahara"
+        ],
+        "pt": [
+          "deserto do Saara"
+        ]
+      },
+      "context_terms": [
+        "desert",
+        "North Africa",
+        "dunes"
+      ],
+      "counter_terms": [
+        "given name",
+        "first name",
+        "named person"
+      ]
+    },
+    {
+      "id": "wd:Q660835",
+      "canonical_name": "Nile",
+      "entity_type": "ORG",
+      "gloss": "American death metal band",
+      "negative_constraints": [
+        "river",
+        "Egypt",
+        "Africa"
+      ],
+      "aliases": {
+        "en": [
+          "Nile"
+        ],
+        "it": [
+          "Nile"
+        ],
+        "pt": [
+          "Nile"
+        ]
+      },
+      "context_terms": [
+        "death metal",
+        "band",
+        "music"
+      ],
+      "counter_terms": [
+        "river",
+        "Egypt",
+        "Africa"
+      ]
+    },
+    {
+      "id": "wd:Q7131761",
+      "canonical_name": "Panther",
+      "entity_type": "PRODUCT",
+      "gloss": "1975 video game",
+      "negative_constraints": [
+        "1988 release",
+        "Panther 1988",
+        "Atari game"
+      ],
+      "aliases": {
+        "en": [
+          "Panther"
+        ]
+      },
+      "context_terms": [
+        "1975 release",
+        "Panther 1975",
+        "arcade software"
+      ],
+      "counter_terms": [
+        "1988 release",
+        "Panther 1988",
+        "Atari game"
+      ]
+    },
+    {
+      "id": "wd:Q7131763",
+      "canonical_name": "Panther",
+      "entity_type": "PRODUCT",
+      "gloss": "1988 video game",
+      "negative_constraints": [
+        "1975 release",
+        "Panther 1975",
+        "arcade software"
+      ],
+      "aliases": {
+        "en": [
+          "Panther"
+        ]
+      },
+      "context_terms": [
+        "1988 release",
+        "Panther 1988",
+        "Atari game"
+      ],
+      "counter_terms": [
+        "1975 release",
+        "Panther 1975",
+        "arcade software"
+      ]
+    },
+    {
+      "id": "wd:Q743535",
+      "canonical_name": "Chelsea",
+      "entity_type": "LOCATION",
+      "gloss": "area of London and former civil parish",
+      "negative_constraints": [
+        "football club",
+        "Premier League",
+        "Stamford Bridge"
+      ],
+      "aliases": {
+        "en": [
+          "Chelsea"
+        ],
+        "it": [
+          "Chelsea"
+        ],
+        "pt": [
+          "Chelsea"
+        ]
+      },
+      "context_terms": [
+        "London",
+        "area",
+        "River Thames"
+      ],
+      "counter_terms": [
+        "football club",
+        "Premier League",
+        "Stamford Bridge"
+      ]
+    },
+    {
+      "id": "wd:Q81669",
+      "canonical_name": "arsenal",
+      "entity_type": "FACILITY",
+      "gloss": "place for arms and ammunition",
+      "negative_constraints": [
+        "football club",
+        "Premier League",
+        "Emirates Stadium"
+      ],
+      "aliases": {
+        "en": [
+          "Arsenal"
+        ],
+        "it": [
+          "arsenale"
+        ],
+        "pt": [
+          "arsenal"
+        ]
+      },
+      "context_terms": [
+        "weapons depot",
+        "ammunition",
+        "armory"
+      ],
+      "counter_terms": [
+        "football club",
+        "Premier League",
+        "Emirates Stadium"
+      ]
+    },
+    {
+      "id": "wd:Q848706",
+      "canonical_name": "domesticated turkey",
+      "entity_type": "ANIMAL",
+      "gloss": "domesticated species of bird",
+      "negative_constraints": [
+        "Ankara",
+        "country",
+        "Istanbul"
+      ],
+      "aliases": {
+        "en": [
+          "Turkey"
+        ],
+        "it": [
+          "tacchino domestico"
+        ],
+        "pt": [
+          "peru-doméstico"
+        ]
+      },
+      "context_terms": [
+        "bird",
+        "poultry",
+        "feathers"
+      ],
+      "counter_terms": [
+        "Ankara",
+        "country",
+        "Istanbul"
+      ]
+    },
+    {
+      "id": "wd:Q85",
+      "canonical_name": "Cairo",
+      "entity_type": "LOCATION",
+      "gloss": "capital city of Egypt",
+      "negative_constraints": [
+        "Illinois",
+        "American city",
+        "Mississippi River"
+      ],
+      "aliases": {
+        "en": [
+          "Cairo"
+        ],
+        "it": [
+          "Il Cairo"
+        ],
+        "pt": [
+          "Cairo"
+        ]
+      },
+      "context_terms": [
+        "Egypt",
+        "Nile",
+        "capital"
+      ],
+      "counter_terms": [
+        "Illinois",
+        "American city",
+        "Mississippi River"
+      ]
+    },
+    {
+      "id": "wd:Q89",
+      "canonical_name": "apple",
+      "entity_type": "PRODUCT",
+      "gloss": "edible fruit of the apple tree",
+      "negative_constraints": [
+        "iPhone",
+        "Cupertino",
+        "MacBook"
+      ],
+      "aliases": {
+        "en": [
+          "Apple"
+        ],
+        "it": [
+          "mela"
+        ],
+        "pt": [
+          "maçã"
+        ]
+      },
+      "context_terms": [
+        "orchard",
+        "fruit",
+        "apple tree"
+      ],
+      "counter_terms": [
+        "iPhone",
+        "Cupertino",
+        "MacBook"
+      ]
+    },
+    {
+      "id": "wd:Q90",
+      "canonical_name": "Paris",
+      "entity_type": "LOCATION",
+      "gloss": "capital city in France",
+      "negative_constraints": [
+        "given name",
+        "named person",
+        "first name"
+      ],
+      "aliases": {
+        "en": [
+          "Paris"
+        ],
+        "it": [
+          "Parigi"
+        ],
+        "pt": [
+          "Paris"
+        ]
+      },
+      "context_terms": [
+        "France",
+        "Seine",
+        "Eiffel Tower"
+      ],
+      "counter_terms": [
+        "given name",
+        "named person",
+        "first name"
+      ]
+    },
+    {
+      "id": "wd:Q9036",
+      "canonical_name": "Nikola Tesla",
+      "entity_type": "PERSON",
+      "gloss": "Serbian-American engineer and inventor",
+      "negative_constraints": [
+        "electric car",
+        "battery",
+        "automaker"
+      ],
+      "aliases": {
+        "en": [
+          "Tesla"
+        ],
+        "it": [
+          "Nikola Tesla"
+        ],
+        "pt": [
+          "Nikola Tesla"
+        ]
+      },
+      "context_terms": [
+        "inventor",
+        "alternating current",
+        "engineer"
+      ],
+      "counter_terms": [
+        "electric car",
+        "battery",
+        "automaker"
+      ]
+    },
+    {
+      "id": "wd:Q9184",
+      "canonical_name": "Book of Genesis",
       "entity_type": "WORK",
-      "gloss": "Hellenistic sculpture of the goddess Nike",
-      "negative_constraints": ["sportswear", "footwear"],
+      "gloss": "first book of the Bible",
+      "negative_constraints": [
+        "rock band",
+        "Phil Collins",
+        "progressive rock"
+      ],
       "aliases": {
-        "en": ["Nike", "Nike of Samothrace", "Winged Victory"],
-        "it": ["Nike", "Nike di Samotracia"],
-        "pt": ["Nike", "Nike de Samotrácia"]
+        "en": [
+          "Genesis"
+        ],
+        "it": [
+          "Genesi"
+        ],
+        "pt": [
+          "Génesis"
+        ]
       },
-      "context_terms": ["statua", "mitologia", "grecia", "greca", "museo", "samotracia", "vittoria", "louvre", "scultura"],
-      "counter_terms": ["scarpe", "sneakers", "sportswear", "abbigliamento", "atleta"]
+      "context_terms": [
+        "Bible",
+        "scripture",
+        "Old Testament"
+      ],
+      "counter_terms": [
+        "rock band",
+        "Phil Collins",
+        "progressive rock"
+      ]
     },
     {
-      "id": "wd:Q19927",
-      "canonical_name": "Michael Jordan",
-      "entity_type": "PERSON",
-      "gloss": "American basketball player",
-      "negative_constraints": ["Michael B. Jordan", "actor"],
+      "id": "wd:Q925",
+      "canonical_name": "mercury",
+      "entity_type": "PRODUCT",
+      "gloss": "chemical element with symbol Hg",
+      "negative_constraints": [
+        "planet",
+        "orbit",
+        "solar system"
+      ],
       "aliases": {
-        "en": ["Michael Jordan"],
-        "it": ["Michael Jordan"],
-        "pt": ["Michael Jordan"]
+        "en": [
+          "Mercury"
+        ],
+        "it": [
+          "mercurio"
+        ],
+        "pt": [
+          "mercúrio"
+        ]
       },
-      "context_terms": ["basket", "bulls", "chicago", "nba", "basketball"],
-      "counter_terms": ["attore", "actor", "creed", "adonis", "film"]
+      "context_terms": [
+        "element",
+        "Hg",
+        "thermometer"
+      ],
+      "counter_terms": [
+        "planet",
+        "orbit",
+        "solar system"
+      ]
     },
     {
-      "id": "wd:Q1924529",
-      "canonical_name": "Michael B. Jordan",
-      "entity_type": "PERSON",
-      "gloss": "American actor",
-      "negative_constraints": ["basketball player", "Chicago Bulls"],
+      "id": "wd:Q9616",
+      "canonical_name": "Chelsea F.C.",
+      "entity_type": "ORG",
+      "gloss": "association football club in London",
+      "negative_constraints": [
+        "London",
+        "area",
+        "River Thames"
+      ],
       "aliases": {
-        "en": ["Michael B. Jordan"],
-        "it": ["Michael B. Jordan"],
-        "pt": ["Michael B. Jordan"]
+        "en": [
+          "Chelsea"
+        ],
+        "it": [
+          "Chelsea Football Club"
+        ],
+        "pt": [
+          "Chelsea Football Club"
+        ]
       },
-      "context_terms": ["attore", "actor", "creed", "adonis", "film", "cinema"],
-      "counter_terms": ["basket", "bulls", "chicago", "nba"]
+      "context_terms": [
+        "football club",
+        "Premier League",
+        "Stamford Bridge"
+      ],
+      "counter_terms": [
+        "London",
+        "area",
+        "River Thames"
+      ]
+    },
+    {
+      "id": "wd:Q9617",
+      "canonical_name": "Arsenal F.C.",
+      "entity_type": "ORG",
+      "gloss": "association football club in London",
+      "negative_constraints": [
+        "weapons depot",
+        "ammunition",
+        "armory"
+      ],
+      "aliases": {
+        "en": [
+          "Arsenal"
+        ],
+        "it": [
+          "Arsenal Football Club"
+        ],
+        "pt": [
+          "Arsenal Football Club"
+        ]
+      },
+      "context_terms": [
+        "football club",
+        "Premier League",
+        "Emirates Stadium"
+      ],
+      "counter_terms": [
+        "weapons depot",
+        "ammunition",
+        "armory"
+      ]
     }
   ]
 }

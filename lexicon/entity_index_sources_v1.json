@@ -4,17 +4,400 @@
   "source": "Wikidata structured data",
   "source_url": "https://www.wikidata.org/wiki/Wikidata:Licensing",
   "retrieval_date": "2026-11-19",
-  "intended_collisions": ["esa", "nike"],
+  "intended_collisions": [
+    "amazon",
+    "amazonas",
+    "apple",
+    "arsenal",
+    "cairo",
+    "cambridge",
+    "chelsea",
+    "columbia",
+    "delta",
+    "dove",
+    "esa",
+    "ford",
+    "genesis",
+    "georgia",
+    "geórgia",
+    "jaguar",
+    "java",
+    "lima",
+    "lotus",
+    "mercurio",
+    "mercury",
+    "mercúrio",
+    "milan",
+    "mustang",
+    "nike",
+    "nile",
+    "orange",
+    "panther",
+    "paris",
+    "phoenix",
+    "polo",
+    "puma",
+    "rome",
+    "sahara",
+    "santiago",
+    "saturn",
+    "saturno",
+    "shell",
+    "tesla",
+    "turkey",
+    "united",
+    "venere",
+    "venus",
+    "victoria",
+    "vénus",
+    "washington"
+  ],
   "entries": {
-    "wd:Q42262": {"item_url": "https://www.wikidata.org/wiki/Q42262", "source": "Wikidata entity data"},
-    "wd:Q1133229": {"item_url": "https://www.wikidata.org/wiki/Q1133229", "source": "Wikidata entity data"},
-    "wd:Q23548": {"item_url": "https://www.wikidata.org/wiki/Q23548", "source": "Wikidata entity data"},
-    "wd:Q1094480": {"item_url": "https://www.wikidata.org/wiki/Q1094480", "source": "Wikidata entity data"},
-    "wd:Q17334": {"item_url": "https://www.wikidata.org/wiki/Q17334", "source": "Wikidata entity data"},
-    "wd:Q286442": {"item_url": "https://www.wikidata.org/wiki/Q286442", "source": "Wikidata entity data"},
-    "wd:Q483859": {"item_url": "https://www.wikidata.org/wiki/Q483859", "source": "Wikidata entity data"},
-    "wd:Q193845": {"item_url": "https://www.wikidata.org/wiki/Q193845", "source": "Wikidata entity data"},
-    "wd:Q19927": {"item_url": "https://www.wikidata.org/wiki/Q19927", "source": "Wikidata entity data"},
-    "wd:Q1924529": {"item_url": "https://www.wikidata.org/wiki/Q1924529", "source": "Wikidata entity data"}
-  }
+    "wd:Q42262": {
+      "item_url": "https://www.wikidata.org/wiki/Q42262",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q1133229": {
+      "item_url": "https://www.wikidata.org/wiki/Q1133229",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q23548": {
+      "item_url": "https://www.wikidata.org/wiki/Q23548",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q1094480": {
+      "item_url": "https://www.wikidata.org/wiki/Q1094480",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q17334": {
+      "item_url": "https://www.wikidata.org/wiki/Q17334",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q286442": {
+      "item_url": "https://www.wikidata.org/wiki/Q286442",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q483859": {
+      "item_url": "https://www.wikidata.org/wiki/Q483859",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q193845": {
+      "item_url": "https://www.wikidata.org/wiki/Q193845",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q19927": {
+      "item_url": "https://www.wikidata.org/wiki/Q19927",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q1924529": {
+      "item_url": "https://www.wikidata.org/wiki/Q1924529",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q90": {
+      "item_url": "https://www.wikidata.org/wiki/Q90",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q1158980": {
+      "item_url": "https://www.wikidata.org/wiki/Q1158980",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q3884": {
+      "item_url": "https://www.wikidata.org/wiki/Q3884",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q177567": {
+      "item_url": "https://www.wikidata.org/wiki/Q177567",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q312": {
+      "item_url": "https://www.wikidata.org/wiki/Q312",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q89": {
+      "item_url": "https://www.wikidata.org/wiki/Q89",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q308": {
+      "item_url": "https://www.wikidata.org/wiki/Q308",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q925": {
+      "item_url": "https://www.wikidata.org/wiki/Q925",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q251": {
+      "item_url": "https://www.wikidata.org/wiki/Q251",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q3757": {
+      "item_url": "https://www.wikidata.org/wiki/Q3757",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q43": {
+      "item_url": "https://www.wikidata.org/wiki/Q43",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q848706": {
+      "item_url": "https://www.wikidata.org/wiki/Q848706",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q1428": {
+      "item_url": "https://www.wikidata.org/wiki/Q1428",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q230": {
+      "item_url": "https://www.wikidata.org/wiki/Q230",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q350": {
+      "item_url": "https://www.wikidata.org/wiki/Q350",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q35794": {
+      "item_url": "https://www.wikidata.org/wiki/Q35794",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q1223": {
+      "item_url": "https://www.wikidata.org/wiki/Q1223",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q2550388": {
+      "item_url": "https://www.wikidata.org/wiki/Q2550388",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q16556": {
+      "item_url": "https://www.wikidata.org/wiki/Q16556",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q10441": {
+      "item_url": "https://www.wikidata.org/wiki/Q10441",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q35694": {
+      "item_url": "https://www.wikidata.org/wiki/Q35694",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q21170490": {
+      "item_url": "https://www.wikidata.org/wiki/Q21170490",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q193": {
+      "item_url": "https://www.wikidata.org/wiki/Q193",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q134388": {
+      "item_url": "https://www.wikidata.org/wiki/Q134388",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q478214": {
+      "item_url": "https://www.wikidata.org/wiki/Q478214",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q9036": {
+      "item_url": "https://www.wikidata.org/wiki/Q9036",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q44294": {
+      "item_url": "https://www.wikidata.org/wiki/Q44294",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q11247279": {
+      "item_url": "https://www.wikidata.org/wiki/Q11247279",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q154950": {
+      "item_url": "https://www.wikidata.org/wiki/Q154950",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q213096": {
+      "item_url": "https://www.wikidata.org/wiki/Q213096",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q157064": {
+      "item_url": "https://www.wikidata.org/wiki/Q157064",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q270748": {
+      "item_url": "https://www.wikidata.org/wiki/Q270748",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q13634093": {
+      "item_url": "https://www.wikidata.org/wiki/Q13634093",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q5302386": {
+      "item_url": "https://www.wikidata.org/wiki/Q5302386",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q188920": {
+      "item_url": "https://www.wikidata.org/wiki/Q188920",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q503910": {
+      "item_url": "https://www.wikidata.org/wiki/Q503910",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q38453": {
+      "item_url": "https://www.wikidata.org/wiki/Q38453",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q49088": {
+      "item_url": "https://www.wikidata.org/wiki/Q49088",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q187796": {
+      "item_url": "https://www.wikidata.org/wiki/Q187796",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q1431486": {
+      "item_url": "https://www.wikidata.org/wiki/Q1431486",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q220": {
+      "item_url": "https://www.wikidata.org/wiki/Q220",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q6580": {
+      "item_url": "https://www.wikidata.org/wiki/Q6580",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q490": {
+      "item_url": "https://www.wikidata.org/wiki/Q490",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q1076681": {
+      "item_url": "https://www.wikidata.org/wiki/Q1076681",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q313": {
+      "item_url": "https://www.wikidata.org/wiki/Q313",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q47652": {
+      "item_url": "https://www.wikidata.org/wiki/Q47652",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q2868": {
+      "item_url": "https://www.wikidata.org/wiki/Q2868",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q11255517": {
+      "item_url": "https://www.wikidata.org/wiki/Q11255517",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q85": {
+      "item_url": "https://www.wikidata.org/wiki/Q85",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q575306": {
+      "item_url": "https://www.wikidata.org/wiki/Q575306",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q7131763": {
+      "item_url": "https://www.wikidata.org/wiki/Q7131763",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q7131761": {
+      "item_url": "https://www.wikidata.org/wiki/Q7131761",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q134211": {
+      "item_url": "https://www.wikidata.org/wiki/Q134211",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q18331415": {
+      "item_url": "https://www.wikidata.org/wiki/Q18331415",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q211848": {
+      "item_url": "https://www.wikidata.org/wiki/Q211848",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q183476": {
+      "item_url": "https://www.wikidata.org/wiki/Q183476",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q3645698": {
+      "item_url": "https://www.wikidata.org/wiki/Q3645698",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q35935": {
+      "item_url": "https://www.wikidata.org/wiki/Q35935",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q151012": {
+      "item_url": "https://www.wikidata.org/wiki/Q151012",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q9184": {
+      "item_url": "https://www.wikidata.org/wiki/Q9184",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q9617": {
+      "item_url": "https://www.wikidata.org/wiki/Q9617",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q81669": {
+      "item_url": "https://www.wikidata.org/wiki/Q81669",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q743535": {
+      "item_url": "https://www.wikidata.org/wiki/Q743535",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q9616": {
+      "item_url": "https://www.wikidata.org/wiki/Q9616",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q18656": {
+      "item_url": "https://www.wikidata.org/wiki/Q18656",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q174769": {
+      "item_url": "https://www.wikidata.org/wiki/Q174769",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q2887": {
+      "item_url": "https://www.wikidata.org/wiki/Q2887",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q13422956": {
+      "item_url": "https://www.wikidata.org/wiki/Q13422956",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q3392": {
+      "item_url": "https://www.wikidata.org/wiki/Q3392",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q660835": {
+      "item_url": "https://www.wikidata.org/wiki/Q660835",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q6583": {
+      "item_url": "https://www.wikidata.org/wiki/Q6583",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q20001018": {
+      "item_url": "https://www.wikidata.org/wiki/Q20001018",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q40040": {
+      "item_url": "https://www.wikidata.org/wiki/Q40040",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q170453": {
+      "item_url": "https://www.wikidata.org/wiki/Q170453",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q36687": {
+      "item_url": "https://www.wikidata.org/wiki/Q36687",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    },
+    "wd:Q590893": {
+      "item_url": "https://www.wikidata.org/wiki/Q590893",
+      "source": "Wikidata entity data and localized labels; curated surface/context cues"
+    }
+  },
+  "packaged_index_sha256": "2d11010ba1eeafbc352ad76a35acc7c80f5e5f9d0f3e819b412080e9c198da07",
+  "fixture_sha256": "b0eab79e691e280fc0e1e76e92cc37ec2f6f1898d6c8b5cdff61c80e7963fe09"
 }

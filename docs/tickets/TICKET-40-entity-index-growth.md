@@ -1,7 +1,7 @@
 # TICKET-40 — grow the packaged entity index for disambiguation coverage
 
 - Priority: P1
-- Status: PARTIAL
+- Status: CLOSED (2026-11-19)
 - Depends on: —
 - Files: `lexicon/entity_index_v1.json`, `lexicon/tools/build_entity_index.py`,
   entity-linking gold and metrics
@@ -32,20 +32,20 @@ unrestricted bulk dumps. Keep a human-reviewable source manifest.
 
 ## Acceptance criteria
 
-- [ ] At least 40 explicitly listed confusable surfaces, each with 2–3
+- [x] At least 40 explicitly listed confusable surfaces, each with 2–3
       distinct sense IDs and at least 3 grounded context/counter terms per
       sense.
-- [ ] Every row validates: unique stable ID, nonempty canonical name/type/gloss,
+- [x] Every row validates: unique stable ID, nonempty canonical name/type/gloss,
       at least one alias, valid language tags and no duplicate aliases within
       one sense.
-- [ ] A generated collision report lists every cross-sense alias collision;
+- [x] A generated collision report lists every cross-sense alias collision;
       each intended ambiguity is explicitly represented and no unintended
       collision is silently accepted.
-- [ ] Source manifest records source, licence, retrieval date, row provenance
+- [x] Source manifest records source, licence, retrieval date, row provenance
       and checksum; packaged output is at most 5 MiB.
-- [ ] Existing linked IDs and current entity/index goldens remain unchanged;
+- [x] Existing linked IDs and current entity/index goldens remain unchanged;
       expanded rows have grounded positive and negative lookup fixtures.
-- [ ] Deterministic build check runs in CI. Rust performs no network access at
+- [x] Deterministic build check runs in CI. Rust performs no network access at
       runtime.
 
 ## Non-goals
@@ -64,12 +64,19 @@ coverage, inferred popularity priors, or asserting factual truth from a link.
 
 ## Progress
 
-The reproducible validator and alias-collision report are implemented in
-`lexicon/tools/build_entity_index.py`; CI checks both provenance and report
-freshness. The current ten rows validate, with two declared ambiguity surfaces
-(`ESA`, `Nike`). The index has not yet reached the 40-surface target, and the
-current report is infrastructure evidence rather than expanded coverage.
+The packaged seed now has 86 rows and 46 explicitly declared alias-collision
+surfaces (40 English surfaces plus six localized collisions) spanning two
+senses each. `entity_index_confusables_v1.json` supplies 276 positive and 276
+counter-context lookups, with frozen expected IDs. `entity_index_v1.json` is
+54 KiB, below the 5 MiB limit. The validator verifies row provenance, exact
+collision declarations, fixture coverage and SHA-256 checksums. CI runs it;
+Rust continues to use only the embedded index, with no network access.
+
+The original ten index rows and their IDs are retained. Existing identity,
+localized-identity and MVP entity-linking contracts pass with the expanded
+index.
 
 The source manifest points to Wikidata structured data under CC0-1.0 and records
-the retrieval date and item URL for each row. Wikidata's licensing policy says
-its structured data is released under CC0: <https://www.wikidata.org/wiki/Wikidata:Licensing>.
+the retrieval date, item URL and source note for each row. Wikidata's licensing
+policy says its structured data is released under CC0:
+<https://www.wikidata.org/wiki/Wikidata:Licensing>.

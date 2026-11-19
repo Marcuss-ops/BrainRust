@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / "lexicon/entity_index_v1.json"
 SOURCES = ROOT / "lexicon/entity_index_sources_v1.json"
 REPORT = ROOT / "lexicon/entity_index_collisions_v1.json"
+FIXTURES = ROOT / "lexicon/entity_index_confusables_v1.json"
 LIMIT = 5 * 1024 * 1024
 
 
@@ -27,8 +28,11 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     raw = INDEX.read_bytes()
+    source_raw = SOURCES.read_bytes()
+    fixture_raw = FIXTURES.read_bytes()
     index = json.loads(raw)
     sources = json.loads(SOURCES.read_text(encoding="utf-8"))
+    fixtures = json.loads(fixture_raw)
     errors = []
     if len(raw) > LIMIT:
         errors.append(f"packaged index exceeds {LIMIT} bytes")
@@ -42,6 +46,12 @@ def main():
         errors.append("manifest retrieval_date must be an ISO date")
     if sources.get("license") != "CC0-1.0" or not sources.get("source_url"):
         errors.append("manifest must identify source URL and CC0-1.0 license")
+    index_sha256 = hashlib.sha256(raw).hexdigest()
+    fixture_sha256 = hashlib.sha256(fixture_raw).hexdigest()
+    if sources.get("packaged_index_sha256") != index_sha256:
+        errors.append("manifest packaged_index_sha256 does not match the index")
+    if sources.get("fixture_sha256") != fixture_sha256:
+        errors.append("manifest fixture_sha256 does not match the fixture file")
 
     ids, aliases = set(), defaultdict(list)
     for row in index.get("entries", []):
@@ -85,9 +95,30 @@ def main():
         errors.append(f"unreviewed alias collision: {key!r}")
     for key in sorted(intended_keys - collision_keys):
         errors.append(f"manifest declares absent collision: {key!r}")
+    fixture_surfaces = {row.get("surface"): row for row in fixtures.get("surfaces", [])}
+    expected_surface_keys = {row["normalized_surface"] for row in collisions}
+    if fixtures.get("schema_version") != "entity_index_confusables.v1":
+        errors.append("unexpected confusable fixture schema")
+    if set(fixture_surfaces) != expected_surface_keys:
+        errors.append("confusable fixtures must cover exactly the collision surfaces")
+    for collision in collisions:
+        surface = collision["normalized_surface"]
+        fixture = fixture_surfaces.get(surface, {})
+        expected_ids = {sense["id"] for sense in collision["senses"]}
+        senses = fixture.get("senses", [])
+        if {sense.get("id") for sense in senses} != expected_ids:
+            errors.append(f"{surface}: fixture sense IDs do not match index collision")
+        for sense in senses:
+            if len(sense.get("positive_contexts", [])) < 3 or len(sense.get("negative_contexts", [])) < 3:
+                errors.append(f"{surface}/{sense.get('id')}: needs three positive and negative fixtures")
+            for case in sense.get("negative_contexts", []):
+                if case.get("expected_id") not in expected_ids - {sense.get("id")}:
+                    errors.append(f"{surface}/{sense.get('id')}: invalid negative fixture target")
     document = {
         "schema_version": "entity_index_collisions.v1",
-        "index_sha256": hashlib.sha256(raw).hexdigest(),
+        "index_sha256": index_sha256,
+        "fixture_sha256": fixture_sha256,
+        "source_manifest_sha256": hashlib.sha256(source_raw).hexdigest(),
         "entry_count": len(ids),
         "collision_count": len(collisions),
         "collisions": collisions,

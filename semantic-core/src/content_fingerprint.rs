@@ -285,7 +285,13 @@ mod tests {
     /// manifests; they are not compiled and are the only explicit exemption.
     #[test]
     fn every_compiled_lexicon_table_is_in_the_fingerprint() {
-        const BUILD_TOOL_ONLY: &[&str] = &["packs/index.json", "profiles/index.json"];
+        const BUILD_TOOL_ONLY: &[&str] = &[
+            "packs/index.json",
+            "profiles/index.json",
+            "entity_index_sources_v1.json",
+            "entity_index_collisions_v1.json",
+            "entity_index_confusables_v1.json",
+        ];
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../lexicon");
         let Ok(top) = std::fs::read_dir(&root) else {
             return; // packaged crate without the repository data
@@ -312,7 +318,7 @@ mod tests {
                     );
                     checked += 1;
                 }
-            } else if relative.ends_with(".json") {
+            } else if relative.ends_with(".json") && !BUILD_TOOL_ONLY.contains(&&relative[8..]) {
                 assert!(
                     names.contains(&relative),
                     "{relative} is embedded but missing from the content fingerprint"

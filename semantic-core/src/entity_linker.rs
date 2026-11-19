@@ -439,6 +439,97 @@ mod tests {
     }
 
     #[test]
+    fn every_confusable_index_sense_has_three_positive_and_negative_contexts() {
+        #[derive(Deserialize)]
+        struct FixtureFile {
+            schema_version: String,
+            surfaces: Vec<SurfaceFixture>,
+        }
+        #[derive(Deserialize)]
+        struct SurfaceFixture {
+            surface: String,
+            senses: Vec<SenseFixture>,
+        }
+        #[derive(Deserialize)]
+        struct SenseFixture {
+            id: String,
+            entity_type: String,
+            positive_contexts: Vec<String>,
+            negative_contexts: Vec<NegativeFixture>,
+        }
+        #[derive(Deserialize)]
+        struct NegativeFixture {
+            context: String,
+            expected_id: String,
+        }
+
+        let fixtures: FixtureFile = serde_json::from_str(include_str!(
+            "../../lexicon/entity_index_confusables_v1.json"
+        ))
+        .expect("confusable index fixtures must be valid JSON");
+        assert_eq!(fixtures.schema_version, "entity_index_confusables.v1");
+        let mut positive_cases = 0;
+        let mut negative_cases = 0;
+
+        for surface in &fixtures.surfaces {
+            assert!(surface.senses.len() >= 2 && surface.senses.len() <= 3);
+            for sense in &surface.senses {
+                assert_eq!(
+                    sense.positive_contexts.len(),
+                    3,
+                    "{} / {}",
+                    surface.surface,
+                    sense.id
+                );
+                assert_eq!(
+                    sense.negative_contexts.len(),
+                    3,
+                    "{} / {}",
+                    surface.surface,
+                    sense.id
+                );
+                for context in &sense.positive_contexts {
+                    let linked = link_one(context, &surface.surface, &sense.entity_type);
+                    assert_eq!(
+                        linked.canonical_id.as_deref(),
+                        Some(sense.id.as_str()),
+                        "{context}"
+                    );
+                    positive_cases += 1;
+                }
+                for case in &sense.negative_contexts {
+                    let linked = link_one(&case.context, &surface.surface, &sense.entity_type);
+                    assert_eq!(
+                        linked.canonical_id.as_deref(),
+                        Some(case.expected_id.as_str()),
+                        "{}",
+                        case.context
+                    );
+                    negative_cases += 1;
+                }
+            }
+            let first = &surface.senses[0];
+            let linked = link_one(&surface.surface, &surface.surface, &first.entity_type);
+            assert_eq!(
+                linked.link_status,
+                LinkStatus::Ambiguous,
+                "{} without context",
+                surface.surface
+            );
+        }
+
+        assert!(fixtures.surfaces.len() >= 40);
+        assert!(
+            positive_cases >= 240,
+            "only {positive_cases} positive contexts tested"
+        );
+        assert!(
+            negative_cases >= 240,
+            "only {negative_cases} negative contexts tested"
+        );
+    }
+
+    #[test]
     fn intents_are_identity_first_and_bounded() {
         let jordan = link_one(
             "Michael Jordan ha parlato con la NASA durante una missione.",
