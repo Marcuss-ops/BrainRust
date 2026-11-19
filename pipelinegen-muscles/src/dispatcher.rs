@@ -16,6 +16,7 @@ pub fn process(request: Request) -> Response {
             source_path: request.source_path,
             items: Vec::new(),
             metadata: None,
+            preflight: None,
             error: Some(error.to_string()),
         };
     }
@@ -26,6 +27,7 @@ pub fn process(request: Request) -> Response {
             source_path: None,
             items: Vec::new(),
             metadata: None,
+            preflight: None,
             error: None,
         },
         Operation::CutBatch => crate::cut::execute(request),
@@ -54,6 +56,7 @@ pub fn process(request: Request) -> Response {
         Operation::ExtractTimelineWindow => {
             crate::transform::execute(request, Operation::ExtractTimelineWindow)
         }
+        Operation::Preflight => crate::preflight_operation::execute(request),
     };
     if !response.ok {
         response.operation = operation.as_str().to_string();
@@ -75,6 +78,7 @@ pub fn run_stdio() -> io::Result<()> {
                     source_path: None,
                     items: Vec::new(),
                     metadata: None,
+                    preflight: None,
                     error: Some(format!("invalid request: {error}")),
                 },
             };
@@ -132,6 +136,7 @@ mod tests {
             audio_plan: None,
             audio_assets: None,
             copy_certification: None,
+            preflight: None,
             render_plan: None,
         };
         assert_eq!(process(request.clone()).operation, "render_stock");
@@ -183,6 +188,42 @@ mod tests {
                 "unsupported contract ID: {id}"
             );
         }
+    }
+
+    #[test]
+    fn preflight_is_a_wire_operation_that_returns_its_report() {
+        // The envelope must stay ok=true even when the plan has blocking
+        // issues: a false envelope would make the Go client discard the
+        // report, and Go owns the blocking decision.
+        let request: Request = serde_json::from_str(
+            r#"{"version":"mediaexec.v2","operation":"preflight","ffmpeg_path":"/usr/bin/ffmpeg","preflight":{"video_duration_ms":1000,"assets":[{"asset_id":"ghost","path":"/nonexistent/ghost.mp4"}]}}"#,
+        )
+        .expect("preflight request parses");
+        let response = process(request);
+        assert!(response.ok, "the check ran even though the plan is blocked");
+        assert_eq!(response.operation, "preflight");
+        let report = response.preflight.expect("preflight report");
+        assert!(!report.ok);
+        assert_eq!(report.issues[0].code, "asset_missing");
+        assert_eq!(report.issues[0].item_id.as_deref(), Some("ghost"));
+    }
+
+    #[test]
+    fn preflight_requires_its_payload_and_leaves_other_requests_unchanged() {
+        let missing: Request =
+            serde_json::from_str(r#"{"version":"mediaexec.v2","operation":"preflight"}"#)
+                .expect("request parses; validation owns the requirement");
+        assert_eq!(
+            process(missing).error.as_deref(),
+            Some("preflight is required")
+        );
+
+        let health: Request =
+            serde_json::from_str(r#"{"version":"mediaexec.v2","operation":"health"}"#)
+                .expect("a request without preflight keeps parsing");
+        let response = process(health);
+        assert!(response.ok);
+        assert!(response.preflight.is_none());
     }
 
     #[test]

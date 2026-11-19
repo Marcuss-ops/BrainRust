@@ -606,6 +606,7 @@ impl<'a> RenderContext<'a> {
             source_path: None,
             items: Vec::new(),
             metadata: Some(metadata),
+            preflight: None,
             error: None,
         })
     }

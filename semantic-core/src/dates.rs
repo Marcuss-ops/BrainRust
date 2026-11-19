@@ -80,6 +80,44 @@ pub struct TemporalFact {
     /// `03/04/2020`); the normalized value follows the language convention.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ambiguous: bool,
+    /// Additive relative payload (`tre anni dopo`, `ieri`). Absolute facts do
+    /// not carry it, so existing manifests stay byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relative: Option<RelativeDate>,
+    /// True when the date was inferred from a relative expression rather than
+    /// stated by the source. Chronology may order derived facts, but a
+    /// consumer can still display stated dates only.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub derived: bool,
+}
+
+/// A relative temporal expression. `amount` is in `unit`; `direction` is
+/// relative to the chosen anchor. The anchor is copied into the wire fact so a
+/// reviewer can audit why the date was resolved (or why it stayed
+/// unresolved).
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct RelativeDate {
+    /// `offset`, `named` or `span`.
+    pub kind: String,
+    /// `before`, `after` or `same`.
+    pub direction: String,
+    pub amount: i64,
+    /// `day`, `week`, `month`, `year`, `decade` or `century`.
+    pub unit: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<RelativeAnchor>,
+}
+
+/// Where a relative expression was anchored. `Fact` points at the index of an
+/// absolute fact in the same scene's `temporal_facts`; `Reference` means the
+/// request's optional `reference_date`; `Unresolved` means no compatible
+/// anchor was available and no date was guessed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum RelativeAnchor {
+    Fact { fact_index: usize },
+    Reference,
+    Unresolved,
 }
 
 /// Collects every date fact for `source_text` in textual order, sorted by
@@ -107,6 +145,18 @@ pub fn temporal_facts_with_words(
     language: &str,
     words: &[SpelledNumber],
 ) -> Vec<TemporalFact> {
+    temporal_facts_with_words_and_reference(source_text, language, words, None)
+}
+
+/// Same as [`temporal_facts_with_words`], with the optional ISO reference date
+/// used only by deictic relatives (`ieri`, `3 years ago`). Absent or invalid
+/// references leave those facts unresolved; they never invent today's date.
+pub fn temporal_facts_with_words_and_reference(
+    source_text: &str,
+    language: &str,
+    words: &[SpelledNumber],
+    reference_date: Option<&str>,
+) -> Vec<TemporalFact> {
     let language = language.trim().to_lowercase();
     let mut raw: Vec<RawFact> = numeric::collect_numeric_facts(source_text, &language);
     raw.extend(month_word::collect_month_word_facts(
@@ -116,7 +166,9 @@ pub fn temporal_facts_with_words(
     ));
     raw.extend(words::collect_spelled_year_facts(source_text, words));
     raw.extend(era::collect_era_years(source_text));
-    resolve::resolve(source_text, raw)
+    let mut facts = resolve::resolve(source_text, raw);
+    relative::extend(source_text, &language, words, reference_date, &mut facts);
+    facts
 }
 
 //–––––––––––––––––––––––––––– RawFact model –––––––––––––––––––––––––––––––
@@ -202,6 +254,7 @@ pub fn days_in_month(month: u8, year: i32) -> u8 {
 mod era;
 mod month_word;
 mod numeric;
+mod relative;
 mod resolve;
 mod scan;
 mod words;

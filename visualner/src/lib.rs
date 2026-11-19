@@ -45,7 +45,8 @@ pub mod temporal;
 pub mod types;
 
 pub use analysis::{
-    analyze, analyze_with_context, analyze_with_context_preserving_mentions, Analysis,
+    analyze, analyze_with_context, analyze_with_context_preserving_mentions,
+    analyze_with_context_preserving_mentions_and_reference, Analysis,
 };
 pub use extractor::cached_model_slots;
 pub use extractor::is_heading_surface;

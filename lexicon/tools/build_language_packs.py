@@ -13,6 +13,11 @@ Sources (one directory per language, never copied into Rust code):
   lexicon/languages/<lang>/negative_particles.txt
   lexicon/languages/<lang>/contrast_openers.txt
   lexicon/languages/<lang>/entity_blocklist.txt
+  lexicon/languages/<lang>/place_candidate_blocklist.txt
+  lexicon/languages/<lang>/place_candidate_token_blocklist.txt
+  lexicon/languages/<lang>/admin_regions.txt
+  lexicon/languages/<lang>/country_names.txt
+  lexicon/languages/<lang>/generic_place_labels.txt
   lexicon/languages/<lang>/function_words.txt
 
 `closed_class` is the union of the closed-class files and `blocked` is the
@@ -57,6 +62,8 @@ GO_PROFILES = (
     / "profiles.generated.json"
 )
 LEGAL = ROOT / "lexicon" / "legal"
+NUMBER_WORDS = ROOT / "lexicon" / "number_words.json"
+RELATIVE_TIME = ROOT / "lexicon" / "relative_time.json"
 LEGAL_INDEX = LEGAL / "index.json"
 GENERATED_LEGAL = ROOT / "semantic-core" / "src" / "generated_legal_packs.rs"
 
@@ -90,6 +97,9 @@ WORD_SET_FILES = (
     "numeric_overlay_context",
     "adpositions",
     "negative_phrases",
+    "admin_regions",
+    "country_names",
+    "generic_place_labels",
 )
 
 DEFAULT_PHRASE_POLICY = {
@@ -172,12 +182,64 @@ def build_profile(language: str) -> dict:
         "stopwords": read_words(directory / "stopwords.txt"),
         "function_words": read_words(directory / "function_words.txt"),
         "entity_blocklist": read_words(directory / "entity_blocklist.txt"),
+        # Map/geocode gate, after NER: whole queries that are never a place.
+        "place_candidate_blocklist": read_words(
+            directory / "place_candidate_blocklist.txt"
+        ),
+        # Tokens that disqualify a whole candidate wherever they appear.
+        "place_candidate_token_blocklist": read_words(
+            directory / "place_candidate_token_blocklist.txt"
+        ),
         "negative_particles": read_words(directory / "negative_particles.txt"),
         "visual_verbs": read_words(directory / "visual_verbs.txt"),
         "verb_suffixes": read_words(directory / "verb_morphology.txt"),
         "word_sets": word_sets,
         "phrase_policy": read_phrase_policy(directory / "phrase_policy.txt"),
     }
+
+
+def validate_number_words(languages: list[str]) -> None:
+    """Every pack language needs grammar data for the ICU word scanner."""
+    data = json.loads(NUMBER_WORDS.read_text(encoding="utf-8"))
+    if data.get("schema") != "number_words.v1":
+        raise SystemExit(f"{NUMBER_WORDS}: expected schema number_words.v1")
+    rules = data.get("languages", {})
+    missing = [language for language in languages if language != "fallback" and language not in rules]
+    if missing:
+        raise SystemExit(
+            "lexicon/number_words.json is missing languages: " + ", ".join(missing)
+        )
+    for language in languages:
+        if language == "fallback":
+            continue
+        entry = rules[language]
+        for key in ("conjunctions", "approximators", "fraction_articles", "fractions", "negatives"):
+            if key not in entry:
+                raise SystemExit(
+                    f"lexicon/number_words.json: {language} has no {key!r}"
+                )
+
+
+def validate_relative_time(languages: list[str]) -> None:
+    """Every pack language needs units, direction cues and named relatives."""
+    data = json.loads(RELATIVE_TIME.read_text(encoding="utf-8"))
+    if data.get("schema") != "relative_time.v1":
+        raise SystemExit(f"{RELATIVE_TIME}: expected schema relative_time.v1")
+    rules = data.get("languages", {})
+    missing = [language for language in languages if language != "fallback" and language not in rules]
+    if missing:
+        raise SystemExit(
+            "lexicon/relative_time.json is missing languages: " + ", ".join(missing)
+        )
+    for language in languages:
+        if language == "fallback":
+            continue
+        entry = rules[language]
+        for key in ("units", "after", "before", "named", "span"):
+            if not entry.get(key):
+                raise SystemExit(
+                    f"lexicon/relative_time.json: {language} has no {key!r}"
+                )
 
 
 def build() -> tuple[list[str], list[str], dict[Path, str]]:
@@ -206,6 +268,8 @@ def build() -> tuple[list[str], list[str], dict[Path, str]]:
     profile_languages = sorted(
         path.name for path in LANGUAGES.iterdir() if path.is_dir()
     )
+    validate_number_words(profile_languages)
+    validate_relative_time(profile_languages)
     profiles = []
     for language in profile_languages:
         profile = build_profile(language)

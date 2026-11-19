@@ -73,6 +73,44 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
                 .to_string(),
         lexicon: semantic_core::lexicon::LEXICON_VERSION.to_string(),
         entity_index: semantic_core::entity_linker::entity_index_version().to_string(),
+        numbers: "number_words.v1".to_string(),
+        dates: "relative_time.v1".to_string(),
+    }
+}
+
+/// Identity of the compiled pipeline for the persistent cache key.
+///
+/// The wire-visible [`analyzer_versions`] labels are hand-written, and a disk
+/// entry outlives the build that wrote it. This identity adds the embedded
+/// lexicon content, the build hash (sources, manifests and git commit) and the
+/// ICU major, so a behaviour change without a label bump cannot serve a stale
+/// manifest. Model identity (file name and byte size) is per language, so a
+/// degraded worker and a worker with UDPipe models keep separate entries.
+pub(crate) fn cache_identity(language: &str) -> String {
+    format!(
+        "build={};content={};icu={};model={}",
+        env!("SEMANTIC_CACHE_BUILD_ID"),
+        semantic_core::content_fingerprint::embedded_content_fingerprint(),
+        option_env!("RUST_ICU_MAJOR_VERSION_NUMBER").unwrap_or("unknown"),
+        model_profile(language),
+    )
+}
+
+/// UDPipe model identity for one language: the file name and byte size, or
+/// `absent` for the model-free fallback. The path itself is not hashed because
+/// it differs per operator deployment; the file identity is what changes the
+/// analysis.
+fn model_profile(language: &str) -> String {
+    let Some(path) = visualner::model_path(language) else {
+        return "absent".to_string();
+    };
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    match std::fs::metadata(&path) {
+        Ok(metadata) => format!("{name}:{}", metadata.len()),
+        Err(_) => format!("{name}:unknown"),
     }
 }
 
@@ -85,7 +123,7 @@ pub fn analyze_scene(
     registry: &mut IdentityRegistry,
 ) -> SceneManifest {
     let context = visualner::ScriptContext::default();
-    analyze_scene_with_search(scene, language, safety_cap, registry, &context).0
+    analyze_scene_with_search(scene, language, safety_cap, registry, &context, None).0
 }
 
 /// A scene the extractor refused, materialized as the same empty manifest a
@@ -271,6 +309,7 @@ fn analyze_scene_with_search(
     safety_cap: usize,
     registry: &mut IdentityRegistry,
     context: &visualner::ScriptContext,
+    reference_date: Option<&str>,
 ) -> (
     SceneManifest,
     Vec<SearchFeedbackEntry>,
@@ -282,11 +321,15 @@ fn analyze_scene_with_search(
         // editorial top-N belongs to the planner.
         entity_count: safety_cap,
     };
-    let mut analysis =
-        match visualner::analyze_with_context_preserving_mentions(&scene.text, &options, context) {
-            Ok(analysis) => analysis,
-            Err(reason) => return rejected_scene(scene, reason),
-        };
+    let mut analysis = match visualner::analyze_with_context_preserving_mentions_and_reference(
+        &scene.text,
+        &options,
+        context,
+        reference_date,
+    ) {
+        Ok(analysis) => analysis,
+        Err(reason) => return rejected_scene(scene, reason),
+    };
 
     let source = scene.text.as_str();
     // One canonical segmentation per scene. Every downstream builder consumes
@@ -504,8 +547,14 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         .collect();
     let context = visualner::script_person_tokens(&texts, language);
     for scene in &request.scenes {
-        let (manifest, entries, seeds) =
-            analyze_scene_with_search(scene, language, safety_cap, &mut registry, &context);
+        let (manifest, entries, seeds) = analyze_scene_with_search(
+            scene,
+            language,
+            safety_cap,
+            &mut registry,
+            &context,
+            request.reference_date.as_deref(),
+        );
         scene_query_seeds.push((manifest.scene_id.clone(), seeds));
         scenes.push(manifest);
         search_entries.extend(entries);
@@ -625,21 +674,35 @@ fn semantic_bullet_spans(
     Some(spans)
 }
 
-/// FNV-1a fingerprint over every input that can change a manifest, including
-/// optional editorial options and caller-supplied embeddings.
-pub fn request_fingerprint(
+/// Canonical bytes of every input that can change a manifest. The in-memory
+/// fingerprint and the on-disk cache key both hash this one encoding, so the
+/// two cannot disagree about what "the same request" means.
+pub(crate) fn request_body(
     request: &ScriptRequest,
     analyzers: &semantic_core::AnalyzerVersions,
-) -> String {
-    let body = serde_json::to_vec(&(
+) -> Vec<u8> {
+    serde_json::to_vec(&(
         request.language.trim(),
         &request.scenes,
         &request.editorial,
         request.entity_safety_cap,
+        &request.reference_date,
         analyzers,
     ))
-    .unwrap_or_default();
-    fnv1a_hex(&body)
+    .unwrap_or_default()
+}
+
+/// FNV-1a fingerprint over every input that can change a manifest, including
+/// optional editorial options and caller-supplied embeddings.
+///
+/// This is the wire-visible `manifest.fingerprint` and stays a 64-bit FNV value
+/// for contract compatibility; the persistent cache uses a wider SHA-256 key
+/// over the same [`request_body`] bytes (see [`cache::disk`]).
+pub fn request_fingerprint(
+    request: &ScriptRequest,
+    analyzers: &semantic_core::AnalyzerVersions,
+) -> String {
+    fnv1a_hex(&request_body(request, analyzers))
 }
 
 /// One FNV-1a 64 implementation for every manifest fingerprint.

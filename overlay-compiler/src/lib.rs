@@ -15,6 +15,29 @@ mod editorial_plan_v2;
 pub use chapter_bullet::*;
 pub use editorial_plan_v2::*;
 
+/// The presentation window the v2 planner owns after the spoken-span trim.
+/// Go used to re-apply these numbers after materializing a plate, which made
+/// the readable floor a second, late owner of the same decision. Keeping the
+/// policy in the resolver makes the map window final before the plan is sealed:
+/// a map gets its camera minimum, is never trimmed below the readable floor
+/// when the next map can move, and never outlives the plan.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MapPresentationWindow {
+    #[serde(default)]
+    pub camera_duration_us: i64,
+    #[serde(default)]
+    pub camera_lead_us: i64,
+    #[serde(default)]
+    pub pin_read_duration_us: i64,
+    #[serde(default)]
+    pub readable_floor_us: i64,
+    #[serde(default)]
+    pub presentation_ceiling_us: i64,
+    /// End of the whole plan. Zero disables the tail bound (legacy callers).
+    #[serde(default)]
+    pub plan_end_us: i64,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResolveMapOverlapsRequest {
     pub fps_num: i64,
@@ -23,6 +46,11 @@ pub struct ResolveMapOverlapsRequest {
     pub scene_windows: BTreeMap<String, [i64; 2]>,
     #[serde(default)]
     pub items: Vec<TimingItem>,
+    /// Presentation policy for map items. `None` keeps the legacy behavior
+    /// (spoken windows only), so the editorial-plan batch endpoint is
+    /// unaffected while the v2 planner adopts the final map windows.
+    #[serde(default)]
+    pub map_presentation: Option<MapPresentationWindow>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -349,6 +377,7 @@ pub fn resolve_map_overlaps(request: ResolveMapOverlapsRequest) -> Vec<TimingEdi
     } else {
         (request.fps_num, request.fps_den)
     };
+    let presentation = request.map_presentation.clone();
     let input = request.items;
     let mut edits: Vec<_> = input
         .iter()
@@ -366,9 +395,6 @@ pub fn resolve_map_overlaps(request: ResolveMapOverlapsRequest) -> Vec<TimingEdi
             }
         })
         .collect();
-    if input.len() < 2 {
-        return edits;
-    }
 
     let mut map_indices: Vec<usize> = input
         .iter()
@@ -398,10 +424,21 @@ pub fn resolve_map_overlaps(request: ResolveMapOverlapsRequest) -> Vec<TimingEdi
         fps_num,
         fps_den,
     );
+    // The planner's map window is final: extend every map to its camera
+    // minimum, then resolve the readable floor and the tail bound exactly like
+    // the retired Go clamp. Non-map items are shifted against THESE windows,
+    // so no chain is later sealed on top of a stretched map.
+    if let Some(policy) = presentation.as_ref() {
+        extend_map_presentation(&input, &map_indices, &mut maps, policy);
+        clamp_map_presentation_windows(&mut maps, policy);
+    }
     for (map_position, item_index) in map_indices.iter().enumerate() {
         set_window(&mut edits[*item_index], maps[map_position]);
     }
 
+    if input.len() < 2 {
+        return edits;
+    }
     for (index, item) in input.iter().enumerate() {
         if item.has_map && !is_background(item) {
             continue;
@@ -425,6 +462,86 @@ pub fn resolve_map_overlaps(request: ResolveMapOverlapsRequest) -> Vec<TimingEdi
         set_window(&mut edits[index], resolved);
     }
     edits
+}
+
+/// Grows a map's spoken window to the certified camera beat. The old Go
+/// materializer applied the same constants after the plan was sealed; doing it
+/// here means the sealed plan already carries the window the renderer uses.
+fn extend_map_presentation(
+    items: &[TimingItem],
+    map_indices: &[usize],
+    maps: &mut [Window],
+    policy: &MapPresentationWindow,
+) {
+    let ceiling = if policy.presentation_ceiling_us > 0 {
+        policy.presentation_ceiling_us
+    } else {
+        i64::MAX
+    };
+    for (position, item_index) in map_indices.iter().enumerate() {
+        let item = &items[*item_index];
+        let span = maps[position].duration_us.clamp(0, ceiling);
+        let mut duration = span;
+        if policy.camera_duration_us > 0 {
+            duration = duration.max(policy.camera_duration_us);
+        }
+        // Every location after the camera settles gets its own readable slot.
+        let pins = item
+            .params
+            .as_ref()
+            .and_then(|params| params.get("map_group_pins"))
+            .and_then(Value::as_array)
+            .map(|pins| pins.len())
+            .unwrap_or(1)
+            .max(1) as i64;
+        if policy.camera_lead_us > 0 || policy.pin_read_duration_us > 0 {
+            duration = duration.max(
+                policy
+                    .camera_lead_us
+                    .saturating_add(policy.pin_read_duration_us.saturating_mul(pins)),
+            );
+        }
+        if ceiling < i64::MAX {
+            duration = duration.min(ceiling);
+        }
+        if duration > maps[position].duration_us {
+            maps[position].duration_us = duration;
+        }
+    }
+}
+
+/// Ported from PipelineGen's late clamp: two basemaps must never composite on
+/// the same frame. A map is trimmed to the next map's start, but when that
+/// would squeeze it below the readable floor the next map moves later instead,
+/// as long as it still ends inside the plan. The final pass bounds the tail.
+fn clamp_map_presentation_windows(maps: &mut [Window], policy: &MapPresentationWindow) {
+    let floor_us = policy.readable_floor_us.max(0);
+    let plan_end_us = policy.plan_end_us;
+    for index in 0..maps.len().saturating_sub(1) {
+        let current = maps[index];
+        let next = maps[index + 1];
+        if next.start_us <= current.start_us || current.end_us() <= next.start_us {
+            continue;
+        }
+        let mut end_us = next.start_us;
+        let floor_end_us = current.start_us.saturating_add(floor_us);
+        if floor_end_us > next.start_us && floor_end_us < current.end_us() {
+            let shift_us = floor_end_us - next.start_us;
+            if plan_end_us <= 0 || next.end_us().saturating_add(shift_us) <= plan_end_us {
+                maps[index + 1].start_us = next.start_us.saturating_add(shift_us);
+                end_us = floor_end_us;
+            }
+        }
+        maps[index].duration_us = (end_us - current.start_us).max(0);
+    }
+    if plan_end_us > 0 {
+        for map in maps.iter_mut() {
+            if map.start_us >= plan_end_us || map.end_us() <= plan_end_us {
+                continue;
+            }
+            map.duration_us = plan_end_us - map.start_us;
+        }
+    }
 }
 
 fn item_window(item: &TimingItem) -> Window {
@@ -794,12 +911,14 @@ pub fn compile_editorial_plan(request: CompileEditorialPlanRequest) -> CompiledE
         fps_den: request.fps_den,
         scene_windows: request.scene_windows.clone(),
         items: request.items.clone(),
+        map_presentation: None,
     });
     let timing_edits = resolve_map_overlaps(ResolveMapOverlapsRequest {
         fps_num: request.fps_num,
         fps_den: request.fps_den,
         scene_windows: request.scene_windows,
         items: request.items,
+        map_presentation: None,
     });
     let ranked_entities = rank_entity_overlays(RankEntityOverlaysRequest {
         scenes: request.entity_scenes,
@@ -954,7 +1073,100 @@ mod tests {
             fps_den: 1,
             scene_windows: BTreeMap::from([("scene-1".to_owned(), [0, 5_000_000])]),
             items,
+            map_presentation: None,
         }
+    }
+
+    fn presentation_request(
+        items: Vec<TimingItem>,
+        scene_end_us: i64,
+        plan_end_us: i64,
+    ) -> ResolveMapOverlapsRequest {
+        ResolveMapOverlapsRequest {
+            fps_num: 24,
+            fps_den: 1,
+            scene_windows: BTreeMap::from([("scene-1".to_owned(), [0, scene_end_us])]),
+            items,
+            map_presentation: Some(crate::MapPresentationWindow {
+                camera_duration_us: 8_000_000,
+                camera_lead_us: 2_000_000,
+                pin_read_duration_us: 1_000_000,
+                readable_floor_us: 2_500_000,
+                presentation_ceiling_us: 10_000_000,
+                plan_end_us,
+            }),
+        }
+    }
+
+    fn map_item(id: &str, start_us: i64, duration_us: i64, pins: usize) -> TimingItem {
+        let pins = (0..pins)
+            .map(|index| json!({"entity_id": format!("pin-{index}")}))
+            .collect::<Vec<_>>();
+        let mut item = item(id, start_us, duration_us, true);
+        item.params = Some(json!({"map_group_pins": pins}));
+        item
+    }
+
+    #[test]
+    fn map_presentation_extends_a_short_map_to_the_camera_minimum() {
+        let edits = resolve_map_overlaps(presentation_request(
+            vec![map_item("map-a", 1_000_000, 1_166_667, 1)],
+            40_000_000,
+            40_000_000,
+        ));
+        assert_eq!(edits[0].duration_us, 8_000_000);
+        assert_eq!(edits[0].end_ms, 9_000);
+    }
+
+    #[test]
+    fn map_presentation_grows_with_the_pin_slots() {
+        let edits = resolve_map_overlaps(presentation_request(
+            vec![map_item("map-a", 0, 3_000_000, 7)],
+            40_000_000,
+            40_000_000,
+        ));
+        assert_eq!(edits[0].duration_us, 9_000_000);
+    }
+
+    #[test]
+    fn readable_floor_shifts_the_next_map_instead_of_squeezing_the_current_one() {
+        let edits = resolve_map_overlaps(presentation_request(
+            vec![
+                map_item("map-a", 20_569_000, 8_000_000, 1),
+                map_item("map-b", 21_233_000, 8_001_000, 1),
+            ],
+            40_000_000,
+            40_000_000,
+        ));
+        assert_eq!(edits[0].duration_us, 2_500_000);
+        assert_eq!(edits[1].start_us, 23_069_000);
+        assert_eq!(edits[1].duration_us, 8_001_000);
+    }
+
+    #[test]
+    fn readable_floor_yields_when_the_shift_would_overrun_the_plan() {
+        let edits = resolve_map_overlaps(presentation_request(
+            vec![
+                map_item("map-a", 20_569_000, 8_000_000, 1),
+                map_item("map-b", 21_233_000, 8_001_000, 1),
+            ],
+            24_000_000,
+            24_000_000,
+        ));
+        assert_eq!(edits[0].duration_us, 21_233_000 - 20_569_000);
+        assert_eq!(edits[1].start_us, 21_233_000);
+        assert_eq!(edits[1].start_us + edits[1].duration_us, 24_000_000);
+    }
+
+    #[test]
+    fn the_tail_map_never_outlives_the_plan() {
+        let edits = resolve_map_overlaps(presentation_request(
+            vec![map_item("map-a", 20_000_000, 8_000_000, 1)],
+            24_000_000,
+            24_000_000,
+        ));
+        assert_eq!(edits[0].duration_us, 4_000_000);
+        assert_eq!(edits[0].end_ms, 24_000);
     }
 
     #[test]
@@ -1013,6 +1225,7 @@ mod tests {
                 fps_den: request.fps_den,
                 scene_windows: request.scene_windows.clone(),
                 items: request.items.clone(),
+                map_presentation: None,
             })
         );
         assert_eq!(
@@ -1022,6 +1235,7 @@ mod tests {
                 fps_den: request.fps_den,
                 scene_windows: request.scene_windows.clone(),
                 items: request.items.clone(),
+                map_presentation: None,
             })
         );
         assert_eq!(

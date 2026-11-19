@@ -45,6 +45,8 @@
     "with"
   ],
   "entity_blocklist": [],
+  "place_candidate_blocklist": [],
+  "place_candidate_token_blocklist": [],
   "negative_particles": [],
   "visual_verbs": [],
   "verb_suffixes": [
@@ -265,6 +267,28 @@
       "the",
       "year",
       "years"
+    ],
+    "generic_place_labels": [
+      "area",
+      "city",
+      "essa",
+      "esse",
+      "esta",
+      "este",
+      "here",
+      "home",
+      "local",
+      "location",
+      "nearby",
+      "nessa",
+      "nesse",
+      "nesta",
+      "neste",
+      "region",
+      "there",
+      "town",
+      "village",
+      "workplace"
     ]
   },
   "phrase_policy": {

@@ -435,7 +435,6 @@ mod tests {
                 video_id: "video".to_string(),
                 project_id: "project".to_string(),
                 motion_seed: String::new(),
-                coherence_seed: String::new(),
                 width: 1920,
                 height: 1080,
                 fps_num: 24,

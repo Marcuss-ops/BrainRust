@@ -90,6 +90,13 @@ struct EntityGazetteerDelta {
     product_names: Vec<String>,
     #[serde(default)]
     event_head_words: Vec<String>,
+    /// Curated place surfaces the generated GeoNames table does not carry:
+    /// exonyms (Gerusalemme for Jerusalem) and region names that are not
+    /// populated places (Vicino Oriente). The ready-made `locations` seed
+    /// works the same way, but it lives in the generated table, so the delta
+    /// keeps these additions reviewable instead of rewriting the dump.
+    #[serde(default)]
+    locations: Vec<String>,
     #[serde(default)]
     typed_entities: BTreeMap<String, Vec<String>>,
 }
@@ -304,6 +311,7 @@ impl Lexicon {
                 &mut gazetteer.event_head_words,
                 entity_delta.event_head_words,
             );
+            extend_unique(&mut gazetteer.locations, entity_delta.locations);
             for (kind, names) in entity_delta.typed_entities {
                 extend_unique(gazetteer.typed_entities.entry(kind).or_default(), names);
             }

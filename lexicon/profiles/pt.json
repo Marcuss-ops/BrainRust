@@ -115,6 +115,8 @@
     "visitas",
     "visite"
   ],
+  "place_candidate_blocklist": [],
+  "place_candidate_token_blocklist": [],
   "negative_particles": [],
   "visual_verbs": [],
   "verb_suffixes": [],

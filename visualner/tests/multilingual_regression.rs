@@ -220,7 +220,7 @@ const CASES: &[Case] = &[
     (
         "es",
         "El proyecto alcanzó 2 millones de usuarios.",
-        &[],
+        &[2_000_000.0],
         &[],
     ),
     (

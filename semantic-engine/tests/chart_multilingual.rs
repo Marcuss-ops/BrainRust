@@ -103,6 +103,8 @@ fn analyze(language: &str, text: &str) -> (Value, Value) {
         }],
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     };
     let manifest = analyze_script(&request).expect("script analysis succeeds");
     let value = serde_json::to_value(manifest).expect("manifest serializes");

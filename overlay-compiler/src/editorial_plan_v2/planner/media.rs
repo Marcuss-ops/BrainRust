@@ -4,6 +4,31 @@
 
 use super::*;
 
+/// Adds the payload-selected caption plate after presentation normalization,
+/// which deliberately owns and replaces typography style maps.
+pub(super) fn apply_entity_badge_color(items: &mut [PlanItemV2], color: &str) {
+    let color = color.trim();
+    if color.is_empty() {
+        return;
+    }
+    for item in items.iter_mut().filter(|item| {
+        item.kind == "entity_image"
+            && !item.entity_caption.trim().is_empty()
+            && !item.asset_refs.is_empty()
+    }) {
+        let mut style_object = item
+            .style
+            .take()
+            .and_then(|style| style.as_object().cloned())
+            .unwrap_or_default();
+        style_object.insert(
+            "style".to_string(),
+            json!({"background": {"color": color, "radius": 0, "padding": [12, 24]}}),
+        );
+        item.style = Some(Value::Object(style_object));
+    }
+}
+
 pub(super) fn append_image(
     items: &mut Vec<PlanItemV2>,
     scene: &SceneV2,
@@ -337,27 +362,44 @@ fn scene_has_map_for(scene: &SceneV2, entity: &EntityOccurrenceV2) -> bool {
 fn entity_window(scene: &SceneV2, entity: &EntityOccurrenceV2) -> Option<(i64, i64)> {
     let scene_start = scene.timeline_start_us;
     let scene_end = scene_start.saturating_add(scene.duration_us);
-    let start = if entity.timeline_start_us > 0 {
-        entity.timeline_start_us
-    } else if entity.audio_start_us > 0 {
-        entity.audio_start_us
-    } else {
+    // The scene-local window is the authority. `timeline_start_us` can be the
+    // scene anchor (Go stamps it that way for every occurrence of a scene), so
+    // preferring it made every card in scene 2+ start at the scene beginning
+    // and run until its own mention ended: 10-20 second stills instead of a
+    // 2.5-5 second card, and no two cards close enough to chain.
+    //
+    // `audio_start_us` alone is not enough either: the envelope carries it
+    // absolute (`timeline_start_us + local_start_us`), while other stages hand
+    // the planner an already scene-relative value. Anchoring `local_start_us`
+    // on the scene satisfies both shapes; a scene-2 mention then starts at its
+    // own word instead of at the scene anchor.
+    let has_local = entity.local_end_us > entity.local_start_us;
+    let start = if has_local || entity.local_start_us > 0 {
         scene_start.saturating_add(entity.local_start_us.max(0))
+    } else if entity.audio_start_us > scene_start && entity.audio_start_us < scene_end {
+        entity.audio_start_us
+    } else if entity.timeline_start_us > scene_start && entity.timeline_start_us < scene_end {
+        entity.timeline_start_us
+    } else {
+        scene_start
     }
-    .max(scene_start);
-    let end = if entity.audio_end_us > entity.audio_start_us {
+    .clamp(scene_start, scene_end);
+    let spoken_end = if has_local {
+        scene_start.saturating_add(entity.local_end_us.max(0))
+    } else if entity.audio_end_us > entity.audio_start_us {
         entity.audio_end_us
     } else {
         start.saturating_add(2_000_000)
-    }
-    // A card must stay readable for at least 2.5s even when the spoken name is
-    // shorter: one second was a flash, not an overlay (a name spoken in ~0.8s
-    // produced a 1.0s card that the viewer could not read). 2.5s matches the
-    // minimum hold a chained image segment already gets, so a standalone card
-    // and the first segment of a chain have the same floor. The scene boundary
-    // still wins.
-    .max(start.saturating_add(2_500_000))
-    .min(scene_end);
+    };
+    let end = spoken_end
+        // A card must stay readable for at least 2.5s even when the spoken name is
+        // shorter: one second was a flash, not an overlay (a name spoken in ~0.8s
+        // produced a 1.0s card that the viewer could not read). 2.5s matches the
+        // minimum hold a chained image segment already gets, so a standalone card
+        // and the first segment of a chain have the same floor. The scene boundary
+        // still wins.
+        .max(start.saturating_add(2_500_000))
+        .min(scene_end);
     (end > start).then_some((start, end - start))
 }
 
@@ -789,11 +831,87 @@ mod entity_window_sequencing_tests {
         std::collections::BTreeMap::from([("scene-3".to_string(), [50_000_000, 80_000_000])])
     }
 
+    fn scene() -> SceneV2 {
+        SceneV2 {
+            id: "scene-3".to_string(),
+            text: String::new(),
+            duration_ms: 30_000,
+            execution_mode: String::new(),
+            short_phrase_overlay: false,
+            overlay_categories: std::collections::BTreeMap::new(),
+            index: 2,
+            voiceover: None,
+            timeline_start_us: 50_000_000,
+            duration_us: 30_000_000,
+            annotations: None,
+            raw: None,
+        }
+    }
+
+    fn occurrence(audio_start_us: i64, audio_end_us: i64) -> EntityOccurrenceV2 {
+        EntityOccurrenceV2 {
+            entity_id: "ent_ada".to_string(),
+            name: "Ada Lovelace".to_string(),
+            entity_type: "PERSON".to_string(),
+            scene_id: "scene-3".to_string(),
+            scene_index: 2,
+            text_start: 0,
+            text_end: 0,
+            word_start: 0,
+            word_end: 0,
+            local_start_us: audio_start_us - 50_000_000,
+            local_end_us: audio_end_us - 50_000_000,
+            timeline_start_us: 50_000_000,
+            audio_start_us,
+            audio_end_us,
+            confidence: 1.0,
+            role: String::new(),
+            canonical_entity_id: String::new(),
+        }
+    }
+
+    /// The spoken window is the authority: a mention six seconds into scene 3
+    /// must not start at the scene anchor (that produced 10-20 second stills).
+    #[test]
+    fn entity_window_prefers_the_spoken_start_over_the_scene_anchor() {
+        let (start, duration) =
+            entity_window(&scene(), &occurrence(56_000_000, 57_200_000)).expect("window");
+        assert_eq!(56_000_000, start);
+        assert_eq!(
+            ENTITY_IMAGE_MIN_HOLD_US, duration,
+            "a 1.2s mention still gets the readable 2.5s hold"
+        );
+    }
+
+    /// A scene-relative `audio_start_us` next to an absolute `audio_end_us`
+    /// (the mixed shape seen on scene 2 and later) must still start at the
+    /// mention, never at the scene anchor.
+    #[test]
+    fn entity_window_anchors_a_scene_relative_audio_start_on_the_scene() {
+        let mut mixed = occurrence(0, 0);
+        mixed.local_start_us = 19_956_195;
+        mixed.local_end_us = 21_136_195;
+        mixed.audio_start_us = 19_956_195;
+        mixed.audio_end_us = 47_732_000;
+        let (start, duration) = entity_window(&scene(), &mixed).expect("window");
+        assert_eq!(69_956_195, start);
+        assert_eq!(ENTITY_IMAGE_MIN_HOLD_US, duration);
+    }
+
+    /// Without a spoken window the occurrence falls back to the scene anchor,
+    /// clamped to the readable floor and never past the scene end.
+    #[test]
+    fn entity_window_falls_back_to_the_scene_anchor_without_audio_timing() {
+        let (start, duration) = entity_window(&scene(), &occurrence(0, 0)).expect("window");
+        assert_eq!(50_000_000, start);
+        assert_eq!(ENTITY_IMAGE_MIN_HOLD_US, duration);
+    }
+
     /// Three entities named in the same scene all fall back to the scene start.
     /// They must take turns instead of stacking on top of each other.
     #[test]
     fn cards_that_share_a_window_are_sequenced() {
-        let mut items = vec![
+        let items = vec![
             entity_image("a", 50_000_000, 1_000_000),
             entity_image("b", 50_000_000, 1_000_000),
             entity_image("c", 50_000_000, 1_000_000),
@@ -817,7 +935,7 @@ mod entity_window_sequencing_tests {
     /// A card never outlives its scene, and a late card still fits by shrinking.
     #[test]
     fn sequencing_stays_inside_the_scene_window() {
-        let mut items = vec![
+        let items = vec![
             entity_image("a", 50_000_000, 2_000_000),
             entity_image("b", 76_000_000, 2_000_000),
         ];
@@ -832,7 +950,7 @@ mod entity_window_sequencing_tests {
     /// must also take turns.
     #[test]
     fn plain_images_are_sequenced_with_the_cards() {
-        let mut items = vec![
+        let items = vec![
             PlanItemV2 {
                 id: "card".to_string(),
                 scene_id: "scene-3".to_string(),
@@ -857,7 +975,7 @@ mod entity_window_sequencing_tests {
     /// Other kinds keep their admitted window untouched.
     #[test]
     fn text_and_plain_images_are_not_resequenced() {
-        let mut items = vec![PlanItemV2 {
+        let items = vec![PlanItemV2 {
             id: "phrase".to_string(),
             scene_id: "scene-3".to_string(),
             kind: "text_phrase".to_string(),
@@ -868,5 +986,34 @@ mod entity_window_sequencing_tests {
         let items = sequence_scene_image_windows(&scene_windows(), items);
         assert_eq!(items[0].start_us, 50_000_000);
         assert_eq!(items[0].duration_us, 3_000_000);
+    }
+
+    #[test]
+    fn payload_badge_color_reaches_captioned_entity_style_only() {
+        let mut card = entity_image("card", 50_000_000, 3_000_000);
+        card.entity_caption = "Ada Lovelace".to_string();
+        card.asset_refs.push(AssetRefV2 {
+            asset_id: "portrait".to_string(),
+            url: "https://cdn.example/portrait.png".to_string(),
+            sha256: "a".repeat(64),
+            media_type: "image/png".to_string(),
+        });
+        let mut items = vec![
+            card,
+            PlanItemV2 {
+                id: "plain".to_string(),
+                kind: "text_phrase".to_string(),
+                ..Default::default()
+            },
+        ];
+        apply_entity_badge_color(&mut items, "#336699");
+        assert_eq!(
+            items[0].style.as_ref().unwrap()["style"]["background"]["color"],
+            "#336699"
+        );
+        assert!(
+            items[1].style.is_none(),
+            "badge plate leaked onto a text item"
+        );
     }
 }

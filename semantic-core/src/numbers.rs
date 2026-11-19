@@ -29,6 +29,10 @@ pub struct NumericFact {
     pub start_byte: usize,
     pub end_byte: usize,
     pub evidence: String,
+    /// `digits`, `words` or `mixed` (`3 milioni e mezzo`). Omitted for the
+    /// existing digit-only facts so their serialization is unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub form: Option<String>,
 }
 
 /// Parses a numeric surface such as `25%`, `$1,200`, `1.200 euro`, `12,5%`,
@@ -125,15 +129,36 @@ pub fn parse_scaled_value(text: &str, language: &str) -> Option<f64> {
     Some(number * factor)
 }
 
+/// Multiplier for a recognized scale word (`milioni`, `millions`, `miliardi`,
+/// `mille`). Exposed so every numeric collector applies the same table instead
+/// of re-declaring language knowledge. Returns `None` for ordinary words.
+pub fn scale_word_factor(word: &str) -> Option<f64> {
+    scale_factor(&word.to_lowercase())
+}
+
 fn scale_factor(word: &str) -> Option<f64> {
     let factor = if matches!(
         word,
-        "thousand" | "mille" | "mil" | "tausend" | "mila" | "ribu" | "tysiac" | "tysiące"
+        "thousand"
+            | "mille"
+            | "mil"
+            | "tausend"
+            | "duizend"
+            | "mila"
+            | "ribu"
+            | "tysiac"
+            | "tysiące"
     ) {
         1_000.0
     } else if matches!(word, "juta")
         || word.starts_with("million")
         || word.starts_with("milion")
+        || word.starts_with("milhão")
+        || word.starts_with("milhao")
+        || word.starts_with("milhoes")
+        || word.starts_with("milhões")
+        || word.starts_with("millon")
+        || word.starts_with("miljoen")
         || word.starts_with("milyon")
         || word.starts_with("миллион")
     {
@@ -189,5 +214,14 @@ mod tests {
             parse_scaled_value("1.2 billion", "en"),
             Some(1_200_000_000.0)
         );
+    }
+
+    #[test]
+    fn scale_word_factor_is_shared_and_language_neutral() {
+        assert_eq!(scale_word_factor("milioni"), Some(1_000_000.0));
+        assert_eq!(scale_word_factor("Millionen"), Some(1_000_000.0));
+        assert_eq!(scale_word_factor("miliardi"), Some(1_000_000_000.0));
+        assert_eq!(scale_word_factor("mille"), Some(1_000.0));
+        assert_eq!(scale_word_factor("persone"), None);
     }
 }

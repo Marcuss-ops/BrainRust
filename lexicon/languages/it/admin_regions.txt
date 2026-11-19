@@ -1,0 +1,24 @@
+# it administrative regions — used to strip an Italian article only when the
+# remainder is a real region ("La Toscana" -> "Toscana"), never from a city
+# ("La Spezia", "L'Aquila"). One region per line, lowercase, official Italian
+# name.
+toscana
+lombardia
+lazio
+veneto
+campania
+piemonte
+sicilia
+sardegna
+puglia
+calabria
+liguria
+marche
+abruzzo
+umbria
+basilicata
+molise
+trentino-alto adige
+friuli-venezia giulia
+valle d'aosta
+emilia-romagna

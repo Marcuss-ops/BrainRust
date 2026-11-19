@@ -394,10 +394,45 @@ impl FinalPlanV2 {
                 }
             }
         }
+        // A chain owns its window end to end. An overlapping non-chain item
+        // would be composited after it and hide the portraits and captions in
+        // the final video; the planner reserves the window before sealing.
+        for chain in self
+            .items
+            .iter()
+            .filter(|item| super::is_chain_kind(&item.kind))
+        {
+            let (chain_start, chain_end) = chain.window_us();
+            for other in &self.items {
+                if other.id == chain.id || super::is_chain_kind(&other.kind) {
+                    continue;
+                }
+                if matches!(
+                    other.template_id.trim().to_ascii_lowercase().as_str(),
+                    "background" | "video_background"
+                ) {
+                    continue;
+                }
+                let (start_us, end_us) = other.window_us();
+                if start_us < chain_end && chain_start < end_us {
+                    return Err(EditorialPlanError::invalid(
+                        format!("plan.items.{}", chain.id),
+                        format!(
+                            "chain window [{chain_start},{chain_end}) overlaps item {:?} [{start_us},{end_us})",
+                            other.id
+                        ),
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 
-    /// Validates every item against the scene that owns it.
+    /// Validates every item against the scene that owns it. A map is allowed to
+    /// outlive its scene: the planner extends it to the certified camera beat
+    /// and only the plan end bounds that presentation window (a map may start
+    /// late, it may not end after the last frame). Every other kind stays
+    /// inside its own scene.
     pub fn validate_against_scenes(&self, scenes: &[SceneV2]) -> Result<(), EditorialPlanError> {
         let windows: BTreeMap<&str, (i64, i64)> = scenes
             .iter()
@@ -412,6 +447,7 @@ impl FinalPlanV2 {
                 )
             })
             .collect();
+        let plan_end_us = windows.values().map(|(_, end)| *end).max().unwrap_or(0);
         for item in &self.items {
             if item.scene_id.trim().is_empty() {
                 continue;
@@ -423,12 +459,16 @@ impl FinalPlanV2 {
                 ));
             };
             let (start_us, end_us) = item.window_us();
-            if start_us < *scene_start || end_us > *scene_end {
+            let allowed_end = if item.kind == "map" {
+                plan_end_us
+            } else {
+                *scene_end
+            };
+            if start_us < *scene_start || end_us > allowed_end {
                 return Err(EditorialPlanError::invalid(
                     format!("plan.items.{}", item.id),
                     format!(
-                        "window [{start_us},{end_us}) escapes scene {:?} [{scene_start},{scene_end})",
-                        item.scene_id
+                        "window [{start_us},{end_us}) escapes its allowed extent [{scene_start},{allowed_end})"
                     ),
                 ));
             }

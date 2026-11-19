@@ -3,6 +3,7 @@
 //! Item constructors live here with their motion pools, so the admission and
 //! presentation stages cannot grow their own copy of the same defaults.
 
+use super::super::date_motion_family::DateMotionFamily;
 use super::*;
 
 pub(super) fn build_base_candidates(
@@ -250,74 +251,103 @@ fn append_annotations(
 /// seconds left is dropped before admission instead of consuming a slot.
 /// `42`-style values use the metric card family. Chart numbers stay separate
 /// candidates and are lowered by the chart lane.
+/// Certified numeric presentation lanes. Template, motion lane and typography
+/// travel together, so a new family is one variant instead of another
+/// `is_date || is_metric` chain in the middle of the item builder.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NumericLane {
+    Date,
+    Metric,
+    Plain,
+}
+
+impl NumericLane {
+    fn classify(annotation_type: &str) -> Self {
+        let family = annotation_type.trim().to_ascii_uppercase();
+        if matches!(family.as_str(), "DATE" | "TIME") {
+            Self::Date
+        } else if matches!(
+            family.as_str(),
+            "NUMBER"
+                | "NUM"
+                | "CARDINAL"
+                | "ORDINAL"
+                | "MONEY"
+                | "PERCENT"
+                | "PERCENTAGE"
+                | "METRIC"
+                | "METRICS"
+                | "STATISTIC"
+                | "STATISTICS"
+                | "QUANTITY"
+        ) {
+            Self::Metric
+        } else {
+            Self::Plain
+        }
+    }
+
+    fn template_id(self) -> &'static str {
+        match self {
+            Self::Date => "TIMELINE_DATE_CARD",
+            Self::Metric => "METRIC_STAT_CARD",
+            Self::Plain => "NUMBER",
+        }
+    }
+
+    /// `(animation_counts key, seed family)` for the seeded motion sampler.
+    fn motion_lane(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Date => Some(("timeline_date", "date_presentation")),
+            Self::Metric => Some(("metric_stat", "metric_presentation")),
+            Self::Plain => None,
+        }
+    }
+
+    fn motion_pool(self, request: &EditorialPlanV2Request) -> Vec<&'static str> {
+        match self {
+            Self::Date => date_motion_pool(request),
+            Self::Metric => METRIC_MOTIONS.to_vec(),
+            Self::Plain => Vec::new(),
+        }
+    }
+
+    fn font_size(self) -> f64 {
+        match self {
+            Self::Date | Self::Metric => 140.0,
+            Self::Plain => 112.0,
+        }
+    }
+}
+
 fn number_item(
     scene: &SceneV2,
     _index: usize,
     annotation: &TimedAnnotationV2,
     request: &EditorialPlanV2Request,
 ) -> Option<PlanItemV2> {
-    let family = annotation.annotation_type.trim().to_ascii_uppercase();
-    let is_date = matches!(family.as_str(), "DATE" | "TIME");
-    let is_metric = matches!(
-        family.as_str(),
-        "NUMBER"
-            | "NUM"
-            | "CARDINAL"
-            | "ORDINAL"
-            | "MONEY"
-            | "PERCENT"
-            | "PERCENTAGE"
-            | "METRIC"
-            | "METRICS"
-            | "STATISTIC"
-            | "STATISTICS"
-            | "QUANTITY"
-    );
+    let lane = NumericLane::classify(&annotation.annotation_type);
     let scene_end = scene.timeline_start_us.saturating_add(scene.duration_us);
-    let mut start_us = annotation.start_us.max(scene.timeline_start_us);
-    let mut duration_us = annotation.duration_us.max(0);
-    if is_date {
-        let remaining = scene_end.saturating_sub(start_us);
-        if remaining < 2_000_000 {
-            return None;
-        }
-        duration_us = duration_us.max(5_000_000).min(remaining);
+    let start_us = annotation.start_us.max(scene.timeline_start_us);
+    if lane == NumericLane::Date && scene_end.saturating_sub(start_us) < 2_000_000 {
+        return None;
     }
     let id = go_item_id(&scene.id, "number", &annotation.text);
     let mut item = scene_item(
         id.clone(),
         scene,
         "number",
-        if is_date {
-            "TIMELINE_DATE_CARD"
-        } else if is_metric {
-            "METRIC_STAT_CARD"
-        } else {
-            "NUMBER"
-        },
+        lane.template_id(),
         start_us,
-        duration_us,
+        annotation.duration_us.max(0),
         annotation.text.clone(),
     );
-    start_us = item.start_us;
-    if is_date || is_metric {
-        let (pool, lane, family_key) = if is_date {
-            (
-                date_motion_pool(request),
-                "timeline_date",
-                "date_presentation",
-            )
-        } else {
-            (
-                METRIC_MOTIONS.to_vec(),
-                "metric_stat",
-                "metric_presentation",
-            )
-        };
+    if let Some((counts_key, family_key)) = lane.motion_lane() {
+        let pool = lane.motion_pool(request);
         let limit = request
             .canvas
             .animation_counts
-            .get(lane)
+            .get(counts_key)
             .copied()
             .unwrap_or(0)
             .max(0) as usize;
@@ -333,38 +363,32 @@ fn number_item(
         item.motion_id = seeded_preset(&request.plan.plan_id, &scene.id, &id, family_key, &pool)
             .unwrap_or_default();
     }
-    if is_date {
-        let remaining = scene_end.saturating_sub(start_us);
-        item.duration_us = item.duration_us.max(5_000_000).min(remaining);
+    if lane == NumericLane::Date {
+        item.duration_us = item
+            .duration_us
+            .max(5_000_000)
+            .min(scene_end.saturating_sub(item.start_us));
         item.end_ms = (item.start_us + item.duration_us + 999) / 1000;
     }
-    let font_size = if is_date || is_metric { 140.0 } else { 112.0 };
     item.params = Some(json!({
         "position": "center",
         "style": "stat",
         "priority": annotation.score,
-        "font_size_px": font_size,
+        "font_size_px": lane.font_size(),
     }));
     Some(item)
 }
 
 fn date_motion_pool(request: &EditorialPlanV2Request) -> Vec<&'static str> {
-    let family = request
-        .canvas
-        .date_motion_family
-        .trim()
-        .to_ascii_lowercase();
+    // `validate_compilable` rejects unknown selectors before this phase, so an
+    // invalid value cannot reach the pool; `All` also covers the absent
+    // selector and keeps the historical fail-open to every date motion.
+    let family = DateMotionFamily::parse(&request.canvas.date_motion_family)
+        .unwrap_or(DateMotionFamily::All);
     DATE_MOTIONS
         .iter()
         .copied()
-        .filter(|motion| match family.as_str() {
-            "typewriter" | "date_typewriter_v1" => motion.starts_with("date_typewriter_"),
-            "didone" | "date_didone_v1" => motion.starts_with("date_didone_"),
-            "classic" | "date_v1" => {
-                !motion.starts_with("date_typewriter_") && !motion.starts_with("date_didone_")
-            }
-            _ => true,
-        })
+        .filter(|motion| family.allows(motion))
         .collect()
 }
 
@@ -380,6 +404,104 @@ pub(super) struct PresetSeed<'a> {
 /// seed maps its first eight bytes onto the candidate list. This is the one
 /// sampler used by date cards, light leaks and every seeded presentation
 /// choice; wall-clock time never participates.
+/// Assigns the short-phrase entrance to every 1-5-word phrase that carries
+/// none.
+///
+/// The lane used to be written by the Go producer and was retired with its
+/// selectors, which left `motion_id` empty on the wire: the renderer then fell
+/// back to the preset's single motion and every phrase looked identical. The
+/// pin is authoritative; with no pin the item rotates the certified bucket for
+/// its own word count, seeded by (plan, scene, item) so a replay picks the same
+/// motion. Scene and chapter bullets keep their own pin contract and are left
+/// alone, and a phrase longer than five words belongs to the long lane.
+pub(super) fn assign_short_phrase_motions(
+    items: &mut [PlanItemV2],
+    request: &EditorialPlanV2Request,
+) {
+    let canvas = &request.canvas;
+    let pin = canvas.short_phrase_motion.trim();
+    for item in items.iter_mut() {
+        if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
+            continue;
+        }
+        if !item.motion_id.trim().is_empty() || is_editorial_bullet(item.params.as_ref()) {
+            continue;
+        }
+        let words = word_count(&item.text);
+        if words == 0 || words > 5 {
+            continue;
+        }
+        let pool: Vec<&str> = if pin.is_empty() {
+            canvas
+                .short_phrase_motions_by_word
+                .get(&words.to_string())
+                .map(|bucket| bucket.iter().map(String::as_str).collect())
+                .unwrap_or_default()
+        } else {
+            vec![pin]
+        };
+        if pool.is_empty() {
+            continue;
+        }
+        if let Some(motion) = seeded_preset(
+            &request.plan.plan_id,
+            &item.scene_id,
+            &item.id,
+            "short_phrase_presentation",
+            &pool,
+        ) {
+            item.motion_id = motion;
+        }
+    }
+}
+
+/// Rotates the long-phrase entrance pool for every 6+ word phrase. The long
+/// lane has no pin and no per-length buckets: the only requirement is that two
+/// long phrases in the same plan do not share the presentation default, which
+/// is what made every long phrase look identical.
+pub(super) fn assign_long_phrase_motions(
+    items: &mut [PlanItemV2],
+    request: &EditorialPlanV2Request,
+) {
+    let pool: Vec<&str> = request
+        .canvas
+        .long_phrase_motions
+        .iter()
+        .map(String::as_str)
+        .collect();
+    if pool.is_empty() {
+        return;
+    }
+    for item in items.iter_mut() {
+        if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
+            continue;
+        }
+        if !item.motion_id.trim().is_empty() || is_editorial_bullet(item.params.as_ref()) {
+            continue;
+        }
+        if word_count(&item.text) < 6 {
+            continue;
+        }
+        if let Some(motion) = seeded_preset(
+            &request.plan.plan_id,
+            &item.scene_id,
+            &item.id,
+            "long_phrase_presentation",
+            &pool,
+        ) {
+            item.motion_id = motion;
+        }
+    }
+}
+
+fn is_editorial_bullet(params: Option<&Value>) -> bool {
+    params
+        .and_then(Value::as_object)
+        .and_then(|object| object.get("editorial_role"))
+        .and_then(Value::as_str)
+        .is_some_and(|role| matches!(role, "scene_bullet" | "chapter_bullet"))
+}
+
 pub(super) fn seeded_preset(
     job_id: &str,
     scene_id: &str,
@@ -509,6 +631,7 @@ pub(super) fn trim_maps(request: &EditorialPlanV2Request, items: &mut [PlanItemV
         fps_den: request.plan.fps_den,
         scene_windows: request.scene_windows.clone(),
         items: input,
+        map_presentation: None,
     });
     for edit in edits {
         if let Some(item) = items.get_mut(edit.index) {
@@ -624,3 +747,43 @@ pub(super) const METRIC_MOTIONS: &[&str] = &[
     "metric_typewriter_ribbon_strike",
     "metric_typewriter_stepped_reveal",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::{DateMotionFamily, DATE_MOTIONS};
+
+    #[test]
+    fn every_date_motion_belongs_to_exactly_one_family() {
+        let families = [
+            DateMotionFamily::Classic,
+            DateMotionFamily::Didone,
+            DateMotionFamily::Typewriter,
+        ];
+        for motion in DATE_MOTIONS {
+            let matches = families
+                .iter()
+                .filter(|family| family.allows(motion))
+                .count();
+            assert_eq!(
+                1, matches,
+                "{motion} must belong to exactly one family, matched {matches}"
+            );
+        }
+    }
+
+    #[test]
+    fn family_pools_partition_the_catalogue() {
+        let count = |family: DateMotionFamily| {
+            DATE_MOTIONS
+                .iter()
+                .filter(|motion| family.allows(motion))
+                .count()
+        };
+        assert_eq!(
+            DATE_MOTIONS.len(),
+            count(DateMotionFamily::Classic)
+                + count(DateMotionFamily::Didone)
+                + count(DateMotionFamily::Typewriter)
+        );
+    }
+}

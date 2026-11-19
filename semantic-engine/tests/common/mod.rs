@@ -17,6 +17,8 @@ pub fn request(scenes: Vec<SceneInput>) -> ScriptRequest {
         scenes,
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     }
 }
 
@@ -31,6 +33,8 @@ pub fn manifest_value_for(language: &str, scenes: Vec<SceneInput>) -> Value {
         scenes,
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     })
     .expect("analysis must succeed");
     serde_json::to_value(manifest).expect("manifest serializes")

@@ -19,6 +19,8 @@ fn request(language: &str, scene_id: &str, text: &str) -> ScriptRequest {
         }],
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     }
 }
 
@@ -376,6 +378,8 @@ fn five_minute_script_latency_is_measured_without_external_services() {
         scenes,
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     };
     // The production process loads UDPipe lazily on its first request. The
     // advertised budget excludes that one-time startup cost, so warm the same

@@ -18,6 +18,9 @@
       "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/metadata" }]
     },
     "metrics": { "type": ["object", "null"] },
+    "preflight": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/preflight_report" }]
+    },
     "error": { "type": ["string", "null"] }
   },
   "allOf": [
@@ -46,6 +49,30 @@
     }
   ],
   "definitions": {
+    "preflight_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "issues"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/preflight_issue" }
+        }
+      }
+    },
+    "preflight_issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "code", "detail"],
+      "properties": {
+        "severity": { "enum": ["error", "warning"] },
+        "code": { "type": "string", "minLength": 1 },
+        "item_id": { "type": ["string", "null"] },
+        "path": { "type": ["string", "null"] },
+        "detail": { "type": "string" }
+      }
+    },
     "cut_item": {
       "type": "object",
       "additionalProperties": false,

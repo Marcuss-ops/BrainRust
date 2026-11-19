@@ -26,6 +26,10 @@ mod gpu;
 pub mod hash;
 mod manifest_projection;
 mod parallel;
+/// Pure, read-only pre-render checks. The caller (Go) owns the blocking
+/// decision; this module only reports what it sees.
+pub mod preflight;
+mod preflight_operation;
 mod probe;
 mod process;
 mod protocol;

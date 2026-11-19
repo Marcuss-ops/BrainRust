@@ -37,6 +37,7 @@ fn thousand_analyses_reach_an_rss_plateau() {
             }],
             editorial: None,
             entity_safety_cap: 0,
+            reference_date: None,
         };
         analyze_script(&request).expect("analysis");
         if (index + 1) % SAMPLE_EVERY == 0 {

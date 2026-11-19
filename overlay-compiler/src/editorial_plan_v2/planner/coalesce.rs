@@ -1,7 +1,24 @@
 //! Chain coalescing: caption/entity-card fusion and the camera chain
 //! segments. The fused item is one plan item, not a post-plan patch.
 
+use std::collections::BTreeSet;
+
 use super::*;
+
+use crate::editorial_plan_v2::is_chain_kind;
+
+/// Default handoff between two chain segments. It is a real gap in the plan:
+/// the previous segment has ended, the next one has not started yet.
+/// `animation_counts.chain_handoff_ms` overrides it (0 makes segments abut).
+pub(super) const CHAIN_HANDOFF_US: i64 = 400_000;
+
+/// A card needs this long to read its caption even when the scene is about to
+/// end. A segment clipped below it is a flash, not a readable beat.
+pub(super) const MIN_CHAIN_SEGMENT_US: i64 = 1_000_000;
+
+/// Preferred hold for a non-text segment. The chain uses the scene's remaining
+/// room first; this is a floor, never a reason to escape the scene window.
+const PREFERRED_CHAIN_HOLD_US: i64 = 2_500_000;
 
 /// Ports `CoalesceChainedOverlaysWithSceneEnds`: nearby, same-scene overlays
 /// fuse into one sequential chain only after admission. Captioned entity cards
@@ -15,51 +32,47 @@ pub(super) fn coalesce_chained_overlays(
     // Go attaches the resolved portrait before consulting the chain config, so
     // a chain-disabled plan still gives a text card its certified image.
     let items = attach_resolved_entity_images(items);
-    let Some((max_gap_us, max_segments)) = chain_config(&request.canvas.animation_counts) else {
+    let Some((max_gap_us, max_segments, handoff_us)) =
+        chain_config(&request.canvas.animation_counts)
+    else {
         return items;
     };
+    // `chain_camera` is the run-level choreography knob: 0 (default) keeps the
+    // legacy per-segment fly-under handoff; 1..4 select the four certified
+    // camera-pan directions. Only image chains consume it.
+    let chain_camera = chain_camera_direction(&request.canvas.animation_counts);
     if items.len() < 2 {
         return items;
     }
-    let has_images = items
-        .iter()
-        .any(|item| chain_family(&item.kind) == "image");
+    let has_images = items.iter().any(|item| chain_family(&item.kind) == "image");
     if has_images {
         let mut standalone_images = Vec::new();
-        let mut chained_images = Vec::new();
         let mut others = Vec::new();
         for item in items {
-            if chain_family(&item.kind) != "image" {
-                others.push(item);
-            } else if is_captioned_entity_image(&item) {
-                // A captioned entity card is a portrait plus a name, and the
-                // name must stay under the portrait for every card in the
-                // sequence. These cards own a stable, centered viewport and an
-                // entrance motion by the time coalescing runs, so they can be
-                // fused into one image_chain instead of being forced to take
-                // turns as independent items.
-                chained_images.push(item);
-            } else {
+            if chain_family(&item.kind) == "image" && !is_captioned_entity_image(&item) {
                 // Plain photos are never fused into a chain container. The
                 // renderer lowers a chain's image segments as a simultaneous
                 // deck on the right when the segments carry no per-card
                 // viewport, so generic images stay standalone and the planner
                 // sequences their windows after coalescing.
                 standalone_images.push(item);
+            } else {
+                // A captioned entity image and an entity card are the same
+                // editorial object at two stages: the card still waits for its
+                // verified portrait (Go promotes it after the Rust plan), the
+                // image already carries one. They must share ONE coalescing
+                // run, otherwise a scene with six nearby identities produced
+                // two partial chains — verified images in one, pending cards in
+                // the other — that Go then promoted independently.
+                others.push(item);
             }
         }
         let mut out = standalone_images;
         out.extend(coalesce_chain_subset(
-            chained_images,
-            max_gap_us,
-            max_segments,
-            scene_ends,
-            0,
-        ));
-        out.extend(coalesce_chain_subset(
             others,
             max_gap_us,
             max_segments,
+            handoff_us,
             scene_ends,
             0,
         ));
@@ -69,12 +82,122 @@ pub(super) fn coalesce_chained_overlays(
                 .cmp(&right.window_us().0)
                 .then_with(|| left.id.cmp(&right.id))
         });
-        return out;
+        return apply_chain_camera(out, chain_camera);
     }
-    coalesce_chain_subset(items, max_gap_us, max_segments, scene_ends, 0)
+    apply_chain_camera(
+        coalesce_chain_subset(items, max_gap_us, max_segments, handoff_us, scene_ends, 0),
+        chain_camera,
+    )
 }
 
-fn chain_config(counts: &BTreeMap<String, i64>) -> Option<(i64, usize)> {
+/// Reserves every fused chain window against the rest of the plan.
+///
+/// Coalescing runs after the map resolver and re-lays its segments
+/// sequentially (preferred hold + handoff), so the container can grow over an
+/// overlay that was placed on its own beat. The renderer then composites the
+/// later item on top and the chain, including its captions, disappears from the
+/// final video. The chain is the editorial owner of its window: any non-chain,
+/// non-background item that intersects it is dropped, exactly as the map
+/// resolver drops an item it cannot shift past a map. Two chains never share a
+/// window either; the later one is dropped instead of letting both render.
+///
+/// Background layers are the canvas, not competing overlays, so they survive.
+pub(super) fn resolve_chain_overlaps(items: Vec<PlanItemV2>) -> Vec<PlanItemV2> {
+    let mut chains: Vec<(usize, i64, i64)> = items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| {
+            let (start, end) = item.window_us();
+            (is_chain_kind(&item.kind) && end > start).then_some((index, start, end))
+        })
+        .collect();
+    if chains.is_empty() {
+        return items;
+    }
+    chains.sort_by_key(|(_, start, end)| (*start, *end));
+    let mut kept_windows: Vec<(i64, i64)> = Vec::with_capacity(chains.len());
+    let mut dropped: BTreeSet<usize> = BTreeSet::new();
+    for (index, start, end) in chains {
+        if kept_windows
+            .iter()
+            .any(|(kept_start, kept_end)| windows_overlap(start, end, *kept_start, *kept_end))
+        {
+            dropped.insert(index);
+            continue;
+        }
+        kept_windows.push((start, end));
+    }
+    items
+        .into_iter()
+        .enumerate()
+        .filter(|(index, item)| {
+            if dropped.contains(index) {
+                return false;
+            }
+            if is_chain_kind(&item.kind) || is_background_template(&item.template_id) {
+                return true;
+            }
+            let (start, end) = item.window_us();
+            !kept_windows.iter().any(|(chain_start, chain_end)| {
+                windows_overlap(start, end, *chain_start, *chain_end)
+            })
+        })
+        .map(|(_, item)| item)
+        .collect()
+}
+
+fn windows_overlap(left_start: i64, left_end: i64, right_start: i64, right_end: i64) -> bool {
+    left_start < right_end && right_start < left_end
+}
+
+fn is_background_template(template_id: &str) -> bool {
+    matches!(
+        template_id.trim().to_ascii_lowercase().as_str(),
+        "background" | "video_background"
+    )
+}
+
+/// Maps the `chain_camera` run knob to the certified camera-pan motion ids.
+/// The values are a small, closed enum so an out-of-range value falls back to
+/// the legacy handoff instead of producing an uncertified motion id.
+fn chain_camera_direction(counts: &BTreeMap<String, i64>) -> Option<&'static str> {
+    match counts.get("chain_camera").copied().unwrap_or(0) {
+        1 => Some("image_group_camera_pan_right"),
+        2 => Some("image_group_camera_pan_left"),
+        3 => Some("image_group_camera_pan_down"),
+        4 => Some("image_group_camera_pan_up"),
+        _ => None,
+    }
+}
+
+/// Stamps the chosen camera on every image chain. Text and mixed chains keep
+/// their `fly_under_fade` handoff; the camera-pan group is an image-only
+/// choreography.
+fn apply_chain_camera(mut items: Vec<PlanItemV2>, camera: Option<&str>) -> Vec<PlanItemV2> {
+    let Some(camera) = camera else {
+        return items;
+    };
+    for item in &mut items {
+        if item.kind != "image_chain" {
+            continue;
+        }
+        if let Some(params) = item.params.as_mut().and_then(Value::as_object_mut) {
+            params.insert("chain_camera".to_string(), json!(camera));
+        }
+    }
+    items
+}
+
+/// Hard ceiling for one automatic chain. Ten overlays in a row is the
+/// editorial limit: beyond it the sequence reads as a slideshow and no
+/// group can fit a scene without pushing later segments past its end.
+/// `chain_max_segments` lowers the bound, never raises it, and `1` (a value
+/// that used to disable chaining silently) is floored to the two segments a
+/// chain needs. `chain_disabled` is the only way to opt out.
+pub(super) const MAX_CHAIN_SEGMENTS: usize = 10;
+const MIN_CHAIN_SEGMENTS: usize = 2;
+
+fn chain_config(counts: &BTreeMap<String, i64>) -> Option<(i64, usize, i64)> {
     if counts.get("chain_disabled").copied().unwrap_or(0) > 0 {
         return None;
     }
@@ -88,18 +211,29 @@ fn chain_config(counts: &BTreeMap<String, i64>) -> Option<(i64, usize)> {
     } else {
         return None;
     };
-    let max_segments = counts
+    let configured = counts
         .get("chain_max_segments")
         .copied()
         .filter(|value| *value > 0)
-        .unwrap_or(0) as usize;
-    Some((max_gap_us, max_segments))
+        .map_or(MAX_CHAIN_SEGMENTS, |value| value as usize);
+    let max_segments = configured.clamp(MIN_CHAIN_SEGMENTS, MAX_CHAIN_SEGMENTS);
+    // The handoff is the visible time between two segments. Zero is a valid
+    // value (segments abut); negative input falls back to the legacy 400ms.
+    let handoff_us = counts
+        .get("chain_handoff_ms")
+        .copied()
+        .filter(|value| *value >= 0)
+        .map_or(CHAIN_HANDOFF_US, |value| {
+            value.saturating_mul(1000).min(2_000_000)
+        });
+    Some((max_gap_us, max_segments, handoff_us))
 }
 
 fn coalesce_chain_subset(
     items: Vec<PlanItemV2>,
     max_gap_us: i64,
     max_segments: usize,
+    handoff_us: i64,
     scene_ends: &BTreeMap<String, i64>,
     chain_index_start: u64,
 ) -> Vec<PlanItemV2> {
@@ -143,17 +277,19 @@ fn coalesce_chain_subset(
             group_end = group_end.max(candidate.window_us().1);
             next += 1;
         }
-        if group.len() < 2 {
-            out.push(sorted[index].clone());
-            index += 1;
-            continue;
-        }
-        if chain_exceeds_scene_end(&group, scene_ends.get(&scene_id).copied()) {
+        // A run that would spill past the scene end is not dropped: the
+        // segments that fit are fused and the remainder stays standalone. The
+        // old all-or-nothing guard discarded the whole chain when the last
+        // segment overflowed by a few milliseconds, which is exactly how a
+        // scene with three nearby entity images ended up with no chain.
+        let fitted = fit_group_to_scene_end(&group, scene_ends.get(&scene_id).copied(), handoff_us);
+        if fitted < 2 {
             out.extend(group);
             index = next;
             continue;
         }
-        out.push(fuse_chain(&group, chain_index));
+        out.push(fuse_chain(&group[..fitted], chain_index, handoff_us));
+        out.extend(group[fitted..].iter().cloned());
         chain_index += 1;
         index = next;
     }
@@ -224,7 +360,8 @@ pub(super) fn chain_family(kind: &str) -> &'static str {
 /// Mirrors `projectedChainEndUS`: the first segment keeps the group start,
 /// later segments follow after the handoff gap, and card segments get the same
 /// 2.5s minimum hold as the fused output.
-pub(super) fn projected_chain_end_us(group: &[PlanItemV2]) -> i64 {
+#[cfg(test)]
+pub(super) fn projected_chain_end_us(group: &[PlanItemV2], handoff_us: i64) -> i64 {
     let Some(first) = group.first() else {
         return 0;
     };
@@ -237,19 +374,58 @@ pub(super) fn projected_chain_end_us(group: &[PlanItemV2]) -> i64 {
     for (index, item) in group.iter().enumerate() {
         let (item_start, item_end) = item.window_us();
         let mut duration = item_end.saturating_sub(item_start);
-        if chain_family(&item.kind) != "text" && duration < 2_500_000 {
-            duration = 2_500_000;
+        if chain_family(&item.kind) != "text" && duration < PREFERRED_CHAIN_HOLD_US {
+            duration = PREFERRED_CHAIN_HOLD_US;
         }
         if index > 0 {
-            cursor = cursor.saturating_add(400_000);
+            cursor = cursor.saturating_add(handoff_us);
         }
         cursor = cursor.saturating_add(duration);
     }
     cursor
 }
 
-pub(super) fn chain_exceeds_scene_end(group: &[PlanItemV2], scene_end: Option<i64>) -> bool {
-    matches!(scene_end, Some(end) if end > 0 && group.len() >= 2 && projected_chain_end_us(group) > end)
+/// Number of leading segments of `group` whose projected chain window starts
+/// before the scene end. The chain keeps the first segment's start and the
+/// configured handoff, so a later item's own start is not a bound. The last included
+/// segment may overrun the end: `clip_items_to_scene_bounds` shortens it (item
+/// and segment) to the scene window afterwards.
+fn fit_group_to_scene_end(group: &[PlanItemV2], scene_end: Option<i64>, handoff_us: i64) -> usize {
+    let Some(end) = scene_end.filter(|end| *end > 0) else {
+        return group.len();
+    };
+    let mut cursor = group
+        .first()
+        .map(|item| {
+            group
+                .iter()
+                .map(|item| item.window_us().0)
+                .min()
+                .unwrap_or_else(|| item.window_us().0)
+        })
+        .unwrap_or(0);
+    let mut fitted = 0;
+    for (index, item) in group.iter().enumerate() {
+        let (item_start, item_end) = item.window_us();
+        let mut duration = item_end.saturating_sub(item_start);
+        if chain_family(&item.kind) != "text" && duration < PREFERRED_CHAIN_HOLD_US {
+            duration = PREFERRED_CHAIN_HOLD_US;
+        }
+        let segment_start = if index == 0 {
+            item_start
+        } else {
+            cursor.saturating_add(handoff_us)
+        };
+        // Include a segment only when its own readable window fits before the
+        // scene end. A later clamp cannot invent the missing time: it used to
+        // leave a 300-900ms caption flash at the tail of every tight scene.
+        if segment_start.saturating_add(MIN_CHAIN_SEGMENT_US) > end {
+            break;
+        }
+        fitted = index + 1;
+        cursor = segment_start.saturating_add(duration);
+    }
+    fitted
 }
 
 /// One segment of a chain container: the typed producer side of the
@@ -331,10 +507,10 @@ const DEFAULT_CHAIN_IMAGE_MOTION: &str = "image_focus_reveal";
 
 /// Builds one chain container exactly like the former Go `model.fuseChain`:
 /// segments are laid
-/// out sequentially with a 400ms handoff, card segments keep a 2.5s minimum
+/// out sequentially with the configured handoff, card segments keep a 2.5s minimum
 /// hold, and every segment keeps its own text, motion, caption, assets and
 /// opaque metadata. The container carries no preset/motion of its own.
-fn fuse_chain(group: &[PlanItemV2], chain_index: u64) -> PlanItemV2 {
+fn fuse_chain(group: &[PlanItemV2], chain_index: u64, handoff_us: i64) -> PlanItemV2 {
     let first = &group[0];
     let start_us = group
         .iter()
@@ -364,13 +540,13 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64) -> PlanItemV2 {
     for (index, item) in group.iter().enumerate() {
         let (item_start, item_end) = item.window_us();
         let mut duration_us = item_end.saturating_sub(item_start);
-        if chain_family(&item.kind) != "text" && duration_us < 2_500_000 {
-            duration_us = 2_500_000;
+        if chain_family(&item.kind) != "text" && duration_us < PREFERRED_CHAIN_HOLD_US {
+            duration_us = PREFERRED_CHAIN_HOLD_US;
         }
         let segment_start_us = if index == 0 {
             item_start
         } else {
-            cursor_us.saturating_add(400_000)
+            cursor_us.saturating_add(handoff_us)
         };
         // Every image segment must animate on entry: a segment with no motion
         // is a still image swapped in place, which is exactly what makes a
@@ -436,7 +612,7 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64) -> PlanItemV2 {
     params.insert("chain_motions".to_string(), Value::Array(motions));
     params.insert("chain_count".to_string(), json!(group.len()));
     params.insert("chain_camera".to_string(), json!("fly_under_fade"));
-    params.insert("chain_gap_us".to_string(), json!(400_000_i64));
+    params.insert("chain_gap_us".to_string(), json!(handoff_us));
     let legacy_text = if first.text.trim().is_empty() {
         group
             .iter()
@@ -547,7 +723,7 @@ mod segment_contract_tests {
     }
 
     fn fused_segments(group: Vec<PlanItemV2>) -> Vec<Value> {
-        let chain = fuse_chain(&group, 0);
+        let chain = fuse_chain(&group, 0, CHAIN_HANDOFF_US);
         chain.params.as_ref().expect("chain params")["chain_segments"]
             .as_array()
             .expect("chain segments")

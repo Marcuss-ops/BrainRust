@@ -28,7 +28,8 @@
         "mux_audio_copy",
         "assemble_copy",
         "project_overlay_manifest",
-        "extract_timeline_window"
+        "extract_timeline_window",
+        "preflight"
       ]
     },
     "ffmpeg_path": { "type": "string" },
@@ -54,7 +55,8 @@
     },
     "no_audio": { "type": "boolean" },
     "duration_sec": { "type": "number", "minimum": 0 },
-    "keep_audio": { "type": "boolean" }
+    "keep_audio": { "type": "boolean" },
+    "preflight": { "$ref": "#/definitions/preflight" }
   },
   "allOf": [
     {
@@ -68,6 +70,10 @@
     {
       "if": { "properties": { "operation": { "const": "normalize" } }, "required": ["operation"] },
       "then": { "required": ["source_path", "output_path"] }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "preflight" } }, "required": ["operation"] },
+      "then": { "required": ["preflight"] }
     }
   ],
   "definitions": {
@@ -80,6 +86,58 @@
         "start_sec": { "type": "number", "minimum": 0 },
         "end_sec": { "type": "number", "exclusiveMinimum": 0 },
         "output_path": { "type": "string", "minLength": 1 }
+      }
+    },
+    "preflight": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Read-only pre-render checks. The engine writes nothing and Go owns the blocking decision.",
+      "properties": {
+        "video_duration_ms": { "type": "integer" },
+        "ffmpeg_path": { "type": "string" },
+        "assets": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/preflight_asset" }
+        },
+        "subtitles": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/preflight_cue" }
+        },
+        "overlays": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/preflight_overlay" }
+        }
+      }
+    },
+    "preflight_asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset_id", "path"],
+      "properties": {
+        "asset_id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 }
+      }
+    },
+    "preflight_cue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_id", "in_us", "out_us"],
+      "properties": {
+        "item_id": { "type": "string", "minLength": 1 },
+        "in_us": { "type": "integer" },
+        "out_us": { "type": "integer" },
+        "text": { "type": "string" }
+      }
+    },
+    "preflight_overlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_id", "track", "in_us", "out_us"],
+      "properties": {
+        "item_id": { "type": "string", "minLength": 1 },
+        "track": { "type": "integer", "minimum": 0 },
+        "in_us": { "type": "integer" },
+        "out_us": { "type": "integer" }
       }
     }
   }

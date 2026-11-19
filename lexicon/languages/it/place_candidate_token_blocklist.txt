@@ -1,0 +1,22 @@
+# it place candidate token blocklist — a token that disqualifies any map
+# candidate containing it, even inside a longer extraction ("La Cassazione",
+# "Suprema Corte", "Il Tribunale di Milano").
+#
+# The article is not part of the name and the multiword extraction can bypass
+# the exact-phrase set, so this list is matched token by token on the
+# normalized query. One token per line, lowercase.
+#
+# Persons: given names and surnames that also name a small Italian settlement.
+# The hononym hit pinned prose ("Andrea ha detto", "Poggi ha spiegato") to the
+# wrong town; a person named here is grounded from the PERSON annotation, never
+# from a raw candidate.
+corte
+cassazione
+procura
+tribunale
+stasi
+sempio
+poggi
+alberto
+andrea
+chiara

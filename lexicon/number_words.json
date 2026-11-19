@@ -1,0 +1,572 @@
+{
+  "schema": "number_words.v1",
+  "languages": {
+    "it": {
+      "conjunctions": [
+        "e"
+      ],
+      "approximators": [
+        "circa",
+        "all'incirca",
+        "quasi"
+      ],
+      "fraction_articles": [
+        "un",
+        "uno",
+        "una"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "mezzo": {
+          "denominator": 2,
+          "additive": true
+        },
+        "metà": {
+          "denominator": 2,
+          "additive": true
+        },
+        "terzo": {
+          "denominator": 3
+        },
+        "terzi": {
+          "denominator": 3
+        },
+        "quarto": {
+          "denominator": 4
+        },
+        "quarti": {
+          "denominator": 4
+        },
+        "quinto": {
+          "denominator": 5
+        },
+        "quinti": {
+          "denominator": 5
+        },
+        "decimo": {
+          "denominator": 10
+        },
+        "decimi": {
+          "denominator": 10
+        }
+      },
+      "negatives": [
+        "mille grazie",
+        "grazie mille",
+        "mille scuse"
+      ],
+      "variants": {
+        "un": 1,
+        "una": 1
+      }
+    },
+    "en": {
+      "conjunctions": [
+        "and"
+      ],
+      "approximators": [
+        "about",
+        "around",
+        "approximately",
+        "roughly"
+      ],
+      "fraction_articles": [
+        "a",
+        "an",
+        "one"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "half": {
+          "denominator": 2,
+          "additive": true
+        },
+        "third": {
+          "denominator": 3
+        },
+        "thirds": {
+          "denominator": 3
+        },
+        "quarter": {
+          "denominator": 4
+        },
+        "quarters": {
+          "denominator": 4
+        },
+        "fifth": {
+          "denominator": 5
+        },
+        "fifths": {
+          "denominator": 5
+        },
+        "tenth": {
+          "denominator": 10
+        },
+        "tenths": {
+          "denominator": 10
+        }
+      },
+      "negatives": [
+        "thanks a million",
+        "a million thanks",
+        "one in a million"
+      ]
+    },
+    "es": {
+      "conjunctions": [
+        "y"
+      ],
+      "approximators": [
+        "alrededor de",
+        "alrededor",
+        "cerca de",
+        "cerca",
+        "aproximadamente"
+      ],
+      "fraction_articles": [
+        "un",
+        "una"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "medio": {
+          "denominator": 2,
+          "additive": true
+        },
+        "media": {
+          "denominator": 2,
+          "additive": true
+        },
+        "tercio": {
+          "denominator": 3
+        },
+        "tercios": {
+          "denominator": 3
+        },
+        "cuarto": {
+          "denominator": 4
+        },
+        "cuartos": {
+          "denominator": 4
+        },
+        "quinto": {
+          "denominator": 5
+        },
+        "quintos": {
+          "denominator": 5
+        },
+        "mitad": {
+          "denominator": 2,
+          "additive": true
+        }
+      },
+      "negatives": [
+        "mil gracias",
+        "gracias mil"
+      ],
+      "variants": {
+        "un": 1,
+        "una": 1
+      }
+    },
+    "pt": {
+      "conjunctions": [
+        "e"
+      ],
+      "approximators": [
+        "cerca de",
+        "cerca",
+        "aproximadamente",
+        "mais ou menos"
+      ],
+      "fraction_articles": [
+        "um",
+        "uma"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "meio": {
+          "denominator": 2,
+          "additive": true
+        },
+        "meia": {
+          "denominator": 2,
+          "additive": true
+        },
+        "terço": {
+          "denominator": 3
+        },
+        "terços": {
+          "denominator": 3
+        },
+        "quarto": {
+          "denominator": 4
+        },
+        "quartos": {
+          "denominator": 4
+        },
+        "quinto": {
+          "denominator": 5
+        },
+        "quintos": {
+          "denominator": 5
+        },
+        "metade": {
+          "denominator": 2,
+          "additive": true
+        }
+      },
+      "negatives": [
+        "mil obrigados",
+        "obrigado mil vezes"
+      ],
+      "variants": {
+        "um": 1,
+        "uma": 1
+      }
+    },
+    "fr": {
+      "conjunctions": [
+        "et"
+      ],
+      "approximators": [
+        "environ",
+        "presque",
+        "à peu près"
+      ],
+      "fraction_articles": [
+        "un",
+        "une"
+      ],
+      "multiplicative_tens": true,
+      "fractions": {
+        "demi": {
+          "denominator": 2,
+          "additive": true
+        },
+        "demie": {
+          "denominator": 2,
+          "additive": true
+        },
+        "tiers": {
+          "denominator": 3
+        },
+        "quart": {
+          "denominator": 4
+        },
+        "quarts": {
+          "denominator": 4
+        },
+        "cinquième": {
+          "denominator": 5
+        },
+        "cinquièmes": {
+          "denominator": 5
+        },
+        "moitié": {
+          "denominator": 2,
+          "additive": true
+        }
+      },
+      "negatives": [
+        "mille mercis",
+        "merci mille fois"
+      ],
+      "variants": {
+        "un": 1,
+        "une": 1
+      }
+    },
+    "de": {
+      "conjunctions": [
+        "und"
+      ],
+      "approximators": [
+        "rund",
+        "etwa",
+        "ungefähr"
+      ],
+      "fraction_articles": [
+        "ein",
+        "eine"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "halb": {
+          "denominator": 2,
+          "additive": true
+        },
+        "halbe": {
+          "denominator": 2,
+          "additive": true
+        },
+        "drittel": {
+          "denominator": 3
+        },
+        "viertel": {
+          "denominator": 4
+        },
+        "fünftel": {
+          "denominator": 5
+        },
+        "zehntel": {
+          "denominator": 10
+        }
+      },
+      "negatives": [
+        "tausend dank",
+        "vielen dank"
+      ],
+      "half_suffixes": [
+        "einhalb"
+      ],
+      "variants": {
+        "ein": 1,
+        "eine": 1
+      }
+    },
+    "nl": {
+      "conjunctions": [
+        "en"
+      ],
+      "approximators": [
+        "ongeveer",
+        "ruim",
+        "circa"
+      ],
+      "fraction_articles": [
+        "een"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "half": {
+          "denominator": 2,
+          "additive": true
+        },
+        "derde": {
+          "denominator": 3
+        },
+        "kwart": {
+          "denominator": 4
+        },
+        "vijfde": {
+          "denominator": 5
+        },
+        "tiende": {
+          "denominator": 10
+        },
+        "halve": {
+          "denominator": 2,
+          "additive": true
+        }
+      },
+      "negatives": [
+        "duizendmaal dank",
+        "hartelijk dank"
+      ],
+      "half_suffixes": [
+        "ënhalf",
+        "enhalf"
+      ],
+      "variants": {
+        "een": 1
+      }
+    },
+    "pl": {
+      "conjunctions": [
+        "i"
+      ],
+      "approximators": [
+        "około",
+        "circa",
+        "mniej więcej"
+      ],
+      "fraction_articles": [
+        "jedna",
+        "jeden"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "pół": {
+          "denominator": 2,
+          "additive": true
+        },
+        "trzecia": {
+          "denominator": 3
+        },
+        "trzecie": {
+          "denominator": 3
+        },
+        "czwarta": {
+          "denominator": 4
+        },
+        "czwarte": {
+          "denominator": 4
+        },
+        "piąta": {
+          "denominator": 5
+        },
+        "piąte": {
+          "denominator": 5
+        }
+      },
+      "negatives": [
+        "tysiąc podziękowań",
+        "stokrotne dzięki"
+      ],
+      "variants": {
+        "jedna": 1,
+        "jeden": 1
+      }
+    },
+    "ru": {
+      "conjunctions": [
+        "и",
+        "с",
+        "со"
+      ],
+      "approximators": [
+        "около",
+        "примерно",
+        "почти"
+      ],
+      "fraction_articles": [
+        "одна",
+        "один"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "половина": {
+          "denominator": 2,
+          "additive": true
+        },
+        "половины": {
+          "denominator": 2,
+          "additive": true
+        },
+        "треть": {
+          "denominator": 3
+        },
+        "трети": {
+          "denominator": 3
+        },
+        "четверть": {
+          "denominator": 4
+        },
+        "четверти": {
+          "denominator": 4
+        },
+        "пятая": {
+          "denominator": 5
+        },
+        "пятых": {
+          "denominator": 5
+        },
+        "половиной": {
+          "denominator": 2,
+          "additive": true
+        }
+      },
+      "negatives": [
+        "тысяча благодарностей",
+        "спасибо тысячу раз"
+      ],
+      "variants": {
+        "две": 2,
+        "двух": 2,
+        "трёх": 3,
+        "трех": 3,
+        "четырёх": 4,
+        "четырех": 4,
+        "одна": 1,
+        "один": 1
+      }
+    },
+    "tr": {
+      "conjunctions": [],
+      "approximators": [
+        "yaklaşık",
+        "civarında",
+        "takriben"
+      ],
+      "fraction_articles": [
+        "bir"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "yarım": {
+          "denominator": 2,
+          "additive": true
+        },
+        "çeyrek": {
+          "denominator": 4
+        },
+        "üçte": {
+          "denominator": 3
+        },
+        "onda": {
+          "denominator": 10
+        },
+        "buçuk": {
+          "denominator": 2,
+          "additive": true
+        }
+      },
+      "negatives": [
+        "bin teşekkür",
+        "binlerce teşekkür"
+      ],
+      "fraction_phrases": {
+        "üçte biri": {
+          "denominator": 3
+        },
+        "dörtte biri": {
+          "denominator": 4
+        },
+        "beşte biri": {
+          "denominator": 5
+        }
+      },
+      "variants": {
+        "bir": 1
+      }
+    },
+    "id": {
+      "conjunctions": [],
+      "approximators": [
+        "sekitar",
+        "kira-kira",
+        "hampir"
+      ],
+      "fraction_articles": [
+        "satu"
+      ],
+      "multiplicative_tens": false,
+      "fractions": {
+        "setengah": {
+          "denominator": 2,
+          "additive": true
+        },
+        "sepertiga": {
+          "denominator": 3
+        },
+        "seperempat": {
+          "denominator": 4
+        },
+        "seperlima": {
+          "denominator": 5
+        },
+        "sepersepuluh": {
+          "denominator": 10
+        }
+      },
+      "negatives": [
+        "seribu terima kasih",
+        "terima kasih banyak"
+      ],
+      "variants": {
+        "satu": 1
+      }
+    }
+  }
+}

@@ -27,6 +27,7 @@ use super::EDITORIAL_PLAN_V2_SCHEMA_VERSION;
 mod admission;
 mod candidates;
 mod coalesce;
+mod map_groups;
 mod media;
 mod presentation;
 
@@ -91,11 +92,24 @@ pub fn compile_plan(
     let (mut items, mut intake) = admit(request, items, intake);
     append_verified_intent_images(request, &mut items)?;
     assign_entity_media(request, &mut items)?;
+    // The short-phrase entrance is decided before coalescing: a phrase that
+    // already carries a lane motion is chainable on its own terms, and the
+    // renderer must never receive an IMPORTANT_PHRASE with an empty motion_id.
+    assign_short_phrase_motions(&mut items, request);
+    // The long lane rotates one pool instead of per-length buckets, but the
+    // rule is the same: the motion is decided before coalescing so the chain
+    // segments that reach the renderer each carry their own entrance.
+    assign_long_phrase_motions(&mut items, request);
     cascade(&mut items, request);
     // Overlap resolution is the last layout phase: it must see the final
     // admitted and cascaded set, never the pre-budget candidates. A map can
     // shorten an earlier map or shift/drop a colliding card, so items and the
     // intake accounting are re-sealed together afterwards.
+    // Grouping is an editorial decision that owns the map windows, so it runs
+    // before overlap resolution: the surviving map already carries its pins and
+    // their spoken schedule, and the resolver trims it against that schedule
+    // instead of re-deriving one downstream.
+    items = map_groups::group_map_items(items, request);
     let before_overlap = items.len();
     items = resolve_overlaps(request, items);
     record_drops(&mut intake, "overlap", before_overlap, items.len());
@@ -150,11 +164,7 @@ pub fn compile_plan(
         &request.plan.plan_id,
         &request.canvas.editorial_bullet_styles,
     );
-    // Coalescing and the presentation pass can both extend a container past
-    // its scene window (a fused chain lays segments out sequentially). The
-    // seal is the last owner of the scene invariant, so clamp here instead of
-    // letting `validate_for` reject the whole plan after the fact.
-    items = clip_items_to_scene_bounds(items, request);
+    apply_entity_badge_color(&mut items, &request.canvas.entity_badge_color);
     // The long-copy split turns one admitted phrase into multiple render
     // items. They are derived items, not new candidates, but the sealed
     // intake contract still requires every planned item to be accounted for.
@@ -166,6 +176,23 @@ pub fn compile_plan(
             .entry("text_phrase".to_string())
             .or_default() += added_by_presentation;
     }
+    // Coalescing re-lays a chain's segments after the map resolver has run, so
+    // its window can cover an independently placed overlay. Reserve it here,
+    // before the scene clamp, so the renderer can never hide the chain behind
+    // a later image (or another chain) in the final composite.
+    let before_chain_overlap = items.len();
+    items = resolve_chain_overlaps(items);
+    record_drops(
+        &mut intake,
+        "chain_overlap",
+        before_chain_overlap,
+        items.len(),
+    );
+    // Coalescing and the presentation pass can both extend a container past
+    // its scene window (a fused chain lays segments out sequentially). The
+    // seal is the last owner of the scene invariant, so clamp here instead of
+    // letting `validate_for` reject the whole plan after the fact.
+    items = clip_items_to_scene_bounds(items, request);
     name_items_for_review(&mut items);
     finalize_intake(&mut intake, &items);
     let plan = seal(request, items, intake, recap.placements);
@@ -195,6 +222,7 @@ fn clip_items_to_scene_bounds(
             )
         })
         .collect();
+    let plan_end_us = windows.values().map(|(_, end)| *end).max().unwrap_or(0);
     items
         .into_iter()
         .filter_map(|mut item| {
@@ -204,9 +232,17 @@ fn clip_items_to_scene_bounds(
             if scene_end <= scene_start {
                 return Some(item);
             }
+            // A map carries the presentation window the resolver already
+            // bounded to the plan; clipping it back to its scene would undo
+            // the camera minimum (and make the tail clamp meaningless).
+            let allowed_end = if item.kind.trim().eq_ignore_ascii_case("map") && plan_end_us > 0 {
+                plan_end_us
+            } else {
+                scene_end
+            };
             let (start_us, end_us) = item.window_us();
             let clipped_start = start_us.max(scene_start);
-            let clipped_end = end_us.min(scene_end);
+            let clipped_end = end_us.min(allowed_end);
             if clipped_end <= clipped_start {
                 return None;
             }
@@ -214,42 +250,99 @@ fn clip_items_to_scene_bounds(
             item.duration_us = clipped_end - clipped_start;
             item.start_ms = clipped_start / 1_000;
             item.end_ms = (clipped_end + 999) / 1_000;
-            clamp_chain_segments(&mut item, scene_start, scene_end);
+            if !clamp_chain_segments(&mut item, scene_start, scene_end) {
+                return None;
+            }
             Some(item)
         })
         .collect()
 }
 
-fn clamp_chain_segments(item: &mut PlanItemV2, scene_start: i64, scene_end: i64) {
-    let Some(segments) = item
-        .params
-        .as_mut()
-        .and_then(Value::as_object_mut)
-        .and_then(|params| params.get_mut("chain_segments"))
-        .and_then(Value::as_array_mut)
-    else {
-        return;
-    };
-    for segment in segments {
-        let Some(object) = segment.as_object_mut() else {
-            continue;
+/// Clamps a chain's segments to the scene and drops any segment that cannot
+/// hold a readable window. A chain with fewer than two readable segments is no
+/// longer a chain: it is dropped rather than rendered as a one-frame flash.
+/// Returns false when the caller must drop the whole item.
+fn clamp_chain_segments(item: &mut PlanItemV2, scene_start: i64, scene_end: i64) -> bool {
+    let chain_item = crate::editorial_plan_v2::is_chain_kind(&item.kind);
+    let (start_us, end_us, chain_count) = {
+        let Some(params) = item.params.as_mut().and_then(Value::as_object_mut) else {
+            return true;
         };
-        let start_us = object.get("start_us").and_then(Value::as_i64);
-        let duration_us = object.get("duration_us").and_then(Value::as_i64);
-        let (Some(start_us), Some(duration_us)) = (start_us, duration_us) else {
-            continue;
+        let Some(original) = params
+            .get("chain_segments")
+            .and_then(Value::as_array)
+            .cloned()
+        else {
+            return true;
         };
-        let clipped_start = start_us.max(scene_start);
-        let clipped_end = start_us.saturating_add(duration_us).min(scene_end);
-        if clipped_end <= clipped_start {
-            continue;
+        let original_motions = params
+            .get("chain_motions")
+            .and_then(Value::as_array)
+            .cloned();
+        let mut kept = Vec::with_capacity(original.len());
+        let mut kept_indices = Vec::with_capacity(original.len());
+        for (index, segment) in original.iter().enumerate() {
+            let Some(object) = segment.as_object() else {
+                continue;
+            };
+            let Some(start_us) = object.get("start_us").and_then(Value::as_i64) else {
+                continue;
+            };
+            let Some(duration_us) = object.get("duration_us").and_then(Value::as_i64) else {
+                continue;
+            };
+            let clipped_start = start_us.max(scene_start);
+            let clipped_end = start_us.saturating_add(duration_us).min(scene_end);
+            let clipped_duration = clipped_end.saturating_sub(clipped_start);
+            if clipped_duration <= 0 || (chain_item && clipped_duration < MIN_CHAIN_SEGMENT_US) {
+                continue;
+            }
+            let mut object = object.clone();
+            object.insert("start_us".to_string(), json!(clipped_start));
+            object.insert("duration_us".to_string(), json!(clipped_duration));
+            kept.push(Value::Object(object));
+            kept_indices.push(index);
         }
-        object.insert("start_us".to_string(), json!(clipped_start));
-        object.insert(
-            "duration_us".to_string(),
-            json!(clipped_end - clipped_start),
-        );
+        if chain_item && kept.len() < 2 {
+            return false;
+        }
+        let kept_motions: Option<Vec<Value>> = original_motions.map(|motions| {
+            kept_indices
+                .iter()
+                .filter_map(|index| motions.get(*index).cloned())
+                .collect()
+        });
+        let start_us = kept
+            .iter()
+            .filter_map(|segment| segment.get("start_us").and_then(Value::as_i64))
+            .min()
+            .unwrap_or(item.start_us);
+        let end_us = kept
+            .iter()
+            .filter_map(|segment| {
+                let start = segment.get("start_us").and_then(Value::as_i64)?;
+                let duration = segment.get("duration_us").and_then(Value::as_i64)?;
+                start.checked_add(duration)
+            })
+            .max()
+            .unwrap_or(start_us);
+        let chain_count = kept.len();
+        params.insert("chain_segments".to_string(), Value::Array(kept));
+        if let Some(motions) = kept_motions {
+            params.insert("chain_motions".to_string(), Value::Array(motions));
+        }
+        (start_us, end_us, chain_count)
+    };
+    if chain_item {
+        if let Some(params) = item.params.as_mut().and_then(Value::as_object_mut) {
+            params.insert("chain_count".to_string(), json!(chain_count));
+        }
+        item.start_us = start_us;
+        item.duration_us = end_us.saturating_sub(start_us);
+        item.start_ms = start_us / 1_000;
+        item.end_ms = end_us.saturating_add(999) / 1_000;
     }
+    true
 }
 
 fn seal(
@@ -385,7 +478,10 @@ fn count_chart_placements(request: &EditorialPlanV2Request) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{clip_items_to_scene_bounds, compile_plan, EditorialPlanV2Request, PlanItemV2};
+    use super::{
+        assign_long_phrase_motions, assign_short_phrase_motions, clip_items_to_scene_bounds,
+        compile_plan, resolve_chain_overlaps, EditorialPlanV2Request, PlanItemV2,
+    };
 
     fn request() -> EditorialPlanV2Request {
         serde_json::from_value(serde_json::json!({
@@ -393,7 +489,7 @@ mod tests {
             "schema_version": "editorial_plan.v2",
             "plan": {
                 "plan_id": "plan-1", "video_id": "video-1", "project_id": "project-1",
-                "motion_seed": "seed-1", "coherence_seed": "",
+                "motion_seed": "seed-1",
                 "width": 1920, "height": 1080, "fps_num": 24, "fps_den": 1
             },
             "language": "it", "source_language": "it",
@@ -502,6 +598,136 @@ mod tests {
         assert_eq!(2_000_000, segment["duration_us"]);
     }
 
+    fn chain_item(
+        id: &str,
+        start_us: i64,
+        duration_us: i64,
+        segments: &[(i64, i64)],
+    ) -> PlanItemV2 {
+        PlanItemV2 {
+            id: id.to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "image_chain".to_string(),
+            template_id: "IMAGE_CHAIN".to_string(),
+            start_us,
+            duration_us,
+            start_ms: start_us / 1_000,
+            end_ms: (start_us + duration_us + 999) / 1_000,
+            params: Some(serde_json::json!({
+                "chain_count": segments.len(),
+                "chain_motions": segments.iter().map(|_| "image_fade_reveal").collect::<Vec<_>>(),
+                "chain_segments": segments
+                    .iter()
+                    .map(|(start, duration)| serde_json::json!({
+                        "kind": "entity_image",
+                        "start_us": start,
+                        "duration_us": duration,
+                    }))
+                    .collect::<Vec<_>>(),
+            })),
+            ..PlanItemV2::default()
+        }
+    }
+
+    fn overlay_item(
+        id: &str,
+        kind: &str,
+        template: &str,
+        start_us: i64,
+        duration_us: i64,
+    ) -> PlanItemV2 {
+        PlanItemV2 {
+            id: id.to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: kind.to_string(),
+            template_id: template.to_string(),
+            start_us,
+            duration_us,
+            start_ms: start_us / 1_000,
+            end_ms: (start_us + duration_us + 999) / 1_000,
+            ..PlanItemV2::default()
+        }
+    }
+
+    #[test]
+    fn chain_reserves_its_window_from_standalone_overlays() {
+        let chain = chain_item("chain", 1_647_000, 8_300_000, &[(1_647_000, 2_500_000)]);
+        let overlapped = overlay_item("photo", "image", "IMAGE_OVERLAY", 5_000_000, 5_000_000);
+        let after = overlay_item("later", "image", "IMAGE_OVERLAY", 10_000_000, 2_000_000);
+        let resolved = resolve_chain_overlaps(vec![chain, overlapped, after]);
+        let ids: Vec<&str> = resolved.iter().map(|item| item.id.as_str()).collect();
+        assert_eq!(vec!["chain", "later"], ids);
+    }
+
+    #[test]
+    fn chain_keeps_its_background_layer() {
+        let chain = chain_item(
+            "chain",
+            0,
+            5_000_000,
+            &[(0, 2_500_000), (2_900_000, 2_100_000)],
+        );
+        let background = overlay_item("bg", "image", "background", 0, 5_000_000);
+        let resolved = resolve_chain_overlaps(vec![chain, background]);
+        let ids: Vec<&str> = resolved.iter().map(|item| item.id.as_str()).collect();
+        assert_eq!(vec!["chain", "bg"], ids);
+    }
+
+    #[test]
+    fn later_overlapping_chain_is_dropped() {
+        let first = chain_item(
+            "first",
+            0,
+            4_000_000,
+            &[(0, 2_000_000), (2_400_000, 1_600_000)],
+        );
+        let second = chain_item(
+            "second",
+            3_000_000,
+            4_000_000,
+            &[(3_000_000, 2_000_000), (5_400_000, 1_600_000)],
+        );
+        let resolved = resolve_chain_overlaps(vec![second, first]);
+        let ids: Vec<&str> = resolved.iter().map(|item| item.id.as_str()).collect();
+        assert_eq!(vec!["first"], ids);
+    }
+
+    #[test]
+    fn chain_drops_a_tail_below_the_readable_minimum() {
+        let request = request();
+        let chain = chain_item(
+            "chain",
+            0,
+            3_000_000,
+            &[
+                (0, 1_000_000),
+                (1_000_000, 1_000_000),
+                (2_000_000, 1_000_000),
+            ],
+        );
+        let clipped = clip_items_to_scene_bounds(vec![chain], &request);
+        assert_eq!(1, clipped.len());
+        let item = &clipped[0];
+        assert_eq!((0, 2_000_000), item.window_us());
+        let params = item.params.as_ref().expect("params");
+        assert_eq!(2, params["chain_count"].as_i64().unwrap());
+        assert_eq!(2, params["chain_segments"].as_array().unwrap().len());
+        assert_eq!(2, params["chain_motions"].as_array().unwrap().len());
+    }
+
+    #[test]
+    fn chain_without_two_readable_segments_is_dropped() {
+        let request = request();
+        let chain = chain_item(
+            "chain",
+            0,
+            2_000_000,
+            &[(0, 1_500_000), (1_500_000, 500_000)],
+        );
+        let clipped = clip_items_to_scene_bounds(vec![chain], &request);
+        assert!(clipped.is_empty());
+    }
+
     #[test]
     fn editorial_bullet_pin_controls_font_and_entrance() {
         let mut request = request();
@@ -538,6 +764,136 @@ mod tests {
             Some(96.0),
             bullet.style.as_ref().expect("style")["font_size"].as_f64()
         );
+    }
+
+    fn phrase_item(id: &str, text: &str, role: Option<&str>) -> PlanItemV2 {
+        PlanItemV2 {
+            id: id.to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "text_phrase".to_string(),
+            template_id: "IMPORTANT_PHRASE".to_string(),
+            text: text.to_string(),
+            params: role.map(|role| serde_json::json!({ "editorial_role": role })),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn short_phrase_motion_follows_the_word_count_bucket() {
+        let mut request = request();
+        request.canvas.short_phrase_motions_by_word = std::collections::BTreeMap::from([
+            (
+                "2".to_string(),
+                vec!["typewriter_slow_type_short".to_string()],
+            ),
+            (
+                "4".to_string(),
+                vec!["typewriter_word_burst_short".to_string()],
+            ),
+        ]);
+        let mut items = vec![
+            phrase_item("two", "Nike corre", None),
+            phrase_item("four", "Nike corre al museo", None),
+            phrase_item("bullet", "Nike corre al museo oggi", Some("scene_bullet")),
+            phrase_item(
+                "long",
+                "una frase decisamente troppo lunga per la corsia breve",
+                None,
+            ),
+        ];
+        assign_short_phrase_motions(&mut items, &request);
+        assert_eq!(items[0].motion_id, "typewriter_slow_type_short");
+        assert_eq!(items[1].motion_id, "typewriter_word_burst_short");
+        assert_eq!(
+            items[2].motion_id, "",
+            "the bullet lane keeps its own pin contract"
+        );
+        assert_eq!(
+            items[3].motion_id, "",
+            "six words and up belong to the long lane"
+        );
+    }
+
+    #[test]
+    fn short_phrase_pin_wins_over_the_bucket() {
+        let mut request = request();
+        request.canvas.short_phrase_motion = "typewriter_glyph_square_short".to_string();
+        let mut items = vec![
+            phrase_item("two", "Nike corre", None),
+            phrase_item("four", "Nike corre al museo", None),
+        ];
+        assign_short_phrase_motions(&mut items, &request);
+        assert_eq!(items[0].motion_id, "typewriter_glyph_square_short");
+        assert_eq!(items[1].motion_id, "typewriter_glyph_square_short");
+    }
+
+    #[test]
+    fn short_phrase_motion_is_stable_and_length_specific() {
+        let mut request = request();
+        request.canvas.short_phrase_motions_by_word = std::collections::BTreeMap::from([
+            (
+                "2".to_string(),
+                vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            ),
+            ("4".to_string(), vec!["d".to_string(), "e".to_string()]),
+        ]);
+        let build = || {
+            let mut items = vec![
+                phrase_item("one", "due parole", None),
+                phrase_item("two", "quattro parole qui ora", None),
+                phrase_item("three", "due parole", None),
+            ];
+            assign_short_phrase_motions(&mut items, &request);
+            items
+                .into_iter()
+                .map(|item| item.motion_id)
+                .collect::<Vec<_>>()
+        };
+        let first = build();
+        assert_eq!(
+            first,
+            build(),
+            "replaying the same plan must pick the same motions"
+        );
+        assert!(["a", "b", "c"].contains(&first[0].as_str()));
+        assert!(["d", "e"].contains(&first[1].as_str()));
+    }
+
+    #[test]
+    fn long_phrase_motion_rotates_the_long_pool() {
+        let mut request = request();
+        request.canvas.long_phrase_motions = vec![
+            "typewriter_glyph_wrap_long".to_string(),
+            "doc_01_yellow_marker_sweep".to_string(),
+        ];
+        let mut items = vec![
+            phrase_item("long", "una frase di sei parole esatte qui adesso", None),
+            phrase_item("short", "Nike corre al museo", None),
+        ];
+        assign_long_phrase_motions(&mut items, &request);
+        assert!(
+            ["typewriter_glyph_wrap_long", "doc_01_yellow_marker_sweep"]
+                .contains(&items[0].motion_id.as_str()),
+            "long lane picked {:?}",
+            items[0].motion_id
+        );
+        assert_eq!(
+            items[1].motion_id, "",
+            "the short lane belongs to the short selector"
+        );
+    }
+
+    #[test]
+    fn long_phrase_without_a_pool_keeps_the_presentation_default() {
+        let mut request = request();
+        request.canvas.long_phrase_motions = Vec::new();
+        let mut items = vec![phrase_item(
+            "long",
+            "una frase di sei parole esatte qui adesso",
+            None,
+        )];
+        assign_long_phrase_motions(&mut items, &request);
+        assert_eq!(items[0].motion_id, "");
     }
 
     #[test]
@@ -670,6 +1026,120 @@ mod tests {
             .find(|item| item.template_id == "METRIC_STAT_CARD")
             .expect("metric card");
         assert!(super::METRIC_MOTIONS.contains(&metric.motion_id.as_str()));
+    }
+
+    #[test]
+    fn date_motion_family_filters_the_date_pool() {
+        for (selector, expected_prefix) in [
+            ("classic", None),
+            ("didone", Some("date_didone_")),
+            ("typewriter", Some("date_typewriter_")),
+        ] {
+            let mut request = request();
+            request.canvas.date_motion_family = selector.to_string();
+            request.scenes[0].annotations = Some(
+                serde_json::from_value(serde_json::json!({
+                    "numbers": [
+                        {"text": "13 agosto", "type": "DATE", "start_us": 0, "duration_us": 500000}
+                    ]
+                }))
+                .expect("annotations"),
+            );
+            request.budgets.as_mut().expect("budgets").max_per_scene = 10;
+            let compiled = compile_plan(&request).expect("plan");
+            let date = compiled
+                .plan
+                .items
+                .iter()
+                .find(|item| item.template_id == "TIMELINE_DATE_CARD")
+                .expect("date card");
+            match expected_prefix {
+                Some(prefix) => assert!(
+                    date.motion_id.starts_with(prefix),
+                    "{selector} picked {}",
+                    date.motion_id
+                ),
+                None => assert!(
+                    !date.motion_id.starts_with("date_didone_")
+                        && !date.motion_id.starts_with("date_typewriter_"),
+                    "classic picked {}",
+                    date.motion_id
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn repeated_dates_and_metrics_rotate_their_motion_pools() {
+        let mut request = request();
+        request.canvas.date_motion_family = "typewriter".to_string();
+        // A date card needs at least two readable seconds and stays on screen
+        // for five, so the fixture's 2 s scene can only hold one. Stretch the
+        // scene so three dates and three metrics can share it.
+        let scene_duration_us = 20_000_000_i64;
+        request.seal.as_mut().expect("seal").audio_duration_us = scene_duration_us;
+        request.scenes[0].duration_us = scene_duration_us;
+        request.scenes[0].duration_ms = scene_duration_us / 1000;
+        request
+            .scene_windows
+            .insert("scene-1".to_string(), [0, scene_duration_us]);
+        request.scenes[0].annotations = Some(
+            serde_json::from_value(serde_json::json!({
+                "numbers": [
+                    {"text": "13 agosto", "type": "DATE", "start_us": 0, "duration_us": 400000},
+                    {"text": "4 luglio", "type": "DATE", "start_us": 7000000, "duration_us": 400000},
+                    {"text": "2 giugno", "type": "DATE", "start_us": 14000000, "duration_us": 400000},
+                    {"text": "42", "type": "NUMBER", "start_us": 2000000, "duration_us": 300000},
+                    {"text": "67", "type": "NUMBER", "start_us": 4000000, "duration_us": 300000},
+                    {"text": "91", "type": "NUMBER", "start_us": 9000000, "duration_us": 300000}
+                ]
+            }))
+            .expect("annotations"),
+        );
+        request.budgets.as_mut().expect("budgets").max_per_scene = 20;
+        let compiled = compile_plan(&request).expect("plan");
+
+        let date_motions: Vec<&str> = compiled
+            .plan
+            .items
+            .iter()
+            .filter(|item| item.template_id == "TIMELINE_DATE_CARD")
+            .map(|item| item.motion_id.as_str())
+            .collect();
+        assert!(!date_motions.is_empty(), "expected date cards");
+        assert!(
+            date_motions
+                .iter()
+                .all(|motion| motion.starts_with("date_typewriter_")),
+            "date family leaked: {date_motions:?}"
+        );
+        let distinct_dates: std::collections::BTreeSet<&str> =
+            date_motions.iter().copied().collect();
+        assert!(
+            distinct_dates.len() > 1,
+            "every date reused one motion: {date_motions:?}"
+        );
+
+        let metric_motions: Vec<&str> = compiled
+            .plan
+            .items
+            .iter()
+            .filter(|item| item.template_id == "METRIC_STAT_CARD")
+            .map(|item| item.motion_id.as_str())
+            .collect();
+        assert!(!metric_motions.is_empty(), "expected metric cards");
+        assert!(
+            metric_motions
+                .iter()
+                .all(|motion| super::METRIC_MOTIONS.contains(motion)),
+            "metric motion outside the certified pool: {metric_motions:?}"
+        );
+        let distinct_metrics: std::collections::BTreeSet<&str> =
+            metric_motions.iter().copied().collect();
+        assert!(
+            distinct_metrics.len() > 1,
+            "every metric reused one motion: {metric_motions:?}"
+        );
     }
 
     #[test]
@@ -953,6 +1423,45 @@ mod tests {
     }
 
     #[test]
+    fn general_chain_handoff_can_be_removed() {
+        let items = vec![
+            chain_phrase("a", "alpha", 100_000, 500_000, "motion_a"),
+            chain_phrase("b", "beta", 700_000, 500_000, "motion_b"),
+        ];
+        let fused = super::coalesce_chained_overlays(
+            items,
+            &chain_request(&[("chain_enabled", 1), ("chain_handoff_ms", 0)]),
+            &chain_ends(10_000_000),
+        );
+        let chain = &fused[0];
+        let params = chain.params.as_ref().expect("chain params");
+        assert_eq!(0, params["chain_gap_us"].as_i64().unwrap());
+        let segments = params["chain_segments"].as_array().expect("segments");
+        assert_eq!(100_000, segments[0]["start_us"].as_i64().unwrap());
+        assert_eq!(600_000, segments[1]["start_us"].as_i64().unwrap());
+        assert_eq!((100_000, 1_100_000), chain.window_us());
+    }
+
+    #[test]
+    fn general_chain_handoff_is_configurable() {
+        let items = vec![
+            chain_phrase("a", "alpha", 100_000, 500_000, "motion_a"),
+            chain_phrase("b", "beta", 700_000, 500_000, "motion_b"),
+        ];
+        let fused = super::coalesce_chained_overlays(
+            items,
+            &chain_request(&[("chain_enabled", 1), ("chain_handoff_ms", 1_500)]),
+            &chain_ends(10_000_000),
+        );
+        let chain = &fused[0];
+        let params = chain.params.as_ref().expect("chain params");
+        assert_eq!(1_500_000, params["chain_gap_us"].as_i64().unwrap());
+        let segments = params["chain_segments"].as_array().expect("segments");
+        assert_eq!(2_100_000, segments[1]["start_us"].as_i64().unwrap());
+        assert_eq!((100_000, 2_600_000), chain.window_us());
+    }
+
+    #[test]
     fn general_chain_fuses_captioned_entity_images_into_a_sequence() {
         let mut first = chain_image("ada", 100_000, 3_000_000, "image_focus_reveal");
         first.kind = "entity_image".to_string();
@@ -981,7 +1490,11 @@ mod tests {
             &chain_request(&[("chain_enabled", 1)]),
             &chain_ends(20_000_000),
         );
-        assert_eq!(2, fused.len(), "cards fuse, the plain photo stays standalone");
+        assert_eq!(
+            2,
+            fused.len(),
+            "cards fuse, the plain photo stays standalone"
+        );
         let chain = fused
             .iter()
             .find(|item| item.kind == "image_chain")
@@ -990,11 +1503,20 @@ mod tests {
             .as_array()
             .unwrap();
         assert_eq!(2, segments.len());
-        assert_eq!("Ada Lovelace", segments[0]["entity_caption"].as_str().unwrap());
-        assert_eq!("Grace Hopper", segments[1]["entity_caption"].as_str().unwrap());
+        assert_eq!(
+            "Ada Lovelace",
+            segments[0]["entity_caption"].as_str().unwrap()
+        );
+        assert_eq!(
+            "Grace Hopper",
+            segments[1]["entity_caption"].as_str().unwrap()
+        );
         for segment in segments {
             assert_eq!("below", segment["caption_layout"].as_str().unwrap());
-            assert_eq!("premium_below_random_v1", segment["entity_style_id"].as_str().unwrap());
+            assert_eq!(
+                "premium_below_random_v1",
+                segment["entity_style_id"].as_str().unwrap()
+            );
             assert_eq!(
                 0.0,
                 segment["params"]["position_x"].as_f64().unwrap(),
@@ -1002,6 +1524,37 @@ mod tests {
             );
         }
         assert!(fused.iter().any(|item| item.kind == "image"));
+    }
+
+    #[test]
+    fn general_chain_fuses_pending_entity_cards_with_verified_entity_images() {
+        let verified = chain_entity_image("ada", "Ada Lovelace", 0, 2_000_000);
+        let mut pending = chain_entity_image("grace", "Grace Hopper", 2_400_000, 2_000_000);
+        pending.kind = "entity_card".to_string();
+        pending.template_id = "person_default".to_string();
+        pending.asset_refs.clear();
+        let second_verified = chain_entity_image("alan", "Alan Turing", 4_800_000, 2_000_000);
+        let fused = super::coalesce_chained_overlays(
+            vec![verified, pending, second_verified],
+            &chain_request(&[("chain_enabled", 1)]),
+            &chain_ends(20_000_000),
+        );
+        assert_eq!(1, fused.len(), "identity cards and images form one run");
+        let segments = fused[0].params.as_ref().unwrap()["chain_segments"]
+            .as_array()
+            .unwrap();
+        assert_eq!(3, segments.len());
+        assert_eq!(
+            vec!["entity_image", "entity_card", "entity_image"],
+            segments
+                .iter()
+                .map(|segment| segment["kind"].as_str().unwrap())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            "mixed_chain", fused[0].kind,
+            "Go promotes the pending card and re-labells the container as an image_chain"
+        );
     }
 
     #[test]
@@ -1027,7 +1580,7 @@ mod tests {
     }
 
     #[test]
-    fn general_chain_keeps_overflowing_runs_standalone() {
+    fn general_chain_keeps_plain_image_runs_standalone() {
         let items = (0..4)
             .map(|index| {
                 chain_image(
@@ -1040,29 +1593,196 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(4, items.len());
         assert!(items.iter().all(|item| item.scene_id == "scene-1"));
-        assert_eq!(21_200_000, super::projected_chain_end_us(&items));
-        assert!(super::chain_exceeds_scene_end(&items, Some(20_000_000)));
-        let overflow = super::coalesce_chained_overlays(
-            items.clone(),
-            &chain_request(&[("chain_enabled", 1)]),
-            &chain_ends(20_000_000),
+        assert_eq!(
+            21_200_000,
+            super::projected_chain_end_us(&items, super::CHAIN_HANDOFF_US)
         );
-        assert_eq!(4, overflow.len());
-        assert!(overflow.iter().all(|item| item.kind == "image"));
-
         let room = super::coalesce_chained_overlays(
             items,
             &chain_request(&[("chain_enabled", 1)]),
             &chain_ends(40_000_000),
         );
-        // Images are never fused, even when a chain would fit: the renderer
-        // draws a chain's image segments as a deck instead of a sequence.
+        // Plain photos are never fused, even when a chain would fit: the
+        // renderer draws a chain's generic image segments as a simultaneous
+        // deck instead of a sequence. Only captioned entity cards chain.
         assert_eq!(4, room.len());
         assert!(room.iter().all(|item| item.kind == "image"));
         assert_eq!(
             room.iter().map(|item| item.start_us).collect::<Vec<_>>(),
             vec![0, 5_000_000, 10_000_000, 15_000_000]
         );
+    }
+
+    #[test]
+    fn chain_camera_knob_selects_a_camera_pan_for_image_chains_only() {
+        let image_items = vec![
+            chain_entity_image("ada", "Ada Lovelace", 0, 2_000_000),
+            chain_entity_image("grace", "Grace Hopper", 2_400_000, 2_000_000),
+        ];
+        for (value, want) in [
+            (1, "image_group_camera_pan_right"),
+            (2, "image_group_camera_pan_left"),
+            (3, "image_group_camera_pan_down"),
+            (4, "image_group_camera_pan_up"),
+        ] {
+            let fused = super::coalesce_chained_overlays(
+                image_items.clone(),
+                &chain_request(&[("chain_enabled", 1), ("chain_camera", value)]),
+                &chain_ends(20_000_000),
+            );
+            let chain = fused
+                .iter()
+                .find(|item| item.kind == "image_chain")
+                .expect("captioned images must chain");
+            assert_eq!(
+                want,
+                chain.params.as_ref().unwrap()["chain_camera"]
+                    .as_str()
+                    .unwrap(),
+                "chain_camera={value} must select {want}"
+            );
+        }
+
+        let text_items = vec![
+            chain_phrase("a", "alpha", 100_000, 500_000, "motion_a"),
+            chain_phrase("b", "beta", 700_000, 500_000, "motion_b"),
+        ];
+        let fused_text = super::coalesce_chained_overlays(
+            text_items,
+            &chain_request(&[("chain_enabled", 1), ("chain_camera", 1)]),
+            &chain_ends(20_000_000),
+        );
+        assert_eq!(
+            "fly_under_fade",
+            fused_text[0].params.as_ref().unwrap()["chain_camera"]
+                .as_str()
+                .unwrap(),
+            "a text chain keeps the legacy handoff"
+        );
+    }
+
+    fn chain_entity_image(id: &str, caption: &str, start_us: i64, duration_us: i64) -> PlanItemV2 {
+        let mut item = chain_image(id, start_us, duration_us, "image_focus_reveal");
+        item.kind = "entity_image".to_string();
+        item.template_id = "image_popup".to_string();
+        item.entity_id = format!("ent_{id}");
+        item.entity_caption = caption.to_string();
+        item.caption_layout = "below".to_string();
+        item.entity_style_id = "premium_below_random_v1".to_string();
+        item
+    }
+
+    #[test]
+    fn general_chain_trims_a_captioned_run_at_the_scene_end() {
+        let items = vec![
+            chain_entity_image("ada", "Ada Lovelace", 0, 5_000_000),
+            chain_entity_image("grace", "Grace Hopper", 5_400_000, 5_000_000),
+            chain_entity_image("alan", "Alan Turing", 10_800_000, 5_000_000),
+        ];
+        let fused = super::coalesce_chained_overlays(
+            items,
+            &chain_request(&[("chain_enabled", 1)]),
+            &chain_ends(10_000_000),
+        );
+        let chains = fused
+            .iter()
+            .filter(|item| item.kind == "image_chain")
+            .collect::<Vec<_>>();
+        assert_eq!(
+            1,
+            chains.len(),
+            "the run must chain instead of being dropped"
+        );
+        let segments = chains[0].params.as_ref().unwrap()["chain_segments"]
+            .as_array()
+            .unwrap();
+        assert_eq!(
+            2,
+            segments.len(),
+            "only the segments that start inside the scene are fused"
+        );
+        assert!(
+            fused
+                .iter()
+                .any(|item| item.kind == "entity_image" && item.entity_caption == "Alan Turing"),
+            "the card that cannot start inside the scene stays standalone"
+        );
+    }
+
+    #[test]
+    fn general_chain_drops_a_tail_without_a_readable_window() {
+        // grace ends at 8.8s, so alan would start at 9.2s: 800ms before the
+        // scene end. That used to be fused and clamped to a sub-second flash.
+        let items = vec![
+            chain_entity_image("ada", "Ada Lovelace", 0, 4_000_000),
+            chain_entity_image("grace", "Grace Hopper", 4_400_000, 4_400_000),
+            chain_entity_image("alan", "Alan Turing", 9_200_000, 5_000_000),
+        ];
+        let fused = super::coalesce_chained_overlays(
+            items,
+            &chain_request(&[("chain_enabled", 1)]),
+            &chain_ends(10_000_000),
+        );
+        let chain = fused
+            .iter()
+            .find(|item| item.kind == "image_chain")
+            .expect("readable run must chain");
+        let segments = chain.params.as_ref().unwrap()["chain_segments"]
+            .as_array()
+            .unwrap();
+        assert_eq!(
+            2,
+            segments.len(),
+            "a sub-second tail must not become a segment"
+        );
+        assert!(
+            fused
+                .iter()
+                .any(|item| item.kind == "entity_image" && item.entity_caption == "Alan Turing"),
+            "the unreadable tail stays standalone"
+        );
+    }
+
+    #[test]
+    fn general_chain_caps_a_run_at_ten_segments() {
+        let items = || {
+            (0..12)
+                .map(|index| chain_phrase("phrase", "text", index * 600_000, 500_000, "motion_a"))
+                .collect::<Vec<_>>()
+        };
+        let fused = super::coalesce_chained_overlays(
+            items(),
+            &chain_request(&[("chain_enabled", 1)]),
+            &chain_ends(60_000_000),
+        );
+        let chains = fused
+            .iter()
+            .filter(|item| item.kind == "phrase_chain")
+            .collect::<Vec<_>>();
+        assert_eq!(2, chains.len(), "twelve items are two chains, not one");
+        let first = chains[0].params.as_ref().unwrap()["chain_segments"]
+            .as_array()
+            .unwrap();
+        assert_eq!(super::MAX_CHAIN_SEGMENTS, first.len());
+
+        // A configured value above the ceiling cannot raise it.
+        let capped = super::coalesce_chained_overlays(
+            items(),
+            &chain_request(&[("chain_enabled", 1), ("chain_max_segments", 50)]),
+            &chain_ends(60_000_000),
+        );
+        let count = capped
+            .iter()
+            .filter(|item| item.kind == "phrase_chain")
+            .map(|item| {
+                item.params.as_ref().unwrap()["chain_segments"]
+                    .as_array()
+                    .unwrap()
+                    .len()
+            })
+            .max()
+            .unwrap_or(0);
+        assert_eq!(super::MAX_CHAIN_SEGMENTS, count);
     }
 
     #[test]
@@ -1233,6 +1953,7 @@ mod tests {
         image.kind = "entity_image".to_string();
         image.template_id = "image_popup".to_string();
         image.entity_id = "ent_ada".to_string();
+        image.entity_caption = "Ada".to_string();
         image.asset_refs = vec![portrait];
         let mut card = chain_phrase("card", "", 10_500_000, 2_500_000, "card_motion");
         card.kind = "entity_card".to_string();
@@ -1256,7 +1977,7 @@ mod tests {
             &chain_request(&[("chain_enabled", 1)]),
             &chain_ends(30_000_000),
         );
-        assert_eq!(2, chained.len());
+        assert_eq!(1, chained.len(), "one run, one container");
         let mixed = chained
             .iter()
             .find(|item| item.kind == "mixed_chain")
@@ -1264,10 +1985,16 @@ mod tests {
         let segments = mixed.params.as_ref().unwrap()["chain_segments"]
             .as_array()
             .unwrap();
+        assert_eq!(3, segments.len());
         assert_eq!("ent_ada", segments[0]["entity_id"].as_str().unwrap());
         assert_eq!(
             "portrait-ada",
             segments[0]["assets"][0]["asset_id"].as_str().unwrap()
+        );
+        assert_eq!(
+            "portrait-ada",
+            segments[1]["assets"][0]["asset_id"].as_str().unwrap(),
+            "the pending card inherited the identity portrait before the gate"
         );
     }
 }

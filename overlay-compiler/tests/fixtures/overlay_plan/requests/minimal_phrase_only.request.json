@@ -6,7 +6,6 @@
     "video_id": "video-min-fixture",
     "project_id": "project-fixture",
     "motion_seed": "seed-min-fixture",
-    "coherence_seed": "",
     "width": 1920,
     "height": 1080,
     "fps_num": 24,

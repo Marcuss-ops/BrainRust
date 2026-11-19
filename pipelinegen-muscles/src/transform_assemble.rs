@@ -135,6 +135,7 @@ pub(super) fn execute(request: Request) -> Response {
                     source_path: Some(inputs[0].to_string()),
                     items: Vec::new(),
                     metadata: None,
+                    preflight: None,
                     error: None,
                 },
                 Err(error) => failed_response(Some(inputs[0].to_string()), error),

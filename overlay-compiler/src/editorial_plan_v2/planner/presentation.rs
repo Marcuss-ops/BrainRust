@@ -306,12 +306,29 @@ fn normalize_fonts(value: &mut Value) {
     }
 }
 
+/// Rewrites the text lanes of one item to the presentation default. The
+/// caller owns the size decision (long copy, number, quote, card); family
+/// and fill/glow are the same contract for every lane.
+fn normalize_text_item(item: &mut PlanItemV2, font_size: f64) {
+    let font_family = presentation_font_family(item.params.as_ref(), item.style.as_ref());
+    item.params = Some(presentation_text_params(
+        item.params.as_ref(),
+        font_size,
+        &font_family,
+    ));
+    item.style = Some(presentation_text_style(
+        item.style.as_ref(),
+        font_size,
+        &font_family,
+    ));
+}
+
 fn normalize_presentation_item(item: &mut PlanItemV2) {
-    if item.caption_font_family.trim().is_empty() {
-        if !item.entity_caption.trim().is_empty() {
-            item.caption_font_family = PLAYFAIR_RUNTIME_FAMILY.to_string();
-        }
-    } else {
+    // One writer for the caption default: only a card that actually carries a
+    // caption gets the runtime family. Earlier this branch assigned the same
+    // constant on both paths, which looked like a second author overriding the
+    // value `media.rs` had already set.
+    if !item.caption_font_family.trim().is_empty() || !item.entity_caption.trim().is_empty() {
         item.caption_font_family = PLAYFAIR_RUNTIME_FAMILY.to_string();
     }
     if !item.entity_caption.trim().is_empty() {
@@ -381,46 +398,10 @@ fn normalize_presentation_item(item: &mut PlanItemV2) {
             } else {
                 existing
             };
-            let font_family = presentation_font_family(item.params.as_ref(), item.style.as_ref());
-            item.params = Some(presentation_text_params(
-                item.params.as_ref(),
-                font_size,
-                &font_family,
-            ));
-            item.style = Some(presentation_text_style(
-                item.style.as_ref(),
-                font_size,
-                &font_family,
-            ));
+            normalize_text_item(item, font_size);
         }
-        "number" => {
-            let font_size = 140.0;
-            let font_family = presentation_font_family(item.params.as_ref(), item.style.as_ref());
-            item.params = Some(presentation_text_params(
-                item.params.as_ref(),
-                font_size,
-                &font_family,
-            ));
-            item.style = Some(presentation_text_style(
-                item.style.as_ref(),
-                font_size,
-                &font_family,
-            ));
-        }
-        "quote" => {
-            let font_size = 72.0;
-            let font_family = presentation_font_family(item.params.as_ref(), item.style.as_ref());
-            item.params = Some(presentation_text_params(
-                item.params.as_ref(),
-                font_size,
-                &font_family,
-            ));
-            item.style = Some(presentation_text_style(
-                item.style.as_ref(),
-                font_size,
-                &font_family,
-            ));
-        }
+        "number" => normalize_text_item(item, 140.0),
+        "quote" => normalize_text_item(item, 72.0),
         "entity_image" | "entity_card" | "location" | "organization" | "concept" => {
             if !item.asset_refs.is_empty() || !item.entity_caption.trim().is_empty() {
                 item.caption_layout = "below".to_string();
@@ -437,19 +418,7 @@ fn normalize_presentation_item(item: &mut PlanItemV2) {
                 }
                 item.style = None;
             } else {
-                let font_size = 96.0;
-                let font_family =
-                    presentation_font_family(item.params.as_ref(), item.style.as_ref());
-                item.params = Some(presentation_text_params(
-                    item.params.as_ref(),
-                    font_size,
-                    &font_family,
-                ));
-                item.style = Some(presentation_text_style(
-                    item.style.as_ref(),
-                    font_size,
-                    &font_family,
-                ));
+                normalize_text_item(item, 96.0);
             }
         }
         _ => {}

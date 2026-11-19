@@ -8,7 +8,7 @@
 //! Entities are referenced by their index in `Analysis::entities`.
 
 use crate::extractor::numeric_value_spans;
-use crate::temporal::{temporal_facts_with_words, SpelledNumber, TemporalFact};
+use crate::temporal::{SpelledNumber, TemporalFact};
 use crate::types::{ExtractOptions, VisualEntity};
 use semantic_core::bullets::{generate_with_sentences, BulletSignal};
 use semantic_core::numbers::parse_unambiguous_value;
@@ -111,7 +111,7 @@ pub fn analyze_with_context(
     options: &ExtractOptions,
     context: &crate::extractor::ScriptContext,
 ) -> Result<Analysis, String> {
-    analyze_with_context_mode(source_text, options, context, false)
+    analyze_with_context_mode(source_text, options, context, false, None)
 }
 
 /// Same analysis while retaining every distinct grounded entity mention for
@@ -122,7 +122,19 @@ pub fn analyze_with_context_preserving_mentions(
     options: &ExtractOptions,
     context: &crate::extractor::ScriptContext,
 ) -> Result<Analysis, String> {
-    analyze_with_context_mode(source_text, options, context, true)
+    analyze_with_context_mode(source_text, options, context, true, None)
+}
+
+/// Same analysis with an optional ISO reference date for deictic relative
+/// dates (`ieri`, `3 years ago`). The semantic engine passes the request's
+/// `reference_date`; absent means those facts stay unresolved.
+pub fn analyze_with_context_preserving_mentions_and_reference(
+    source_text: &str,
+    options: &ExtractOptions,
+    context: &crate::extractor::ScriptContext,
+    reference_date: Option<&str>,
+) -> Result<Analysis, String> {
+    analyze_with_context_mode(source_text, options, context, true, reference_date)
 }
 
 fn analyze_with_context_mode(
@@ -130,6 +142,7 @@ fn analyze_with_context_mode(
     options: &ExtractOptions,
     context: &crate::extractor::ScriptContext,
     preserve_mentions: bool,
+    reference_date: Option<&str>,
 ) -> Result<Analysis, String> {
     let extract = if preserve_mentions {
         crate::extractor::extract_with_context_and_spellout_preserving_mentions
@@ -172,14 +185,24 @@ fn analyze_with_context_mode(
     // semantic-core only resolves the calendar around the month token.
     let spelled_numbers: Vec<SpelledNumber> = spelled_candidates
         .iter()
+        // A value in the year range is a date only when the scanner typed it
+        // as one (no unit and no count). "Mille e duecento persone" is a
+        // quantity of 1200, not the year 1200.
+        .filter(|candidate| {
+            !(1000.0..=2099.0).contains(&candidate.value) || candidate.entity_type == "DATE"
+        })
         .map(|candidate| SpelledNumber {
             start: candidate.start,
             end: candidate.end,
             value: candidate.value.round() as i64,
         })
         .collect();
-    let temporal_facts =
-        temporal_facts_with_words(source_text, &options.language, &spelled_numbers);
+    let temporal_facts = crate::temporal::temporal_facts_with_words_and_reference(
+        source_text,
+        &options.language,
+        &spelled_numbers,
+        reference_date,
+    );
     // ONE numeric collection, two typed views: `numeric_facts` keeps every
     // grounded value (top-N independent) and `chart_points` is the subset with
     // an unambiguous parse. No second scanner can disagree with the first.
@@ -224,10 +247,12 @@ fn numeric_facts(
             Some(NumericFact {
                 surface: surface.to_string(),
                 kind: span.entity_type,
-                value: parse_unambiguous_value(surface, language),
+                value: parse_unambiguous_value(surface, language)
+                    .or_else(|| parse_scaled_surface(surface, language)),
                 start_byte: span.start,
                 end_byte: span.end,
                 evidence: surface.to_string(),
+                form: None,
             })
         })
         .collect();
@@ -236,7 +261,10 @@ fn numeric_facts(
         // "sedici anni" and "cinque consulenze" arrive here as NUMBER with
         // their value, spelled percentages/money as PERCENT/MONEY. Dates and
         // ordinals are a different projection and must not be duplicated.
-        if !matches!(candidate.entity_type, "NUMBER" | "PERCENT" | "MONEY") {
+        if !matches!(
+            candidate.entity_type,
+            "NUMBER" | "PERCENT" | "MONEY" | "FRACTION"
+        ) {
             continue;
         }
         // A bare spelled count is not a measurement: "quarantadue dei
@@ -247,11 +275,12 @@ fn numeric_facts(
             continue;
         }
         // A spelled date component ("ventiquattro" in "ventiquattro maggio")
-        // is owned by the temporal projection. Compare spans, not containment:
-        // a candidate may cover only the day token inside a longer date.
+        // is owned by the temporal projection. Only a candidate fully inside
+        // the date is a component; a larger quantity that contains a date-like
+        // token ("Mille e duecento persone") is not owned by the date.
         if temporal_facts
             .iter()
-            .any(|fact| candidate.start < fact.end_byte && fact.start_byte < candidate.end)
+            .any(|fact| candidate.start >= fact.start_byte && candidate.end <= fact.end_byte)
         {
             continue;
         }
@@ -265,10 +294,136 @@ fn numeric_facts(
             start_byte: candidate.start,
             end_byte: candidate.end,
             evidence: surface.to_string(),
+            form: Some("words".to_string()),
         });
     }
+    let mut out = merge_mixed_scales(source_text, language, out);
     out.sort_by_key(|fact| (fact.start_byte, fact.end_byte));
     out
+}
+
+/// "3 milioni e mezzo" is one quantity. The digit scanner emits `3` and the
+/// scale noun is prose; this pass attaches the scale (and an additive half)
+/// and keeps one fact whose span covers the whole phrase.
+fn merge_mixed_scales(source: &str, language: &str, facts: Vec<NumericFact>) -> Vec<NumericFact> {
+    let mut out = Vec::with_capacity(facts.len());
+    for mut fact in facts {
+        if fact.form.as_deref() == Some("words") {
+            out.push(fact);
+            continue;
+        }
+        if let Some(value) = fact.value {
+            if let Some((end, multiplier)) = mixed_scale_tail(source, language, fact.end_byte) {
+                fact.end_byte = end;
+                fact.surface = source[fact.start_byte..end].to_string();
+                fact.evidence = fact.surface.clone();
+                fact.value = Some(value * multiplier);
+                fact.form = Some("mixed".to_string());
+            } else if let Some((end, denominator)) =
+                mixed_fraction_tail(source, language, fact.end_byte)
+            {
+                let unit = surface_scale_factor(&fact.surface).unwrap_or(1.0);
+                fact.end_byte = end;
+                fact.surface = source[fact.start_byte..end].to_string();
+                fact.evidence = fact.surface.clone();
+                fact.value = Some(value + unit / f64::from(denominator));
+                fact.form = Some("mixed".to_string());
+            }
+        }
+        out.push(fact);
+    }
+    let spans: Vec<(usize, usize)> = out
+        .iter()
+        .map(|fact| (fact.start_byte, fact.end_byte))
+        .collect();
+    out.retain(|fact| {
+        !spans
+            .iter()
+            .any(|(start, end)| *start < fact.start_byte && *end >= fact.end_byte)
+    });
+    out
+}
+
+/// Parses ` milioni [e mezzo]` / ` million` after `start`. Returns the new end
+/// and the multiplier; only a recognized scale triggers a merge.
+/// Numeric prefix plus a scale noun already inside the digit span
+/// ("3 milioni", "3,2 miliardi").
+fn parse_scaled_surface(surface: &str, language: &str) -> Option<f64> {
+    let tokens = semantic_core::discourse::word_spans(surface);
+    for token in tokens {
+        let word = &surface[token.start..token.end];
+        let Some(factor) = semantic_core::scale_word_factor(word) else {
+            continue;
+        };
+        let number = surface[..token.start].trim();
+        return semantic_core::parse_unambiguous_value(number, language)
+            .map(|value| value * factor);
+    }
+    None
+}
+
+/// Scale word inside an already-built surface ("3 milioni").
+fn surface_scale_factor(surface: &str) -> Option<f64> {
+    semantic_core::discourse::word_spans(surface)
+        .into_iter()
+        .filter_map(|token| semantic_core::scale_word_factor(&surface[token.start..token.end]))
+        .next_back()
+}
+
+/// ` e mezzo` / ` and a half` after a already-scaled fact. Returns the new end
+/// and the additive denominator.
+fn mixed_fraction_tail(source: &str, language: &str, start: usize) -> Option<(usize, u32)> {
+    let rules = semantic_core::number_words::rules(language)?;
+    let tail = source.get(start..)?;
+    let tokens = semantic_core::discourse::word_spans(tail);
+    let mut index = 0;
+    if let Some(first) = tokens.first() {
+        if rules
+            .conjunctions
+            .iter()
+            .any(|word| word.eq_ignore_ascii_case(&tail[first.start..first.end]))
+        {
+            index += 1;
+        }
+    }
+    let fraction = tokens.get(index)?;
+    let word = tail[fraction.start..fraction.end].to_lowercase();
+    let spec = rules.fractions.get(&word)?;
+    spec.additive
+        .then_some((start + fraction.end, spec.denominator))
+}
+
+fn mixed_scale_tail(source: &str, language: &str, start: usize) -> Option<(usize, f64)> {
+    let tail = source.get(start..)?;
+    let tokens = semantic_core::discourse::word_spans(tail);
+    let scale = tokens.first()?;
+    if !tail[..scale.start].chars().all(char::is_whitespace) {
+        return None;
+    }
+    let factor = semantic_core::scale_word_factor(&tail[scale.start..scale.end])?;
+    let mut end = scale.end;
+    let mut multiplier = factor;
+    let rules = semantic_core::number_words::rules(language);
+    let mut index = 1;
+    if let (Some(rules), Some(conjunction)) = (rules, tokens.get(index)) {
+        if rules
+            .conjunctions
+            .iter()
+            .any(|word| word.eq_ignore_ascii_case(&tail[conjunction.start..conjunction.end]))
+        {
+            index += 1;
+        }
+    }
+    if let (Some(rules), Some(fraction)) = (rules, tokens.get(index)) {
+        let word = tail[fraction.start..fraction.end].to_lowercase();
+        if let Some(spec) = rules.fractions.get(&word) {
+            if spec.additive {
+                multiplier += factor / f64::from(spec.denominator);
+                end = fraction.end;
+            }
+        }
+    }
+    Some((start + end, multiplier))
 }
 
 /// Safety bounds for co-mention generation. A normal editorial sentence names
@@ -554,6 +709,224 @@ mod tests {
             "{en_facts:?}"
         );
         assert!(en_facts.contains(&("five", Some(5.0))), "{en_facts:?}");
+    }
+
+    #[test]
+    fn spelled_scale_words_multiply_the_parsed_prefix() {
+        // CLDR parses "tre milioni" as the prefix 3; the consumed scale noun
+        // must multiply it, otherwise a headline becomes a chart bar of 3.
+        let it = analyze(
+            "Tre milioni di euro sono stati spesi.",
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        let fact = it
+            .numeric_facts
+            .iter()
+            .find(|fact| fact.surface.eq_ignore_ascii_case("tre milioni"))
+            .expect("tre milioni must be one fact");
+        assert_eq!(fact.value, Some(3_000_000.0));
+
+        let en = analyze(
+            "Three million dollars were spent.",
+            &ExtractOptions {
+                language: "en".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        let fact = en
+            .numeric_facts
+            .iter()
+            .find(|fact| fact.surface.eq_ignore_ascii_case("three million"))
+            .expect("three million must be one fact");
+        assert_eq!(fact.value, Some(3_000_000.0));
+        assert_eq!(fact.kind, "MONEY");
+    }
+
+    #[test]
+    fn spelled_conjunctions_fractions_and_idioms_are_typed() {
+        let it = analyze(
+            "Mille e duecento persone sono arrivate. Un terzo degli elettori. Due milioni e mezzo di euro. Mille grazie.",
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        let approx = analyze(
+            "Circa cinquemila persone sono arrivate.",
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        assert!(
+            approx
+                .numeric_facts
+                .iter()
+                .any(|fact| { fact.value == Some(5000.0) && fact.surface.starts_with("Circa") }),
+            "approximator span: {:?}",
+            approx.numeric_facts
+        );
+        let values: Vec<(&str, Option<f64>, &str)> = it
+            .numeric_facts
+            .iter()
+            .map(|fact| (fact.surface.as_str(), fact.value, fact.kind.as_str()))
+            .collect();
+        assert!(
+            values
+                .iter()
+                .any(|(_, value, kind)| *value == Some(1200.0) && *kind == "NUMBER"),
+            "values: {values:?}"
+        );
+        assert!(
+            values
+                .iter()
+                .any(|(_, value, kind)| *value == Some(1.0 / 3.0) && *kind == "FRACTION"),
+            "values: {values:?}"
+        );
+        assert!(
+            values
+                .iter()
+                .any(|(_, value, _)| *value == Some(2_500_000.0)),
+            "values: {values:?}"
+        );
+        // "Mille grazie" is an idiom, not a quantity.
+        assert!(!values
+            .iter()
+            .any(|(surface, _, _)| surface.contains("grazie")));
+
+        let es = analyze(
+            "Mil doscientos personas llegaron.",
+            &ExtractOptions {
+                language: "es".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        assert!(
+            es.numeric_facts
+                .iter()
+                .any(|fact| fact.value == Some(1200.0)),
+            "es: {:?}",
+            es.numeric_facts
+        );
+
+        let tr = analyze(
+            "Bin iki yüz kişi geldi.",
+            &ExtractOptions {
+                language: "tr".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        assert!(
+            tr.numeric_facts
+                .iter()
+                .any(|fact| fact.value == Some(1200.0)),
+            "tr: {:?}",
+            tr.numeric_facts
+        );
+
+        for (language, text) in [
+            ("en", "Two and a half million people arrived."),
+            ("fr", "Deux millions et demi de personnes sont arrivées."),
+            ("pl", "Dwa i pół miliona osób przyjechało."),
+            ("ru", "Два с половиной миллиона человек приехали."),
+            ("id", "Dua setengah juta orang datang."),
+            ("pt", "Dois milhões e meio de pessoas chegaram."),
+            ("de", "Zweieinhalb Millionen Menschen kamen."),
+            ("nl", "Tweeënhalf miljoen mensen kwamen."),
+            ("tr", "iki buçuk milyon kişi geldi."),
+        ] {
+            let analysis = analyze(
+                text,
+                &ExtractOptions {
+                    language: language.to_string(),
+                    entity_count: 3,
+                },
+            )
+            .unwrap();
+            assert!(
+                analysis
+                    .numeric_facts
+                    .iter()
+                    .any(|fact| fact.value == Some(2_500_000.0)),
+                "{language} additive half: {:?}",
+                analysis.numeric_facts
+            );
+        }
+
+        for (language, text) in [
+            ("en", "One third of the voters agreed."),
+            ("es", "Un tercio de los votantes estuvo de acuerdo."),
+            ("fr", "Un tiers des électeurs était d'accord."),
+            ("de", "Ein Drittel der Wähler war einverstanden."),
+            ("pl", "Jedna trzecia wyborców się zgodziła."),
+            ("ru", "Одна треть избирателей согласилась."),
+        ] {
+            let analysis = analyze(
+                text,
+                &ExtractOptions {
+                    language: language.to_string(),
+                    entity_count: 3,
+                },
+            )
+            .unwrap();
+            assert!(
+                analysis
+                    .numeric_facts
+                    .iter()
+                    .any(|fact| fact.kind == "FRACTION"
+                        && (fact.value.unwrap_or_default() - 1.0 / 3.0).abs() < 1e-9),
+                "{language} fraction: {:?}",
+                analysis.numeric_facts
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_digit_and_word_scales_are_one_fact() {
+        let it = analyze(
+            "Sono stati spesi 3 milioni e mezzo di euro. Il fatturato è cresciuto di 3,2 miliardi.",
+            &ExtractOptions {
+                language: "it".to_string(),
+                entity_count: 3,
+            },
+        )
+        .unwrap();
+        let facts: Vec<(&str, Option<f64>, Option<&str>)> = it
+            .numeric_facts
+            .iter()
+            .map(|fact| (fact.surface.as_str(), fact.value, fact.form.as_deref()))
+            .collect();
+        assert!(
+            facts.iter().any(|(surface, value, form)| surface
+                .eq_ignore_ascii_case("3 milioni e mezzo")
+                && *value == Some(3_500_000.0)
+                && *form == Some("mixed")),
+            "facts: {facts:?}"
+        );
+        assert!(
+            facts.iter().any(
+                |(surface, value, _)| surface.eq_ignore_ascii_case("3,2 miliardi")
+                    && *value == Some(3_200_000_000.0)
+            ),
+            "facts: {facts:?}"
+        );
+        assert_eq!(
+            facts
+                .iter()
+                .filter(|(surface, _, _)| surface.eq_ignore_ascii_case("3"))
+                .count(),
+            0,
+            "the bare 3 must be absorbed: {facts:?}"
+        );
     }
 
     #[test]

@@ -111,6 +111,7 @@ fn cut_batch(request: Request) -> Response {
             None
         },
         metadata: None,
+        preflight: None,
         items,
     }
 }

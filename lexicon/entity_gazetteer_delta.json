@@ -19,6 +19,17 @@
     "fiera",
     "salone"
   ],
+  "locations": [
+    "città vecchia",
+    "gerusalemme",
+    "betlemme",
+    "israele",
+    "cisgiordania",
+    "mar morto",
+    "vicino oriente",
+    "medio oriente",
+    "estremo oriente"
+  ],
   "typed_entities": {
     "ORG": ["NASA", "ESA", "CERN", "ANSA", "l’ansa", "l’esa", "Chicago Bulls", "SpaceX"],
     "BRAND": ["Air Jordan"],

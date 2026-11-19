@@ -37,6 +37,12 @@ pub struct AnalyzerVersions {
     /// to empty when decoding a v2 manifest that predates the field.
     #[serde(default)]
     pub entity_index: String,
+    /// Version of the word-number grammar/fraction rules.
+    #[serde(default)]
+    pub numbers: String,
+    /// Version of the relative-date grammar and arithmetic.
+    #[serde(default)]
+    pub dates: String,
 }
 
 /// One grounded candidate with the fields shared by every projection.
@@ -936,6 +942,11 @@ pub struct ScriptRequest {
     /// BCP-47 language tag of every scene (required).
     pub language: String,
     pub scenes: Vec<SceneInput>,
+    /// Optional ISO `YYYY-MM-DD` reference used only by deictic relatives
+    /// (`ieri`, `3 years ago`). Absent means those facts stay unresolved; the
+    /// engine never infers the current date from a clock.
+    #[serde(default)]
+    pub reference_date: Option<String>,
     /// When present, summary, chapter, heavy-sentence and highlight products
     /// are computed and returned as part of this semantic manifest.
     #[serde(default)]

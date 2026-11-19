@@ -21,10 +21,25 @@ pub fn project_editorial_scenes(
     request: &super::request::EditorialPlanV2Request,
 ) -> Result<EditorialPlanV2Response, EditorialPlanError> {
     request.validate()?;
-    let manifest = request
-        .editorial
-        .as_ref()
-        .ok_or(EditorialPlanError::MissingSection("editorial"))?;
+    // The manifest only feeds scene titles and bullets. Go builds it in a
+    // best-effort enrichment phase, so a request that already disabled both
+    // categories must not fail because that phase produced nothing: the
+    // correct projection is empty, not an error. When a scene still asks for
+    // editorial cards the section stays mandatory, so the caller never loses
+    // requested output silently.
+    let Some(manifest) = request.editorial.as_ref() else {
+        if request.scenes.iter().any(|scene| {
+            category_enabled(scene, &request.canvas, "titles")
+                || category_enabled(scene, &request.canvas, "bullets")
+        }) {
+            return Err(EditorialPlanError::MissingSection("editorial"));
+        }
+        return Ok(EditorialPlanV2Response {
+            schema_version: EDITORIAL_PLAN_V2_SCHEMA_VERSION.to_string(),
+            scene_phrases: BTreeMap::new(),
+            covered_scenes: Vec::new(),
+        });
+    };
     if !manifest.certified {
         return Err(EditorialPlanError::invalid(
             "editorial.certified",
@@ -322,7 +337,7 @@ mod tests {
       "schema_version": "editorial_plan.v2",
       "plan": {
         "plan_id": "plan-1", "video_id": "video-1", "project_id": "project-1",
-        "motion_seed": "seed-1", "coherence_seed": "",
+        "motion_seed": "seed-1",
         "width": 1920, "height": 1080, "fps_num": 24, "fps_den": 1
       },
       "language": "it",
@@ -408,6 +423,32 @@ mod tests {
                 .iter()
                 .all(|phrase| phrase.presentation_role != "scene_title"),
             "a scene-level titles toggle must suppress the title"
+        );
+    }
+
+    #[test]
+    fn omits_editorial_cards_without_a_manifest_when_both_categories_are_disabled() {
+        let mut request = request();
+        request.editorial = None;
+        request.scenes[0]
+            .overlay_categories
+            .insert("titles".to_string(), "disabled".to_string());
+        request.scenes[0]
+            .overlay_categories
+            .insert("bullets".to_string(), "disabled".to_string());
+        let response = project_editorial_scenes(&request).expect("empty projection");
+        assert!(response.scene_phrases.is_empty());
+        assert!(response.covered_scenes.is_empty());
+    }
+
+    #[test]
+    fn rejects_a_missing_manifest_when_titles_are_still_enabled() {
+        let mut request = request();
+        request.editorial = None;
+        let error = project_editorial_scenes(&request).expect_err("missing editorial");
+        assert_eq!(
+            error,
+            super::EditorialPlanError::MissingSection("editorial")
         );
     }
 

@@ -99,6 +99,8 @@ fn twenty_scene_request() -> ScriptRequest {
             .collect(),
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     }
 }
 

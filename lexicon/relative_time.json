@@ -1,0 +1,1516 @@
+{
+  "schema": "relative_time.v1",
+  "languages": {
+    "it": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "giorno",
+            "giorni"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "settimana",
+            "settimane"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "mese",
+            "mesi"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "anno",
+            "anni"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "decennio",
+            "decenni"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "secolo",
+            "secoli"
+          ]
+        }
+      ],
+      "after": [
+        "dopo",
+        "più tardi",
+        "in seguito",
+        "successivamente"
+      ],
+      "before": [
+        "prima",
+        "in precedenza"
+      ],
+      "ago": [
+        "fa"
+      ],
+      "ago_prefix": [],
+      "prefix": [
+        "tra",
+        "fra"
+      ],
+      "named": [
+        {
+          "surface": "ieri",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "oggi",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "domani",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "l'anno scorso",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "l'anno prossimo",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "il giorno dopo",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "il giorno prima",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "la settimana dopo",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "il mese dopo",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "l'anno dopo",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "negli anni",
+        "nel decennio"
+      ]
+    },
+    "en": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "day",
+            "days"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "week",
+            "weeks"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "month",
+            "months"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "year",
+            "years"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "decade",
+            "decades"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "century",
+            "centuries"
+          ]
+        }
+      ],
+      "after": [
+        "after",
+        "later",
+        "afterwards"
+      ],
+      "before": [
+        "before",
+        "earlier"
+      ],
+      "ago": [
+        "ago"
+      ],
+      "ago_prefix": [],
+      "prefix": [
+        "in"
+      ],
+      "named": [
+        {
+          "surface": "yesterday",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "today",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "tomorrow",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "last year",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "next year",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "the day after",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "the day before",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "the following year",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        },
+        {
+          "surface": "the previous year",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        },
+        {
+          "surface": "the week after",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "in the",
+        "during the"
+      ]
+    },
+    "es": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "día",
+            "días"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "semana",
+            "semanas"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "mes",
+            "meses"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "año",
+            "años"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "década",
+            "décadas"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "siglo",
+            "siglos"
+          ]
+        }
+      ],
+      "after": [
+        "después",
+        "más tarde",
+        "luego"
+      ],
+      "before": [
+        "antes"
+      ],
+      "ago": [
+        "atrás"
+      ],
+      "ago_prefix": [
+        "hace"
+      ],
+      "prefix": [
+        "en",
+        "dentro de"
+      ],
+      "named": [
+        {
+          "surface": "ayer",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "hoy",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "mañana",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "el año pasado",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "el próximo año",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "el día siguiente",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "el día anterior",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "la semana siguiente",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "el mes siguiente",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "el año siguiente",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "en los años",
+        "durante los años"
+      ]
+    },
+    "pt": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "dia",
+            "dias"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "semana",
+            "semanas"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "mês",
+            "meses"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "ano",
+            "anos"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "década",
+            "décadas"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "século",
+            "séculos"
+          ]
+        }
+      ],
+      "after": [
+        "depois",
+        "mais tarde"
+      ],
+      "before": [
+        "antes"
+      ],
+      "ago": [
+        "atrás"
+      ],
+      "ago_prefix": [
+        "há"
+      ],
+      "prefix": [
+        "em",
+        "dentro de"
+      ],
+      "named": [
+        {
+          "surface": "ontem",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "hoje",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "amanhã",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "no ano passado",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "no próximo ano",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "o dia seguinte",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "o dia anterior",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "a semana seguinte",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "o mês seguinte",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "o ano seguinte",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "nos anos",
+        "na década"
+      ]
+    },
+    "fr": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "jour",
+            "jours"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "semaine",
+            "semaines"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "mois"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "an",
+            "ans"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "décennie",
+            "décennies"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "siècle",
+            "siècles"
+          ]
+        }
+      ],
+      "after": [
+        "après",
+        "plus tard"
+      ],
+      "before": [
+        "avant",
+        "auparavant"
+      ],
+      "ago": [],
+      "ago_prefix": [
+        "il y a"
+      ],
+      "prefix": [
+        "dans",
+        "en"
+      ],
+      "named": [
+        {
+          "surface": "hier",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "aujourd'hui",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "demain",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "l'année dernière",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "l'année prochaine",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "le lendemain",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "la veille",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "la semaine suivante",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "le mois suivant",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "l'année suivante",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "dans les années",
+        "au cours des années"
+      ]
+    },
+    "de": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "Tag",
+            "Tage"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "Woche",
+            "Wochen"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "Monat",
+            "Monate"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "Jahr",
+            "Jahre"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "Jahrzehnt",
+            "Jahrzehnte"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "Jahrhundert",
+            "Jahrhunderte"
+          ]
+        }
+      ],
+      "after": [
+        "nach",
+        "später",
+        "danach"
+      ],
+      "before": [
+        "vor",
+        "früher",
+        "davor",
+        "vorher"
+      ],
+      "ago": [],
+      "ago_prefix": [
+        "vor"
+      ],
+      "prefix": [
+        "in"
+      ],
+      "named": [
+        {
+          "surface": "gestern",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "heute",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "morgen",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "letztes Jahr",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "nächstes Jahr",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "am Tag danach",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "am Tag davor",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "im Jahr danach",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        },
+        {
+          "surface": "die Woche danach",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "den Monat danach",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "in den",
+        "in den Jahren"
+      ]
+    },
+    "nl": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "dag",
+            "dagen"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "week",
+            "weken"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "maand",
+            "maanden"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "jaar",
+            "jaren"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "decennium",
+            "decennia"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "eeuw",
+            "eeuwen"
+          ]
+        }
+      ],
+      "after": [
+        "na",
+        "later"
+      ],
+      "before": [
+        "voor",
+        "eerder"
+      ],
+      "ago": [
+        "geleden"
+      ],
+      "ago_prefix": [],
+      "prefix": [
+        "over",
+        "in"
+      ],
+      "named": [
+        {
+          "surface": "gisteren",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "vandaag",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "morgen",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "vorig jaar",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "volgend jaar",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "de dag erna",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "de dag ervoor",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "de week erna",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "de maand erna",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "het jaar erna",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "in de",
+        "in de jaren"
+      ]
+    },
+    "pl": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "dzień",
+            "dni"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "tydzień",
+            "tygodnie"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "miesiąc",
+            "miesiące"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "rok",
+            "lata"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "dekada",
+            "dekady"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "wiek",
+            "wieki"
+          ]
+        }
+      ],
+      "after": [
+        "po",
+        "później"
+      ],
+      "before": [
+        "przed",
+        "wcześniej"
+      ],
+      "ago": [
+        "temu"
+      ],
+      "ago_prefix": [],
+      "prefix": [
+        "za"
+      ],
+      "named": [
+        {
+          "surface": "wczoraj",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "dzisiaj",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "jutro",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "w zeszłym roku",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "w przyszłym roku",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "następnego dnia",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "poprzedniego dnia",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "w następnym tygodniu",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "w następnym miesiącu",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "w następnym roku",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "w latach",
+        "w dekadzie"
+      ]
+    },
+    "ru": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "день",
+            "дня",
+            "дней"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "неделя",
+            "недели",
+            "недель"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "месяц",
+            "месяца",
+            "месяцев"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "год",
+            "года",
+            "лет"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "десятилетие",
+            "десятилетия"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "век",
+            "века",
+            "веков"
+          ]
+        }
+      ],
+      "after": [
+        "после",
+        "позже",
+        "спустя"
+      ],
+      "before": [
+        "до",
+        "раньше"
+      ],
+      "ago": [
+        "назад"
+      ],
+      "ago_prefix": [],
+      "prefix": [
+        "через"
+      ],
+      "named": [
+        {
+          "surface": "вчера",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "сегодня",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "завтра",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "в прошлом году",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "в следующем году",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "на следующий день",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "накануне",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "на следующей неделе",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "в следующем месяце",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "год спустя",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "в",
+        "в годы"
+      ]
+    },
+    "tr": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "gün"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "hafta"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "ay"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "yıl"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "on yıl"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "yüzyıl"
+          ]
+        }
+      ],
+      "after": [
+        "sonra",
+        "daha sonra"
+      ],
+      "before": [
+        "önce",
+        "daha önce"
+      ],
+      "ago": [
+        "önce"
+      ],
+      "ago_prefix": [],
+      "prefix": [],
+      "named": [
+        {
+          "surface": "dün",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "bugün",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "yarın",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "geçen yıl",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "gelecek yıl",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "ertesi gün",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "önceki gün",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "sonraki hafta",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "sonraki ay",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "sonraki yıl",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "yıllarda",
+        "yıllarında"
+      ]
+    },
+    "id": {
+      "units": [
+        {
+          "unit": "day",
+          "forms": [
+            "hari"
+          ]
+        },
+        {
+          "unit": "week",
+          "forms": [
+            "minggu"
+          ]
+        },
+        {
+          "unit": "month",
+          "forms": [
+            "bulan"
+          ]
+        },
+        {
+          "unit": "year",
+          "forms": [
+            "tahun"
+          ]
+        },
+        {
+          "unit": "decade",
+          "forms": [
+            "dekade"
+          ]
+        },
+        {
+          "unit": "century",
+          "forms": [
+            "abad"
+          ]
+        }
+      ],
+      "after": [
+        "setelah",
+        "kemudian"
+      ],
+      "before": [
+        "sebelum"
+      ],
+      "ago": [
+        "lalu"
+      ],
+      "ago_prefix": [],
+      "prefix": [
+        "dalam"
+      ],
+      "named": [
+        {
+          "surface": "kemarin",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "hari ini",
+          "direction": "same",
+          "amount": 0,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "besok",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": true
+        },
+        {
+          "surface": "tahun lalu",
+          "direction": "before",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "tahun depan",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": true
+        },
+        {
+          "surface": "hari berikutnya",
+          "direction": "after",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "hari sebelumnya",
+          "direction": "before",
+          "amount": 1,
+          "unit": "day",
+          "deictic": false
+        },
+        {
+          "surface": "minggu berikutnya",
+          "direction": "after",
+          "amount": 1,
+          "unit": "week",
+          "deictic": false
+        },
+        {
+          "surface": "bulan berikutnya",
+          "direction": "after",
+          "amount": 1,
+          "unit": "month",
+          "deictic": false
+        },
+        {
+          "surface": "tahun berikutnya",
+          "direction": "after",
+          "amount": 1,
+          "unit": "year",
+          "deictic": false
+        }
+      ],
+      "span": [
+        "pada tahun",
+        "pada dekade"
+      ]
+    }
+  }
+}

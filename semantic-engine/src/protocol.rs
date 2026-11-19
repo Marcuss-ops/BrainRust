@@ -20,8 +20,11 @@ use semantic_core::SemanticManifest;
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::cache::disk::DiskCache;
 use crate::cache::ManifestCache;
-use crate::{analyze_script, analyzer_versions, ScriptRequest, SCHEMA_VERSION};
+use crate::{
+    analyze_script, analyzer_versions, request_fingerprint, ScriptRequest, SCHEMA_VERSION,
+};
 use ndjson_stdio::ErrorCode;
 use overlay_compiler::{
     cascade_clustered_entrances, compile_editorial_plan, compile_overlay_plan_v2,
@@ -142,19 +145,35 @@ struct SelectPhrasesRequest {
 /// A persistent handler holding the shared manifest cache.
 pub struct Worker {
     cache: Arc<Mutex<ManifestCache>>,
+    /// Optional persistent store. `None` keeps the worker memory-only, which is
+    /// the default until `SEMANTIC_CACHE_DIR` is set.
+    disk: Option<Arc<DiskCache>>,
 }
 
 impl Default for Worker {
     fn default() -> Self {
-        Self::new(CACHE_ENTRIES)
+        Self::from_env()
     }
 }
 
 impl Worker {
+    /// A memory-only worker. Tests and embedders keep this behaviour.
     pub fn new(cache_entries: usize) -> Self {
+        Self::with_disk(cache_entries, None)
+    }
+
+    /// A worker with an optional persistent store behind the memory cache.
+    pub fn with_disk(cache_entries: usize, disk: Option<Arc<DiskCache>>) -> Self {
         Self {
             cache: Arc::new(Mutex::new(ManifestCache::new(cache_entries))),
+            disk,
         }
+    }
+
+    /// The shipping worker: memory cache plus a disk cache when the operator
+    /// configured `SEMANTIC_CACHE_DIR`.
+    pub fn from_env() -> Self {
+        Self::with_disk(CACHE_ENTRIES, DiskCache::from_env().map(Arc::new))
     }
 
     /// Handles one request line and returns exactly one response line.
@@ -214,31 +233,39 @@ impl Worker {
                 )
             }
         };
-        let key = ManifestCache::request_key(&request, &analyzer_versions());
+        let analyzers = analyzer_versions();
+        let key = ManifestCache::request_key(&request, &analyzers);
         if let Some(manifest) = self.cache.lock().ok().and_then(|mut cache| cache.get(&key)) {
-            let completeness = manifest_completeness(manifest.as_ref());
-            return json!({
-                "ok": true,
-                "manifest": manifest.as_ref(),
-                "cached": true,
-                "completeness": completeness
-            })
-            .to_string();
+            return manifest_response(manifest.as_ref(), true);
         }
-        match analyze_script(&request) {
-            Ok(manifest) => {
-                let manifest = Arc::new(manifest);
+
+        // The disk key is a wider hash of the same bytes; the fingerprint below
+        // is the value recorded on the manifest, so a hit still proves that the
+        // stored result belongs to this exact request.
+        let fingerprint = request_fingerprint(&request, &analyzers);
+        let disk_key = self
+            .disk
+            .as_ref()
+            .map(|_| DiskCache::key(&request, &analyzers));
+        if let (Some(disk), Some(disk_key)) = (self.disk.as_ref(), disk_key.as_deref()) {
+            if let Some(manifest) = disk.load(disk_key, &fingerprint) {
                 if let Ok(mut cache) = self.cache.lock() {
                     cache.insert(key, Arc::clone(&manifest));
                 }
-                let completeness = manifest_completeness(manifest.as_ref());
-                json!({
-                    "ok": true,
-                    "manifest": manifest.as_ref(),
-                    "cached": false,
-                    "completeness": completeness
-                })
-                .to_string()
+                return manifest_response(manifest.as_ref(), true);
+            }
+        }
+
+        match analyze_script(&request) {
+            Ok(manifest) => {
+                let manifest = Arc::new(manifest);
+                if let (Some(disk), Some(disk_key)) = (self.disk.as_ref(), disk_key.as_deref()) {
+                    disk.store(disk_key, manifest.as_ref());
+                }
+                if let Ok(mut cache) = self.cache.lock() {
+                    cache.insert(key, Arc::clone(&manifest));
+                }
+                manifest_response(manifest.as_ref(), false)
             }
             Err(message) => error_response(ErrorCode::Execution, &message),
         }
@@ -671,6 +698,19 @@ pub fn run_stdio() -> io::Result<()> {
     Worker::default().run_stdio()
 }
 
+/// One `analyze_script` response, shared by the memory hit, the disk hit and
+/// the fresh-analysis paths so all three report the same completeness contract.
+fn manifest_response(manifest: &SemanticManifest, cached: bool) -> String {
+    let completeness = manifest_completeness(manifest);
+    json!({
+        "ok": true,
+        "manifest": manifest,
+        "cached": cached,
+        "completeness": completeness
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -782,6 +822,8 @@ mod tests {
             ],
             editorial: None,
             entity_safety_cap: 0,
+
+            reference_date: None,
         })
         .expect("manifest");
         assert_eq!(manifest_completeness(&manifest)["status"], "complete");

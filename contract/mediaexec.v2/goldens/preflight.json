@@ -1,0 +1,58 @@
+{
+  "request": {
+    "version": "mediaexec.v2",
+    "operation": "preflight",
+    "ffmpeg_path": "/usr/bin/ffmpeg",
+    "preflight": {
+      "video_duration_ms": 12500,
+      "assets": [],
+      "subtitles": [
+        {
+          "item_id": "cue-001",
+          "in_us": 0,
+          "out_us": 3000000,
+          "text": "Titolo leggibile."
+        },
+        {
+          "item_id": "cue-002",
+          "in_us": 3400000,
+          "out_us": 3600000,
+          "text": "Troppo denso per essere letto."
+        }
+      ],
+      "overlays": [
+        {
+          "item_id": "overlay-001",
+          "track": 0,
+          "in_us": 1000000,
+          "out_us": 4000000
+        },
+        {
+          "item_id": "overlay-002",
+          "track": 1,
+          "in_us": 4000000,
+          "out_us": 8000000
+        }
+      ]
+    }
+  },
+  "response": {
+    "ok": true,
+    "operation": "preflight",
+    "source_path": null,
+    "items": [],
+    "metadata": null,
+    "preflight": {
+      "ok": true,
+      "issues": [
+        {
+          "severity": "warning",
+          "code": "cue_reading_too_fast",
+          "item_id": "cue-002",
+          "detail": "150.0 chars/s over 0.20s exceeds the 17 chars/s comfortable maximum"
+        }
+      ]
+    },
+    "error": null
+  }
+}

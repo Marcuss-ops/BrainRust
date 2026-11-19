@@ -23,6 +23,23 @@ declared degradation, not a silent guess. Words that name a class rather than
 an entity ("company", "contains", "traditionally") live in that language's
 `entity_blocklist.txt` and are generated into the pack's `blocked` set.
 
+## The map/geocode gate lives in the same data
+
+The pipeline decides which named spans may become map pins. That vocabulary is
+curated here, never in Go (`internal/capabilities/scripts/geography`):
+
+| File (per language) | Meaning |
+|---|---|
+| `place_candidate_blocklist.txt` | whole normalised queries that are never a place: discourse words a tagger can title-case into a name ("Infine", "Dunque") and offices that are not a map stop ("corte", "tribunale") |
+| `place_candidate_token_blocklist.txt` | tokens that disqualify **any** candidate containing them, so a multiword extraction such as "La Cassazione" or "Suprema Corte" cannot slip past the exact-phrase set; includes given names/surnames whose homonymous settlement used to hijack prose ("Andrea", "Poggi") |
+| `admin_regions.txt` | administrative regions: an Italian article is stripped only when the remainder is a real region ("La Toscana" → "Toscana", never "La Spezia") |
+| `country_names.txt` | country exonyms: same article rule, plus suppressing the scene's country as provider context for a country query |
+| `generic_place_labels.txt` | common nouns and deictics that name no place ("paese", "city", "nearby") |
+
+`generic_place_labels.txt` is also read from `languages/fallback/` and applied
+on top of every language: shared labels are curated once, and a language with
+no file simply has no extra labels of its own.
+
 ## Generated vs. domain packs
 
 **Generated** (`lexicon/tools/build_language_packs.py`):
@@ -71,7 +88,10 @@ applies another language's markers to a text.
 1. Create `lexicon/languages/<lang>/` with the closed-class files
    (`stopwords.txt`, `articles.txt`, `pronouns.txt`, `possessives.txt`,
    `pronoun_clitics.txt` / `pro_drop_aux.txt` where the language needs them,
-   `subordinate_markers.txt`, `negative_particles.txt`, `contrast_openers.txt`).
+   `subordinate_markers.txt`, `negative_particles.txt`, `contrast_openers.txt`)
+   plus, when the language needs them, the map/geocode gate files
+   (`place_candidate_blocklist.txt`, `place_candidate_token_blocklist.txt`,
+   `admin_regions.txt`, `country_names.txt`, `generic_place_labels.txt`).
 2. Add the profile (`treebank`, `script`, `date_order`) to
    `lexicon/language_profiles.json`; run `lexicon/tools/sync_cldr_months.py`
    for the month table.

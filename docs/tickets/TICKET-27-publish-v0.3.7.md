@@ -141,3 +141,14 @@ tree fermo:
 L'opzione 2 è quella che serve davvero alla migrazione: HEAD è già avanti
 rispetto al tag e una release nuova attiva il segnale lingua. In entrambi i casi
 il push del tag è l'ultimo passo, non il primo.
+
+### Aggiornamento 2026-11-19 (stato working tree e piano `v0.3.8`)
+
+Nel working tree di `BrainRust` risultano inoltre 36 file modificati non ancora
+committati (`overlay-compiler/src/editorial_plan_v2/...` con golden/fixture,
+`semantic-engine` cache su disco `TICKET-37`, `pipelinegen-muscles` preflight
+`TICKET-38`, `lexicon` e `visualner`). Per chiudere il blocco release:
+
+1. Committare per gruppi logici le modifiche aperte in `BrainRust` (`overlay-compiler` + golden, `TICKET-37`, `TICKET-38`), dopo aver risolto l'eventuale build error di `udpipe-rs` (`pipeline.cpp`) e verificato `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models cargo test --workspace --locked`, `cargo fmt --all -- --check` e `cargo clippy --workspace --all-targets -- -D warnings`.
+2. Tagliare `v0.3.8` sul commit pulito, rigenerare `dist-v0.3.8/` con `BRAINRUST_RELEASE.json` e `sha256sums.txt` coerenti con il tag, e pubblicare la GitHub Release (`gh auth login` + push del tag / `release.yml`).
+3. Aggiornare `BRAINRUST_VERSION ?= v0.3.8` in `refactored/make/build.mk` ed eseguire `make rust-fetch` per riallineare `refactored/bin/BRAINRUST_RELEASE.json` ai binari installati.

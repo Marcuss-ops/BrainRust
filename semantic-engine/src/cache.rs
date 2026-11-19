@@ -8,6 +8,8 @@
 //! analyzer version yields a different fingerprint and misses, so the cache
 //! can never serve a result computed by a different request or extractor build.
 
+pub mod disk;
+
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -145,6 +147,8 @@ mod tests {
             scenes: scenes.to_vec(),
             editorial: None,
             entity_safety_cap: 0,
+
+            reference_date: None,
         })
         .expect("analysis succeeds")
     }
@@ -162,6 +166,8 @@ mod tests {
             scenes: scenes.to_vec(),
             editorial: None,
             entity_safety_cap: 0,
+
+            reference_date: None,
         }
     }
 
@@ -176,6 +182,9 @@ mod tests {
             phrase_impact: "phrase_impact".to_string(),
             lexicon: "lexicon.v1".to_string(),
             entity_index: "entity_index.v1".to_string(),
+            numbers: "number_words.v1".to_string(),
+
+            dates: "relative_time.v1".to_string(),
         }
     }
 
@@ -208,6 +217,9 @@ mod tests {
             phrase_impact: "phrase_impact".to_string(),
             lexicon: "lexicon.v1".to_string(),
             entity_index: "entity_index.v1".to_string(),
+            numbers: "number_words.v1".to_string(),
+
+            dates: "relative_time.v1".to_string(),
         };
         let v2 = AnalyzerVersions {
             semantic_core: "0.2.0".to_string(),
@@ -287,6 +299,8 @@ mod tests {
             scenes: scenes.clone(),
             editorial: None,
             entity_safety_cap: 0,
+
+            reference_date: None,
         };
         let baseline = ManifestCache::request_key(&lexical, &analyzers());
         lexical.editorial = Some(

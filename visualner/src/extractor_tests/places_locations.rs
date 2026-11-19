@@ -5,6 +5,42 @@ use super::common::*;
 use crate::ExtractOptions;
 
 #[test]
+fn italian_exonyms_and_linked_place_compounds_are_locations() {
+    let source = "Gerusalemme, Betlemme e Ramallah sono tre città vicine del Vicino \
+                  Oriente. La Città Vecchia di Gerusalemme custodisce luoghi sacri.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 50,
+        },
+    )
+    .unwrap();
+    for place in [
+        "Gerusalemme",
+        "Betlemme",
+        "Vicino Oriente",
+        "Città Vecchia di Gerusalemme",
+    ] {
+        let found = entities
+            .iter()
+            .find(|entity| entity.text == place)
+            .unwrap_or_else(|| panic!("missing {place}: {entities:?}"));
+        assert_eq!(
+            found.r#type, "LOCATION",
+            "{place} typed wrongly: {entities:?}"
+        );
+    }
+    // The exonym must not hand the person fallback a surname-shaped place.
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| entity.r#type == "PERSON" && entity.text.contains("Gerusalemme")),
+        "a place phrase became a person: {entities:?}"
+    );
+}
+
+#[test]
 fn a_known_city_before_two_names_stays_a_location() {
     let source = "В городе Пермь Мария Соколова и Наталья Белова начали проект.";
     let entities = extract(

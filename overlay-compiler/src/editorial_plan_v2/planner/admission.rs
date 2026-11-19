@@ -246,11 +246,33 @@ pub(super) fn resolve_overlaps(
         return items;
     }
     let input: Vec<TimingItem> = items.iter().map(timing_item).collect();
+    // Map presentation is the planner's decision from here on: the resolver
+    // owns the camera minimum, the readable floor and the tail bound, so the
+    // sealed plan already carries the window the renderer uses.
+    let plan_end_us = request
+        .scenes
+        .iter()
+        .map(|scene| scene.timeline_start_us.saturating_add(scene.duration_us))
+        .max()
+        .unwrap_or(0);
+    let map_presentation =
+        input
+            .iter()
+            .any(|item| item.has_map)
+            .then(|| crate::MapPresentationWindow {
+                camera_duration_us: super::map_groups::MAP_CAMERA_DURATION_US,
+                camera_lead_us: super::map_groups::MAP_CAMERA_LEAD_US,
+                pin_read_duration_us: super::map_groups::MAP_PIN_READ_DURATION_US,
+                readable_floor_us: super::map_groups::MAP_READABLE_FLOOR_US,
+                presentation_ceiling_us: super::map_groups::MAP_PRESENTATION_CEILING_US,
+                plan_end_us,
+            });
     let edits = crate::resolve_map_overlaps(crate::ResolveMapOverlapsRequest {
         fps_num: request.plan.fps_num,
         fps_den: request.plan.fps_den,
         scene_windows: request.scene_windows.clone(),
         items: input,
+        map_presentation,
     });
     if edits.len() != items.len() {
         return items;

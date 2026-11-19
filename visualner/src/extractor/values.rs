@@ -331,6 +331,28 @@ fn classify_type(
     {
         return "EVENT".to_string();
     }
+    // A compound that links a head noun to a known place with a relational
+    // preposition names a place, not a person: "Città Vecchia di Gerusalemme"
+    // and "Piazza del Campo di Siena" are locations. The link is what keeps
+    // this rule away from people whose surname is also a place ("Michael
+    // Jordan" carries no `di`), so the generic person fallback can stay broad.
+    if case_is_evidence {
+        const RELATIONAL_HEAD_LINKS: [&str; 7] =
+            ["di", "del", "dello", "della", "dei", "degli", "delle"];
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let place_link = words.windows(2).any(|pair| {
+            let link = pair[0]
+                .trim_matches(|ch: char| !ch.is_alphabetic())
+                .to_lowercase();
+            let target = pair[1].trim_matches(|ch: char| !ch.is_alphabetic());
+            RELATIONAL_HEAD_LINKS.contains(&link.as_str())
+                && target.chars().next().is_some_and(char::is_uppercase)
+                && lexicon.is_place(target, language)
+        });
+        if place_link {
+            return "LOCATION".to_string();
+        }
+    }
     if case_is_evidence
         && name_evidence
         && !opens_with_acronym

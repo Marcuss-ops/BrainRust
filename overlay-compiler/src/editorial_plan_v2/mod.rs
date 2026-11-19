@@ -18,6 +18,7 @@
 //! missing compile inputs are typed errors. There is no fallback planner and no
 //! "empty plan" path here.
 
+mod date_motion_family;
 mod editorial;
 mod error;
 mod planner;
@@ -29,6 +30,16 @@ pub use editorial::project_editorial_scenes;
 pub use error::EditorialPlanError;
 pub use request::*;
 pub use response::*;
+
+/// The four multi-animation containers the planner can emit. A chain owns a
+/// sequential timeline; every consumer uses this predicate instead of
+/// restating the kind list.
+pub(crate) fn is_chain_kind(kind: &str) -> bool {
+    matches!(
+        kind.trim().to_ascii_lowercase().as_str(),
+        "phrase_chain" | "image_chain" | "mixed_chain" | "map_chain"
+    )
+}
 
 /// Schema version of the full-plan request/response envelope.
 pub const EDITORIAL_PLAN_V2_SCHEMA_VERSION: &str = "editorial_plan.v2";

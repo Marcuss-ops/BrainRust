@@ -16,6 +16,8 @@ fn request(scenes: Vec<SceneInput>) -> ScriptRequest {
         scenes,
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     }
 }
 

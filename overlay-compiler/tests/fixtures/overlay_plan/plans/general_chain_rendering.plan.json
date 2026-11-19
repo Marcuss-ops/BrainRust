@@ -129,9 +129,9 @@
         "id": "static__ferrari__mixed-chain__01",
         "scene_id": "s3",
         "kind": "mixed_chain",
-        "start_ms": 14000,
-        "end_ms": 18100,
-        "start_us": 14000000,
+        "start_ms": 14200,
+        "end_ms": 18300,
+        "start_us": 14200000,
         "duration_us": 4100000,
         "template_id": "MIXED_CHAIN",
         "text": "Ferrari",
@@ -155,7 +155,7 @@
                 "entity_type": "ORG",
                 "priority": 0.95
               },
-              "start_us": 14000000,
+              "start_us": 14200000,
               "template_id": "org_default",
               "text": "Ferrari"
             },
@@ -168,7 +168,7 @@
               "params": {
                 "priority": 0.9
               },
-              "start_us": 16900000,
+              "start_us": 17100000,
               "template_id": "IMPORTANT_PHRASE",
               "text": "La Ferrari vince a Monza"
             }
@@ -180,9 +180,9 @@
         "scene_id": "s4",
         "kind": "map",
         "start_ms": 21200,
-        "end_ms": 22700,
+        "end_ms": 28000,
         "start_us": 21200000,
-        "duration_us": 1500000,
+        "duration_us": 6800000,
         "template_id": "MAP",
         "map": {
           "entity_id": "place:milano",
@@ -192,27 +192,42 @@
           "scope": "city"
         },
         "params": {
+          "map_group": {
+            "count": 1,
+            "index": 1,
+            "size": 2
+          },
+          "map_group_pins": [
+            {
+              "duration_us": 1500000,
+              "entity_id": "place:milano",
+              "label": "Milano",
+              "latitude": 45.4642,
+              "longitude": 9.19,
+              "scope": "city",
+              "start_us": 21200000
+            },
+            {
+              "duration_us": 1500000,
+              "entity_id": "place:roma",
+              "label": "Roma",
+              "latitude": 41.9028,
+              "longitude": 12.4964,
+              "scope": "city",
+              "start_us": 23000000
+            }
+          ],
+          "map_pin_timing": {
+            "place:milano": {
+              "duration_us": 1500000,
+              "start_us": 0
+            },
+            "place:roma": {
+              "duration_us": 1500000,
+              "start_us": 1800000
+            }
+          },
           "priority": 0.9
-        }
-      },
-      {
-        "id": "static__roma__map__01",
-        "scene_id": "s4",
-        "kind": "map",
-        "start_ms": 23000,
-        "end_ms": 24500,
-        "start_us": 23000000,
-        "duration_us": 1500000,
-        "template_id": "MAP",
-        "map": {
-          "entity_id": "place:roma",
-          "label": "Roma",
-          "latitude": 41.9028,
-          "longitude": 12.4964,
-          "scope": "city"
-        },
-        "params": {
-          "priority": 0.8
         }
       }
     ],
@@ -238,10 +253,10 @@
         "organization": 1,
         "text_phrase": 3
       },
-      "planned": 6,
+      "planned": 5,
       "planned_by_kind": {
         "image": 2,
-        "map": 2,
+        "map": 1,
         "mixed_chain": 1,
         "phrase_chain": 1
       }

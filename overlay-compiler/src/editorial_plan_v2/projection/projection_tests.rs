@@ -12,7 +12,7 @@ fn request(overlay_categories: serde_json::Value) -> EditorialPlanV2Request {
         "schema_version": "editorial_plan.v2",
         "plan": {
             "plan_id": "raw-plan", "video_id": "raw-video", "project_id": "raw-project",
-            "motion_seed": "seed", "coherence_seed": "",
+            "motion_seed": "seed",
             "width": 1920, "height": 1080, "fps_num": 24, "fps_den": 1
         },
         "language": "it",

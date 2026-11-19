@@ -61,3 +61,16 @@ freezes the top-10 results without relevance labels, and has an independent
 judge produce the separate labels. Run `provider_precision.py` over both
 artifacts, then link the report and the two frozen inputs here. The harness
 fails closed rather than treating missing credentials or judges as a pass.
+
+## Prossimi passi (2026-11-19)
+
+1. **Congelare i due artefatti:** top-10 di retrieval senza etichette di
+   rilevanza, e le etichette prodotte da un judge indipendente. Senza i due
+   file il ticket resta bloccato, non misurabile.
+2. **Eseguire `provider_precision.py`** su entrambi e linkare report + input
+   congelati in questa scheda, con data.
+3. **Sblocco esterno:** il judge e le credenziali del provider non sono nel
+   repository; se il judge non è disponibile, il ticket resta `BLOCKED` e non
+   si dichiara PASS.
+
+Gate: precision@10 misurata sul report, con i due input riproducibili.

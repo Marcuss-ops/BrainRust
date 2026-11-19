@@ -58,6 +58,8 @@ pub(super) fn resolve(source: &str, mut facts: Vec<RawFact>) -> Vec<TemporalFact
             evidence: surface.to_string(),
             era: (fact.era == Bce && !impossible).then(|| "BCE".to_string()),
             ambiguous: fact.ambiguous,
+            relative: None,
+            derived: false,
         });
     }
     out

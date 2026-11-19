@@ -18,6 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::date_motion_family::DateMotionFamily;
 use super::error::EditorialPlanError;
 use super::{
     CHAPTER_MANIFEST_SCHEMA_VERSION, EDITORIAL_MANIFEST_SCHEMA_VERSION, EDITORIAL_PLAN_OPERATION,
@@ -108,8 +109,6 @@ pub struct PlanIdentityV2 {
     pub project_id: String,
     #[serde(default)]
     pub motion_seed: String,
-    #[serde(default)]
-    pub coherence_seed: String,
     pub width: i64,
     pub height: i64,
     pub fps_num: i64,
@@ -154,11 +153,20 @@ pub struct CanvasV2 {
     #[serde(default)]
     pub animation_counts: BTreeMap<String, i64>,
     #[serde(default)]
-    pub phrase_motions: Vec<String>,
-    #[serde(default)]
     pub short_phrase_motion: String,
+    /// Certified short-phrase entrance pool keyed by the phrase's word count
+    /// ("1".."5"). With no pin the planner rotates the bucket that matches the
+    /// item's own length, so a two-word phrase and a five-word one cannot land
+    /// on the same entrance by construction. An absent bucket leaves that
+    /// length on the presentation default.
     #[serde(default)]
-    pub long_phrase_motion: String,
+    pub short_phrase_motions_by_word: BTreeMap<String, Vec<String>>,
+    /// Certified entrance pool for long phrases (6+ words). The long lane has no
+    /// per-length buckets, so the planner rotates this single pool; an empty
+    /// pool leaves the lane on the presentation default, which is the single
+    /// entrance every long phrase used to share.
+    #[serde(default)]
+    pub long_phrase_motions: Vec<String>,
     #[serde(default)]
     pub image_motions: Vec<String>,
     #[serde(default)]
@@ -177,6 +185,10 @@ pub struct CanvasV2 {
     pub image_motion_offset: i64,
     #[serde(default)]
     pub entity_style_id: String,
+    /// Optional #RRGGBB plate behind the caption of every generated entity
+    /// card. Empty preserves the existing caption presentation.
+    #[serde(default)]
+    pub entity_badge_color: String,
     /// Typed animation directives are validated by the animation catalog; the
     /// payload itself is renderer metadata and survives unchanged.
     #[serde(default)]
@@ -1022,6 +1034,11 @@ impl CanvasV2 {
         ] {
             validate_motion_pool(field, pool)?;
         }
+        for (words, pool) in &self.short_phrase_motions_by_word {
+            let field = format!("short_phrase_motions_by_word.{words}");
+            validate_motion_pool(&field, pool)?;
+        }
+        validate_motion_pool("long_phrase_motions", &self.long_phrase_motions)?;
         if self.image_motion_offset < 0 {
             return Err(EditorialPlanError::invalid(
                 "canvas.image_motion_offset",
@@ -1039,23 +1056,17 @@ impl CanvasV2 {
                 ),
             ));
         }
-        if !self.date_motion_family.trim().is_empty() {
-            let family = self.date_motion_family.trim().to_ascii_lowercase();
-            if !matches!(
-                family.as_str(),
-                "auto"
-                    | "typewriter"
-                    | "date_typewriter_v1"
-                    | "didone"
-                    | "date_didone_v1"
-                    | "classic"
-                    | "date_v1"
-            ) {
-                return Err(EditorialPlanError::invalid(
-                    "canvas.date_motion_family",
-                    format!("unsupported family {:?}", self.date_motion_family),
-                ));
-            }
+        if !self.entity_badge_color.trim().is_empty() && !is_hex_rgb(&self.entity_badge_color) {
+            return Err(EditorialPlanError::invalid(
+                "canvas.entity_badge_color",
+                "must be a #RRGGBB hex color",
+            ));
+        }
+        if DateMotionFamily::parse(&self.date_motion_family).is_none() {
+            return Err(EditorialPlanError::invalid(
+                "canvas.date_motion_family",
+                format!("unsupported family {:?}", self.date_motion_family),
+            ));
         }
         for (field, value) in [
             ("max_overlays_per_scene", self.max_overlays_per_scene),
@@ -1076,6 +1087,15 @@ impl CanvasV2 {
         }
         Ok(())
     }
+}
+
+fn is_hex_rgb(value: &str) -> bool {
+    let value = value.trim();
+    value.len() == 7
+        && value.starts_with('#')
+        && value.as_bytes()[1..]
+            .iter()
+            .all(|byte| byte.is_ascii_hexdigit())
 }
 
 /// The closed set of `entity_style_id` selector words the pipeline may put on
@@ -1678,7 +1698,6 @@ mod tests {
             video_id: "video-1".to_string(),
             project_id: "project-1".to_string(),
             motion_seed: "seed-1".to_string(),
-            coherence_seed: String::new(),
             width: 1920,
             height: 1080,
             fps_num: 24,
@@ -1864,6 +1883,31 @@ mod tests {
     }
 
     #[test]
+    fn v2_date_motion_family_accepts_aliases_and_rejects_unknown() {
+        let mut request = request();
+        for selector in [
+            "auto",
+            "classic",
+            "date_v1",
+            "didone",
+            "date_didone_v1",
+            "typewriter",
+            "date_typewriter_v1",
+        ] {
+            request.canvas.date_motion_family = selector.to_string();
+            request
+                .validate()
+                .unwrap_or_else(|error| panic!("{selector}: {error}"));
+        }
+        request.canvas.date_motion_family = "didone_v2".to_string();
+        assert!(request
+            .validate()
+            .expect_err("unknown family")
+            .to_string()
+            .contains("date_motion_family"));
+    }
+
+    #[test]
     fn v2_compilable_requires_every_input_section() {
         for missing in ["seal", "media", "budgets", "entity_timeline"] {
             let mut request = request();
@@ -2008,5 +2052,18 @@ mod tests {
             .expect_err("negative window")
             .to_string()
             .contains("negative image window"));
+    }
+
+    #[test]
+    fn entity_badge_color_is_optional_and_requires_rgb_hex() {
+        let mut request = request();
+        request.canvas.entity_badge_color = "#336699".to_string();
+        request.validate().expect("valid payload color");
+        request.canvas.entity_badge_color = "blue".to_string();
+        assert!(request
+            .validate()
+            .expect_err("non-hex color must fail closed")
+            .to_string()
+            .contains("canvas.entity_badge_color"));
     }
 }

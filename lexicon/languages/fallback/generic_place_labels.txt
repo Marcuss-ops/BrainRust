@@ -1,0 +1,23 @@
+# cross-linguistic generic place labels — deictics and class nouns that are
+# never a map stop in any language. The fallback set is applied to every
+# language in addition to its own file, so a shared label is curated once.
+here
+there
+local
+nearby
+home
+workplace
+city
+town
+village
+region
+area
+location
+nesta
+neste
+nessa
+nesse
+esta
+este
+essa
+esse

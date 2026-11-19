@@ -1,0 +1,58 @@
+# it place candidate blocklist — normalized queries that must never become a
+# map pin. One phrase per line, lowercase, matched after
+# normalizeGeocodePlaceQuery (articles stripped, whitespace collapsed).
+#
+# This is NOT the extractor blocklist (entity_blocklist.txt): those words break
+# a candidate phrase inside the NER pass. This file only serves the map/geocode
+# gate, which runs after NER and cannot rely on POS evidence for these tokens.
+#
+# Two families live here:
+#   1. discourse and function words that a tagger can promote to PROPN after
+#      title-casing ("Infine", "Dunque", "Inoltre"), or that Italian prose uses
+#      as pronouns/adjectives ("questo", "primo", "solo");
+#   2. institutions and offices that are never a map stop ("corte",
+#      "cassazione", "procura", "tribunale").
+# Given names and surnames whose homonymous settlements hijacked real places
+# live in place_candidate_token_blocklist.txt, because they disqualify a whole
+# candidate wherever the token appears.
+infine
+tale
+tali
+ciò
+cio
+egli
+ella
+esso
+essa
+essi
+esse
+lui
+lei
+loro
+questo
+questa
+questi
+queste
+quello
+quella
+quelli
+quelle
+primo
+prima
+secondo
+seconda
+solo
+usare
+dunque
+inoltre
+durante
+corte
+procura
+cassazione
+tribunale
+stasi
+sempio
+poggi
+alberto
+andrea
+chiara

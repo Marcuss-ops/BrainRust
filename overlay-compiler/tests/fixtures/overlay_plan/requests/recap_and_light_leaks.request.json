@@ -6,7 +6,6 @@
     "video_id": "video-recap-fixture",
     "project_id": "project-fixture",
     "motion_seed": "seed-recap-fixture",
-    "coherence_seed": "",
     "width": 1920,
     "height": 1080,
     "fps_num": 24,

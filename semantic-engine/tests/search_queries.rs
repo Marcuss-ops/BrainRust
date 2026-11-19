@@ -95,6 +95,8 @@ fn typed_visual_objects_all_receive_grounded_reusable_search_queries() {
             scenes: vec![scene(scene_id, text)],
             editorial: None,
             entity_safety_cap: 0,
+
+            reference_date: None,
         })
         .expect("object script analysis");
         let value = serde_json::to_value(manifest).unwrap();
@@ -266,6 +268,8 @@ fn contextual_production_query_inherits_a_nested_place_without_an_entity_owner()
         scenes: vec![scene("nested-place-context", text)],
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     })
     .expect("script analysis");
     let value = serde_json::to_value(manifest).unwrap();
@@ -298,6 +302,8 @@ fn unbuilt_proposals_do_not_become_searches_for_existing_factories() {
         scenes: vec![scene("proposed-factory", text)],
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     })
     .expect("script analysis");
     let value = serde_json::to_value(manifest).unwrap();
@@ -320,6 +326,8 @@ fn location_lists_do_not_become_one_joint_visual_query() {
         scenes: vec![scene("place-list", text)],
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     })
     .expect("script analysis");
     let value = serde_json::to_value(manifest).unwrap();

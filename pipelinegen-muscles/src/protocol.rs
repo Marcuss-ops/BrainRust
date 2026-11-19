@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::MuscleError;
 
 use crate::config;
+use crate::preflight::{PreflightReport, PreflightRequest};
 use crate::render_audio_plan::Plan as CompiledAudioPlan;
 use crate::render_stock_canonical_plan::CanonicalRenderPlan as SealedCanonicalPlan;
 
@@ -45,12 +46,13 @@ pub enum Operation {
     AssembleCopy,
     ProjectOverlayManifest,
     ExtractTimelineWindow,
+    Preflight,
 }
 
 impl Operation {
     /// Every wire operation. The contract drift test uses this to prove that
     /// each implemented operation is declared in request.schema.json.
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 20] = [
         Self::Health,
         Self::Probe,
         Self::CutBatch,
@@ -70,6 +72,7 @@ impl Operation {
         Self::AssembleCopy,
         Self::ProjectOverlayManifest,
         Self::ExtractTimelineWindow,
+        Self::Preflight,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -93,6 +96,7 @@ impl Operation {
             Self::AssembleCopy => "assemble_copy",
             Self::ProjectOverlayManifest => "project_overlay_manifest",
             Self::ExtractTimelineWindow => "extract_timeline_window",
+            Self::Preflight => "preflight",
         }
     }
 }
@@ -141,6 +145,10 @@ pub struct Request {
     pub(crate) audio_plan: Option<CompiledAudioPlan>,
     pub audio_assets: Option<Vec<AudioAsset>>,
     pub copy_certification: Option<CopyCertification>,
+    /// Typed preflight payload for the `preflight` operation. The engine is
+    /// read-only and the blocking decision stays with Go, so the request has
+    /// no output path and the response carries the structured report.
+    pub preflight: Option<PreflightRequest>,
     // The Go boundary sends a sealed render plan. Rust treats it as an
     // audited contract and never derives timing or asset selection from it.
     /// Typed sealed canonical render plan. A malformed plan fails request
@@ -277,6 +285,12 @@ impl Request {
                     None => Err(MuscleError::generic("timeline_window is required")),
                     Some(window) => window.validate().map_err(MuscleError::generic),
                 }
+            }
+            Operation::Preflight => {
+                if self.preflight.is_none() {
+                    return Err(MuscleError::generic("preflight is required"));
+                }
+                Ok(())
             }
         }
     }
@@ -561,6 +575,11 @@ pub struct Response {
     pub source_path: Option<String>,
     pub items: Vec<CutItem>,
     pub metadata: Option<MediaMetadata>,
+    /// Structured preflight report. Present only for the `preflight`
+    /// operation; every other response omits the field on the wire, so the
+    /// existing goldens stay byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preflight: Option<PreflightReport>,
     pub error: Option<String>,
 }
 
@@ -966,6 +985,7 @@ mod tests {
             source_path: None,
             items: Vec::new(),
             metadata: None,
+            preflight: None,
             error: None,
         })
         .expect("serialize response");

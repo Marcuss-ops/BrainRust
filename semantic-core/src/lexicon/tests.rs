@@ -45,6 +45,14 @@ fn geonames_places_are_indexed_with_a_capitalization_guard() {
     // them; the curated location seed must still type them as places.
     assert!(lexicon.is_place("Italia", "it"));
     assert!(lexicon.is_place("Francia", "it"));
+    // The generated dump carries the English names; the curated delta adds the
+    // Italian exonyms and the region names that are not populated places.
+    assert!(lexicon.is_place("Gerusalemme", "it"));
+    assert!(lexicon.is_place("Betlemme", "it"));
+    assert!(lexicon.is_place("Vicino Oriente", "it"));
+    assert!(lexicon.is_place("Mar Morto", "it"));
+    // A curated addition never lowers the capitalization guard.
+    assert!(!lexicon.is_place("gerusalemme", "it"));
     assert!(lexicon.is_place("Germania", "it"));
     assert!(lexicon.is_place("Svizzera", "it"));
     assert!(lexicon.is_place("Italy", "en"));

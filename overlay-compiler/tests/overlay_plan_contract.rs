@@ -460,7 +460,15 @@ fn general_chain_rendering_covers_phrase_image_and_mixed_sequences() {
     // renders as its own clip, in sequence, instead of a deck of cards.
     assert_eq!(items("image_chain").len(), 0, "images are not chained");
     assert_eq!(items("image").len(), 2, "both images stay standalone");
-    assert_eq!(items("map").len(), 2, "maps stay standalone");
+    assert_eq!(items("map").len(), 1, "one grouped map in the golden");
+    let map = items("map")[0];
+    assert_eq!(
+        map.params.as_ref().expect("map params")["map_group_pins"]
+            .as_array()
+            .map(Vec::len),
+        Some(2),
+        "both places stay on the grouped map"
+    );
 
     for kind in ["phrase_chain", "mixed_chain"] {
         let item = items(kind)[0];
@@ -536,7 +544,7 @@ fn general_chain_rendering_covers_phrase_image_and_mixed_sequences() {
 }
 
 #[test]
-fn chain_collision_resolution_shifts_map_collisions_before_fusion() {
+fn chain_collision_resolution_yields_to_the_map_presentation_window() {
     let entry = fixture("chain_collision_resolution");
     let request = parse_request(entry.request);
     let annotations = request.scenes[0].annotations.as_ref().expect("annotations");
@@ -554,36 +562,24 @@ fn chain_collision_resolution_shifts_map_collisions_before_fusion() {
         .find(|item| item.kind == "map")
         .expect("map");
     let (map_start, map_end) = map.window_us();
-    assert_eq!((map_start, map_end), (2_000_000, 4_000_000));
-
-    let chain = plan
-        .items
-        .iter()
-        .find(|item| item.kind == "phrase_chain")
-        .expect("collision-resolved chain");
-    assert_eq!(chain.window_us(), (4_000_000, 6_800_000));
     assert_eq!(
-        chain.window_us().0,
-        map_end,
-        "both colliding phrases must start at the map end"
+        (map_start, map_end),
+        (2_000_000, 9_000_000),
+        "the map owns its camera beat up to the plan end"
     );
 
-    let segments = chain.params.as_ref().expect("params")["chain_segments"]
-        .as_array()
-        .expect("segments");
-    assert_eq!(segments[0]["start_us"].as_i64(), Some(4_000_000));
-    assert_eq!(segments[0]["text"].as_str(), Some("Nike corre al museo"));
-    assert_eq!(segments[1]["start_us"].as_i64(), Some(5_600_000));
-    assert_eq!(segments[1]["text"].as_str(), Some("Il museo apre domani"));
-    let first_end =
-        segments[0]["start_us"].as_i64().unwrap() + segments[0]["duration_us"].as_i64().unwrap();
-    assert_eq!(
-        segments[1]["start_us"].as_i64().unwrap() - first_end,
-        400_000
-    );
+    // The map's presentation window now covers the frames the chain asked for.
+    // The resolver refuses to composite the chain on top of the basemap, and
+    // there is no room after the map inside the plan, so the colliding phrases
+    // are dropped and recorded instead of silently overlapping the map.
     assert!(
-        plan.items.iter().all(|item| item.kind != "text_phrase"),
-        "the colliding phrases are represented only inside the chain"
+        plan.items.iter().all(|item| item.kind != "phrase_chain"),
+        "the colliding chain must not overlap the map"
+    );
+    assert_eq!(
+        plan.intake.dropped_by_reason.get("overlap"),
+        Some(&2),
+        "both colliding phrases are accounted for"
     );
 }
 
@@ -667,7 +663,7 @@ fn an_item_outside_its_scene_is_rejected() {
     let error = compiled
         .validate_for(&request)
         .expect_err("item escapes the scene");
-    assert!(error.to_string().contains("escapes scene"));
+    assert!(error.to_string().contains("escapes its allowed extent"));
 }
 
 #[test]

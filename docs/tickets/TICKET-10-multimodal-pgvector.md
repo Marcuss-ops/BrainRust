@@ -3,14 +3,15 @@
 - Priority: P2
 - Status: BLOCKED
 - Source: audit roadmap PR 10
-- Files: `imagecatalog`, PipelineGen database owner
+- Files: `refactored/internal/capabilities/images/entitycatalog`, PipelineGen database owner (`BrainRust/imagecatalog` retired in [TICKET-28](TICKET-28-imagecatalog-retirement.md))
 
 ## Problem
 
-`imagecatalog` currently selects PERSON identity images from the existing
-catalog using certification gates and optional text annotations. It does not
-compare image and text embeddings, and `score` is a deterministic ranking
-score, not a calibrated probability.
+`entitycatalog` (Go, the surviving image authority after `imagecatalog` was
+retired on 2026-11-18) currently selects PERSON identity images from the
+existing catalog using certification gates and optional text annotations. It
+does not compare image and text embeddings, and `score` is a deterministic
+ranking score, not a calibrated probability.
 
 ## Acceptance criteria
 

@@ -30,6 +30,14 @@ pub struct LanguageProfile {
     pub stopwords: Vec<String>,
     pub function_words: Vec<String>,
     pub entity_blocklist: Vec<String>,
+    /// Whole queries the map/geocode gate rejects: discourse words a tagger
+    /// can title-case into a name, and institutions that are never a pin.
+    #[serde(default)]
+    pub place_candidate_blocklist: Vec<String>,
+    /// Tokens that disqualify any map candidate containing them, matched
+    /// inside multiword extractions ("Suprema Corte", "La Cassazione").
+    #[serde(default)]
+    pub place_candidate_token_blocklist: Vec<String>,
     pub negative_particles: Vec<String>,
     pub visual_verbs: Vec<String>,
     pub verb_suffixes: Vec<String>,
@@ -108,6 +116,25 @@ mod tests {
         assert!(!profile.verb_suffixes.is_empty());
         assert!(profile.word_sets.contains_key("pronouns"));
         assert!(profile.word_sets.contains_key("subordinate_markers"));
+    }
+
+    #[test]
+    fn map_candidate_gate_ships_as_data() {
+        let profile = get("it").expect("it profile");
+        assert!(profile
+            .place_candidate_blocklist
+            .contains(&"infine".to_string()));
+        assert!(profile
+            .place_candidate_blocklist
+            .contains(&"tribunale".to_string()));
+        assert!(profile
+            .place_candidate_token_blocklist
+            .contains(&"cassazione".to_string()));
+        // A language with no map sources ships an empty gate rather than
+        // inheriting the Italian words.
+        let en = get("en").expect("en profile");
+        assert!(en.place_candidate_blocklist.is_empty());
+        assert!(en.place_candidate_token_blocklist.is_empty());
     }
 
     #[test]

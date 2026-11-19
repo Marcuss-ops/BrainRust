@@ -1,0 +1,47 @@
+# it country exonyms — countries that take an Italian article in prose
+# ("L'Italia", "La Francia"). Two consumers:
+#   1. article stripping, so the fused form reaches the geocoder as the plain
+#      country name;
+#   2. lookup-context suppression: a country query must not inherit the
+#      scene's country as a provider filter ("Francia" under country=Italia).
+# One exonym per line, lowercase.
+italia
+francia
+germania
+svizzera
+spagna
+portogallo
+grecia
+austria
+belgio
+olanda
+paesi bassi
+regno unito
+irlanda
+danimarca
+svezia
+norvegia
+finlandia
+polonia
+ungheria
+repubblica ceca
+slovacchia
+slovenia
+croazia
+serbia
+romania
+bulgaria
+turchia
+marocco
+egitto
+tunisia
+algeria
+libia
+stati uniti
+canada
+messico
+brasile
+argentina
+giappone
+cina
+india

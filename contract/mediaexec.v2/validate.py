@@ -24,7 +24,7 @@ except ImportError:  # pragma: no cover - exercised by the CI setup path
     )
 
 ROOT = Path(__file__).resolve().parent
-EXPECTED = {"probe", "cut_batch", "normalize"}
+EXPECTED = {"probe", "cut_batch", "normalize", "preflight"}
 
 
 def load(path: Path) -> dict:

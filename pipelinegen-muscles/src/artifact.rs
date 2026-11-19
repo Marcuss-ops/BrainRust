@@ -19,6 +19,7 @@ pub(crate) fn failed_response(source_path: Option<String>, error: impl ToString)
         source_path,
         items: Vec::new(),
         metadata: None,
+        preflight: None,
         error: Some(error.to_string()),
     }
 }

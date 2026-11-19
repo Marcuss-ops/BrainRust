@@ -21,6 +21,13 @@ script-qa = { workspace = true }
 ndjson-stdio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# SHA-256 for the persistent cache content address. The wire fingerprint stays
+# FNV-1a; this wider hash only names on-disk entries.
+sha2 = "0.10"
+
+[build-dependencies]
+# Build identity for the persistent cache key (see build.rs).
+sha2 = "0.10"
 
 [lints]
 workspace = true

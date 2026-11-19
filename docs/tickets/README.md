@@ -4,7 +4,12 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-18. **24 DONE, 0 PARTIAL, 0 OPEN, 4 BLOCKED (08, 10, 26, 27).**
+Last verified: 2026-11-19. **29 DONE/CLOSED (01–07, 09, 11–25, 28–29, 31, 37–39), 6 OPEN (30, 32–36, semantic expansion, 2026-11-19), 4 BLOCKED (08, 10, 26, 27).**
+TICKET-37 adds the persistent manifest cache, TICKET-38 the preflight engine
+and TICKET-39 their cross-repo wire to the Go consumer. The
+six-workstream performance and product plan with acceptance criteria and
+blockers is
+[`ROADMAP-2026-11-19-performance-prodotto.md`](ROADMAP-2026-11-19-performance-prodotto.md).
 
 Tickets 15–20 are the 2026-11-16 external-audit follow-ups, and all six are
 now DONE (15 phrase selection, 16 MediaMemory ranker, 17 visual budget/chain,
@@ -62,6 +67,67 @@ Status vocabulary:
 | [26](TICKET-26-provider-precision-at-10.md) | P1 | BLOCKED | Provider precision@10, the real cascade and the byte-level probe need provider credentials and an independent judge. The offline frozen-run scorer (`provider_precision.py`) is ready and tested (8/8), but it cannot manufacture a provider run or labels. |
 | [27](TICKET-27-publish-v0.3.7.md) | P0 | BLOCKED | The tag `v0.3.7` and the eight assets are prepared and checksum-verified locally, but this workspace has no GitHub credentials. `scripts/release/publish-v0.3.7.sh` is the single publish command. |
 | [28](TICKET-28-imagecatalog-retirement.md) | P2 | CLOSED (2026-11-18) | The Rust `imagecatalog` crate is retired: workspace entry, crate and tests deleted, shared policy fixture moved under the surviving Go `entitycatalog` test. |
+| [31](TICKET-31-relative-dates.md) | P1 | CLOSED (2026-11-19) | Relative dates in 11 languages: `relative_time.json`, token scan, explicit/reference/narrative anchor, calendar-correct arithmetic, `TemporalFact.relative` + `derived`, optional `ScriptRequest.reference_date` in fingerprint/cache, `AnalyzerVersions.dates`; 231-case positive + 220-case negative matrices and 9 focused tests. |
+| [29](TICKET-29-spoken-number-words.md) | P1 | CLOSED (2026-11-19) | Word numbers in 11 languages: conjunctions, additive/multiplicative runs, fractions, additive/fused halves, approximators and idiom negatives; `NumericFact.form`; 20 positive + 20 negative cases per language (assistant draft), mixed `3 milioni e mezzo` = 3.5e6, `build_language_packs.py --check` gate, `AnalyzerVersions.numbers` bump. 119 visualner + 225 semantic-core lib tests and all semantic-engine integration suites green. |
+| [30](TICKET-30-typed-quantities.md) | P1 | OPEN | Typed quantities: unit, scale, currency, period, qualifier and same-dimension comparisons. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [32](TICKET-32-places-and-routes.md) | P1 | OPEN | Places with kind, coordinates, hierarchy, plus ordered routes (`da A a B`). Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [33](TICKET-33-person-roles.md) | P2 | OPEN | People with role, affiliation, tense, family/work relations and age. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [34](TICKET-34-events.md) | P2 | OPEN | Event frames: type, participants, place, date, merged across scenes. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [35](TICKET-35-entity-disambiguation.md) | P1 | OPEN | Explainable linking: scored candidates, margin rule, abstention. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [36](TICKET-36-coreference-pronouns.md) | P2 | OPEN | Pronoun and role-nominal coreference with agreement and salience. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [37](TICKET-37-persistent-manifest-cache.md) | P1 | CLOSED (2026-11-19) | Opt-in disk cache keyed by SHA-256 over the request plus a cache identity (embedded lexicon content including `legal/index.json`, build hash, ICU, model presence): atomic publishes, fail-closed reads, mtime LRU bound. 23 unit + 5 fingerprint + 4 cross-process tests (restart, 8 concurrent writers, model-profile separation, broken dir); T1–T15 observed; memory-only default unchanged. |
+| [38](TICKET-38-preflight-engine.md) | P2 | CLOSED (2026-11-19) | Pure pre-render checks for assets, subtitle timing and per-track overlays (including enclosed overlays), with stable codes and an advisory/blocking split. 14 unit + 4 real-ffprobe tests; no writes. |
+| [39](TICKET-39-cross-repo-wire.md) | P2 | CLOSED (2026-11-19) | `preflight` is a `mediaexec.v2` operation (schemas + golden + consumer copy) with a typed Go caller and a Go-owned `Blocked` decision; `NewSemanticEngineExecutor` forwards `SEMANTIC_CACHE_DIR`/`SEMANTIC_CACHE_MAX_BYTES`, and a `cached:true` hit is logged. Verified cold 3.64 s vs warm 1.56 s on a repeated batch. Deployment needs the release that carries the operation (TICKET-27). |
+
+## Verification — 2026-11-19 (TICKET-31, relative dates)
+
+- `cargo test -p semantic-core --lib dates::relative` — **9 passed**, including
+  the 231-case positive matrix and the 220-case negative matrix (20 per
+  language), leap/month-end arithmetic and explicit/reference/narrative anchors.
+- `cargo test -p semantic-core` — **233 lib tests** + integration green.
+- `cargo test -p visualner` — **121 lib tests** + integration green.
+- `cargo test -p semantic-engine --tests` — all suites green.
+- `cargo clippy -p semantic-core -p visualner --all-targets -- -D warnings` —
+  rc 0.
+- `python3 lexicon/tools/build_language_packs.py --check` — 11 packs; the gate
+  now also rejects a missing `relative_time.json` language.
+
+## Verification — 2026-11-19 (TICKET-29, word numbers)
+
+- `cargo test -p visualner` — **121 lib tests passed** plus all integration
+  suites green (multilingual regression included).
+- `cargo test -p semantic-core --lib` — **225 passed**.
+- `cargo test -p semantic-engine --tests` — green (lib 78 + integration
+  suites); `cargo test -p semantic-engine` still fails only at rustdoc
+  doctests with `E0463`, a toolchain limitation.
+- `cargo clippy -p semantic-core -p visualner --all-targets -- -D warnings` —
+  rc 0.
+- `python3 lexicon/tools/build_language_packs.py --check` — 11 packs up to
+  date; the gate rejects a pack language missing from `number_words.json`.
+- Word-number gold: 20 positive + 20 negative cases per language, 11
+  languages; `3 milioni e mezzo` is one `mixed` fact of 3.5e6.
+
+## Verification — 2026-11-19 (TICKET-39, cross-repo wire)
+
+Run on the `BrainRust` and `refactored` working trees.
+
+- `cargo fmt -p pipelinegen-muscles -- --check` and
+  `cargo clippy -p pipelinegen-muscles --all-targets --offline -- -D warnings`
+  — rc 0.
+- `cargo test -p pipelinegen-muscles --offline` — green, including 16 preflight
+  unit tests and 4 real-media integration tests.
+- `python3 contract/mediaexec.v2/validate.py` — **4 shared goldens validated**;
+  `check_consumer_copy.sh ../refactored/testdata/mediaexec/v2` — **no drift**.
+- Real worker: `preflight` returns `ok:true` with `asset_missing` (error) and
+  `cue_reading_too_fast` (warning) issues; `health` keeps the original envelope
+  with no `preflight` key.
+- `go test ./internal/platform/rustworker ./internal/platform/media/rustexec
+  -count=1` — both ok (`rustexec` 89.4 s), including protocol, golden, Go-owned
+  decision, cache-env and cached-log tests.
+- Persistent cache on the installed `semantic-engine`, same batch twice: cold
+  3.64 s `cached:false`, warm 1.56 s `cached:true`, one manifest entry; the Go
+  e2e `TestSemanticEngineRealBinaryServesRepeatedBatchesFromTheCache` passes
+  through `NewSemanticEngineExecutor` in 3.17 s.
 
 ## Verification — 2026-11-17 (tickets 23–25)
 

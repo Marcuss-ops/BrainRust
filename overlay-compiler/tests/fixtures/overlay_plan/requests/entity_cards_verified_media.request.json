@@ -6,7 +6,6 @@
     "video_id": "video-cards-fixture",
     "project_id": "project-fixture",
     "motion_seed": "seed-cards-fixture",
-    "coherence_seed": "",
     "width": 1920,
     "height": 1080,
     "fps_num": 24,

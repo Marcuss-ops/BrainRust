@@ -25,6 +25,7 @@
 #![deny(unsafe_code)]
 
 pub mod bullets;
+pub mod content_fingerprint;
 pub mod cue_timing;
 pub mod dates;
 pub mod discourse;
@@ -41,6 +42,7 @@ pub mod lexicon;
 pub mod localized_identity;
 pub mod manifest;
 pub mod narrative;
+pub mod number_words;
 pub mod numbers;
 mod pack_index;
 pub mod phrase_align;
@@ -71,6 +73,6 @@ pub use narrative::{
     DiscourseCounts, DiscourseProjection, DiscourseReference, EntityThread, SceneContinuity,
     ThreadBeat, DISCOURSE_SCHEMA,
 };
-pub use numbers::{parse_unambiguous_value, values_are_comparable, NumericFact};
+pub use numbers::{parse_unambiguous_value, scale_word_factor, values_are_comparable, NumericFact};
 pub use relations::{AssertedRelation, CoMention, RelationStatus, RelationView};
 pub use sentences::{split_sentences, SentenceSpan};

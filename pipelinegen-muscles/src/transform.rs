@@ -110,6 +110,7 @@ pub(super) fn finish_run(
                 source_path: Some(source.to_string()),
                 items: Vec::new(),
                 metadata,
+                preflight: None,
                 error: None,
             },
             Err(error) => failed_response(Some(source.to_string()), error),

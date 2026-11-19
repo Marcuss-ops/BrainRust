@@ -18,9 +18,13 @@ checks out the monorepo without submodules.
 | `testdata/mediaexec/v2/` | PipelineGen | Consumer copy, kept in lockstep. |
 
 The golden set covers the operations both sides certify end-to-end: `probe`,
-`cut_batch` and `normalize`. `render_stock` is intentionally absent: production
-sends a sealed `render_plan`, whose shape is owned by the typed consumers and
-their e2e suites, not by this envelope contract.
+`cut_batch`, `normalize` and `preflight`. `render_stock` is intentionally
+absent: production sends a sealed `render_plan`, whose shape is owned by the
+typed consumers and their e2e suites, not by this envelope contract.
+
+`preflight` is read-only and carries a structured report. The envelope `ok` is
+true whenever the check ran; Go derives the blocking decision from the
+`error`-severity issues, so a blocked plan still returns its reasons.
 
 ## Changing the contract
 

@@ -6,7 +6,6 @@
     "video_id": "video-localized-fixture",
     "project_id": "project-fixture",
     "motion_seed": "seed-localized-fixture",
-    "coherence_seed": "",
     "width": 1920,
     "height": 1080,
     "fps_num": 24,

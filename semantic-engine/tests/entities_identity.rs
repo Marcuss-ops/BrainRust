@@ -165,6 +165,8 @@ fn a_clause_opener_place_survives_script_wide_name_scoring() {
         )],
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     })
     .expect("analysis must succeed");
     let value = serde_json::to_value(manifest).expect("manifest serializes");

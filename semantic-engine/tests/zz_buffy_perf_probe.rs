@@ -82,6 +82,8 @@ fn large_scene_perf_probe() {
         scenes,
         editorial: None,
         entity_safety_cap: 0,
+
+        reference_date: None,
     };
     let started = Instant::now();
     let manifest = analyze_script(&request).expect("analysis");
