@@ -710,6 +710,17 @@ pub(super) fn assign_entity_media(
     }
     let pinned = canvas.entity_style_id.trim();
     let offset = canvas.image_motion_offset;
+    // `entity_split_side` animates position_x and is cleared by the
+    // presentation pass for the below-caption layout. Rotating it here used to
+    // spend a caption slot on a motion the renderer then discards, leaving the
+    // caption with no entrance. The planner owns the rotation, so it filters
+    // the incompatible gesture before it can be selected.
+    let caption_pool: Vec<String> = canvas
+        .entity_caption_motions
+        .iter()
+        .filter(|motion| !motion.to_ascii_lowercase().contains("split_side"))
+        .cloned()
+        .collect();
     let mut caption_ordinal = 0_i64;
     for (ordinal, item) in items
         .iter_mut()
@@ -720,14 +731,13 @@ pub(super) fn assign_entity_media(
         item.image_preset_id = ENTITY_CARD_IMAGE_PRESET.to_string();
         let captioned = !item.entity_caption.trim().is_empty() && !item.asset_refs.is_empty();
         if captioned {
-            if canvas.entity_caption_motions.is_empty() {
+            if caption_pool.is_empty() {
                 return Err(EditorialPlanError::invalid(
                     "canvas.entity_caption_motions",
                     "a non-empty certified pool is required when an entity caption is admitted",
                 ));
             }
-            item.caption_motion_id =
-                rotate_motion(&canvas.entity_caption_motions, offset, caption_ordinal);
+            item.caption_motion_id = rotate_motion(&caption_pool, offset, caption_ordinal);
             item.caption_layout = "below".to_string();
             item.caption_font_family = ENTITY_CAPTION_FONT.to_string();
             item.caption_color = ENTITY_CAPTION_COLOR.to_string();
@@ -986,6 +996,68 @@ mod entity_window_sequencing_tests {
         let items = sequence_scene_image_windows(&scene_windows(), items);
         assert_eq!(items[0].start_us, 50_000_000);
         assert_eq!(items[0].duration_us, 3_000_000);
+    }
+
+    #[test]
+    fn caption_rotation_never_assigns_the_side_slide_motion() {
+        let request: EditorialPlanV2Request = serde_json::from_value(serde_json::json!({
+            "operation": "compile_editorial_plan",
+            "schema_version": "editorial_plan.v2",
+            "plan": {
+                "plan_id": "plan-captions", "video_id": "video-captions",
+                "project_id": "project-captions", "motion_seed": "seed-captions",
+                "width": 1920, "height": 1080, "fps_num": 24, "fps_den": 1
+            },
+            "language": "it",
+            "seal": {"audio_duration_us": 8_000_000},
+            "canvas": {
+                "entity_image_motions": ["entity_one"],
+                "entity_caption_motions": [
+                    "entity_split_side", "entity_caption_rise", "entity_name_pill"
+                ]
+            },
+            "scenes": [{
+                "id": "scene-1", "text": "", "duration_ms": 8000,
+                "timeline_start_us": 0, "duration_us": 8_000_000
+            }]
+        }))
+        .expect("request");
+        let mut items = vec![
+            entity_image("a", 0, 2_000_000),
+            entity_image("b", 2_500_000, 2_000_000),
+            entity_image("c", 5_000_000, 2_000_000),
+        ];
+        for item in &mut items {
+            item.entity_caption = "Ada".to_string();
+            item.asset_refs.push(AssetRefV2 {
+                asset_id: "portrait".to_string(),
+                url: "https://cdn.example/portrait.png".to_string(),
+                sha256: "a".repeat(64),
+                media_type: "image/png".to_string(),
+            });
+        }
+        assign_entity_media(&request, &mut items).expect("assign captions");
+        let captions: Vec<&str> = items
+            .iter()
+            .map(|item| item.caption_motion_id.as_str())
+            .collect();
+        assert!(
+            captions.iter().all(|id| !id.is_empty()),
+            "every caption must keep a real entrance: {captions:?}"
+        );
+        assert!(
+            captions.iter().all(|id| !id.contains("split_side")),
+            "the below-caption lane must never select the side slide: {captions:?}"
+        );
+        assert_eq!(
+            captions,
+            vec![
+                "entity_caption_rise",
+                "entity_name_pill",
+                "entity_caption_rise"
+            ],
+            "the compatible pool must rotate in order"
+        );
     }
 
     #[test]

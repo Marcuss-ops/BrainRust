@@ -60,7 +60,7 @@ Status vocabulary:
 | [19](TICKET-19-linguistic-temporal-alignment.md) | P2 | DONE | `semantic-core::phrase_align` + `align_phrases` + `SemanticEngineAdapter.AlignPhrases` own exact phrase alignment; `CompilePhraseTimings`/`CompileSceneSpeechTimings` project the worker result. The endpoint fallback has no production caller. The entity/moment follow-up is closed 2026-11-17: `audio/phrase_locator.go` and `audio.LocatePhrase` are gone (`refactored@8f159549b`) and the voiceover/entity paths send one `align_phrases` request per segment. |
 | [20](TICKET-20-identity-localization-consolidation.md) | P2 | DONE (2026-11-16) | Rust owns localized identity matching (`localize_identities`: exact, pl/de/tr inflection, ru/tr/pl ordered fallback). Go builds the typed request, validates every span and projects the source id/image/geo; a missing id fails closed. The old Go matcher is test-only. |
 | [21](TICKET-21-hotspot-remediation.md) | P2 | DONE (2026-11-16) | Rust-side hotspot remediation: `render_audio_execution::execute` 419→39 lines with the stages split and `RenderError` at the boundary; `planner.rs` 2,671 production lines split into five modules with `compile_plan` untouched and the frozen goldens byte-identical (64 lib + 30 contract pass); one `entity_search_candidate` factory; one `run_ffprobe` invocation with per-caller wording preserved; `visualner` no-op "fail-closed" dead code deleted; pre-existing `match_like_matches_macro` lint in `phrase_align.rs` fixed. |
-| [22](TICKET-22-QUALITY-GATE-RUST-PORT.md) | P2 | DONE (committed 2026-11-18; bound: v0.3.7 publication) | Rust `script-qa` is the only editorial gate in the working tree: 8 rules, `quality_gate` on `semantic-engine`, 27 frozen Go goldens plus 3 protocol tests green, and a 27/27 byte-identical Go↔Rust differential against the release binary. The Go package (866 lines), `VELOX_RUST_QUALITY_GATE` and the knob are deleted; the pin is `v0.3.7`. The PipelineGen deletion and the BrainRust goldens are uncommitted; publishing the tag is TICKET-27. |
+| [22](TICKET-22-QUALITY-GATE-RUST-PORT.md) | P2 | DONE (committed 2026-11-18; bound: v0.3.7 publication) | Rust `script-qa` is the only editorial gate in the working tree: 8 rules, `quality_gate` on `semantic-engine`, 27 frozen Go goldens plus 3 protocol tests green, and a 27/27 byte-identical Go↔Rust differential against the release binary. The Go package (866 lines), `VELOX_RUST_QUALITY_GATE` and the knob are deleted; the pin is `v0.3.7`. The PipelineGen deletion and the BrainRust goldens are committed; publishing the tag is TICKET-27. |
 | [23](TICKET-23-ordered-sequences.md) | P1 | DONE (2026-11-17) | Ordered sequences: **80/80** items in **20/20** grounded, source-ordered four-member groups; negative set 0 false positives. |
 | [24](TICKET-24-slavic-inflected-toponyms.md) | P1 | DONE (2026-11-17) | Locale-scoped inflected alias table resolves `Poznaniu`, `Krakowie`, `Казани`, `Самаре`; pl/ru contextual queries **2/2 each**, overall **20/20**; objects unchanged at 93/105 vs untouched HEAD. |
 | [25](TICKET-25-chart-bare-contrastive-cue.md) | P2 | DONE (2026-11-17) | Chart recall **20/20**; the bare `a`/`а` rule requires two grounded values and substantive words on both sides, and a 20-paragraph negative set produces **0 charts**. |
@@ -409,12 +409,13 @@ These do not reopen the tickets; they are owner gates outside this checkout:
 - **07** — no consumer to wire: the Rust `imagecatalog` crate is offline by the
   13b decision and the Go `entitycatalog` is the live registry, so the manifest
   saving stays latent. Adopting the crate would replace `entitycatalog`.
-- **22 / release** — `v0.3.6` is pinned in `refactored` and predates `940abcc`
-  (localized plans with disabled editorial cards), `d3b77d6` (`quality_gate`)
-  and the 23–25 closeout. A local `v0.3.7` release candidate is prepared
-  (eight ICU 72 assets, notes in `docs/releases/v0.3.7.md`) but not published;
-  the pin stays `v0.3.6`. Publish the tag, pin it and delete the Go gate before
-  closing TICKET-22.
+- **22 / release** — `refactored/make/build.mk` pins `v0.3.7` and the Go gate
+  (`usecase/qualitygate`) is deleted, while the tag `v0.3.7` (`2ca3603`) is
+  still local and `dist-v0.3.7/` was overwritten with HEAD binaries
+  (`git_sha 8dda410 != 2ca3603`). `HEAD` (`359d29e`) also carries `TICKET-29`,
+  `31`, `37`, `38`, `39` and multilingual overlay planning; publishing
+  `v0.3.7` from `2ca3603` or cutting `v0.3.8` (once the remaining 3 planner
+  files are formatted and committed) is tracked in TICKET-27.
 - **08/10/26** — human gold annotations, the multimodal model/schema/calibrated
   association set, and the provider precision@10/cascade/independent judge are
   still required.

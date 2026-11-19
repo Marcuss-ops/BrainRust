@@ -259,7 +259,7 @@ pub(super) fn resolve_overlaps(
         input
             .iter()
             .any(|item| item.has_map)
-            .then(|| crate::MapPresentationWindow {
+            .then_some(crate::MapPresentationWindow {
                 camera_duration_us: super::map_groups::MAP_CAMERA_DURATION_US,
                 camera_lead_us: super::map_groups::MAP_CAMERA_LEAD_US,
                 pin_read_duration_us: super::map_groups::MAP_PIN_READ_DURATION_US,

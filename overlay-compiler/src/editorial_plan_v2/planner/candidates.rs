@@ -420,6 +420,13 @@ pub(super) fn assign_short_phrase_motions(
 ) {
     let canvas = &request.canvas;
     let pin = canvas.short_phrase_motion.trim();
+    // One cursor per word-count bucket plus one plan-wide used set. The old
+    // independent hash per item could pick the same gesture twice (and never
+    // guaranteed that the ten certified typewriter gestures appeared at all).
+    // Order is still deterministic: the bucket rotates from a plan-stable
+    // offset, and the used set only skips a gesture already on screen.
+    let mut next_index: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut used: BTreeSet<String> = BTreeSet::new();
     for item in items.iter_mut() {
         if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
             continue;
@@ -431,28 +438,74 @@ pub(super) fn assign_short_phrase_motions(
         if words == 0 || words > 5 {
             continue;
         }
-        let pool: Vec<&str> = if pin.is_empty() {
-            canvas
-                .short_phrase_motions_by_word
-                .get(&words.to_string())
-                .map(|bucket| bucket.iter().map(String::as_str).collect())
-                .unwrap_or_default()
-        } else {
-            vec![pin]
-        };
-        if pool.is_empty() {
+        if !pin.is_empty() {
+            item.motion_id = pin.to_string();
             continue;
         }
-        if let Some(motion) = seeded_preset(
-            &request.plan.plan_id,
-            &item.scene_id,
-            &item.id,
-            "short_phrase_presentation",
-            &pool,
-        ) {
-            item.motion_id = motion;
+        let bucket: Vec<&str> = canvas
+            .short_phrase_motions_by_word
+            .get(&words.to_string())
+            .map(|bucket| bucket.iter().map(String::as_str).collect())
+            .unwrap_or_default();
+        if bucket.is_empty() {
+            continue;
         }
+        let ordered = ordered_short_phrase_pool(&bucket, &request.plan.plan_id, words);
+        let start = *next_index.entry(words).or_insert(0);
+        let mut chosen = None;
+        for step in 0..ordered.len() {
+            let index = (start + step) % ordered.len();
+            let candidate = ordered[index];
+            if !used.contains(candidate) {
+                chosen = Some((index, candidate.to_string()));
+                break;
+            }
+        }
+        // Every candidate was already used in this plan (a pool smaller than
+        // the phrase count): keep rotating deterministically instead of
+        // leaving the renderer without an entrance.
+        let (index, motion) = chosen.unwrap_or_else(|| {
+            let index = start % ordered.len();
+            (index, ordered[index].to_string())
+        });
+        used.insert(motion.clone());
+        next_index.insert(words, index + 1);
+        item.motion_id = motion;
     }
+}
+
+/// Orders one short-phrase bucket for an actual run of phrases.
+///
+/// The certified typewriter family leads the rotation, so the first ten short
+/// phrases of a plan really show the ten distinct gestures the catalog and the
+/// runtime both certify. The legacy short gestures stay in the pool and appear
+/// after the typewriter block, so this narrows no capability. The typewriter
+/// block is rotated by a plan-stable offset: every run starts on a different
+/// gesture, but replaying the same plan reproduces the same order.
+fn ordered_short_phrase_pool<'a>(pool: &[&'a str], plan_id: &str, words: usize) -> Vec<&'a str> {
+    let mut typewriter: Vec<&str> = pool
+        .iter()
+        .copied()
+        .filter(|id| id.starts_with("typewriter_"))
+        .collect();
+    let typewriter_count = typewriter.len();
+    if typewriter_count > 0 {
+        let offset = seeded_index(
+            plan_id,
+            "",
+            &words.to_string(),
+            "short_phrase_typewriter_rotation",
+            typewriter_count,
+        )
+        .unwrap_or(0);
+        typewriter.rotate_left(offset % typewriter_count);
+    }
+    typewriter.extend(
+        pool.iter()
+            .copied()
+            .filter(|id| !id.starts_with("typewriter_")),
+    );
+    typewriter
 }
 
 /// Rotates the long-phrase entrance pool for every 6+ word phrase. The long
@@ -502,14 +555,17 @@ fn is_editorial_bullet(params: Option<&Value>) -> bool {
         .is_some_and(|role| matches!(role, "scene_bullet" | "chapter_bullet"))
 }
 
-pub(super) fn seeded_preset(
+/// Seed index shared by every deterministic presentation sampler. It mirrors
+/// Go's `digest.SHA256Bytes`: the first eight ASCII hex bytes form a
+/// big-endian integer, modulo the candidate count.
+fn seeded_index(
     job_id: &str,
     scene_id: &str,
     item_id: &str,
     family: &str,
-    candidates: &[&str],
-) -> Option<String> {
-    if candidates.is_empty() {
+    len: usize,
+) -> Option<usize> {
+    if len == 0 {
         return None;
     }
     let encoded = serde_json::to_vec(&PresetSeed {
@@ -519,13 +575,20 @@ pub(super) fn seeded_preset(
         preset_family: family,
     })
     .ok()?;
-    // Go's digest.SHA256Bytes returns the lowercase hex string, and the sampler
-    // reads the first eight ASCII hex bytes as a big-endian integer. Keeping
-    // the hex form here is what makes the two planners choose the same motion.
     let hex = format!("{:x}", Sha256::digest(encoded));
     let bytes: [u8; 8] = hex.as_bytes().get(..8)?.try_into().ok()?;
-    let index = u64::from_be_bytes(bytes) % candidates.len() as u64;
-    Some(candidates[index as usize].to_string())
+    Some((u64::from_be_bytes(bytes) % len as u64) as usize)
+}
+
+pub(super) fn seeded_preset(
+    job_id: &str,
+    scene_id: &str,
+    item_id: &str,
+    family: &str,
+    candidates: &[&str],
+) -> Option<String> {
+    let index = seeded_index(job_id, scene_id, item_id, family, candidates.len())?;
+    Some(candidates[index].to_string())
 }
 
 /// Go's `itemID`: lowercase the concatenated identity, collapse every run of

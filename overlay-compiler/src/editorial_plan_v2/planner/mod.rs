@@ -828,6 +828,59 @@ mod tests {
     }
 
     #[test]
+    fn short_phrase_rotation_covers_every_typewriter_gesture_without_repeats() {
+        let mut request = request();
+        let typewriters = [
+            "typewriter_glyph_drift_short",
+            "typewriter_glyph_square_short",
+            "typewriter_impact_push_short",
+            "typewriter_rapid_fire_short",
+            "typewriter_slow_type_short",
+            "typewriter_soft_glide_short",
+            "typewriter_staccato_short",
+            "typewriter_word_burst_short",
+            "typewriter_word_lift_short",
+            "typewriter_word_step_short",
+        ];
+        let mut bucket = vec!["legacy_first".to_string(), "legacy_second".to_string()];
+        bucket.extend(typewriters.iter().map(|id| id.to_string()));
+        request.canvas.short_phrase_motions_by_word =
+            std::collections::BTreeMap::from([("3".to_string(), bucket)]);
+        let build = || {
+            let mut items: Vec<PlanItemV2> = (0..12)
+                .map(|index| phrase_item(&format!("p{index}"), "tre parole qui", None))
+                .collect();
+            assign_short_phrase_motions(&mut items, &request);
+            items
+                .into_iter()
+                .map(|item| item.motion_id)
+                .collect::<Vec<_>>()
+        };
+        let motions = build();
+        assert_eq!(
+            motions,
+            build(),
+            "replaying the same plan must pick the same rotation"
+        );
+        for motion in &motions[..10] {
+            assert!(
+                typewriters.contains(&motion.as_str()),
+                "the first ten phrases must show the typewriter family, got {motion:?}"
+            );
+        }
+        let unique: std::collections::BTreeSet<&str> = motions.iter().map(String::as_str).collect();
+        assert_eq!(
+            unique.len(),
+            motions.len(),
+            "a twelve-phrase run must not repeat a gesture: {motions:?}"
+        );
+        assert!(
+            motions[10..].iter().any(|id| id.starts_with("legacy_")),
+            "legacy short gestures must still be reachable after the typewriter block"
+        );
+    }
+
+    #[test]
     fn short_phrase_motion_is_stable_and_length_specific() {
         let mut request = request();
         request.canvas.short_phrase_motions_by_word = std::collections::BTreeMap::from([

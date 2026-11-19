@@ -104,9 +104,10 @@ implementabile, la prova di regressione no.
 ## 4. Piano editoriale spiegabile — BLOCKED (working tree del planner)
 
 `overlay-compiler/src/editorial_plan_v2/planner/` ha già i passi `candidates`,
-`coalesce`, `media`, `presentation`. Ma il planner è **modificato e non
-committato** (12 file fra planner, fixture e test): aggiungere un campo
-`decisions` adesso sovrapporrebbe i golden a un working tree non congelato.
+`coalesce`, `media`, `presentation`. Il grosso del planner è atterrato in
+`359d29e`, ma restano **3 file modificati e non committati** (`candidates.rs`,
+`media.rs`, `mod.rs`): aggiungere un campo `decisions` adesso
+sovrapporrebbe i golden a un working tree non congelato.
 
 Passi:
 
