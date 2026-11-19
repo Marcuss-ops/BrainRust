@@ -4,7 +4,7 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-19. **29 DONE/CLOSED, 1 PARTIAL (30), 5 OPEN (32–36), 4 BLOCKED (08, 10, 26, 27).**
+Last verified: 2026-11-19. **29 DONE/CLOSED, 1 PARTIAL (30), 6 OPEN (32–36, 40), 4 BLOCKED (08, 10, 26, 27).**
 TICKET-37 adds the persistent manifest cache, TICKET-38 the preflight engine
 and TICKET-39 their cross-repo wire to the Go consumer. The
 six-workstream performance and product plan with acceptance criteria and
@@ -78,6 +78,7 @@ Status vocabulary:
 | [37](TICKET-37-persistent-manifest-cache.md) | P1 | CLOSED (2026-11-19) | Opt-in disk cache keyed by SHA-256 over the request plus a cache identity (embedded lexicon content including `legal/index.json`, build hash, ICU, model presence): atomic publishes, fail-closed reads, mtime LRU bound. 23 unit + 5 fingerprint + 4 cross-process tests (restart, 8 concurrent writers, model-profile separation, broken dir); T1–T15 observed; memory-only default unchanged. |
 | [38](TICKET-38-preflight-engine.md) | P2 | CLOSED (2026-11-19) | Pure pre-render checks for assets, subtitle timing and per-track overlays (including enclosed overlays), with stable codes and an advisory/blocking split. 14 unit + 4 real-ffprobe tests; no writes. |
 | [39](TICKET-39-cross-repo-wire.md) | P2 | CLOSED (2026-11-19) | `preflight` is a `mediaexec.v2` operation (schemas + golden + consumer copy) with a typed Go caller and a Go-owned `Blocked` decision; `NewSemanticEngineExecutor` forwards `SEMANTIC_CACHE_DIR`/`SEMANTIC_CACHE_MAX_BYTES`, and a `cached:true` hit is logged. Verified cold 3.64 s vs warm 1.56 s on a repeated batch. Deployment needs the release that carries the operation (TICKET-27). |
+| [40](TICKET-40-entity-index-growth.md) | P1 | OPEN | Curated, provenance-tracked growth of the local entity index to provide confusable senses and gold coverage for TICKET-35. |
 
 ## Verification — 2026-11-19 (TICKET-31, relative dates)
 

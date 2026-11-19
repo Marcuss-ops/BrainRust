@@ -31,7 +31,8 @@ Chronon.
 | [35](TICKET-35-entity-disambiguation.md) | Explainable entity disambiguation | — | M |
 | [36](TICKET-36-coreference-pronouns.md) | Pronoun / role-nominal coreference | 33 (roles), 35 | M |
 
-Recommended order: **35 → 29 → 30 → 31 → 32 → 36 → 33 → 34.**
+Recommended order: **40 → 35 → 32 → 33 → 36 → 34**, alongside the completed
+29/31 sequence and the remaining TICKET-30 acceptance gates.
 35 first because a wrong link ("Washington" the person vs the city) poisons
 places, roles and events downstream, and it also prevents wrong images today.
 
@@ -92,14 +93,14 @@ inventare dati. Il motivo è verificabile nei file, non una stima:
 | 32 | `lexicon/place_index_v1.json` e `build_place_index.py` | entrambi assenti; servono GeoNames/Wikidata con licenza e data di retrieval |
 | 33 | `lexicon/roles/<lang>.json` (~80 codici × 10 lingue), relazioni e età | nessun file ruoli o `person_roles` nel manifest |
 | 34 | `lexicon/events/<lang>.json` (12 tipi × 10 lingue) e merge cross-scena | nessun `event.rs` o `events` nel manifest |
-| 35 | Indice KB con ≥40 superfici confondibili × 2–3 sensi | `entity_index_v1.json` ha **10 entry** e **2 alias ambigui** (Nike, ESA); la crescita dell'indice è un non-goal esplicito del ticket |
+| 35 | Explainability/scoring | **OPEN**; acceptance gold requires index coverage tracked separately by TICKET-40 |
 | 36 | `pronouns.json` strutturato per lingua e gold ≥40 × 10 | i pronomi sono ancora `pronouns.txt` piatti; nessun `resolution_basis` |
+| 40 | Crescita indice entity per gold ambiguo | **OPEN**; fonte/licenza/provenienza, builder, collision report e ≥40 superfici confondibili |
 
 Conseguenza operativa: 29 e 31 sono chiusi, 30 è parziale; restano da
-completare la sua matrice gold e i ticket 32–36. TICKET-35 richiede ancora
-un ticket separato di crescita dell'indice: dichiararlo DONE oggi richiederebbe
-di aggiungere ~100 righe KB e di cambiare i link
-osservati dai golden esistenti, cioè un intervento diverso e non misurato.
+completare la sua matrice gold e i ticket 32–36. TICKET-35 dipende da TICKET-40
+per la crescita dell'indice; lo scorer resta invariato finché non esistono un
+seed confondibile con provenienza verificata e i relativi fixture di regressione.
 
 ## Out of scope for the whole series
 

@@ -2,7 +2,7 @@
 
 - Priority: P1
 - Status: OPEN
-- Depends on: —
+- Depends on: TICKET-40 (confusable index coverage)
 - Files: `semantic-core/src/entity_linker.rs`, `lexicon/entity_index_v1.json`,
   `semantic-engine/src/identity_lookup.rs`, `LinkedEntity`
 
