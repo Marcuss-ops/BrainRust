@@ -6,7 +6,7 @@ each of the 13 unit dimensions, plus scale, approximate qualifier and period
 cases; it also includes 20 negative numeric forms per language. Three extra
 Italian cases verify an exact ratio and reject cross-currency and
 cross-dimension comparisons. The matrix totals 1,469 positive quantities and
-217 negative forms, and reports value/scale, unit, qualifier, period,
+220 negative forms, and reports value/scale, unit, qualifier, period,
 comparison, grounding and negative-set measurements by language and dimension.
 
 The matrix is explicitly
