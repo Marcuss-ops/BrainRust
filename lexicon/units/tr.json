@@ -1,0 +1,233 @@
+{
+  "schema": "units.v1",
+  "language": "tr",
+  "units": [
+    {
+      "surfaces": [
+        "€",
+        "eur",
+        "euro"
+      ],
+      "dimension": "currency",
+      "code": "EUR",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "$",
+        "usd",
+        "us$",
+        "dolar",
+        "doları"
+      ],
+      "dimension": "currency",
+      "code": "USD",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "£",
+        "gbp",
+        "sterlin"
+      ],
+      "dimension": "currency",
+      "code": "GBP",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "%",
+        "yüzde"
+      ],
+      "dimension": "percent",
+      "code": "PCT",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "km",
+        "kilometre",
+        "kilometreler"
+      ],
+      "dimension": "length",
+      "code": "km",
+      "factor_to_base": 1000
+    },
+    {
+      "surfaces": [
+        "m",
+        "metre",
+        "metreler"
+      ],
+      "dimension": "length",
+      "code": "m",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "kg",
+        "kilogram"
+      ],
+      "dimension": "mass",
+      "code": "kg",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "g",
+        "gram"
+      ],
+      "dimension": "mass",
+      "code": "g",
+      "factor_to_base": 0.001
+    },
+    {
+      "surfaces": [
+        "km2",
+        "km²",
+        "kilometrekare"
+      ],
+      "dimension": "area",
+      "code": "km2",
+      "factor_to_base": 1000000.0
+    },
+    {
+      "surfaces": [
+        "l",
+        "litre"
+      ],
+      "dimension": "volume",
+      "code": "L",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "yıl",
+        "yıllar"
+      ],
+      "dimension": "time",
+      "code": "year",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "km/s"
+      ],
+      "dimension": "speed",
+      "code": "km/h",
+      "factor_to_base": 0.2777777777777778
+    },
+    {
+      "surfaces": [
+        "°c",
+        "santigrat"
+      ],
+      "dimension": "temperature",
+      "code": "Cel",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "birim",
+        "adet"
+      ],
+      "dimension": "count",
+      "code": "count",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "kişi"
+      ],
+      "dimension": "population",
+      "code": "person",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "kwh"
+      ],
+      "dimension": "energy",
+      "code": "kWh",
+      "factor_to_base": 3600000
+    },
+    {
+      "surfaces": [
+        "mwh"
+      ],
+      "dimension": "energy",
+      "code": "MWh",
+      "factor_to_base": 3600000000
+    },
+    {
+      "surfaces": [
+        "gwh"
+      ],
+      "dimension": "energy",
+      "code": "GWh",
+      "factor_to_base": 3600000000000
+    },
+    {
+      "surfaces": [
+        "mb"
+      ],
+      "dimension": "data",
+      "code": "MB",
+      "factor_to_base": 1000000.0
+    },
+    {
+      "surfaces": [
+        "gb"
+      ],
+      "dimension": "data",
+      "code": "GB",
+      "factor_to_base": 1000000000.0
+    },
+    {
+      "surfaces": [
+        "tb"
+      ],
+      "dimension": "data",
+      "code": "TB",
+      "factor_to_base": 1000000000000.0
+    }
+  ],
+  "qualifiers": {
+    "approx": [
+      "yaklaşık",
+      "civarında"
+    ],
+    "lower_bound": [
+      "en az",
+      "fazla",
+      "üzerinde"
+    ],
+    "upper_bound": [
+      "en fazla",
+      "kadar",
+      "altında"
+    ],
+    "range": [
+      "arasında",
+      "ile"
+    ]
+  },
+  "predicates": {
+    "revenue": [
+      "gelir",
+      "ciro"
+    ],
+    "population": [
+      "nüfus"
+    ],
+    "height": [
+      "yükseklik"
+    ],
+    "distance": [
+      "mesafe"
+    ],
+    "energy_use": [
+      "tüketim"
+    ]
+  }
+}

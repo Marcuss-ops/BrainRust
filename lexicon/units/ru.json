@@ -1,0 +1,247 @@
+{
+  "schema": "units.v1",
+  "language": "ru",
+  "units": [
+    {
+      "surfaces": [
+        "€",
+        "eur",
+        "евро"
+      ],
+      "dimension": "currency",
+      "code": "EUR",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "$",
+        "usd",
+        "us$",
+        "доллар",
+        "доллара",
+        "долларов"
+      ],
+      "dimension": "currency",
+      "code": "USD",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "£",
+        "gbp",
+        "фунт",
+        "фунта",
+        "фунтов"
+      ],
+      "dimension": "currency",
+      "code": "GBP",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "%",
+        "процент",
+        "процента",
+        "процентов"
+      ],
+      "dimension": "percent",
+      "code": "PCT",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "км",
+        "километр",
+        "километра",
+        "километров"
+      ],
+      "dimension": "length",
+      "code": "km",
+      "factor_to_base": 1000
+    },
+    {
+      "surfaces": [
+        "м",
+        "метр",
+        "метра",
+        "метров"
+      ],
+      "dimension": "length",
+      "code": "m",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "кг",
+        "килограмм",
+        "килограмма"
+      ],
+      "dimension": "mass",
+      "code": "kg",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "г",
+        "грамм",
+        "грамма"
+      ],
+      "dimension": "mass",
+      "code": "g",
+      "factor_to_base": 0.001
+    },
+    {
+      "surfaces": [
+        "км2",
+        "км²"
+      ],
+      "dimension": "area",
+      "code": "km2",
+      "factor_to_base": 1000000.0
+    },
+    {
+      "surfaces": [
+        "л",
+        "литр",
+        "литра"
+      ],
+      "dimension": "volume",
+      "code": "L",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "год",
+        "года",
+        "лет"
+      ],
+      "dimension": "time",
+      "code": "year",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "км/ч"
+      ],
+      "dimension": "speed",
+      "code": "km/h",
+      "factor_to_base": 0.2777777777777778
+    },
+    {
+      "surfaces": [
+        "°c",
+        "градус цельсия"
+      ],
+      "dimension": "temperature",
+      "code": "Cel",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "единица",
+        "штука",
+        "штук"
+      ],
+      "dimension": "count",
+      "code": "count",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "житель",
+        "жителя",
+        "жителей",
+        "человек"
+      ],
+      "dimension": "population",
+      "code": "person",
+      "factor_to_base": 1
+    },
+    {
+      "surfaces": [
+        "квтч"
+      ],
+      "dimension": "energy",
+      "code": "kWh",
+      "factor_to_base": 3600000
+    },
+    {
+      "surfaces": [
+        "мвтч"
+      ],
+      "dimension": "energy",
+      "code": "MWh",
+      "factor_to_base": 3600000000
+    },
+    {
+      "surfaces": [
+        "гвтч"
+      ],
+      "dimension": "energy",
+      "code": "GWh",
+      "factor_to_base": 3600000000000
+    },
+    {
+      "surfaces": [
+        "мб"
+      ],
+      "dimension": "data",
+      "code": "MB",
+      "factor_to_base": 1000000.0
+    },
+    {
+      "surfaces": [
+        "гб"
+      ],
+      "dimension": "data",
+      "code": "GB",
+      "factor_to_base": 1000000000.0
+    },
+    {
+      "surfaces": [
+        "тб"
+      ],
+      "dimension": "data",
+      "code": "TB",
+      "factor_to_base": 1000000000000.0
+    }
+  ],
+  "qualifiers": {
+    "approx": [
+      "около",
+      "примерно"
+    ],
+    "lower_bound": [
+      "не менее",
+      "более",
+      "свыше"
+    ],
+    "upper_bound": [
+      "до",
+      "не более",
+      "менее"
+    ],
+    "range": [
+      "между",
+      "от"
+    ]
+  },
+  "predicates": {
+    "revenue": [
+      "выручка",
+      "доход"
+    ],
+    "population": [
+      "население"
+    ],
+    "height": [
+      "высота"
+    ],
+    "distance": [
+      "расстояние"
+    ],
+    "energy_use": [
+      "потребление"
+    ]
+  }
+}

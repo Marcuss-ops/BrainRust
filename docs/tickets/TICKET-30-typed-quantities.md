@@ -1,7 +1,7 @@
 # TICKET-30 — numeric facts have no unit, scale, year or comparison
 
 - Priority: P1
-- Status: OPEN
+- Status: PARTIAL (2026-11-19)
 - Depends on: TICKET-29
 - Files: `semantic-core/src/{numbers.rs,quantity.rs (new)}`,
   `lexicon/units.json`, `semantic-engine` (new `quantities.rs`),
@@ -103,19 +103,33 @@ verifying that a number is true, forecasting, extracting tables.
 4. `quantity_comparisons` and the chart bridge.
 5. Remaining languages + gold + `score_long_gold.py` metrics.
 
-## Prossimi passi (2026-11-19)
+## Avanzamento implementazione (2026-11-19)
 
-1. **Attende TICKET-29** (senza numeri in parole metà delle quantità non
-   esiste). Nel frattempo si può chiudere `lexicon/units.json` + generatore
-   (it/en), che non dipende dallo scanner.
-2. **Poi `quantity.rs` + attachment window** con i test sui confini
-   (≤ 3 token dopo, ≤ 1 prima per i simboli); `3 milioni di abitanti` deve
-   uscire come `dimension: count`.
-3. **Periodo/soggetto** riusando `dates` e `facts.rs`; mai oltre il confine di
-   frase.
-4. **Confronti** solo tra stessa dimensione e stessa unità; nessuna coppia
-   cross-currency.
+- `lexicon/units.json` ora definisce unità, fattori, qualificatori e cue di
+  predicato per le 11 lingue; `build_units.py` genera i pack inclusi da Rust e
+  la CI ne verifica la corrispondenza.
+- `Quantity`/`QuantityComparison` sono proiettati in `SceneManifest`; il
+  worker collega gli span numerici grounded a unità adiacenti, scala, date
+  nello stesso periodo frasale e fatti entità con soggetto/predicato/status.
+  Gli intervalli condividono un `range_id`; i confronti esatti richiedono
+  dimensione e codice unità uguali e, per valuta, lo stesso anno.
+- Il consumer Go decodifica e convalida span, unità, riferimenti e periodi; i
+  test mirati coprono euro scalati, popolazione, percentuali, intervalli,
+  confronti incompatibili, anni/frequenze negative e un campione di unità per
+  ogni lingua.
 
-Gate: 30 quantità per lingua con valore+scala esatti sul 100 % degli emessi,
-unit recall ≥ 90 %, binding del periodo ≥ 95 %, negativi (anni, telefoni,
-`3 volte`) a 0 falsi positivi.
+Il ticket resta **PARTIAL**: la matrice gold/negative richiesta e le metriche
+di recall/precisione per lingua non sono ancora state raggiunte, e il bridge
+chart non è ancora alimentato dai record `quantities` come sorgente dei
+metadati.
+
+## Lavoro rimanente
+
+1. Aggiungere la matrice gold positiva e negativa per lingua e la metrica
+   riproducibile richiesta dai criteri; i test unitari correnti non sostituiscono
+   misure di recall/precisione.
+2. Collegare i record grounded `quantities` al bridge chart, mantenendo invariati
+   i golden esistenti e usando unità/periodo già estratti invece di ricalcolarli
+   dai numeri.
+3. Eseguire la matrice e riportare i risultati per lingua. Solo se tutti i
+   threshold di accettazione sono soddisfatti, aggiornare lo stato a CLOSED.

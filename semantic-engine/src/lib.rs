@@ -27,6 +27,7 @@ pub(crate) mod candidates;
 pub(crate) mod facts;
 pub(crate) mod grouping;
 pub(crate) mod proposals;
+mod quantities;
 
 use candidates::*;
 use facts::*;
@@ -75,6 +76,7 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
         entity_index: semantic_core::entity_linker::entity_index_version().to_string(),
         numbers: "number_words.v1".to_string(),
         dates: "relative_time.v1".to_string(),
+        quantities: "typed_quantities.v1".to_string(),
     }
 }
 
@@ -146,6 +148,8 @@ fn rejected_scene(
             identities: Vec::new(),
             relations: RelationView::default(),
             numeric_facts: Vec::new(),
+            quantities: Vec::new(),
+            quantity_comparisons: Vec::new(),
             temporal_facts: Vec::new(),
             entity_facts: Vec::new(),
             bullets: Vec::new(),
@@ -345,7 +349,6 @@ fn analyze_scene_with_search(
         &mut analysis,
     );
     let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
-
     let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context);
     let mut entity_facts = extract_entity_facts(
         source,
@@ -370,6 +373,10 @@ fn analyze_scene_with_search(
     for fact in &mut entity_facts {
         fact.finalize();
     }
+    let mut quantities =
+        quantities::extract(source, language, &analysis.numeric_facts, &temporal_facts);
+    quantities::attach_grounded_facts(&mut quantities, &entity_facts);
+    let quantity_comparisons = quantities::comparisons(source, language, &quantities);
     let built = micro::build(
         language,
         &scene.scene_id,
@@ -488,6 +495,8 @@ fn analyze_scene_with_search(
             identities: registry.identities().to_vec(),
             relations,
             numeric_facts: analysis.numeric_facts,
+            quantities,
+            quantity_comparisons,
             temporal_facts,
             entity_facts,
             important_words,

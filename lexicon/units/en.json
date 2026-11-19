@@ -1,0 +1,266 @@
+{
+  "schema": "units.v1",
+  "language": "en",
+  "units": [
+    {
+      "surfaces": [
+        "€",
+        "eur",
+        "euro",
+        "euros"
+      ],
+      "dimension": "currency",
+      "code": "EUR",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "$",
+        "usd",
+        "us$",
+        "dollar",
+        "dollars"
+      ],
+      "dimension": "currency",
+      "code": "USD",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "£",
+        "gbp",
+        "pound",
+        "pounds"
+      ],
+      "dimension": "currency",
+      "code": "GBP",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "%",
+        "percent",
+        "percentage"
+      ],
+      "dimension": "percent",
+      "code": "PCT",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "km",
+        "kilometer",
+        "kilometers"
+      ],
+      "dimension": "length",
+      "code": "km",
+      "factor_to_base": 1000.0
+    },
+    {
+      "surfaces": [
+        "m",
+        "meter",
+        "meters"
+      ],
+      "dimension": "length",
+      "code": "m",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "cm",
+        "centimeter",
+        "centimeters"
+      ],
+      "dimension": "length",
+      "code": "cm",
+      "factor_to_base": 0.01
+    },
+    {
+      "surfaces": [
+        "kg",
+        "kilogram",
+        "kilograms"
+      ],
+      "dimension": "mass",
+      "code": "kg",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "g",
+        "gram",
+        "grams"
+      ],
+      "dimension": "mass",
+      "code": "g",
+      "factor_to_base": 0.001
+    },
+    {
+      "surfaces": [
+        "km²",
+        "km2",
+        "square kilometers"
+      ],
+      "dimension": "area",
+      "code": "km2",
+      "factor_to_base": 1000000.0
+    },
+    {
+      "surfaces": [
+        "l",
+        "liter",
+        "liters",
+        "litre",
+        "litres"
+      ],
+      "dimension": "volume",
+      "code": "L",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "year",
+        "years",
+        "per year",
+        "annually"
+      ],
+      "dimension": "time",
+      "code": "year",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "km/h",
+        "kph",
+        "kilometers per hour"
+      ],
+      "dimension": "speed",
+      "code": "km/h",
+      "factor_to_base": 0.2777777777777778
+    },
+    {
+      "surfaces": [
+        "°c",
+        "celsius"
+      ],
+      "dimension": "temperature",
+      "code": "Cel",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "unit",
+        "units",
+        "piece",
+        "pieces"
+      ],
+      "dimension": "count",
+      "code": "count",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "inhabitant",
+        "inhabitants",
+        "people",
+        "residents"
+      ],
+      "dimension": "population",
+      "code": "person",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "kwh"
+      ],
+      "dimension": "energy",
+      "code": "kWh",
+      "factor_to_base": 3600000.0
+    },
+    {
+      "surfaces": [
+        "mwh"
+      ],
+      "dimension": "energy",
+      "code": "MWh",
+      "factor_to_base": 3600000000.0
+    },
+    {
+      "surfaces": [
+        "gwh"
+      ],
+      "dimension": "energy",
+      "code": "GWh",
+      "factor_to_base": 3600000000000.0
+    },
+    {
+      "surfaces": [
+        "mb"
+      ],
+      "dimension": "data",
+      "code": "MB",
+      "factor_to_base": 1000000.0
+    },
+    {
+      "surfaces": [
+        "gb"
+      ],
+      "dimension": "data",
+      "code": "GB",
+      "factor_to_base": 1000000000.0
+    },
+    {
+      "surfaces": [
+        "tb"
+      ],
+      "dimension": "data",
+      "code": "TB",
+      "factor_to_base": 1000000000000.0
+    }
+  ],
+  "qualifiers": {
+    "approx": [
+      "about",
+      "around",
+      "approximately",
+      "roughly",
+      "nearly"
+    ],
+    "lower_bound": [
+      "at least",
+      "more than",
+      "over"
+    ],
+    "upper_bound": [
+      "up to",
+      "at most",
+      "less than"
+    ],
+    "range": [
+      "between",
+      "from"
+    ]
+  },
+  "predicates": {
+    "revenue": [
+      "revenue",
+      "turnover",
+      "sales"
+    ],
+    "population": [
+      "population"
+    ],
+    "height": [
+      "height"
+    ],
+    "distance": [
+      "distance",
+      "length"
+    ],
+    "energy_use": [
+      "consumption",
+      "energy use"
+    ]
+  }
+}

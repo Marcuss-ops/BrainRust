@@ -4,7 +4,7 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-19. **29 DONE/CLOSED (01–07, 09, 11–25, 28–29, 31, 37–39), 6 OPEN (30, 32–36, semantic expansion, 2026-11-19), 4 BLOCKED (08, 10, 26, 27).**
+Last verified: 2026-11-19. **29 DONE/CLOSED, 1 PARTIAL (30), 5 OPEN (32–36), 4 BLOCKED (08, 10, 26, 27).**
 TICKET-37 adds the persistent manifest cache, TICKET-38 the preflight engine
 and TICKET-39 their cross-repo wire to the Go consumer. The
 six-workstream performance and product plan with acceptance criteria and
@@ -69,7 +69,7 @@ Status vocabulary:
 | [28](TICKET-28-imagecatalog-retirement.md) | P2 | CLOSED (2026-11-18) | The Rust `imagecatalog` crate is retired: workspace entry, crate and tests deleted, shared policy fixture moved under the surviving Go `entitycatalog` test. |
 | [31](TICKET-31-relative-dates.md) | P1 | CLOSED (2026-11-19) | Relative dates in 11 languages: `relative_time.json`, token scan, explicit/reference/narrative anchor, calendar-correct arithmetic, `TemporalFact.relative` + `derived`, optional `ScriptRequest.reference_date` in fingerprint/cache, `AnalyzerVersions.dates`; 231-case positive + 220-case negative matrices and 9 focused tests. |
 | [29](TICKET-29-spoken-number-words.md) | P1 | CLOSED (2026-11-19) | Word numbers in 11 languages: conjunctions, additive/multiplicative runs, fractions, additive/fused halves, approximators and idiom negatives; `NumericFact.form`; 20 positive + 20 negative cases per language (assistant draft), mixed `3 milioni e mezzo` = 3.5e6, `build_language_packs.py --check` gate, `AnalyzerVersions.numbers` bump. 119 visualner + 225 semantic-core lib tests and all semantic-engine integration suites green. |
-| [30](TICKET-30-typed-quantities.md) | P1 | OPEN | Typed quantities: unit, scale, currency, period, qualifier and same-dimension comparisons. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [30](TICKET-30-typed-quantities.md) | P1 | PARTIAL | Unit packs for 11 languages, grounded typed quantities, scale/period/predicate attachment, bounded range IDs, compatible exact comparisons and Go validation are implemented. The full per-language positive/negative gold and acceptance metrics remain open. |
 | [32](TICKET-32-places-and-routes.md) | P1 | OPEN | Places with kind, coordinates, hierarchy, plus ordered routes (`da A a B`). Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
 | [33](TICKET-33-person-roles.md) | P2 | OPEN | People with role, affiliation, tense, family/work relations and age. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
 | [34](TICKET-34-events.md) | P2 | OPEN | Event frames: type, participants, place, date, merged across scenes. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |

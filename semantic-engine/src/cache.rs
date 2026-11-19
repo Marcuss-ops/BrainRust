@@ -185,6 +185,7 @@ mod tests {
             numbers: "number_words.v1".to_string(),
 
             dates: "relative_time.v1".to_string(),
+            quantities: "typed_quantities.v1".to_string(),
         }
     }
 
@@ -220,6 +221,7 @@ mod tests {
             numbers: "number_words.v1".to_string(),
 
             dates: "relative_time.v1".to_string(),
+            quantities: "typed_quantities.v1".to_string(),
         };
         let v2 = AnalyzerVersions {
             semantic_core: "0.2.0".to_string(),

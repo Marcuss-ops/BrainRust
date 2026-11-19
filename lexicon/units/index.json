@@ -1,0 +1,16 @@
+{
+  "schema": "units_index.v1",
+  "languages": [
+    "de",
+    "en",
+    "es",
+    "fr",
+    "id",
+    "it",
+    "nl",
+    "pl",
+    "pt",
+    "ru",
+    "tr"
+  ]
+}

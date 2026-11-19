@@ -87,7 +87,7 @@ inventare dati. Il motivo è verificabile nei file, non una stima:
 | Ticket | Cosa manca davvero | Evidenza |
 |---|---|---|
 | 29 | **CLOSED 2026-11-19** | lessico, grammatica, frazioni/mezzi, 220+220 casi e gate di build |
-| 30 | `lexicon/units.json`, dimensioni, periodi, confronti, 300+ casi | dipende da 29; nessun file unità o tipo `Quantity` nel manifest |
+| 30 | **PARTIAL 2026-11-19**; corpus positive/negative completo, metriche per lingua e chart bridge | `lexicon/units.json` e pack generati, `Quantity` nel manifest, scale/periodi/range e confronti compatibili implementati; `build_units.py --check` e test mirati verdi |
 | 31 | **CLOSED 2026-11-19** | lessico 11 lingue, ancora esplicita/riferimento/narrativa, aritmetica civile, 231 casi gold |
 | 32 | `lexicon/place_index_v1.json` e `build_place_index.py` | entrambi assenti; servono GeoNames/Wikidata con licenza e data di retrieval |
 | 33 | `lexicon/roles/<lang>.json` (~80 codici × 10 lingue), relazioni e età | nessun file ruoli o `person_roles` nel manifest |
@@ -95,9 +95,10 @@ inventare dati. Il motivo è verificabile nei file, non una stima:
 | 35 | Indice KB con ≥40 superfici confondibili × 2–3 sensi | `entity_index_v1.json` ha **10 entry** e **2 alias ambigui** (Nike, ESA); la crescita dell'indice è un non-goal esplicito del ticket |
 | 36 | `pronouns.json` strutturato per lingua e gold ≥40 × 10 | i pronomi sono ancora `pronouns.txt` piatti; nessun `resolution_basis` |
 
-Conseguenza operativa: 29 e 31 sono chiusi; restano 30, 35 **dopo** un
-ticket separato di crescita dell'indice, quindi 32, 36, 33 e 34. Dichiarare
-DONE 35 oggi richiederebbe di aggiungere ~100 righe KB e di cambiare i link
+Conseguenza operativa: 29 e 31 sono chiusi, 30 è parziale; restano da
+completare la sua matrice gold e i ticket 32–36. TICKET-35 richiede ancora
+un ticket separato di crescita dell'indice: dichiararlo DONE oggi richiederebbe
+di aggiungere ~100 righe KB e di cambiare i link
 osservati dai golden esistenti, cioè un intervento diverso e non misurato.
 
 ## Out of scope for the whole series

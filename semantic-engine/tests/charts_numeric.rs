@@ -3,6 +3,27 @@
 mod common;
 
 use common::*;
+
+#[test]
+fn typed_quantities_carry_scale_unit_and_same_sentence_period() {
+    let text = "Il fatturato di Acme è 3,2 miliardi di euro nel 2019.";
+    let value = manifest_value(vec![scene("quantita", text)]);
+    let quantities = value["scenes"][0]["quantities"]
+        .as_array()
+        .expect("typed quantities");
+    let quantity = quantities.first().expect("revenue amount should be typed");
+    assert_eq!(quantity["dimension"], "currency");
+    assert_eq!(quantity["unit"], "EUR");
+    assert_eq!(quantity["raw_value"], 3.2);
+    assert_eq!(quantity["scale"], 1_000_000_000.0);
+    assert_eq!(quantity["value"], 3_200_000_000.0);
+    assert_eq!(quantity["predicate"], "revenue");
+    assert_eq!(quantity["period"]["year"], 2019);
+    let start = quantity["start_byte"].as_u64().unwrap() as usize;
+    let end = quantity["end_byte"].as_u64().unwrap() as usize;
+    assert_eq!(&text[start..end], quantity["evidence"]);
+}
+
 #[test]
 fn r09_two_percentages_yield_a_chart_with_both_values() {
     let text =

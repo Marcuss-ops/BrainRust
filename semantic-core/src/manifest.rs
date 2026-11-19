@@ -43,6 +43,9 @@ pub struct AnalyzerVersions {
     /// Version of the relative-date grammar and arithmetic.
     #[serde(default)]
     pub dates: String,
+    /// Version of unit attachment, period binding and quantity interpretation.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub quantities: String,
 }
 
 /// One grounded candidate with the fields shared by every projection.
@@ -831,6 +834,13 @@ pub struct SceneManifest {
     /// Relations split into co_mentions (grouping signal) and asserted ones.
     pub relations: RelationView,
     pub numeric_facts: Vec<NumericFact>,
+    /// Quantities with a recognized unit and exact source evidence.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub quantities: Vec<crate::quantity::Quantity>,
+    /// Comparisons between exact quantities with compatible dimensions,
+    /// units, and (for currency) explicit matching periods.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub quantity_comparisons: Vec<crate::quantity::QuantityComparison>,
     /// Date facts (ISO-normalized only when fully resolved).
     pub temporal_facts: Vec<crate::dates::TemporalFact>,
     /// Facts linked to an entity only when an explicit predicate supports it.

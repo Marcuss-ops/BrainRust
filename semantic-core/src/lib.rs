@@ -33,6 +33,7 @@ pub mod entity_linker;
 mod generated_language_packs;
 mod generated_language_profiles;
 mod generated_legal_packs;
+mod generated_units;
 pub mod grounding;
 pub mod identity;
 pub mod language_packs;
@@ -48,9 +49,11 @@ mod pack_index;
 pub mod phrase_align;
 pub mod phrase_impact;
 pub mod phrase_select;
+pub mod quantity;
 pub mod relations;
 pub mod sentences;
 pub mod text;
+pub mod units;
 
 pub use bullets::{BulletCandidate, BulletSignal, SignalKind};
 pub use dates::{temporal_facts, TemporalFact};
@@ -74,5 +77,6 @@ pub use narrative::{
     ThreadBeat, DISCOURSE_SCHEMA,
 };
 pub use numbers::{parse_unambiguous_value, scale_word_factor, values_are_comparable, NumericFact};
+pub use quantity::{Quantity, QuantityComparison, QuantityPeriod};
 pub use relations::{AssertedRelation, CoMention, RelationStatus, RelationView};
 pub use sentences::{split_sentences, SentenceSpan};

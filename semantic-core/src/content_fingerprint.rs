@@ -101,6 +101,10 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
             include_str!("../../lexicon/number_words.json"),
         ),
         (
+            "lexicon/units.json".to_string(),
+            include_str!("../../lexicon/units.json"),
+        ),
+        (
             "lexicon/relative_time.json".to_string(),
             include_str!("../../lexicon/relative_time.json"),
         ),
@@ -135,6 +139,56 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
             include_str!("../../lexicon/legal/index.json"),
         ),
     ];
+    assets.push((
+        "lexicon/units/index.json".to_string(),
+        include_str!("../../lexicon/units/index.json"),
+    ));
+    assets.extend([
+        (
+            "lexicon/units/de.json".to_string(),
+            include_str!("../../lexicon/units/de.json"),
+        ),
+        (
+            "lexicon/units/en.json".to_string(),
+            include_str!("../../lexicon/units/en.json"),
+        ),
+        (
+            "lexicon/units/es.json".to_string(),
+            include_str!("../../lexicon/units/es.json"),
+        ),
+        (
+            "lexicon/units/fr.json".to_string(),
+            include_str!("../../lexicon/units/fr.json"),
+        ),
+        (
+            "lexicon/units/id.json".to_string(),
+            include_str!("../../lexicon/units/id.json"),
+        ),
+        (
+            "lexicon/units/it.json".to_string(),
+            include_str!("../../lexicon/units/it.json"),
+        ),
+        (
+            "lexicon/units/nl.json".to_string(),
+            include_str!("../../lexicon/units/nl.json"),
+        ),
+        (
+            "lexicon/units/pl.json".to_string(),
+            include_str!("../../lexicon/units/pl.json"),
+        ),
+        (
+            "lexicon/units/pt.json".to_string(),
+            include_str!("../../lexicon/units/pt.json"),
+        ),
+        (
+            "lexicon/units/ru.json".to_string(),
+            include_str!("../../lexicon/units/ru.json"),
+        ),
+        (
+            "lexicon/units/tr.json".to_string(),
+            include_str!("../../lexicon/units/tr.json"),
+        ),
+    ]);
     for (language, body) in crate::generated_language_packs::PACKS {
         assets.push((format!("lexicon/packs/{language}.json"), body));
     }
