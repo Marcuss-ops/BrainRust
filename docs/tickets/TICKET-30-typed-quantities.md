@@ -120,13 +120,14 @@ verifying that a number is true, forecasting, extracting tables.
   test mirati coprono euro scalati, popolazione, percentuali, intervalli,
   confronti incompatibili, anni/frequenze negative e un campione di unità per
   ogni lingua.
-- `semantic-engine/fixtures/quantities/score_quantity_gold.py` esercita 33
-  positivi e 20 negativi in ognuna delle 11 lingue. L'ultimo report draft
-  mostra 363/363 positivi corretti, valore/scala/unità/span esatti al 100%,
-  recall del qualificatore 11/11, binding periodo 11/11 e 0 falsi positivi
-  negativi. Include almeno 10 casi per classe dimensionale currency, percent e
-  length. Il gold ha anche trovato e fatto correggere il moltiplicatore
-  `millón` accentato in spagnolo.
+- `semantic-engine/fixtures/quantities/score_quantity_gold.py` esercita 133
+  positivi per lingua (10 in ognuna delle 13 dimensioni), 20 negativi per
+  lingua, e tre casi italiani di ratio/confronto incompatibile. Il report draft
+  attuale mostra 1.469/1.469 positivi corretti, valore/scala/unità/span esatti
+  al 100%, recall qualificatore 11/11, binding periodo 11/11, ratio esatto e 0
+  falsi positivi negativi o comparativi. Il gold ha anche trovato e fatto
+  correggere il moltiplicatore `millón` accentato in spagnolo e la precedenza
+  errata della lunghezza `km` sul composto `km/h`.
 
 Il ticket resta **PARTIAL**: la matrice gold/negative richiesta e le metriche
 sono draft semplici e ripetuti, non vari contesti di lingua naturale né
@@ -136,10 +137,10 @@ criterio di rilascio.
 
 ## Lavoro rimanente
 
-1. Espandere i casi per lingua in contesti vari e includere tutte le dimensioni,
-   forme/scale, qualificatori, legami temporali e confronti previsti.
-2. Far revisionare le annotazioni draft e registrare i risultati per lingua e
-   classe dimensionale. Il report attuale è un gate di regressione sintetico,
+1. Ampliare i casi in frasi naturali varie, includendo forme/scale, tutti i
+   qualificatori, legami temporali e confronti previsti.
+2. Far revisionare indipendentemente le annotazioni draft e registrare i
+   risultati per lingua e classe dimensionale. Il report è un gate sintetico,
    non una misura di copertura reale.
 3. Solo se tutti i
    threshold di accettazione sono soddisfatti, aggiornare lo stato a CLOSED.

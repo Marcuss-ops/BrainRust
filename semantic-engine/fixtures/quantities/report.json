@@ -1,13 +1,13 @@
 {
   "schema": "brainrust.quantity_gold_report.v1",
   "annotation_authority": "assistant_draft_pending_human_review",
-  "worker_sha256": "6e9d6d04324911b3552d7ef75f7323ebcaa81a4f7c08e576ed8529b55047603b",
+  "worker_sha256": "684fcf51c877032a3d77e369493df1996376b59129cc2ea553b1409cc3c5f82a",
   "languages": {
     "de": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -19,11 +19,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -34,7 +88,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -47,10 +122,10 @@
       "failures": []
     },
     "en": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -62,11 +137,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -77,7 +206,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -90,10 +240,10 @@
       "failures": []
     },
     "es": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -105,11 +255,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -120,7 +324,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -133,10 +358,10 @@
       "failures": []
     },
     "fr": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -148,11 +373,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -163,7 +442,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -176,10 +476,10 @@
       "failures": []
     },
     "id": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -191,11 +491,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -206,7 +560,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -219,10 +594,10 @@
       "failures": []
     },
     "it": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 156,
+      "positive_expected": 139,
+      "extracted": 139,
+      "matched": 139,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -234,22 +609,97 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 1,
+      "comparisons_matched": 1,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
-          "expected": 12,
-          "matched": 12,
-          "exact_values": 12,
-          "recall": 1.0,
-          "exact_value_rate": 1.0
-        },
-        "percent": {
-          "expected": 11,
-          "matched": 11,
-          "exact_values": 11,
+          "expected": 15,
+          "matched": 15,
+          "exact_values": 15,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
         "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 14,
+          "matched": 14,
+          "exact_values": 14,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -262,10 +712,10 @@
       "failures": []
     },
     "nl": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -277,11 +727,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -292,7 +796,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -305,10 +830,10 @@
       "failures": []
     },
     "pl": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -320,11 +845,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -335,7 +914,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -348,10 +948,10 @@
       "failures": []
     },
     "pt": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -363,11 +963,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -378,7 +1032,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -391,10 +1066,10 @@
       "failures": []
     },
     "ru": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -406,11 +1081,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -421,7 +1150,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -434,10 +1184,10 @@
       "failures": []
     },
     "tr": {
-      "cases": 53,
-      "positive_expected": 33,
-      "extracted": 33,
-      "matched": 33,
+      "cases": 153,
+      "positive_expected": 133,
+      "extracted": 133,
+      "matched": 133,
       "precision": 1.0,
       "recall": 1.0,
       "exact_value_rate": 1.0,
@@ -449,11 +1199,65 @@
       "period_expected": 1,
       "period_binding_precision": 1.0,
       "period_binding_recall": 1.0,
+      "comparisons_expected": 0,
+      "comparisons_matched": 0,
+      "comparison_precision": 1.0,
+      "comparison_recall": 1.0,
+      "comparison_false_positives": 0,
       "by_dimension": {
         "currency": {
           "expected": 12,
           "matched": 12,
           "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "mass": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "area": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "volume": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "time": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "speed": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "temperature": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
@@ -464,7 +1268,28 @@
           "recall": 1.0,
           "exact_value_rate": 1.0
         },
-        "length": {
+        "count": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "population": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "energy": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "data": {
           "expected": 10,
           "matched": 10,
           "exact_values": 10,
@@ -478,10 +1303,10 @@
     }
   },
   "totals": {
-    "cases": 583,
-    "positive_expected": 363,
-    "extracted": 363,
-    "matched": 363,
+    "cases": 1686,
+    "positive_expected": 1469,
+    "extracted": 1469,
+    "matched": 1469,
     "negative_false_positives": 0,
     "positive_false_positives": 0
   }

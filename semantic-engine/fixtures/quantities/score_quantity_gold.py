@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Score a compact, draft quantity matrix against the semantic-engine worker.
+"""Score a draft, dimension-complete quantity matrix against the engine.
 
-The cases are deliberately minimal: 30 grounded positive measures and 20
-negative numeric forms for each supported language. They exercise currency,
-percentage and length units without relying on a full sentence parser. The
-annotations are assistant drafts and do not certify natural-language recall.
+The cases are deliberately minimal: ten grounded measures for every unit
+dimension and 20 negative numeric forms in each supported language, plus scale,
+qualifier and period examples. The annotations are assistant drafts and do not
+certify natural-language recall.
 """
 
 from __future__ import annotations
@@ -30,25 +30,37 @@ NEGATIVES = (
 
 def cases(language: str) -> list[dict]:
     rows = []
-    length_surface = next(
-        unit["surfaces"][0]
-        for unit in UNITS["languages"][language]["units"]
-        if unit["dimension"] == "length" and unit["code"] == "km"
-    )
-    for dimension, suffix, unit, factor in (
-        ("currency", "EUR", "EUR", 1.0),
-        ("percent", "%", "PCT", 1.0),
-        ("length", length_surface, "km", 1000.0),
-    ):
+    language_units = UNITS["languages"][language]["units"]
+    for dimension in UNITS["dimensions"]:
+        unit = next(row for row in language_units if row["dimension"] == dimension)
+        if dimension == "currency":
+            unit = next(row for row in language_units if row["code"] == "EUR")
+            surface = "EUR"
+        elif dimension == "percent":
+            surface = "%"
+        elif dimension == "length":
+            unit = next(row for row in language_units if row["code"] == "km")
+            surface = unit["surfaces"][0]
+        elif dimension == "speed":
+            surface = next(surface for surface in unit["surfaces"] if "/" in surface)
+        elif dimension == "temperature":
+            surface = next((surface for surface in unit["surfaces"] if surface.startswith("°")), unit["surfaces"][0])
+        else:
+            surface = unit["surfaces"][0]
+        code = unit["code"]
+        factor = unit["factor_to_base"]
         for value in range(1, 11):
-            text = f"{value}{suffix}" if suffix == "%" else f"{value} {suffix}"
+            text = f"{value}%" if dimension == "percent" else (
+                f"{value}{surface}" if dimension == "temperature" and surface.startswith("°")
+                else f"{value} {surface}"
+            )
             rows.append({
                 "scene_id": f"{language}_{dimension}_{value:02}",
                 "text": text,
                 "expected": [{
-                    "evidence": str(value) + ("%" if suffix == "%" else ""),
+                    "evidence": str(value) + ("%" if dimension == "percent" else ""),
                     "dimension": dimension,
-                    "unit": unit,
+                    "unit": code,
                     "value": value * factor,
                 }],
                 "negative": False,
@@ -83,6 +95,37 @@ def cases(language: str) -> list[dict]:
             "negative": False,
         },
     ))
+    if language == "it":
+        rows.extend((
+            {
+                "scene_id": "it_ratio_01",
+                "text": "Il valore è 10% rispetto al doppio di 5%.",
+                "expected": [
+                    {"evidence": "10%", "dimension": "percent", "unit": "PCT", "value": 10.0},
+                    {"evidence": "5%", "dimension": "percent", "unit": "PCT", "value": 5.0},
+                ],
+                "expected_comparisons": [{"kind": "ratio", "dimension": "percent", "ratio": 2.0}],
+                "negative": False,
+            },
+            {
+                "scene_id": "it_cross_currency_01",
+                "text": "Il valore è 10 EUR contro 5 USD.",
+                "expected": [
+                    {"evidence": "10", "dimension": "currency", "unit": "EUR", "value": 10.0},
+                    {"evidence": "5", "dimension": "currency", "unit": "USD", "value": 5.0},
+                ],
+                "expected_comparisons": [], "negative": False,
+            },
+            {
+                "scene_id": "it_cross_dimension_01",
+                "text": "Il gruppo ha 42% contro 18 euro.",
+                "expected": [
+                    {"evidence": "42%", "dimension": "percent", "unit": "PCT", "value": 42.0},
+                    {"evidence": "18", "dimension": "currency", "unit": "EUR", "value": 18.0},
+                ],
+                "expected_comparisons": [], "negative": False,
+            },
+        ))
     for index, text in enumerate(NEGATIVES, 1):
         rows.append({
             "scene_id": f"{language}_negative_{index:02}",
@@ -90,6 +133,8 @@ def cases(language: str) -> list[dict]:
             "expected": [],
             "negative": True,
         })
+    for row in rows:
+        row.setdefault("expected_comparisons", [])
     return rows
 
 
@@ -121,10 +166,30 @@ def score_language(rows: list[dict], scenes: list[dict]) -> dict:
     expected_total = extracted_total = matched = false_positives = negative_fp = 0
     exact_value = exact_scale = exact_unit = grounded = qualifier_expected = qualifier_matched = 0
     period_expected = period_matched = period_predictions = 0
+    comparison_expected = comparison_matched = comparison_predictions = comparison_false_positives = 0
     by_dimension: dict[str, dict] = {}
     details = []
     for row, scene in zip(rows, scenes, strict=True):
         quantities = scene.get("quantities", [])
+        comparisons = scene.get("quantity_comparisons", [])
+        expected_comparisons = row.get("expected_comparisons", [])
+        comparison_expected += len(expected_comparisons)
+        comparison_predictions += len(comparisons)
+        unused_comparisons = list(comparisons)
+        for gold in expected_comparisons:
+            hit = next((index for index, comparison in enumerate(unused_comparisons)
+                        if comparison.get("kind") == gold["kind"]
+                        and comparison.get("dimension") == gold["dimension"]
+                        and ("ratio" not in gold or math.isclose(comparison.get("ratio", math.nan), gold["ratio"], rel_tol=0.0, abs_tol=1e-9))
+                        and ("difference" not in gold or math.isclose(comparison.get("difference", math.nan), gold["difference"], rel_tol=0.0, abs_tol=1e-9))), None)
+            if hit is None:
+                details.append({"scene_id": row["scene_id"], "missing_comparison": gold, "actual": comparisons})
+            else:
+                unused_comparisons.pop(hit)
+                comparison_matched += 1
+        comparison_false_positives += len(unused_comparisons)
+        if unused_comparisons:
+            details.append({"scene_id": row["scene_id"], "false_positive_comparisons": unused_comparisons})
         extracted_total += len(quantities)
         period_predictions += sum(
             (quantity.get("period") or {}).get("year") is not None
@@ -197,6 +262,11 @@ def score_language(rows: list[dict], scenes: list[dict]) -> dict:
         "period_expected": period_expected,
         "period_binding_precision": period_matched / period_predictions if period_predictions else (1.0 if not period_expected else 0.0),
         "period_binding_recall": period_matched / period_expected if period_expected else 1.0,
+        "comparisons_expected": comparison_expected,
+        "comparisons_matched": comparison_matched,
+        "comparison_precision": comparison_matched / comparison_predictions if comparison_predictions else (1.0 if not comparison_expected else 0.0),
+        "comparison_recall": comparison_matched / comparison_expected if comparison_expected else 1.0,
+        "comparison_false_positives": comparison_false_positives,
         "by_dimension": by_dimension,
         "negative_false_positives": negative_fp,
         "positive_false_positives": false_positives,
@@ -240,6 +310,9 @@ def main() -> int:
         and row["qualifier_recall"] >= 0.9
         and row["period_binding_precision"] >= 0.95
         and row["period_binding_recall"] >= 0.95
+        and row["comparison_precision"] == 1.0
+        and row["comparison_recall"] >= 0.9
+        and row["comparison_false_positives"] == 0
         and row["negative_false_positives"] == 0
         for row in report["languages"].values()
     )

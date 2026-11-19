@@ -295,6 +295,30 @@ fn find_unit<'a>(
             .or_else(|| semantic_core::units::find_unit(language, "percent"))
             .map(|unit| (unit, surface.to_string()));
     }
+    // Compound slash units (notably km/h) must win over a prefix unit such as
+    // km. Otherwise a speed measure is silently typed as length before the
+    // more specific unit row is considered.
+    for unit in units {
+        for candidate in &unit.surfaces {
+            if !candidate.contains('/') {
+                continue;
+            }
+            let Some(tail) = source.get(fact.end_byte..unit_search_end) else {
+                continue;
+            };
+            let Some(offset) = tail.to_lowercase().find(&candidate.to_lowercase()) else {
+                continue;
+            };
+            let start = fact.end_byte + offset;
+            if source[fact.end_byte..start].split_whitespace().count() > 3 {
+                continue;
+            }
+            let end = start + candidate.len();
+            if let Some(surface) = source.get(start..end) {
+                return Some((unit, surface.to_string()));
+            }
+        }
+    }
     for unit in units {
         for candidate in &unit.surfaces {
             if candidate.chars().all(|ch| !ch.is_alphanumeric()) {
@@ -634,6 +658,35 @@ mod tests {
                 Some("EUR"),
                 "language={language}, source={source}"
             );
+        }
+    }
+
+    #[test]
+    fn compound_speed_units_win_over_the_length_prefix_in_every_language() {
+        for language in [
+            "de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr",
+        ] {
+            let unit = language_units(language)
+                .unwrap()
+                .units
+                .iter()
+                .find(|unit| unit.dimension == "speed")
+                .unwrap();
+            let surface = unit
+                .surfaces
+                .iter()
+                .find(|surface| surface.contains('/'))
+                .unwrap();
+            let source = format!("5 {surface}");
+            let quantities = extract(
+                &source,
+                language,
+                &[fact(&source, "5", "NUMBER", Some(5.0))],
+                &[],
+            );
+            assert_eq!(quantities.len(), 1, "language={language}, source={source}");
+            assert_eq!(quantities[0].dimension, "speed", "{source}");
+            assert_eq!(quantities[0].unit, "km/h", "{source}");
         }
     }
 
