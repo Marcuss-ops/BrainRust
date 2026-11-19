@@ -182,6 +182,10 @@ mod tests {
             phrase_impact: "phrase_impact".to_string(),
             lexicon: "lexicon.v1".to_string(),
             entity_index: "entity_index.v1".to_string(),
+            linker: format!(
+                "entity_linker.v1+sha256:{}",
+                semantic_core::entity_linker::linker_weights_sha256()
+            ),
             numbers: "number_words.v1".to_string(),
 
             dates: "relative_time.v1".to_string(),
@@ -218,6 +222,10 @@ mod tests {
             phrase_impact: "phrase_impact".to_string(),
             lexicon: "lexicon.v1".to_string(),
             entity_index: "entity_index.v1".to_string(),
+            linker: format!(
+                "entity_linker.v1+sha256:{}",
+                semantic_core::entity_linker::linker_weights_sha256()
+            ),
             numbers: "number_words.v1".to_string(),
 
             dates: "relative_time.v1".to_string(),

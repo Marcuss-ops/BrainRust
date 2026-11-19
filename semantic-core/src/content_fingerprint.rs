@@ -132,6 +132,10 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
             "lexicon/entity_index_v1.json".to_string(),
             include_str!("../../lexicon/entity_index_v1.json"),
         ),
+        (
+            "lexicon/link_weights_v1.json".to_string(),
+            include_str!("../../lexicon/link_weights_v1.json"),
+        ),
         // The legal pack index decides which domain packs load and is parsed at
         // startup, so it is a compiled asset like the packs themselves.
         (
@@ -267,6 +271,7 @@ mod tests {
 
         assert!(has("lexicon/entity_gazetteer_delta.json"));
         assert!(has("lexicon/entity_index_v1.json"));
+        assert!(has("lexicon/link_weights_v1.json"));
         assert!(has("lexicon/legal/index.json"));
         for (language, _) in crate::generated_language_packs::PACKS {
             assert!(has(&format!("lexicon/packs/{language}.json")));

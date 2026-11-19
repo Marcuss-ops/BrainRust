@@ -1,7 +1,7 @@
 # TICKET-35 — entity linking is not explainable and under-uses context
 
 - Priority: P1
-- Status: OPEN
+- Status: PARTIAL (2026-11-19)
 - Depends on: TICKET-40 (confusable index coverage)
 - Files: `semantic-core/src/entity_linker.rs`, `lexicon/entity_index_v1.json`,
   `semantic-engine/src/identity_lookup.rs`, `LinkedEntity`
@@ -59,14 +59,14 @@ events (34), so this ticket comes first.
 - [ ] Confusable gold set ≥ 40 surfaces × 2–3 senses, ≥ 3 contexts each,
       spread over the 10 languages: **wrong-link rate ≤ 1 %**, correct-link
       recall ≥ 85 %, remainder `ambiguous` (abstention), never a silent wrong id.
-- [ ] 0 regressions on the existing identity/localized-identity tests
+- [x] 0 regressions on the existing identity/localized-identity tests
       (`entities_identity`, `localized_identity_protocol`) and on the entity
       gazetteer golden.
-- [ ] Every `linked` entity has `link_candidates` with at least the winning
+- [x] Every `linked` entity has `link_candidates` with at least the winning
       feature evidence; spans are byte-exact.
-- [ ] Weights/thresholds file is versioned, checksummed and reported by
+- [x] Weights/thresholds file is versioned, checksummed and reported by
       health/readiness.
-- [ ] Deterministic across worker counts; `AnalyzerVersions.linker` bumped.
+- [x] Deterministic across worker counts; `AnalyzerVersions.linker` bumped.
 
 ## Non-goals
 
@@ -94,3 +94,22 @@ entries (index growth is separate), changing the Go image-gate behaviour.
 
 Questo ticket sblocca TICKET-32 (coordinate) ed è prerequisito di 33/34/36:
 va eseguito prima, non in parallelo.
+
+## Avanzamento implementazione (2026-11-19)
+
+- `LinkedEntity` include fino a tre candidati ordinati con punteggio, feature e
+  span byte-exact associati a `scene_id`; `link_margin` e `link_rule` rendono
+  osservabile la decisione. Le feature includono alias, prior di tipo,
+  sovrapposizione di contesto e penalità.
+- `lexicon/link_weights_v1.json` conserva i pesi e le soglie correnti senza
+  cambiare il comportamento. Il suo SHA-256 è esposto da health e registrato
+  in `AnalyzerVersions.linker`; il fingerprint incorpora la tabella.
+- Il consumer Go copia i campi e convalida numero di candidati/feature e ogni
+  span contro il testo originale della scena.
+- Le suite identity, localized identity, MVP golden e worker deterministico
+  sono verdi; il test linker verifica i riferimenti byte-exact.
+
+Il ticket resta **PARTIAL**: il gold copre 46 superfici, ma le frasi sono
+fixture brevi in inglese con alias localizzati solo in parte (`en/it/pt`), non
+il campione naturale su dieci lingue richiesto. Restano `type_cues`, prior di
+discourse per thread e calibrazione indipendente del margine/soglia.

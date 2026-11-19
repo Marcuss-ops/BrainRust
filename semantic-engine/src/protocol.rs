@@ -192,6 +192,8 @@ impl Worker {
                     "schema_version": SCHEMA_VERSION,
                     "entity_index_version": semantic_core::entity_linker::entity_index_version(),
                     "entity_index_entries": semantic_core::entity_linker::entity_index().entry_count(),
+                    "entity_linker_version": semantic_core::entity_linker::linker_version(),
+                    "entity_linker_weights_sha256": semantic_core::entity_linker::linker_weights_sha256(),
                     "lexicon": {
                         "version": lexicon.version,
                         "source": lexicon.source(),
@@ -804,6 +806,17 @@ mod tests {
             .as_u64()
             .is_some());
         assert!(response["udpipe_model_slots"].as_u64().is_some());
+        assert_eq!(
+            response["entity_linker_version"],
+            semantic_core::entity_linker::linker_version()
+        );
+        assert_eq!(
+            response["entity_linker_weights_sha256"]
+                .as_str()
+                .unwrap()
+                .len(),
+            64
+        );
     }
 
     #[test]

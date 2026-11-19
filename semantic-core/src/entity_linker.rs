@@ -14,14 +14,47 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 use crate::identity::{
     editorial_decision, normalize_surface, role_of, stable_surface_key, CanonicalIdentity,
-    EntityRole, LinkStatus, LinkedEntity, SearchIntent,
+    EntityRole, LinkCandidate, LinkEvidenceSpan, LinkFeature, LinkStatus, LinkedEntity,
+    SearchIntent,
 };
 
 /// Version recorded in analyzer provenance and health output.
 pub const ENTITY_INDEX_SCHEMA: &str = "entity_index.v1";
+const LINK_WEIGHTS_JSON: &str = include_str!("../../lexicon/link_weights_v1.json");
+
+#[derive(Debug, Deserialize)]
+struct LinkWeights {
+    version: String,
+    alias_exactness_weight: i32,
+    type_prior_weight: i32,
+    context_overlap_weight: i32,
+    counter_penalty_weight: i32,
+    single_candidate_min_score: i32,
+    multi_candidate_min_score: i32,
+    multi_candidate_min_margin: i32,
+    max_candidates: usize,
+    max_features: usize,
+}
+
+fn link_weights() -> &'static LinkWeights {
+    static WEIGHTS: OnceLock<LinkWeights> = OnceLock::new();
+    WEIGHTS.get_or_init(|| serde_json::from_str(LINK_WEIGHTS_JSON).expect("valid linker weights"))
+}
+
+pub fn linker_version() -> &'static str {
+    &link_weights().version
+}
+
+pub fn linker_weights_sha256() -> String {
+    Sha256::digest(LINK_WEIGHTS_JSON.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
 
 #[derive(Debug, Clone, Deserialize)]
 struct EntityIndexFile {
@@ -144,10 +177,19 @@ pub fn link_all(
                     .then_with(|| left.1.id.cmp(&right.1.id))
             });
 
+            let link_candidates: Vec<LinkCandidate> = scored
+                .iter()
+                .take(link_weights().max_candidates)
+                .map(|(score, entry)| explain_candidate(*score, entry, identity, scenes))
+                .collect();
+            let link_margin = scored
+                .get(1)
+                .map(|second| scored[0].0.saturating_sub(second.0));
+
             let (status, entry) = match scored.as_slice() {
                 [] => (LinkStatus::Unlinked, None),
                 [(score, entry)] => {
-                    if *score < 0 {
+                    if *score < link_weights().single_candidate_min_score {
                         (LinkStatus::Ambiguous, None)
                     } else {
                         (LinkStatus::Linked, Some(*entry))
@@ -157,7 +199,9 @@ pub fn link_all(
                     // A type prior alone must not break a homonym tie: with
                     // two or more candidates, at least one real context term
                     // (a score of 3) is required to choose.
-                    if best > second && *best >= 3 {
+                    if best - second >= link_weights().multi_candidate_min_margin
+                        && *best >= link_weights().multi_candidate_min_score
+                    {
                         (LinkStatus::Linked, Some(*entry))
                     } else {
                         (LinkStatus::Ambiguous, None)
@@ -208,6 +252,9 @@ pub fn link_all(
                 },
                 mentions: identity.mentions.clone(),
                 search_intents,
+                link_candidates,
+                link_margin,
+                link_rule: Some("entity_linker.v1".to_string()),
                 editorial_surface: decision.surface,
                 editorial_type: decision.kind,
                 prompt_echo: decision.prompt_echo,
@@ -215,6 +262,146 @@ pub fn link_all(
             }
         })
         .collect()
+}
+
+fn explain_candidate(
+    score: i32,
+    entry: &EntityIndexEntry,
+    identity: &CanonicalIdentity,
+    scenes: &[(&str, &str)],
+) -> LinkCandidate {
+    let exact_alias = entry.canonical_name == identity.canonical_surface
+        || entry
+            .aliases
+            .values()
+            .flatten()
+            .any(|alias| alias == &identity.canonical_surface);
+    let mut alias_spans: Vec<LinkEvidenceSpan> = identity
+        .mentions
+        .iter()
+        .map(|mention| LinkEvidenceSpan {
+            scene_id: mention.scene_id.clone(),
+            start_byte: mention.start_byte,
+            end_byte: mention.end_byte,
+        })
+        .collect();
+    alias_spans.sort();
+    alias_spans.dedup();
+    let mut alias_terms: Vec<String> = identity
+        .mentions
+        .iter()
+        .map(|mention| mention.surface.clone())
+        .collect();
+    alias_terms.push(identity.canonical_surface.clone());
+    alias_terms.sort();
+    alias_terms.dedup();
+    let mut context_terms = Vec::new();
+    let mut context_spans: Vec<LinkEvidenceSpan> = Vec::new();
+    for term in &entry.context_terms {
+        let spans = evidence_spans(term, identity, scenes);
+        if !spans.is_empty() {
+            context_terms.push(term.clone());
+            context_spans.extend(spans);
+        }
+    }
+    let mut counter_terms = Vec::new();
+    let mut counter_spans: Vec<LinkEvidenceSpan> = Vec::new();
+    for term in &entry.counter_terms {
+        let spans = evidence_spans(term, identity, scenes);
+        if !spans.is_empty() {
+            counter_terms.push(term.clone());
+            counter_spans.extend(spans);
+        }
+    }
+    context_spans.sort();
+    context_spans.dedup();
+    counter_spans.sort();
+    counter_spans.dedup();
+    let type_match = entry.entity_type.eq_ignore_ascii_case(&identity.kind)
+        || (entry.entity_type == "ORG" && identity.kind == "ORGANIZATION");
+
+    let mut features = vec![
+        LinkFeature {
+            name: "alias_exactness".to_string(),
+            value: if exact_alias {
+                link_weights().alias_exactness_weight
+            } else {
+                0
+            },
+            terms: alias_terms,
+            spans: alias_spans,
+        },
+        LinkFeature {
+            name: "type_prior".to_string(),
+            value: if type_match {
+                link_weights().type_prior_weight
+            } else {
+                0
+            },
+            terms: vec![identity.kind.clone()],
+            spans: Vec::new(),
+        },
+        LinkFeature {
+            name: "context_overlap".to_string(),
+            value: link_weights().context_overlap_weight * context_terms.len() as i32,
+            terms: context_terms,
+            spans: context_spans,
+        },
+        LinkFeature {
+            name: "counter_penalty".to_string(),
+            value: link_weights().counter_penalty_weight * counter_terms.len() as i32,
+            terms: counter_terms,
+            spans: counter_spans,
+        },
+    ];
+    features.truncate(link_weights().max_features);
+    LinkCandidate {
+        kb_id: entry.id.clone(),
+        name: entry.canonical_name.clone(),
+        score,
+        features,
+    }
+}
+
+fn evidence_spans(
+    term: &str,
+    identity: &CanonicalIdentity,
+    scenes: &[(&str, &str)],
+) -> Vec<LinkEvidenceSpan> {
+    if term.is_empty() {
+        return Vec::new();
+    }
+    let mut spans = Vec::new();
+    for mention in &identity.mentions {
+        let Some((_, text)) = scenes
+            .iter()
+            .find(|(scene_id, _)| *scene_id == mention.scene_id)
+        else {
+            continue;
+        };
+        let (window_start, window_end) =
+            sentence_window_bounds(text, mention.start_byte, mention.end_byte);
+        let Some(window) = text.get(window_start..window_end) else {
+            continue;
+        };
+        for (start, _) in window.char_indices() {
+            let Some(end) = start.checked_add(term.len()) else {
+                continue;
+            };
+            if let Some(candidate) = window.get(start..end) {
+                if candidate.eq_ignore_ascii_case(term) {
+                    spans.push(LinkEvidenceSpan {
+                        scene_id: mention.scene_id.clone(),
+                        start_byte: window_start + start,
+                        end_byte: window_start + end,
+                    });
+                }
+            }
+        }
+    }
+    spans.sort();
+    spans.dedup();
+    spans
 }
 
 /// Deterministic evidence score. Context terms add support, counter terms
@@ -225,18 +412,18 @@ fn context_score(entry: &EntityIndexEntry, kind: &str, context: &str) -> i32 {
     let mut score = 0;
     for term in &entry.context_terms {
         if !term.is_empty() && context.contains(&term.to_lowercase()) {
-            score += 3;
+            score += link_weights().context_overlap_weight;
         }
     }
     for term in &entry.counter_terms {
         if !term.is_empty() && context.contains(&term.to_lowercase()) {
-            score -= 4;
+            score += link_weights().counter_penalty_weight;
         }
     }
     if entry.entity_type.eq_ignore_ascii_case(kind)
         || (entry.entity_type == "ORG" && kind == "ORGANIZATION")
     {
-        score += 1;
+        score += link_weights().type_prior_weight;
     }
     score
 }
@@ -328,6 +515,11 @@ fn build_intents(
 /// mention (the `B.` of `Michael B. Jordan`) are behind `end` and cannot split
 /// the window.
 fn sentence_window(text: &str, start: usize, end: usize) -> &str {
+    let (start, end) = sentence_window_bounds(text, start, end);
+    text.get(start..end).unwrap_or("")
+}
+
+fn sentence_window_bounds(text: &str, start: usize, end: usize) -> (usize, usize) {
     let bytes = text.as_bytes();
     let start = start.min(bytes.len());
     let end = end.min(bytes.len());
@@ -340,7 +532,7 @@ fn sentence_window(text: &str, start: usize, end: usize) -> &str {
         .find(|index| matches!(bytes[*index], b'.' | b'!' | b'?' | b'\n'))
         .map(|index| index + 1)
         .unwrap_or(bytes.len());
-    text.get(sentence_start..sentence_end).unwrap_or("")
+    (sentence_start, sentence_end)
 }
 
 fn is_acronym(surface: &str) -> bool {
@@ -436,6 +628,38 @@ mod tests {
             .negative_constraints
             .iter()
             .any(|constraint| constraint.contains("video game")));
+    }
+
+    #[test]
+    fn linked_entities_expose_bounded_candidates_and_byte_exact_evidence() {
+        let text = "ESA e NASA studiano Marte con nuove missioni spaziali.";
+        let entity = link_one(text, "ESA", "ORG");
+        assert_eq!(entity.canonical_id.as_deref(), Some("wd:Q42262"));
+        assert_eq!(entity.link_rule.as_deref(), Some("entity_linker.v1"));
+        assert_eq!(entity.link_candidates.len(), 2);
+        assert_eq!(entity.link_candidates[0].kb_id, "wd:Q42262");
+        assert!(entity.link_margin.is_some_and(|margin| margin > 0));
+        assert!(entity
+            .link_candidates
+            .iter()
+            .all(|candidate| candidate.features.len() <= 5));
+        assert!(entity.link_candidates[0]
+            .features
+            .iter()
+            .any(|feature| feature.name == "context_overlap" && !feature.spans.is_empty()));
+        for candidate in &entity.link_candidates {
+            for feature in &candidate.features {
+                for span in &feature.spans {
+                    let evidence = text
+                        .get(span.start_byte..span.end_byte)
+                        .expect("evidence span is UTF-8 aligned");
+                    assert!(feature
+                        .terms
+                        .iter()
+                        .any(|term| evidence.eq_ignore_ascii_case(term)));
+                }
+            }
+        }
     }
 
     #[test]

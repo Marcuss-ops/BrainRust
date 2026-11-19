@@ -4,7 +4,7 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-19. **30 DONE/CLOSED, 1 PARTIAL (30), 5 OPEN (32–36), 4 BLOCKED (08, 10, 26, 27).**
+Last verified: 2026-11-19. **30 DONE/CLOSED, 2 PARTIAL (30, 35), 4 OPEN (32–34, 36), 4 BLOCKED (08, 10, 26, 27).**
 TICKET-37 adds the persistent manifest cache, TICKET-38 the preflight engine
 and TICKET-39 their cross-repo wire to the Go consumer. The
 six-workstream performance and product plan with acceptance criteria and
@@ -73,7 +73,7 @@ Status vocabulary:
 | [32](TICKET-32-places-and-routes.md) | P1 | OPEN | Places with kind, coordinates, hierarchy, plus ordered routes (`da A a B`). Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
 | [33](TICKET-33-person-roles.md) | P2 | OPEN | People with role, affiliation, tense, family/work relations and age. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
 | [34](TICKET-34-events.md) | P2 | OPEN | Event frames: type, participants, place, date, merged across scenes. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [35](TICKET-35-entity-disambiguation.md) | P1 | OPEN | Explainable linking: scored candidates, margin rule, abstention. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [35](TICKET-35-entity-disambiguation.md) | P1 | PARTIAL | Rust emits scored candidates with byte-exact feature spans; Go validates and carries them. Multilingual calibration, type cues and discourse propagation remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
 | [36](TICKET-36-coreference-pronouns.md) | P2 | OPEN | Pronoun and role-nominal coreference with agreement and salience. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
 | [37](TICKET-37-persistent-manifest-cache.md) | P1 | CLOSED (2026-11-19) | Opt-in disk cache keyed by SHA-256 over the request plus a cache identity (embedded lexicon content including `legal/index.json`, build hash, ICU, model presence): atomic publishes, fail-closed reads, mtime LRU bound. 23 unit + 5 fingerprint + 4 cross-process tests (restart, 8 concurrent writers, model-profile separation, broken dir); T1–T15 observed; memory-only default unchanged. |
 | [38](TICKET-38-preflight-engine.md) | P2 | CLOSED (2026-11-19) | Pure pre-render checks for assets, subtitle timing and per-track overlays (including enclosed overlays), with stable codes and an advisory/blocking split. 14 unit + 4 real-ffprobe tests; no writes. |

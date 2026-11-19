@@ -58,8 +58,8 @@ pub mod units;
 pub use bullets::{BulletCandidate, BulletSignal, SignalKind};
 pub use dates::{temporal_facts, TemporalFact};
 pub use identity::{
-    role_of, stable_surface_key, CanonicalIdentity, EntityRole, IdentityRegistry, LinkStatus,
-    LinkedEntity, Mention, SearchIntent,
+    role_of, stable_surface_key, CanonicalIdentity, EntityRole, IdentityRegistry, LinkCandidate,
+    LinkEvidenceSpan, LinkFeature, LinkStatus, LinkedEntity, Mention, SearchIntent,
 };
 pub use manifest::ChartItem;
 pub use manifest::{

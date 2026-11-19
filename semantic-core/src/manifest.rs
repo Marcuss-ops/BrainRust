@@ -37,6 +37,9 @@ pub struct AnalyzerVersions {
     /// to empty when decoding a v2 manifest that predates the field.
     #[serde(default)]
     pub entity_index: String,
+    /// Version of deterministic entity-link scoring and explanation output.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub linker: String,
     /// Version of the word-number grammar/fraction rules.
     #[serde(default)]
     pub numbers: String,

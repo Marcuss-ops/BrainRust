@@ -76,6 +76,35 @@ pub struct SearchIntent {
     pub lang: String,
 }
 
+/// One auditable candidate considered by the local entity linker.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct LinkCandidate {
+    pub kb_id: String,
+    pub name: String,
+    pub score: i32,
+    pub features: Vec<LinkFeature>,
+}
+
+/// A deterministic scoring feature and its verbatim evidence locations.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct LinkFeature {
+    pub name: String,
+    pub value: i32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub terms: Vec<String>,
+    /// UTF-8 byte spans in the original scene text.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spans: Vec<LinkEvidenceSpan>,
+}
+
+/// Source location for an explanation feature.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+pub struct LinkEvidenceSpan {
+    pub scene_id: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
 /// The v3 entity projection consumed by the resolver. It is additive: the v2
 /// scene-level `identities` collection remains available for old consumers.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -106,6 +135,13 @@ pub struct LinkedEntity {
     /// Ordered intents: identity first, then at most two contextual intents.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub search_intents: Vec<SearchIntent>,
+    /// Top three candidates and evidence for auditing disambiguation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub link_candidates: Vec<LinkCandidate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link_margin: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link_rule: Option<String>,
     /// The surface after the linker's editorial repair. Consumers project this
     /// value; they must not re-run the repair rules in Go.
     #[serde(default)]

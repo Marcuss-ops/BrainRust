@@ -1,0 +1,12 @@
+{
+  "version": "entity_linker.v1",
+  "alias_exactness_weight": 0,
+  "type_prior_weight": 1,
+  "context_overlap_weight": 3,
+  "counter_penalty_weight": -4,
+  "single_candidate_min_score": 0,
+  "multi_candidate_min_score": 3,
+  "multi_candidate_min_margin": 1,
+  "max_candidates": 3,
+  "max_features": 5
+}

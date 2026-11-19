@@ -74,6 +74,11 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
                 .to_string(),
         lexicon: semantic_core::lexicon::LEXICON_VERSION.to_string(),
         entity_index: semantic_core::entity_linker::entity_index_version().to_string(),
+        linker: format!(
+            "{}+sha256:{}",
+            semantic_core::entity_linker::linker_version(),
+            semantic_core::entity_linker::linker_weights_sha256()
+        ),
         numbers: "number_words.v1".to_string(),
         dates: "relative_time.v1".to_string(),
         quantities: "typed_quantities.v1".to_string(),
