@@ -1,9 +1,10 @@
-# Semantic expansion roadmap — tickets 29–36 (2026-11-19)
+# Semantic expansion roadmap — tickets 29–36 and 40 (2026-11-19)
 
 Scope: extend what `semantic-engine` **understands**. Nothing here renders,
-searches providers or touches PipelineGen state. Every ticket adds typed,
-grounded facts to `semantic_manifest.v3`; planning and rendering stay in Go /
-Chronon.
+searches providers or touches PipelineGen state. Semantic tickets add typed,
+grounded facts to `semantic_manifest.v3`; TICKET-40 supplies the packaged
+identity data needed to measure disambiguation. Planning and rendering stay in
+Go / Chronon.
 
 ## What exists today (verified in code, 2026-11-19)
 
@@ -28,17 +29,19 @@ Chronon.
 | [32](TICKET-32-places-and-routes.md) | Places with kind/coordinates/hierarchy and routes | 35 | L |
 | [33](TICKET-33-person-roles.md) | People with role, affiliation, family and age | 31, 35 | L |
 | [34](TICKET-34-events.md) | Event frames (type, participants, place, date) | 31, 32, 33 | L |
-| [35](TICKET-35-entity-disambiguation.md) | Explainable entity disambiguation | — | M |
+| [35](TICKET-35-entity-disambiguation.md) | Explainable entity disambiguation | 40 | M |
 | [36](TICKET-36-coreference-pronouns.md) | Pronoun / role-nominal coreference | 33 (roles), 35 | M |
 
 Recommended order: **40 → 35 → 32 → 33 → 36 → 34**, alongside the completed
 29/31 sequence and the remaining TICKET-30 acceptance gates.
-35 first because a wrong link ("Washington" the person vs the city) poisons
-places, roles and events downstream, and it also prevents wrong images today.
+40 precedes 35 because the scorer needs a provenance-reviewed confusable seed;
+then a wrong link ("Washington" the person vs the city) can be caught before
+it poisons places, roles and events downstream.
 
 ```mermaid
 flowchart LR
-  T35[35 Disambiguation] --> T32[32 Places]
+  T40[40 Entity index growth] --> T35[35 Disambiguation]
+  T35 --> T32[32 Places]
   T35 --> T33[33 Roles]
   T35 --> T36[36 Coreference]
   T29[29 Number words] --> T30[30 Quantities]
