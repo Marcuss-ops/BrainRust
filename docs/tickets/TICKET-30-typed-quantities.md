@@ -129,11 +129,11 @@ verifying that a number is true, forecasting, extracting tables.
   correggere il moltiplicatore `millón` accentato in spagnolo e la precedenza
   errata della lunghezza `km` sul composto `km/h`.
 
-Il ticket resta **PARTIAL**: la matrice gold/negative richiesta e le metriche
-sono draft semplici e ripetuti, non vari contesti di lingua naturale né
-annotazioni indipendentemente revisionate; la copertura restante di dimensioni,
-qualificatori e confronti deve essere ampliata prima di usare i numeri come
-criterio di rilascio.
+Il ticket resta **PARTIAL**: le quantità positive ora ruotano fra tre contesti
+per lingua, ma i testi e le annotazioni restano draft, i negativi sono ripetuti
+e non c'è revisione indipendente. Servono contesti più vari e maggiore
+copertura di qualificatori e confronti prima di usare i numeri come criterio di
+rilascio.
 
 ## Lavoro rimanente
 
