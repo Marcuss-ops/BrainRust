@@ -20,6 +20,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 UNITS = json.loads((ROOT / "lexicon/units.json").read_text(encoding="utf-8"))
 LANGUAGES = ("de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr")
+MEASURE_CONTEXTS = {
+    "de": ("Im Bericht beträgt der Messwert {measure}.", "Die Tabelle nennt {measure} für diesen Zeitraum.", "Nach den vorliegenden Daten liegt der Wert bei {measure}."),
+    "en": ("The report puts the measured value at {measure}.", "The table lists {measure} for this period.", "According to the available data, the value is {measure}."),
+    "es": ("El informe sitúa la medida en {measure}.", "La tabla recoge {measure} para este periodo.", "Según los datos disponibles, el valor es de {measure}."),
+    "fr": ("Le rapport situe la mesure à {measure}.", "Le tableau indique {measure} pour cette période.", "D'après les données disponibles, la valeur est de {measure}."),
+    "id": ("Laporan itu mencatat ukuran sebesar {measure}.", "Tabel tersebut memuat {measure} untuk periode ini.", "Menurut data yang tersedia, nilainya adalah {measure}."),
+    "it": ("Nel rapporto la misura è pari a {measure}.", "La tabella riporta {measure} per questo periodo.", "Secondo i dati disponibili, il valore è di {measure}."),
+    "nl": ("Het rapport stelt de meting vast op {measure}.", "De tabel vermeldt {measure} voor deze periode.", "Volgens de beschikbare gegevens bedraagt de waarde {measure}."),
+    "pl": ("Raport podaje wartość pomiaru: {measure}.", "Tabela zawiera {measure} dla tego okresu.", "Według dostępnych danych wartość wynosi {measure}."),
+    "pt": ("O relatório situa a medida em {measure}.", "A tabela regista {measure} para este período.", "Segundo os dados disponíveis, o valor é de {measure}."),
+    "ru": ("В отчёте указано значение измерения: {measure}.", "В таблице приведено {measure} за этот период.", "Согласно имеющимся данным, значение составляет {measure}."),
+    "tr": ("Raporda ölçüm değeri {measure} olarak veriliyor.", "Tabloda bu dönem için {measure} yer alıyor.", "Mevcut verilere göre değer {measure} düzeyinde."),
+}
 NEGATIVES = (
     "2019", "123456789", "1st", "3 times", "3 volte", "APT 3",
     "123 Main St", "ID-42", "Phone 555-0142", "Room 12", "Version 2.3.8",
@@ -50,10 +63,11 @@ def cases(language: str) -> list[dict]:
         code = unit["code"]
         factor = unit["factor_to_base"]
         for value in range(1, 11):
-            text = f"{value}%" if dimension == "percent" else (
+            measure = f"{value}%" if dimension == "percent" else (
                 f"{value}{surface}" if dimension == "temperature" and surface.startswith("°")
                 else f"{value} {surface}"
             )
+            text = MEASURE_CONTEXTS[language][(value - 1) % len(MEASURE_CONTEXTS[language])].format(measure=measure)
             rows.append({
                 "scene_id": f"{language}_{dimension}_{value:02}",
                 "text": text,
