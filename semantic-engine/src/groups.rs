@@ -15,6 +15,7 @@ use visualner::{TemporalFact, VisualEntity};
 
 use crate::identity_lookup::IdentityLookup;
 pub use semantic_core::ChartItem;
+use semantic_core::Quantity;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct VisualCandidate {
@@ -43,12 +44,18 @@ pub struct SceneSource<'a> {
     pub language: &'a str,
 }
 
+/// Numeric chart points paired with their semantic unit projection.
+pub struct ChartInput<'a> {
+    pub points: &'a [ChartPoint],
+    pub quantities: &'a [Quantity],
+}
+
 /// Builds every proposal of one scene, in deterministic source order.
 pub fn build_candidates(
     scene: SceneSource<'_>,
     entities: &[VisualEntity],
     bullets: &[Bullet],
-    chart_points: &[ChartPoint],
+    chart_input: ChartInput<'_>,
     lower_thirds: &[LowerThird],
     temporal_facts: &[TemporalFact],
     identities: &IdentityLookup,
@@ -63,7 +70,7 @@ pub fn build_candidates(
         language,
         entities,
         bullets,
-        chart_points,
+        chart_input,
         identities,
         &mut out,
     );
@@ -180,10 +187,12 @@ fn charts(
     language: &str,
     entities: &[VisualEntity],
     bullets: &[Bullet],
-    chart_points: &[ChartPoint],
+    chart_input: ChartInput<'_>,
     identities: &IdentityLookup,
     out: &mut Vec<VisualCandidate>,
 ) {
+    let chart_points = chart_input.points;
+    let quantities = chart_input.quantities;
     let mut sentences: Vec<usize> = chart_points.iter().map(|p| p.sentence_index).collect();
     sentences.sort_unstable();
     sentences.dedup();
@@ -208,12 +217,12 @@ fn charts(
             .filter_map(|point| {
                 let relative_start = point.start.checked_sub(bullet.start)?;
                 let relative_end = point.end.checked_sub(bullet.start)?;
-                Some(crate::chart_rules::chart_unit(
+                Some(chart_measure(
                     &bullet.text,
                     relative_start,
                     relative_end,
-                    point.value,
-                    &point.kind,
+                    point,
+                    quantities,
                 ))
             })
             .collect();
@@ -312,7 +321,59 @@ fn charts(
             end: chart_claim_bounds(bullet, &points).1,
         });
     }
-    cross_sentence_series(source, entities, bullets, chart_points, identities, out);
+    cross_sentence_series(
+        source,
+        entities,
+        bullets,
+        chart_points,
+        quantities,
+        identities,
+        out,
+    );
+}
+
+/// Uses the semantic quantity attached to this exact numeric span when one is
+/// available. The legacy chart parser remains a compatibility fallback for
+/// chart points that have no recognized typed unit.
+fn chart_measure(
+    sentence: &str,
+    start: usize,
+    end: usize,
+    point: &ChartPoint,
+    quantities: &[Quantity],
+) -> crate::chart_rules::ChartUnit {
+    if let Some(quantity) = quantities
+        .iter()
+        .find(|quantity| quantity.start_byte == point.start && quantity.end_byte == point.end)
+    {
+        if let (Some(raw_value), Some(_)) = (quantity.raw_value, quantity.value) {
+            let scaled_value = raw_value * quantity.scale.unwrap_or(1.0);
+            let kind = match quantity.dimension.as_str() {
+                "percent" => "PERCENT",
+                "currency" => "MONEY",
+                _ => point.kind.as_str(),
+            };
+            let display_measure =
+                crate::chart_rules::chart_unit(sentence, start, end, scaled_value, kind);
+            let signature = match quantity.dimension.as_str() {
+                "length" => "length:m".to_string(),
+                "currency" => {
+                    let period = display_measure
+                        .signature
+                        .rsplit_once('/')
+                        .map_or("unit", |(_, period)| period);
+                    format!("currency:{}/{period}", quantity.unit)
+                }
+                _ => format!("{}:{}", quantity.dimension, quantity.unit),
+            };
+            return crate::chart_rules::ChartUnit {
+                kind: kind.to_string(),
+                signature,
+                value: display_measure.value,
+            };
+        }
+    }
+    crate::chart_rules::chart_unit(sentence, start, end, point.value, &point.kind)
 }
 
 /// Joins adjacent source-grounded measures when the script repeats a metric
@@ -323,6 +384,7 @@ fn cross_sentence_series(
     entities: &[VisualEntity],
     bullets: &[Bullet],
     chart_points: &[ChartPoint],
+    quantities: &[Quantity],
     identities: &IdentityLookup,
     out: &mut Vec<VisualCandidate>,
 ) {
@@ -387,19 +449,13 @@ fn cross_sentence_series(
                 continue;
             };
             let mut measures = [
-                crate::chart_rules::chart_unit(
-                    &left_bullet.text,
-                    left_start,
-                    left_end,
-                    left.value,
-                    &left.kind,
-                ),
-                crate::chart_rules::chart_unit(
+                chart_measure(&left_bullet.text, left_start, left_end, left, quantities),
+                chart_measure(
                     &right_bullet.text,
                     right_start,
                     right_end,
-                    right.value,
-                    &right.kind,
+                    right,
+                    quantities,
                 ),
             ];
             if measures[0].signature == measures[0].kind

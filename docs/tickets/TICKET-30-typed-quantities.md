@@ -112,24 +112,25 @@ verifying that a number is true, forecasting, extracting tables.
   worker collega gli span numerici grounded a unità adiacenti, scala, date
   nello stesso periodo frasale e fatti entità con soggetto/predicato/status.
   Gli intervalli condividono un `range_id`; i confronti esatti richiedono
-  dimensione e codice unità uguali e, per valuta, lo stesso anno.
+  dimensione e codice unità uguali e, per valuta, lo stesso anno. Il chart
+  bridge usa valore, scala e firma dimensione/unità di `Quantity` sui punti
+  con span esatto; le conversioni di presentazione preesistenti restano nel
+  chart layer, con fallback compatibile per punti privi di unità nota.
 - Il consumer Go decodifica e convalida span, unità, riferimenti e periodi; i
   test mirati coprono euro scalati, popolazione, percentuali, intervalli,
   confronti incompatibili, anni/frequenze negative e un campione di unità per
   ogni lingua.
 
 Il ticket resta **PARTIAL**: la matrice gold/negative richiesta e le metriche
-di recall/precisione per lingua non sono ancora state raggiunte, e il bridge
-chart non è ancora alimentato dai record `quantities` come sorgente dei
-metadati.
+di recall/precisione per lingua non sono ancora state raggiunte.
 
 ## Lavoro rimanente
 
 1. Aggiungere la matrice gold positiva e negativa per lingua e la metrica
    riproducibile richiesta dai criteri; i test unitari correnti non sostituiscono
    misure di recall/precisione.
-2. Collegare i record grounded `quantities` al bridge chart, mantenendo invariati
-   i golden esistenti e usando unità/periodo già estratti invece di ricalcolarli
-   dai numeri.
-3. Eseguire la matrice e riportare i risultati per lingua. Solo se tutti i
+2. Eseguire la matrice e riportare precisione/recall per lingua e classe di
+   dimensione, includendo i negativi richiesti. Le annotazioni draft restano
+   esplicitamente non certificate finché non revisionate.
+3. Solo se tutti i
    threshold di accettazione sono soddisfatti, aggiornare lo stato a CLOSED.

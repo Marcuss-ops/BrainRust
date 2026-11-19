@@ -68,23 +68,25 @@ pub(crate) fn extract(
             language,
             &language_data.units,
             unit_search_end,
+            shared_range_unit,
         );
         let Some((unit, unit_surface)) = unit_match else {
             continue;
         };
-        let scale = word_spans(number_text)
+        let scale_in_surface = word_spans(number_text)
             .iter()
-            .find_map(|word| scale_word_factor(&word.lowered))
-            .or_else(|| {
-                words
-                    .iter()
-                    .find(|word| word.start >= fact.end_byte && word.start <= sentence.end_byte)
-                    .and_then(|word| scale_word_factor(&word.lowered))
-            });
-        let raw_value = match (fact.value, scale) {
-            (Some(value), Some(scale)) => Some(value / scale),
-            (Some(value), None) => Some(value),
-            (None, _) => number_text
+            .find_map(|word| scale_word_factor(&word.lowered));
+        let scale_end = next_number_start.unwrap_or(sentence.end_byte);
+        let scale_after_surface = words
+            .iter()
+            .filter(|word| word.start >= fact.end_byte && word.end <= scale_end)
+            .find_map(|word| scale_word_factor(&word.lowered));
+        let scale = scale_in_surface.or(scale_after_surface);
+        let raw_value = match (fact.value, scale_in_surface, scale) {
+            (Some(value), Some(scale), _) => Some(value / scale),
+            (Some(value), None, Some(_)) => Some(value),
+            (Some(value), None, None) => Some(value),
+            (None, _, _) => number_text
                 .split_whitespace()
                 .find_map(|part| parse_unambiguous_value(part, language)),
         };
@@ -258,6 +260,22 @@ fn assign_range_pairs(source: &str, language: &str, quantities: &mut [Quantity])
             quantities[pair[0]].qualifier = "range_start".to_string();
             quantities[pair[1]].range_id = Some(id);
             quantities[pair[1]].qualifier = "range_end".to_string();
+            if quantities[pair[0]].scale.is_none() {
+                if let Some(scale) = quantities[pair[1]].scale {
+                    let unit_factor = data
+                        .units
+                        .iter()
+                        .find(|unit| {
+                            unit.dimension == quantities[pair[0]].dimension
+                                && unit.code == quantities[pair[0]].unit
+                        })
+                        .map_or(1.0, |unit| unit.factor_to_base);
+                    quantities[pair[0]].scale = Some(scale);
+                    quantities[pair[0]].value = quantities[pair[0]]
+                        .raw_value
+                        .map(|raw| raw * scale * unit_factor);
+                }
+            }
         }
     }
 }
@@ -269,6 +287,7 @@ fn find_unit<'a>(
     language: &str,
     units: &'a [UnitDefinition],
     unit_search_end: usize,
+    shared_range_unit: bool,
 ) -> Option<(&'a UnitDefinition, String)> {
     let surface = source.get(fact.start_byte..fact.end_byte)?;
     if fact.kind == "PERCENT" {
@@ -323,7 +342,8 @@ fn find_unit<'a>(
                 }
                 let end = words[end_index - 1].end;
                 let start_byte = words[start].start;
-                if source[fact.end_byte..start_byte].split_whitespace().count() > 3 {
+                let max_gap_words = if shared_range_unit { 8 } else { 3 };
+                if source[fact.end_byte..start_byte].split_whitespace().count() > max_gap_words {
                     continue;
                 }
                 return Some((unit, source[start_byte..end].to_string()));
@@ -504,6 +524,21 @@ mod tests {
     }
 
     #[test]
+    fn a_later_quantity_cannot_supply_the_previous_number_scale() {
+        let source = "Il gruppo ha 2 euro contro 3 milioni di euro.";
+        let facts = [
+            fact(source, "2", "NUMBER", Some(2.0)),
+            fact(source, "3", "NUMBER", Some(3.0)),
+        ];
+        let quantities = extract(source, "it", &facts, &[]);
+        assert_eq!(quantities.len(), 2);
+        assert_eq!(quantities[0].scale, None);
+        assert_eq!(quantities[0].value, Some(2.0));
+        assert_eq!(quantities[1].scale, Some(1_000_000.0));
+        assert_eq!(quantities[1].value, Some(3_000_000.0));
+    }
+
+    #[test]
     fn uses_the_language_unit_table_for_population_and_percent() {
         let population = "La città ha 3 milioni di abitanti.";
         let q = extract(
@@ -608,6 +643,20 @@ mod tests {
         assert_eq!(quantities[0].qualifier, "range_start");
         assert_eq!(quantities[1].qualifier, "range_end");
         assert_eq!(quantities[0].range_id, quantities[1].range_id);
+
+        let scaled_range =
+            "Il costo previsto è compreso tra 10 e 15 milioni di euro, rispetto agli 8 milioni di budget.";
+        let facts = [
+            fact(scaled_range, "10", "NUMBER", Some(10.0)),
+            fact(scaled_range, "15 milioni", "NUMBER", Some(15_000_000.0)),
+            fact(scaled_range, "8 milioni", "NUMBER", Some(8_000_000.0)),
+        ];
+        let quantities = extract(scaled_range, "it", &facts, &[]);
+        assert_eq!(quantities.len(), 2, "quantities: {quantities:#?}");
+        assert_eq!(quantities[0].qualifier, "range_start");
+        assert_eq!(quantities[0].scale, Some(1_000_000.0));
+        assert_eq!(quantities[0].value, Some(10_000_000.0));
+        assert_eq!(quantities[1].value, Some(15_000_000.0));
 
         let comparison = "Il gruppo ha 3 contro 5 km.";
         let facts = [

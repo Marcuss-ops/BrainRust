@@ -25,6 +25,30 @@ fn typed_quantities_carry_scale_unit_and_same_sentence_period() {
 }
 
 #[test]
+fn chart_bridge_uses_the_grounded_typed_quantity_value() {
+    let text = "Il fatturato è cresciuto: 3,2 miliardi di euro nel 2019 contro 1,6 miliardi di euro nel 2018.";
+    let value = manifest_value(vec![scene("chart-quantita-typed", text)]);
+    let scene = &value["scenes"][0];
+    let quantities = scene["quantities"].as_array().expect("quantities");
+    let charts = proposals_of(scene, "chart");
+    assert_eq!(charts.len(), 1, "one comparable currency chart: {value}");
+    let items = charts[0]["chart_items"].as_array().expect("chart items");
+    let mut actual: Vec<f64> = items
+        .iter()
+        .map(|item| item["value"].as_f64().expect("numeric chart value"))
+        .collect();
+    let mut expected: Vec<f64> = quantities
+        .iter()
+        .map(|quantity| quantity["value"].as_f64().expect("exact quantity value"))
+        .collect();
+    actual.sort_by(f64::total_cmp);
+    expected.sort_by(f64::total_cmp);
+    assert_eq!(actual, expected, "chart values must come from quantities");
+    assert_eq!(actual, vec![1_600_000_000.0, 3_200_000_000.0]);
+    assert!(items.iter().all(|item| item["kind"] == "MONEY"));
+}
+
+#[test]
 fn r09_two_percentages_yield_a_chart_with_both_values() {
     let text =
         "Il 42% dei tecnici ha segnalato il problema, contro il 18% del gruppo di controllo.";
@@ -32,6 +56,14 @@ fn r09_two_percentages_yield_a_chart_with_both_values() {
     let charts = proposals_of(&value["scenes"][0], "chart");
 
     assert_eq!(charts.len(), 1, "one chart expected: {value}");
+    let quantities = value["scenes"][0]["quantities"]
+        .as_array()
+        .expect("typed percent quantities");
+    assert_eq!(
+        quantities.len(),
+        2,
+        "both points should be typed: {quantities:?}"
+    );
     let mut values: Vec<f64> = charts[0]["chart_items"]
         .as_array()
         .unwrap()

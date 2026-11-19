@@ -417,7 +417,10 @@ fn analyze_scene_with_search(
         },
         &entities,
         &analysis.bullets,
-        &analysis.chart_points,
+        groups::ChartInput {
+            points: &analysis.chart_points,
+            quantities: &quantities,
+        },
         &analysis.lower_thirds,
         &temporal_facts,
         &identities,
