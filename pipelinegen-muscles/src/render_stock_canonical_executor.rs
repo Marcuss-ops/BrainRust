@@ -231,7 +231,14 @@ pub(super) fn execute_canonical_render(
             paths
         })
         .unwrap_or_default();
-    if let Err(error) = concat_parts(&runner, &parts, &part, &temp_dir) {
+    if let Err(error) = concat_parts(
+        &runner,
+        &parts,
+        &part,
+        &temp_dir,
+        plan.fps_numerator,
+        plan.fps_denominator,
+    ) {
         let _ = fs::remove_dir_all(&temp_dir);
         return failed_response(None, error);
     }
@@ -420,6 +427,8 @@ fn concat_parts(
     parts: &[PathBuf],
     output: &str,
     temp_dir: &Path,
+    fps_num: i64,
+    fps_den: i64,
 ) -> Result<(), String> {
     if parts.is_empty() {
         return Err("canonical render produced no segments".to_string());
@@ -441,6 +450,18 @@ fn concat_parts(
         "-i",
         &list_path.to_string_lossy(),
     ]);
+    // The concat demuxer derives each next segment's timestamp offset from
+    // the prior MP4 duration. Some FFmpeg muxers round each short fragment's
+    // terminal packet duration independently, so stream-copy concatenation
+    // can accumulate a sub-frame drift (for example 30 frames reported as
+    // 22500/751 instead of 30/1). Re-stamp the already encoded, no-B-frame
+    // packets onto the sealed CFR clock; this changes timestamps only, not
+    // the H.264 bitstream or its certification hash.
+    let ticks_per_frame = format!("90000*{fps_den}/{fps_num}");
+    let pts = format!("round(N*{ticks_per_frame})");
+    let duration = format!("round((N+1)*{ticks_per_frame})-round(N*{ticks_per_frame})");
+    let timestamps = format!("setts=time_base=1/90000:pts={pts}:dts={pts}:duration={duration}");
+    command.args(["-bsf:v", &timestamps]);
     command.args([
         "-c",
         "copy",
@@ -449,6 +470,8 @@ fn concat_parts(
         "-1",
         "-map_chapters",
         "-1",
+        "-video_track_timescale",
+        "90000",
         "-movflags",
         "+faststart",
         output,
