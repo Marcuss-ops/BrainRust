@@ -1,7 +1,7 @@
 # TICKET-27 — Publish v0.3.7: the tag and the assets exist, the release does not
 
 - Priority: P0
-- Status: BLOCKED (2026-11-18) — no GitHub credentials in this workspace. Assets re-verified on 2026-11-18 (checksums, manifest, tag chain) and `scripts/release/publish-v0.3.7.sh` is ready: one command publishes once credentials exist.
+- Status: BLOCKED (2026-11-18, aggiornato 2026-11-19) — il blocco non è più l'autenticazione: `git push --dry-run origin refs/tags/v0.3.7` risponde `* [new tag]`. Il dry run di pubblicazione però esce 1 perché gli artefatti sono stati riscritti da build HEAD (`manifest git_sha 8dda410 != 2ca3603`). Serve ricostruire il bundle dal tag o tagliare una `v0.3.8`; dettaglio in §Recheck 2026-11-19.
 - Owner: BrainRust release
 - Source: audit 2026-11-18; `docs/releases/v0.3.7.md`; `docs/stato/brainrust.md`
 - Blocks: `refactored` cutover (`TICKET-BRAINRUST-V0.3.7-CUTOVER-2026-11-18`)
@@ -110,3 +110,34 @@ passes on all eight assets, release notes present. The script's dry run
 `manifest: v0.3.7 2ca3603 icu 72`, `checksums: ok` and the eight asset names.
 No push or release was attempted without credentials; the ticket stays BLOCKED
 until an authenticated operator runs `--publish`.
+
+## Recheck 2026-11-19 — provenienza rotta, credenziali presenti
+
+Il 2026-11-19 il working tree è stato ricontrollato dopo che una sessione
+concorrente ha ricostruito i binari da HEAD:
+
+- `dist-v0.3.7/BRAINRUST_RELEASE.json` (mtime 08:06) dichiara
+  `git_sha 8dda410…` mantenendo `version v0.3.7`; `visualner` è una build HEAD
+  (`a0c79fcd…`), non l'artefatto del tag (`cc0089b4…`).
+- `refactored/bin/semantic-engine` è una build HEAD (`8db3932e…`) contro il
+  manifest installato (`0e1d10ab…`); `refactored/bin/visualner` è `a0c79fcd…`
+  contro `cc0089b4…`. Solo `mediasampler` e `pipelinegen-muscles` corrispondono.
+- Il `visualner` originale del tag non è presente in nessuna copia su disco.
+- `bash scripts/release/publish-v0.3.7.sh` (dry run) esce **1**:
+  `manifest git_sha '8dda410…' != 2ca360344f51dc3d941c853baf8d3dc3ac1811af`.
+- `git push --dry-run origin refs/tags/v0.3.7` riesce (`* [new tag]`), quindi
+  l'host ha credenziali git valide anche se `gh auth status` non è autenticato.
+
+Pubblicare in questo stato significherebbe o allegare una build HEAD etichettata
+`v0.3.7` (provenienza falsa), o pushare il tag con un bundle che non passa il
+proprio controllo. Prima di `--publish` va scelta una delle due strade, con il
+tree fermo:
+
+1. ricostruire i quattro binari dal tag `2ca3603` e rigenerare
+   `BRAINRUST_RELEASE.json` + `sha256sums.txt`; oppure
+2. tagliare `v0.3.8` da HEAD (include il segnale lingua di `local_score.rs` e i
+   fix grouping/chapter-bullet), pubblicarla e ripinare `BRAINRUST_VERSION`.
+
+L'opzione 2 è quella che serve davvero alla migrazione: HEAD è già avanti
+rispetto al tag e una release nuova attiva il segnale lingua. In entrambi i casi
+il push del tag è l'ultimo passo, non il primo.

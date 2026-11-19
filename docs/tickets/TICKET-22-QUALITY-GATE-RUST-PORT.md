@@ -50,6 +50,16 @@ the clean fixture end-to-end. TICKET-22 is PARTIAL, not DONE, until the
 production default is switched, the pin is bumped and the Go implementation
 is deleted.
 
+> **Aggiornamento 2026-11-19 — cutover eseguito.** I tre criteri sono chiusi nel
+> working tree e committati: `refactored/make/build.mk` pinna `v0.3.7`
+> (`2ca3603`), i quattro binari installati hanno hash verificati, il flag
+> `VELOX_RUST_QUALITY_GATE` è stato **cancellato** (nessun default da attivare) e
+> il package Go `usecase/qualitygate` (10 file, 866 righe) non esiste più. Il
+> differenziale Go↔Rust è 27/27 identico. TICKET-22 è quindi **DONE (bound)**:
+> l'unico passo residuo è la pubblicazione del tag, tracciata in
+> [TICKET-27](TICKET-27-publish-v0.3.7.md); il paragrafo sopra resta come
+> fotografia della preparazione del 2026-11-17.
+
 ## Acceptance criteria
 
 - [x] `script-qa` implements every rule: language match, source coverage,
