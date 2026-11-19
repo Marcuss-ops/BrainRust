@@ -101,18 +101,17 @@ Blocchi: `heaptrack`/`dhat` non sono installati in questo ambiente e i runner
 CI del repository non sono disponibili da qui. La parte di harness è
 implementabile, la prova di regressione no.
 
-## 4. Piano editoriale spiegabile — BLOCKED (working tree del planner)
+## 4. Piano editoriale spiegabile — OPEN (planner congelato)
 
 `overlay-compiler/src/editorial_plan_v2/planner/` ha già i passi `candidates`,
 `coalesce`, `media`, `presentation`. Il grosso del planner è atterrato in
-`359d29e`, ma restano **3 file modificati e non committati** (`candidates.rs`,
-`media.rs`, `mod.rs`): aggiungere un campo `decisions` adesso
-sovrapporrebbe i golden a un working tree non congelato.
+`359d29e`; il residuo planner è stato consolidato e congelato in `7012c62`.
+I golden possono ora essere estesi per aggiungere il campo `decisions`.
 
 Passi:
 
-1. Committare il planner attuale insieme ai suoi golden rigenerati, così la
-   baseline è stabile (voce già indicata come prerequisito della release).
+1. Estendere i golden congelati insieme al nuovo campo, mantenendo il rendering
+   corrente byte-identico.
 2. Estendere `editorial_plan.v2` in modo additivo: `decisions[]` con
    `candidate_id`, `stage`, `outcome`, `reason_code` e riferimento alle prove.
 3. `reason_code` come enum stabile (`BUDGET_EXCEEDED`, `OVERLAP_LOST_TO`,
