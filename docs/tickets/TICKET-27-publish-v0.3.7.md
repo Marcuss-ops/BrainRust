@@ -1,7 +1,7 @@
 # TICKET-27 — Publish v0.3.7: the tag and the assets exist, the release does not
 
 - Priority: P0
-- Status: BLOCKED (2026-11-18, aggiornato 2026-11-19) — il blocco non è più l'autenticazione: `git push --dry-run origin refs/tags/v0.3.7` risponde `* [new tag]`. Il dry run di pubblicazione però esce 1 perché gli artefatti sono stati riscritti da build HEAD (`manifest git_sha 8dda410 != 2ca3603`). Serve ricostruire il bundle dal tag o tagliare una `v0.3.8`; dettaglio in §Recheck 2026-11-19.
+- Status: CLOSED (2026-11-19) — `v0.3.8` è pubblicata con manifest, binari e checksum coerenti; `refactored` pinna la release e `make rust-fetch` l'ha installata.
 - Owner: BrainRust release
 - Source: audit 2026-11-18; `docs/releases/v0.3.7.md`; `docs/stato/brainrust.md`
 - Blocks: `refactored` cutover (`TICKET-BRAINRUST-V0.3.7-CUTOVER-2026-11-18`)
@@ -142,9 +142,13 @@ L'opzione 2 è quella che serve davvero alla migrazione: HEAD è già avanti
 rispetto al tag e una release nuova attiva il segnale lingua. In entrambi i casi
 il push del tag è l'ultimo passo, non il primo.
 
-### Aggiornamento 2026-11-19 (planner consolidato; release `v0.3.8` ancora da pubblicare)
+### Aggiornamento 2026-11-19 (planner consolidato; stato prima della pubblicazione)
 
 Il commit `359d29e` (`feat: strengthen multilingual overlay planning`, 2026-11-19) ha consolidato su `HEAD` le modifiche di `TICKET-29`, `TICKET-31`, `TICKET-37`, `TICKET-38`, `TICKET-39`, `lexicon`, `visualner` e gran parte di `overlay-compiler`. Il planner residuo e il fix Clippy sono stati consolidati nel commit `7012c62` (`fix: clear overlay planner release gates`); `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings` e `VISUALNER_MODEL_DIR=$PWD/.tmp/udpipe-models cargo test --workspace --tests --locked` passano. Il working tree BrainRust è pulito. Per chiudere il blocco release:
 
 1. Tagliare `v0.3.8` sul commit pulito, rigenerare `dist-v0.3.8/` con `BRAINRUST_RELEASE.json` e `sha256sums.txt` coerenti con il tag, e pubblicare la GitHub Release (`gh auth login` + push del tag / `release.yml`).
 2. Aggiornare `BRAINRUST_VERSION ?= v0.3.8` in `refactored/make/build.mk` ed eseguire `make rust-fetch` per riallineare `refactored/bin/BRAINRUST_RELEASE.json` ai binari installati.
+
+### Chiusura 2026-11-19
+
+Il tag annotato `v0.3.8` punta al commit `a4ab4cb65af0fffd93966f27738ae58626fce2a9`. La [GitHub Release v0.3.8](https://github.com/Marcuss-ops/BrainRust/releases/tag/v0.3.8) è stata pubblicata dopo il successo dei gate completi: fmt, Clippy, test workspace, semantic performance/RSS, contratto `mediaexec.v2` e build. Gli otto asset includono `BRAINRUST_RELEASE.json` e `sha256sums.txt`; il manifest dichiara lo stesso SHA, `mediaexec.v2` e ICU 72. In `refactored`, `BRAINRUST_VERSION` è `v0.3.8` e `make rust-fetch` ha verificato e installato i quattro binari.
