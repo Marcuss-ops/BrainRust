@@ -589,6 +589,25 @@ mod tests {
         ];
         let quantities = extract(mixed, "it", &facts, &[]);
         assert!(comparisons(mixed, "it", &quantities).is_empty());
+
+        let cross_currency = "Il valore è 10 EUR contro 5 USD.";
+        let facts = [
+            fact(cross_currency, "10", "MONEY", Some(10.0)),
+            fact(cross_currency, "5", "MONEY", Some(5.0)),
+        ];
+        let quantities = extract(cross_currency, "it", &facts, &[]);
+        assert!(comparisons(cross_currency, "it", &quantities).is_empty());
+
+        let ratio = "Il valore è 10% rispetto al doppio di 5%.";
+        let facts = [
+            fact(ratio, "10%", "PERCENT", Some(10.0)),
+            fact(ratio, "5%", "PERCENT", Some(5.0)),
+        ];
+        let quantities = extract(ratio, "it", &facts, &[]);
+        let found_comparisons = comparisons(ratio, "it", &quantities);
+        assert_eq!(found_comparisons.len(), 1);
+        assert_eq!(found_comparisons[0].kind, "ratio");
+        assert_eq!(found_comparisons[0].ratio, Some(2.0));
     }
 
     #[test]

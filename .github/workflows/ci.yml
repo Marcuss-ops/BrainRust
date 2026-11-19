@@ -86,6 +86,9 @@ jobs:
     - name: Build the release worker for OS-level gates
       run: cargo build --release -p semantic-engine --locked
 
+    - name: Score the draft typed-quantity matrix
+      run: python3 semantic-engine/fixtures/quantities/score_quantity_gold.py --worker target/release/semantic-engine
+
     - name: No-network semantic analysis (isolated namespace)
       run: ./scripts/ci/check-no-network.sh target/release/semantic-engine
 

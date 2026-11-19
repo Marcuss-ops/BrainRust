@@ -157,6 +157,7 @@ fn scale_factor(word: &str) -> Option<f64> {
         || word.starts_with("milhao")
         || word.starts_with("milhoes")
         || word.starts_with("milhões")
+        || word.starts_with("millón")
         || word.starts_with("millon")
         || word.starts_with("miljoen")
         || word.starts_with("milyon")
@@ -219,6 +220,7 @@ mod tests {
     #[test]
     fn scale_word_factor_is_shared_and_language_neutral() {
         assert_eq!(scale_word_factor("milioni"), Some(1_000_000.0));
+        assert_eq!(scale_word_factor("millón"), Some(1_000_000.0));
         assert_eq!(scale_word_factor("Millionen"), Some(1_000_000.0));
         assert_eq!(scale_word_factor("miliardi"), Some(1_000_000_000.0));
         assert_eq!(scale_word_factor("mille"), Some(1_000.0));

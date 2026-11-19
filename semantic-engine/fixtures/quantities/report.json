@@ -1,0 +1,488 @@
+{
+  "schema": "brainrust.quantity_gold_report.v1",
+  "annotation_authority": "assistant_draft_pending_human_review",
+  "worker_sha256": "6e9d6d04324911b3552d7ef75f7323ebcaa81a4f7c08e576ed8529b55047603b",
+  "languages": {
+    "de": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "en": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "es": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "fr": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "id": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "it": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "nl": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "pl": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "pt": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "ru": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    },
+    "tr": {
+      "cases": 53,
+      "positive_expected": 33,
+      "extracted": 33,
+      "matched": 33,
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_value_rate": 1.0,
+      "exact_scale_rate": 1.0,
+      "unit_recall": 1.0,
+      "grounded_rate": 1.0,
+      "qualifier_expected": 1,
+      "qualifier_recall": 1.0,
+      "period_expected": 1,
+      "period_binding_precision": 1.0,
+      "period_binding_recall": 1.0,
+      "by_dimension": {
+        "currency": {
+          "expected": 12,
+          "matched": 12,
+          "exact_values": 12,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "percent": {
+          "expected": 11,
+          "matched": 11,
+          "exact_values": 11,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        },
+        "length": {
+          "expected": 10,
+          "matched": 10,
+          "exact_values": 10,
+          "recall": 1.0,
+          "exact_value_rate": 1.0
+        }
+      },
+      "negative_false_positives": 0,
+      "positive_false_positives": 0,
+      "failures": []
+    }
+  },
+  "totals": {
+    "cases": 583,
+    "positive_expected": 363,
+    "extracted": 363,
+    "matched": 363,
+    "negative_false_positives": 0,
+    "positive_false_positives": 0
+  }
+}

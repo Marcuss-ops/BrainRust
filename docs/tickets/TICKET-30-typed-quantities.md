@@ -120,17 +120,26 @@ verifying that a number is true, forecasting, extracting tables.
   test mirati coprono euro scalati, popolazione, percentuali, intervalli,
   confronti incompatibili, anni/frequenze negative e un campione di unità per
   ogni lingua.
+- `semantic-engine/fixtures/quantities/score_quantity_gold.py` esercita 33
+  positivi e 20 negativi in ognuna delle 11 lingue. L'ultimo report draft
+  mostra 363/363 positivi corretti, valore/scala/unità/span esatti al 100%,
+  recall del qualificatore 11/11, binding periodo 11/11 e 0 falsi positivi
+  negativi. Include almeno 10 casi per classe dimensionale currency, percent e
+  length. Il gold ha anche trovato e fatto correggere il moltiplicatore
+  `millón` accentato in spagnolo.
 
 Il ticket resta **PARTIAL**: la matrice gold/negative richiesta e le metriche
-di recall/precisione per lingua non sono ancora state raggiunte.
+sono draft semplici e ripetuti, non vari contesti di lingua naturale né
+annotazioni indipendentemente revisionate; la copertura restante di dimensioni,
+qualificatori e confronti deve essere ampliata prima di usare i numeri come
+criterio di rilascio.
 
 ## Lavoro rimanente
 
-1. Aggiungere la matrice gold positiva e negativa per lingua e la metrica
-   riproducibile richiesta dai criteri; i test unitari correnti non sostituiscono
-   misure di recall/precisione.
-2. Eseguire la matrice e riportare precisione/recall per lingua e classe di
-   dimensione, includendo i negativi richiesti. Le annotazioni draft restano
-   esplicitamente non certificate finché non revisionate.
+1. Espandere i casi per lingua in contesti vari e includere tutte le dimensioni,
+   forme/scale, qualificatori, legami temporali e confronti previsti.
+2. Far revisionare le annotazioni draft e registrare i risultati per lingua e
+   classe dimensionale. Il report attuale è un gate di regressione sintetico,
+   non una misura di copertura reale.
 3. Solo se tutti i
    threshold di accettazione sono soddisfatti, aggiornare lo stato a CLOSED.

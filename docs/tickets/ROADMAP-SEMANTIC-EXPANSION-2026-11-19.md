@@ -91,7 +91,7 @@ inventare dati. Il motivo è verificabile nei file, non una stima:
 | Ticket | Cosa manca davvero | Evidenza |
 |---|---|---|
 | 29 | **CLOSED 2026-11-19** | lessico, grammatica, frazioni/mezzi, 220+220 casi e gate di build |
-| 30 | **PARTIAL 2026-11-19**; corpus positive/negative completo e metriche per lingua/classe di dimensione | `lexicon/units.json` e pack generati, `Quantity` nel manifest, scale/periodi/range/confronti e chart bridge implementati; `build_units.py --check`, suite `charts_numeric` 17/17 e test mirati verdi |
+| 30 | **PARTIAL 2026-11-19**; gold umano vario e copertura completa di classi/qualificatori/confronti | `lexicon/units.json` e pack generati, `Quantity` nel manifest, chart bridge; draft 33 positivi + 20 negativi per lingua (363/363, 0 falsi positivi), `charts_numeric` 17/17; manca revisione indipendente e maggior varietà |
 | 31 | **CLOSED 2026-11-19** | lessico 11 lingue, ancora esplicita/riferimento/narrativa, aritmetica civile, 231 casi gold |
 | 32 | `lexicon/place_index_v1.json` e `build_place_index.py` | entrambi assenti; servono GeoNames/Wikidata con licenza e data di retrieval |
 | 33 | `lexicon/roles/<lang>.json` (~80 codici × 10 lingue), relazioni e età | nessun file ruoli o `person_roles` nel manifest |
