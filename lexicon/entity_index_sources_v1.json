@@ -1,0 +1,20 @@
+{
+  "schema_version": "entity_index_sources.v1",
+  "license": "CC0-1.0",
+  "source": "Wikidata structured data",
+  "source_url": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+  "retrieval_date": "2026-11-19",
+  "intended_collisions": ["esa", "nike"],
+  "entries": {
+    "wd:Q42262": {"item_url": "https://www.wikidata.org/wiki/Q42262", "source": "Wikidata entity data"},
+    "wd:Q1133229": {"item_url": "https://www.wikidata.org/wiki/Q1133229", "source": "Wikidata entity data"},
+    "wd:Q23548": {"item_url": "https://www.wikidata.org/wiki/Q23548", "source": "Wikidata entity data"},
+    "wd:Q1094480": {"item_url": "https://www.wikidata.org/wiki/Q1094480", "source": "Wikidata entity data"},
+    "wd:Q17334": {"item_url": "https://www.wikidata.org/wiki/Q17334", "source": "Wikidata entity data"},
+    "wd:Q286442": {"item_url": "https://www.wikidata.org/wiki/Q286442", "source": "Wikidata entity data"},
+    "wd:Q483859": {"item_url": "https://www.wikidata.org/wiki/Q483859", "source": "Wikidata entity data"},
+    "wd:Q193845": {"item_url": "https://www.wikidata.org/wiki/Q193845", "source": "Wikidata entity data"},
+    "wd:Q19927": {"item_url": "https://www.wikidata.org/wiki/Q19927", "source": "Wikidata entity data"},
+    "wd:Q1924529": {"item_url": "https://www.wikidata.org/wiki/Q1924529", "source": "Wikidata entity data"}
+  }
+}

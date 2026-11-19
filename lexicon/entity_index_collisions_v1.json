@@ -1,0 +1,40 @@
+{
+  "schema_version": "entity_index_collisions.v1",
+  "index_sha256": "1c10f4d57d69f18053f751ab832d7a01dece0befd87d268e142e78a861309da1",
+  "entry_count": 10,
+  "collision_count": 2,
+  "collisions": [
+    {
+      "normalized_surface": "esa",
+      "intended": true,
+      "senses": [
+        {
+          "id": "wd:Q1133229",
+          "canonical_name": "Entertainment Software Association",
+          "alias": "ESA"
+        },
+        {
+          "id": "wd:Q42262",
+          "canonical_name": "European Space Agency",
+          "alias": "ESA"
+        }
+      ]
+    },
+    {
+      "normalized_surface": "nike",
+      "intended": true,
+      "senses": [
+        {
+          "id": "wd:Q193845",
+          "canonical_name": "Nike of Samothrace",
+          "alias": "Nike"
+        },
+        {
+          "id": "wd:Q483859",
+          "canonical_name": "Nike",
+          "alias": "Nike"
+        }
+      ]
+    }
+  ]
+}

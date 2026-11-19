@@ -1,7 +1,7 @@
 # TICKET-40 — grow the packaged entity index for disambiguation coverage
 
 - Priority: P1
-- Status: OPEN
+- Status: PARTIAL
 - Depends on: —
 - Files: `lexicon/entity_index_v1.json`, `lexicon/tools/build_entity_index.py`,
   entity-linking gold and metrics
@@ -55,9 +55,21 @@ coverage, inferred popularity priors, or asserting factual truth from a link.
 
 ## Implementation steps
 
-1. Define the row/source manifest schema and validator before adding data.
+1. [x] Define the row/source manifest schema and validator before adding data.
 2. Curate a source-controlled ambiguity list with stable IDs, senses and
    localized aliases; review licence/provenance for every row.
 3. Generate the packaged index and collision report deterministically.
 4. Add the ≥40-surface fixtures and CI checks, then let TICKET-35 consume the
    expanded seed for scoring calibration.
+
+## Progress
+
+The reproducible validator and alias-collision report are implemented in
+`lexicon/tools/build_entity_index.py`; CI checks both provenance and report
+freshness. The current ten rows validate, with two declared ambiguity surfaces
+(`ESA`, `Nike`). The index has not yet reached the 40-surface target, and the
+current report is infrastructure evidence rather than expanded coverage.
+
+The source manifest points to Wikidata structured data under CC0-1.0 and records
+the retrieval date and item URL for each row. Wikidata's licensing policy says
+its structured data is released under CC0: <https://www.wikidata.org/wiki/Wikidata:Licensing>.

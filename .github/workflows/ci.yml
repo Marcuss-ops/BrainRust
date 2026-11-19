@@ -48,6 +48,9 @@ jobs:
     - name: Unit packs are current
       run: python3 lexicon/tools/build_units.py --check
 
+    - name: Entity index provenance and collision report are current
+      run: python3 lexicon/tools/build_entity_index.py --check
+
     # rust-toolchain.toml is the single toolchain pin; the explicit install
     # keeps the container from falling back to a distro or floating rustc.
     - name: Install pinned Rust toolchain
