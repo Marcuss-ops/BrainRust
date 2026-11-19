@@ -272,6 +272,7 @@ fn project_scene(
             out.numbers
                 .push(timed(&date, "DATE", start_us, end_us, 0.8));
         }
+        out.numbers = dedupe_grounded_metric_numbers(out.numbers);
     }
 
     // The no-word-timing fallback turns a short scene into one phrase card,
@@ -1035,6 +1036,42 @@ fn score_for_date(score: f64) -> f64 {
         0.8
     } else {
         score
+    }
+}
+
+/// The producer can surface one grounded number twice: once as an entity
+/// (`18 unità`) and once from the numeric vocabulary (`18`). Both become the
+/// same card at the same instant. Collapse only same-value, same-start
+/// duplicates so a repeated value later in the scene still gets its card.
+fn dedupe_grounded_metric_numbers(numbers: Vec<TimedAnnotationV2>) -> Vec<TimedAnnotationV2> {
+    let mut seen = BTreeSet::new();
+    numbers
+        .into_iter()
+        .filter(|number| {
+            let family = number.annotation_type.trim().to_ascii_uppercase();
+            if family == "DATE" || family == "TIME" {
+                return true;
+            }
+            let start_us = if number.start_us > 0 {
+                number.start_us
+            } else {
+                number.start_ms.saturating_mul(1000)
+            };
+            seen.insert((family, metric_surface_key(&number.text), start_us))
+        })
+        .collect()
+}
+
+fn metric_surface_key(text: &str) -> String {
+    let trimmed = text.trim();
+    let numeric: String = trimmed
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit() || matches!(ch, '.' | ',' | '-' | '+'))
+        .collect();
+    if numeric.is_empty() {
+        trimmed.to_lowercase()
+    } else {
+        numeric
     }
 }
 

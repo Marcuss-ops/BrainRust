@@ -64,23 +64,50 @@
         }
       },
       {
-        "id": "static__s2-chain-image-0__image-chain__01",
+        "id": "image-focus-reveal__s2-image-0__image__01",
         "scene_id": "s2",
-        "kind": "image_chain",
+        "kind": "image",
         "start_ms": 7200,
-        "end_ms": 12600,
+        "end_ms": 9700,
         "start_us": 7200000,
-        "duration_us": 5400000,
-        "template_id": "IMAGE_CHAIN",
-        "caption_font_family": "playfair_display_italic",
-        "caption_layout": "below",
+        "duration_us": 2500000,
+        "template_id": "IMAGE_OVERLAY",
+        "motion_id": "image_focus_reveal",
+        "motion_params": {
+          "enter_frames": 8
+        },
         "asset_refs": [
           {
             "asset_id": "asset-chain-image-a",
             "url": "https://cdn.example/chain-image-a.jpg",
             "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
             "media_type": "image/jpeg"
-          },
+          }
+        ],
+        "params": {
+          "fit": "contain",
+          "height": 760.0,
+          "position": "center",
+          "position_x": 0.0,
+          "position_y": 0.0,
+          "priority": 0.8,
+          "width": 1340.0
+        }
+      },
+      {
+        "id": "image-focus-reveal__s2-image-1__image__01",
+        "scene_id": "s2",
+        "kind": "image",
+        "start_ms": 10100,
+        "end_ms": 12600,
+        "start_us": 10100000,
+        "duration_us": 2500000,
+        "template_id": "IMAGE_OVERLAY",
+        "motion_id": "image_focus_reveal",
+        "motion_params": {
+          "enter_frames": 8
+        },
+        "asset_refs": [
           {
             "asset_id": "asset-chain-image-b",
             "url": "https://cdn.example/chain-image-b.jpg",
@@ -89,57 +116,13 @@
           }
         ],
         "params": {
-          "chain_camera": "fly_under_fade",
-          "chain_count": 2,
-          "chain_gap_us": 400000,
-          "chain_motions": [
-            "",
-            ""
-          ],
-          "chain_segments": [
-            {
-              "asset_id": "asset-chain-image-a",
-              "assets": [
-                {
-                  "asset_id": "asset-chain-image-a",
-                  "media_type": "image/jpeg",
-                  "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
-                  "url": "https://cdn.example/chain-image-a.jpg"
-                }
-              ],
-              "duration_us": 2500000,
-              "kind": "image",
-              "motion_params": {
-                "enter_frames": 8
-              },
-              "params": {
-                "priority": 0.8
-              },
-              "start_us": 7200000,
-              "template_id": "IMAGE_OVERLAY"
-            },
-            {
-              "asset_id": "asset-chain-image-b",
-              "assets": [
-                {
-                  "asset_id": "asset-chain-image-b",
-                  "media_type": "image/jpeg",
-                  "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
-                  "url": "https://cdn.example/chain-image-b.jpg"
-                }
-              ],
-              "duration_us": 2500000,
-              "kind": "image",
-              "motion_params": {
-                "enter_frames": 8
-              },
-              "params": {
-                "priority": 0.75
-              },
-              "start_us": 10100000,
-              "template_id": "IMAGE_OVERLAY"
-            }
-          ]
+          "fit": "contain",
+          "height": 760.0,
+          "position": "center",
+          "position_x": 0.0,
+          "position_y": 0.0,
+          "priority": 0.75,
+          "width": 1340.0
         }
       },
       {
@@ -255,9 +238,9 @@
         "organization": 1,
         "text_phrase": 3
       },
-      "planned": 5,
+      "planned": 6,
       "planned_by_kind": {
-        "image_chain": 1,
+        "image": 2,
         "map": 2,
         "mixed_chain": 1,
         "phrase_chain": 1

@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use super::project_request;
+use super::{dedupe_grounded_metric_numbers, project_request, timed};
 use crate::editorial_plan_v2::request::{
     BudgetsV2, EditorialManifestV2, EditorialPlanV2Request, ImageCandidateV2, ImagePlanV2, MediaV2,
     SceneImageCandidateSetV2, SealV2,
@@ -95,6 +95,25 @@ fn projects_phrases_numbers_dates_maps_and_heavy_boost() {
         .iter()
         .any(|number| number.text == "13 agosto 2007"));
     assert_eq!(annotations.end_us, 4_000_000);
+}
+
+#[test]
+fn duplicate_metric_surfaces_collapse_but_dates_and_later_values_survive() {
+    let numbers = vec![
+        timed("18 unità", "NUMBER", 500_000, 2_000_000, 0.5),
+        timed("18", "NUMBER", 500_000, 2_000_000, 0.3),
+        timed("18", "NUMBER", 4_000_000, 5_000_000, 0.3),
+        timed("13 agosto 2007", "DATE", 0, 1_000_000, 0.8),
+    ];
+    let out = dedupe_grounded_metric_numbers(numbers);
+    assert_eq!(out.len(), 3);
+    assert_eq!(
+        out.iter()
+            .filter(|number| number.text.contains("18"))
+            .count(),
+        2
+    );
+    assert!(out.iter().any(|number| number.text == "13 agosto 2007"));
 }
 
 #[test]

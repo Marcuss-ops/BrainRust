@@ -131,7 +131,7 @@ pub(crate) fn ordered_sequence_groups(
             continue;
         }
         groups.push(SemanticGroup {
-            id: format!("ordered_sequence_{:02}", groups.len() + 1),
+            id: format!("ordered_sequence_{scene_id}_{:02}", groups.len() + 1),
             group_type: "step_sequence".to_string(),
             title: "Sequenza ordinata".to_string(),
             ranking_basis: Some("explicit_source_order".to_string()),

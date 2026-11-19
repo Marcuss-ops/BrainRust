@@ -453,12 +453,16 @@ fn general_chain_rendering_covers_phrase_image_and_mixed_sequences() {
             .filter(|item| item.kind == kind)
             .collect::<Vec<_>>()
     };
-    for kind in ["phrase_chain", "image_chain", "mixed_chain"] {
+    for kind in ["phrase_chain", "mixed_chain"] {
         assert_eq!(items(kind).len(), 1, "one {kind} in the golden");
     }
+    // Images are never fused: the two image items stay independent so each one
+    // renders as its own clip, in sequence, instead of a deck of cards.
+    assert_eq!(items("image_chain").len(), 0, "images are not chained");
+    assert_eq!(items("image").len(), 2, "both images stay standalone");
     assert_eq!(items("map").len(), 2, "maps stay standalone");
 
-    for kind in ["phrase_chain", "image_chain", "mixed_chain"] {
+    for kind in ["phrase_chain", "mixed_chain"] {
         let item = items(kind)[0];
         let params = item.params.as_ref().expect("chain params");
         assert_eq!(params["chain_count"].as_u64(), Some(2), "{kind}");
@@ -494,22 +498,28 @@ fn general_chain_rendering_covers_phrase_image_and_mixed_sequences() {
         Some("Il museo apre domani")
     );
 
-    let image = items("image_chain")[0];
-    assert_eq!(image.asset_refs.len(), 2, "both image assets are preserved");
-    assert_eq!(image.asset_refs[0].asset_id, "asset-chain-image-a");
-    assert_eq!(image.asset_refs[1].asset_id, "asset-chain-image-b");
-    let image_segments = image.params.as_ref().expect("params")["chain_segments"]
-        .as_array()
-        .expect("image segments");
+    let mut images = items("image");
+    images.sort_by_key(|item| item.start_us);
+    assert_eq!(images[0].asset_refs[0].asset_id, "asset-chain-image-a");
+    assert_eq!(images[1].asset_refs[0].asset_id, "asset-chain-image-b");
     assert_eq!(
-        image_segments[0]["assets"][0]["sha256"].as_str(),
-        Some("1111111111111111111111111111111111111111111111111111111111111111")
+        images[0].asset_refs[0].sha256,
+        "1111111111111111111111111111111111111111111111111111111111111111"
     );
     assert_eq!(
-        image_segments[1]["assets"][0]["sha256"].as_str(),
-        Some("2222222222222222222222222222222222222222222222222222222222222222")
+        images[1].asset_refs[0].sha256,
+        "2222222222222222222222222222222222222222222222222222222222222222"
     );
-    assert_eq!(image_segments[1]["start_us"].as_i64(), Some(10_100_000));
+    // Each image owns its slot: no overlap, at least the readable hold, and an
+    // authored centred viewport instead of the renderer's 320px side card.
+    for image in &images {
+        assert!(image.duration_us >= 2_500_000, "{} is readable", image.id);
+        let params = image.params.as_ref().expect("params");
+        assert_eq!(params["position"].as_str(), Some("center"));
+        assert_eq!(params["width"].as_f64(), Some(1340.0));
+        assert!(params.get("chain_count").is_none());
+    }
+    assert!(images[1].start_us >= images[0].start_us + images[0].duration_us);
 
     let mixed_segments = items("mixed_chain")[0].params.as_ref().expect("params")["chain_segments"]
         .as_array()

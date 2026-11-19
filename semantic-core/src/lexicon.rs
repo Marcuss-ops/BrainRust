@@ -393,6 +393,18 @@ impl Lexicon {
             return false;
         }
         let lower = surface.to_lowercase();
+        // The curated location seed contains country and city names that are
+        // deliberately outside the GeoNames populated-place dump (a country is
+        // ADM0, not feature class P). They are still places: the same list is
+        // already trusted by the visual typer, so the predicate must agree.
+        if self
+            .gazetteer
+            .locations
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(surface) || name.eq_ignore_ascii_case(&lower))
+        {
+            return true;
+        }
         let key = language.split(['-', '_']).next().unwrap_or("");
         // A function word of the text's own language is not a place, whatever
         // the index says: the index is matched case-insensitively, so a

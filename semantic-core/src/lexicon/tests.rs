@@ -41,6 +41,18 @@ fn geonames_places_are_indexed_with_a_capitalization_guard() {
     assert!(lexicon.is_place("Pavia", "it"));
     assert!(lexicon.is_place("Garlasco", "it"));
     assert!(lexicon.is_place("Vigevano", "it"));
+    // Country names are ADM0 features, so the populated-place dump excludes
+    // them; the curated location seed must still type them as places.
+    assert!(lexicon.is_place("Italia", "it"));
+    assert!(lexicon.is_place("Francia", "it"));
+    assert!(lexicon.is_place("Germania", "it"));
+    assert!(lexicon.is_place("Svizzera", "it"));
+    assert!(lexicon.is_place("Italy", "en"));
+    assert!(lexicon.is_place("Switzerland", "en"));
+    // Italian elides the article: the spoken surface is "L'Italia", and the
+    // GeoNames alias "La Francia" is a hamlet, not the country named Francia.
+    assert!(lexicon.is_place("L'Italia", "it"));
+    assert!(!lexicon.is_place("La Francia", "it"));
     // A caseless script has no uppercase initial: the index must still
     // type the place.
     assert!(lexicon.is_place("北京", "zh"));

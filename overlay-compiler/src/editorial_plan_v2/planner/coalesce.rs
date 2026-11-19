@@ -4,8 +4,9 @@
 use super::*;
 
 /// Ports `CoalesceChainedOverlaysWithSceneEnds`: nearby, same-scene overlays
-/// fuse into one sequential chain only after admission. Image-backed item runs
-/// are coalesced separately so a text card never interrupts a slideshow.
+/// fuse into one sequential chain only after admission. Captioned entity cards
+/// are image-backed and fuse as one image_chain; plain photos stay standalone
+/// so a text card never interrupts a slideshow.
 pub(super) fn coalesce_chained_overlays(
     items: Vec<PlanItemV2>,
     request: &EditorialPlanV2Request,
@@ -20,21 +21,41 @@ pub(super) fn coalesce_chained_overlays(
     if items.len() < 2 {
         return items;
     }
-    let image_count = items
+    let has_images = items
         .iter()
-        .filter(|item| chain_family(&item.kind) == "image")
-        .count();
-    if image_count > 0 && image_count < items.len() {
-        let mut images = Vec::new();
+        .any(|item| chain_family(&item.kind) == "image");
+    if has_images {
+        let mut standalone_images = Vec::new();
+        let mut chained_images = Vec::new();
         let mut others = Vec::new();
         for item in items {
-            if chain_family(&item.kind) == "image" {
-                images.push(item);
-            } else {
+            if chain_family(&item.kind) != "image" {
                 others.push(item);
+            } else if is_captioned_entity_image(&item) {
+                // A captioned entity card is a portrait plus a name, and the
+                // name must stay under the portrait for every card in the
+                // sequence. These cards own a stable, centered viewport and an
+                // entrance motion by the time coalescing runs, so they can be
+                // fused into one image_chain instead of being forced to take
+                // turns as independent items.
+                chained_images.push(item);
+            } else {
+                // Plain photos are never fused into a chain container. The
+                // renderer lowers a chain's image segments as a simultaneous
+                // deck on the right when the segments carry no per-card
+                // viewport, so generic images stay standalone and the planner
+                // sequences their windows after coalescing.
+                standalone_images.push(item);
             }
         }
-        let mut out = coalesce_chain_subset(images, max_gap_us, max_segments, scene_ends, 0);
+        let mut out = standalone_images;
+        out.extend(coalesce_chain_subset(
+            chained_images,
+            max_gap_us,
+            max_segments,
+            scene_ends,
+            0,
+        ));
         out.extend(coalesce_chain_subset(
             others,
             max_gap_us,
@@ -181,6 +202,15 @@ fn chainable(item: &PlanItemV2) -> bool {
 /// Automatic chain families. `map` is intentionally not a family: maps stay
 /// standalone and `map_chain` is accepted only as an explicitly authored wire
 /// item, never emitted by the Rust compiler.
+/// A captioned entity card is the one image family that chains automatically:
+/// its caption is anchored below its own portrait and its viewport is pinned
+/// by `assign_entity_media`, so a sequence cannot collapse into a deck.
+fn is_captioned_entity_image(item: &PlanItemV2) -> bool {
+    item.kind.trim() == "entity_image"
+        && !item.entity_caption.trim().is_empty()
+        && !item.asset_refs.is_empty()
+}
+
 pub(super) fn chain_family(kind: &str) -> &'static str {
     match kind.trim().to_ascii_lowercase().as_str() {
         "text_phrase" | "important_word" | "keyword" | "quote" | "brand_text" | "brand-text"
@@ -189,13 +219,6 @@ pub(super) fn chain_family(kind: &str) -> &'static str {
         "entity_card" | "organization" | "location" | "concept" | "lower_third" => "card",
         _ => "",
     }
-}
-
-fn captioned_entity_image_card(item: &PlanItemV2) -> bool {
-    chain_family(&item.kind) == "card"
-        && !item.asset_refs.is_empty()
-        && !item.entity_caption.trim().is_empty()
-        && item.sound_effect.is_none()
 }
 
 /// Mirrors `projectedChainEndUS`: the first segment keeps the group start,
@@ -299,6 +322,13 @@ fn is_blank(value: &str) -> bool {
     value.trim().is_empty()
 }
 
+/// DEFAULT_CHAIN_IMAGE_MOTION is the entrance a chained image segment gets when
+/// the producer item carries none. Without it the segment is a still frame that
+/// replaces the previous one: the chain hand-off looks like a cut and there is
+/// nothing for the renderer to animate. The id is certified in the Chronon
+/// motion catalog for image templates (same family the entity pool rotates).
+const DEFAULT_CHAIN_IMAGE_MOTION: &str = "image_focus_reveal";
+
 /// Builds one chain container exactly like the former Go `model.fuseChain`:
 /// segments are laid
 /// out sequentially with a 400ms handoff, card segments keep a 2.5s minimum
@@ -342,11 +372,19 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64) -> PlanItemV2 {
         } else {
             cursor_us.saturating_add(400_000)
         };
+        // Every image segment must animate on entry: a segment with no motion
+        // is a still image swapped in place, which is exactly what makes a
+        // chain read as "one image behind the other" instead of a sequence.
+        let motion_id = if item.motion_id.trim().is_empty() && chain_family(&item.kind) == "image" {
+            DEFAULT_CHAIN_IMAGE_MOTION.to_string()
+        } else {
+            item.motion_id.clone()
+        };
         let segment = ChainSegment {
             text: item.text.clone(),
             group_id: item.group_id.clone(),
             subgroup_id: item.subgroup_id.clone(),
-            motion_id: item.motion_id.clone(),
+            motion_id: motion_id.clone(),
             preset_id: item.preset_id.clone(),
             image_preset_id: item.image_preset_id.clone(),
             template_id: item.template_id.clone(),
@@ -381,7 +419,7 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64) -> PlanItemV2 {
             recap_count += 1;
         }
         segments.push(serde_json::to_value(&segment).expect("chain segment serializes"));
-        motions.push(json!(item.motion_id));
+        motions.push(json!(motion_id));
         cursor_us = segment_start_us.saturating_add(duration_us);
         for asset in &item.asset_refs {
             if asset.asset_id.trim().is_empty() || !seen_assets.insert(asset.asset_id.clone()) {
@@ -427,94 +465,6 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64) -> PlanItemV2 {
         params: Some(Value::Object(params)),
         ..PlanItemV2::default()
     }
-}
-
-/// Ports `CoalesceCaptionedEntityImageCards`: build runs from the card lane per
-/// scene (not adjacency in the full list), fuse only same-scene runs within the
-/// 7.5s entity-card gap, and keep the group standalone when the sequential
-/// layout would cross the scene end.
-pub(super) fn fuse_captioned_entity_image_chains(
-    items: Vec<PlanItemV2>,
-    scene_ends: &BTreeMap<String, i64>,
-) -> Vec<PlanItemV2> {
-    if items.len() < 2 {
-        return items;
-    }
-    // No-op plans must stay byte-identical: only a run with at least two
-    // captioned entity cards can produce a chain, so do not re-sort the rest.
-    if items
-        .iter()
-        .filter(|item| captioned_entity_image_card(item))
-        .count()
-        < 2
-    {
-        return items;
-    }
-    let mut sorted = items;
-    sorted.sort_by(|left, right| {
-        left.window_us()
-            .0
-            .cmp(&right.window_us().0)
-            .then_with(|| left.id.cmp(&right.id))
-    });
-    let mut by_scene: BTreeMap<String, Vec<usize>> = BTreeMap::new();
-    for (index, item) in sorted.iter().enumerate() {
-        if captioned_entity_image_card(item) {
-            by_scene
-                .entry(item.scene_id.clone())
-                .or_default()
-                .push(index);
-        }
-    }
-    let mut fused_at: BTreeMap<usize, PlanItemV2> = BTreeMap::new();
-    let mut suppressed: BTreeSet<usize> = BTreeSet::new();
-    for indices in by_scene.values() {
-        let mut index = 0;
-        while index < indices.len() {
-            let first = indices[index];
-            let mut group = vec![sorted[first].clone()];
-            let mut members = vec![first];
-            let mut group_end = sorted[first].window_us().1;
-            let mut next = index + 1;
-            while next < indices.len() {
-                let candidate_index = indices[next];
-                let candidate = &sorted[candidate_index];
-                let gap = candidate.window_us().0.saturating_sub(group_end);
-                if gap > 7_500_000 {
-                    break;
-                }
-                group.push(candidate.clone());
-                members.push(candidate_index);
-                group_end = group_end.max(candidate.window_us().1);
-                next += 1;
-            }
-            if group.len() > 1 {
-                let scene_end = scene_ends.get(&group[0].scene_id).copied();
-                if !chain_exceeds_scene_end(&group, scene_end) {
-                    fused_at.insert(first, fuse_chain(&group, 1000 + first as u64));
-                    for member in members.iter().skip(1) {
-                        suppressed.insert(*member);
-                    }
-                }
-            }
-            index = next;
-        }
-    }
-    let mut out = Vec::with_capacity(sorted.len().saturating_sub(suppressed.len()));
-    for (index, item) in sorted.into_iter().enumerate() {
-        if let Some(chain) = fused_at.remove(&index) {
-            out.push(chain);
-        } else if !suppressed.contains(&index) {
-            out.push(item);
-        }
-    }
-    out.sort_by(|left, right| {
-        left.window_us()
-            .0
-            .cmp(&right.window_us().0)
-            .then_with(|| left.id.cmp(&right.id))
-    });
-    out
 }
 
 #[cfg(test)]

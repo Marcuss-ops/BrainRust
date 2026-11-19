@@ -361,3 +361,80 @@ fn consolidation_types_vigevano_as_location_and_ris_as_organization() {
         .expect("RIS must be grounded");
     assert_eq!(ris["type"], "ORG");
 }
+
+#[test]
+fn two_scenes_keep_their_chronology_groups_and_timeline_assets_distinct() {
+    let scenes = vec![
+        scene(
+            "s01",
+            "Alberto Stasi fu assolto il 13 agosto 2007. La Cassazione confermò l'assoluzione il 19 settembre 2007.",
+        ),
+        scene(
+            "s02",
+            "Il tribunale condannò Andrea Sempio il 3 marzo 2010. La Corte confermò la condanna il 4 aprile 2011.",
+        ),
+    ];
+    let value = manifest(scenes);
+    let consolidation = &value["visual_consolidation"];
+    let timelines: Vec<&Value> = consolidation["production_candidates"]
+        .as_array()
+        .expect("production candidates")
+        .iter()
+        .filter(|candidate| candidate["recipe"] == "timeline")
+        .collect();
+    assert_eq!(
+        timelines.len(),
+        2,
+        "one timeline per scene, not one merged timeline: {consolidation}"
+    );
+
+    let group_ids: HashSet<&str> = timelines
+        .iter()
+        .map(|candidate| {
+            candidate["group_ids"][0]
+                .as_str()
+                .expect("timeline carries its group")
+        })
+        .collect();
+    assert_eq!(
+        group_ids.len(),
+        2,
+        "two scenes must not share a chronology group id: {group_ids:?}"
+    );
+    for group_id in &group_ids {
+        assert!(
+            group_id.ends_with("_01"),
+            "chronology ids keep their per-scene suffix: {group_id}"
+        );
+        assert!(
+            group_id.contains("s0"),
+            "the scene id is part of the chronology id: {group_id}"
+        );
+    }
+
+    let asset_keys: HashSet<&str> = timelines
+        .iter()
+        .map(|candidate| {
+            candidate["asset_key"]
+                .as_str()
+                .expect("timeline carries an asset key")
+        })
+        .collect();
+    assert_eq!(
+        asset_keys.len(),
+        2,
+        "two timelines must not share an asset key: {asset_keys:?}"
+    );
+
+    let links = consolidation["event_links"]
+        .as_array()
+        .expect("event links");
+    let link_groups: HashSet<&str> = links
+        .iter()
+        .map(|link| link["group_id"].as_str().expect("link carries a group"))
+        .collect();
+    assert_eq!(
+        link_groups, group_ids,
+        "event links must point at the same scene-scoped groups: {links:?}"
+    );
+}

@@ -29,8 +29,6 @@ pub const CHAPTER_BULLET_WINDOW_US: i64 = 4_000_000;
 /// The extractor floor: a two-word tail is a fragment, not a point.
 const MIN_BULLET_WORDS: usize = 4;
 const MIN_BULLET_CHARS: usize = 16;
-/// The grounding confirmation uses the first five words: splitter-independent.
-const LEAD_WORDS: usize = 5;
 
 /// Projects chapter bullets onto the v2 scenes. The caller appends the returned
 /// phrases to its complete `SceneInput` DTOs and skips editorial bullets on the
@@ -56,21 +54,6 @@ pub fn project_chapter_bullets(request: &EditorialPlanV2Request) -> EditorialPla
             .eq_ignore_ascii_case(&request.language)
     {
         return response;
-    }
-
-    // Sentence offsets map transcript-global bullet spans onto scenes. The
-    // transcript is the ordered join of body scenes, so offsets are cumulative
-    // sentence counts over the same scenes. Splitter drift is tolerated: the
-    // offsets only nominate a scene, verbatim containment always confirms it.
-    let mut offsets: BTreeMap<&str, (i64, i64)> = BTreeMap::new();
-    let mut cursor = 0_i64;
-    for scene in &request.scenes {
-        if is_fixed_media(&scene.execution_mode) {
-            continue;
-        }
-        let count = editorial_sentences(scene.text.trim()).len() as i64;
-        offsets.insert(scene.id.as_str(), (cursor, cursor + count));
-        cursor += count;
     }
 
     let mut ordered: Vec<&ChapterBulletV2> = Vec::new();
@@ -104,16 +87,15 @@ pub fn project_chapter_bullets(request: &EditorialPlanV2Request) -> EditorialPla
         if scene_end_us <= scene_start_us {
             continue;
         }
-        let scene_range = offsets.get(scene.id.as_str()).copied();
         for bullet in &ordered {
             let bullet_text = bullet.text.trim();
             let key = bullet_text.to_lowercase();
             if used.contains(&key) || !has_substance(bullet_text) {
                 continue;
             }
-            if !grounds_in_scene(bullet, bullet_text, text, scene_range) {
+            let Some(projected_text) = grounded_prefix(bullet_text, text) else {
                 continue;
-            }
+            };
             let mut start_us = scene_start_us;
             // Anchor on the first certified phrase inside the scene. The v2
             // request carries producer annotations, never an already-projected
@@ -134,7 +116,7 @@ pub fn project_chapter_bullets(request: &EditorialPlanV2Request) -> EditorialPla
                 .voiceover
                 .as_ref()
                 .and_then(|voiceover| voiceover.timing.as_ref())
-                .and_then(|timing| located_duration(timing, bullet_text))
+                .and_then(|timing| located_duration(timing, &projected_text))
                 .unwrap_or(CHAPTER_BULLET_WINDOW_US);
             let duration_us = spoken_us.min(scene_end_us - start_us);
             if duration_us <= 0 {
@@ -145,7 +127,7 @@ pub fn project_chapter_bullets(request: &EditorialPlanV2Request) -> EditorialPla
                 .entry(scene.id.clone())
                 .or_default()
                 .push(ScenePhraseV2 {
-                    text: bullet_text.to_string(),
+                    text: projected_text,
                     start_us,
                     duration_us,
                     score: CHAPTER_BULLET_SCORE,
@@ -190,34 +172,28 @@ fn has_substance(text: &str) -> bool {
         >= MIN_BULLET_CHARS
 }
 
-fn grounds_in_scene(
-    bullet: &ChapterBulletV2,
-    bullet_text: &str,
-    scene_text: &str,
-    scene_range: Option<(i64, i64)>,
-) -> bool {
-    if scene_text
-        .to_lowercase()
-        .contains(&bullet_text.to_lowercase())
-    {
-        return true;
+/// Returns the leading sentence span of a chapter bullet that is fully
+/// contained in the scene text. A chapter can open across a scene boundary;
+/// the card must show only the part spoken in the scene that opens the
+/// chapter, never the next scene's sentence. The old lead-only grounding let a
+/// cross-scene span through and the presentation split carried the neighbour's
+/// copy into the first scene.
+fn grounded_prefix(bullet_text: &str, scene_text: &str) -> Option<String> {
+    let scene = normalized_surface(scene_text);
+    let full = normalized_surface(bullet_text);
+    if !full.is_empty() && scene.contains(&full) {
+        return Some(bullet_text.trim().to_string());
     }
-    let Some((range_start, range_end)) = scene_range else {
-        return false;
-    };
-    if range_end <= range_start {
-        return false;
+    let sentences = editorial_sentences(bullet_text);
+    let mut best: Option<String> = None;
+    for end in 1..sentences.len() {
+        let candidate = sentences[..end].join(" ");
+        let normalized = normalized_surface(&candidate);
+        if !normalized.is_empty() && scene.contains(&normalized) {
+            best = Some(candidate);
+        }
     }
-    let overlaps = bullet.start_sentence < range_end && bullet.end_sentence > range_start;
-    if !overlaps {
-        return false;
-    }
-    let lead = bullet_text
-        .split_whitespace()
-        .take(LEAD_WORDS)
-        .collect::<Vec<_>>()
-        .join(" ");
-    !lead.is_empty() && scene_text.to_lowercase().contains(&lead.to_lowercase())
+    best
 }
 
 /// Splits the scene text into sentences exactly like the Go projection: the
@@ -241,6 +217,17 @@ fn editorial_sentences(text: &str) -> Vec<String> {
         sentences.push(tail.to_string());
     }
     sentences
+}
+
+/// Folds case, apostrophes and whitespace runs so two extractive surfaces
+/// compare on their text rather than on typographic differences.
+fn normalized_surface(text: &str) -> String {
+    let folded: String = text.nfc().map(fold_apostrophe).collect();
+    folded
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[derive(Debug, Clone)]
@@ -671,21 +658,19 @@ mod tests {
     }
 
     #[test]
-    fn merged_span_opens_chapter() {
+    fn cross_scene_bullet_is_clipped_to_the_opening_scene() {
         let mut request = request();
         let merged = format!("{} {}", S1.trim(), S2.trim());
-        request.chapters.as_mut().expect("chapters").chapters = vec![ChapterV2 {
-            bullets: vec![ChapterBulletV2 {
-                text: merged.clone(),
-                start_sentence: 0,
-                end_sentence: 2,
-            }],
-        }];
+        request.chapters.as_mut().expect("chapters").chapters[0].bullets[0] = ChapterBulletV2 {
+            text: merged.clone(),
+            start_sentence: 0,
+            end_sentence: 2,
+        };
         let response = project_chapter_bullets(&request);
-        assert!(response.covered_scenes.contains(&"s1".to_string()));
-        assert!(!response.covered_scenes.contains(&"s2".to_string()));
-        let bullet = chapter_phrase("s1", &response).expect("s1 bullet");
-        assert_eq!(bullet.text, merged);
-        assert_eq!(bullet.start_us, 0);
+        let first = chapter_phrase("s1", &response).expect("s1 bullet");
+        assert_eq!(first.text, S1.trim());
+        assert_ne!(first.text, merged);
+        let second = chapter_phrase("s2", &response).expect("s2 bullet");
+        assert_eq!(second.text, S2.trim());
     }
 }

@@ -197,7 +197,11 @@ pub(super) fn push_timeline(
         suggested_visual: "timeline".to_string(),
         chart_items: Vec::new(),
         temporal_surfaces,
-        asset_key: format!("timeline:{}", group.group.id),
+        // The asset key names the composition, so it must be unique across
+        // the whole script, not only inside one scene: the scene prefix makes
+        // two timelines built from two scenes' chronologies distinct even if
+        // a future group id scheme stops carrying the scene.
+        asset_key: format!("timeline:{}:{}", group.scene_id, group.group.id),
         queries: Vec::new(),
         requires_media: false,
         dedup_key,

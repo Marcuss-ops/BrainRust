@@ -207,6 +207,27 @@ pub struct CanvasV2 {
     /// Emit one deterministic light leak at every admitted overlay start.
     #[serde(default)]
     pub light_leak_on_overlay_start: bool,
+    /// Per-scene editorial bullet pins. A scene carries at most one projected
+    /// bullet, so `scene_id` is the bullet identity. The compiler applies the
+    /// pin after the documentary presentation pass, which makes this the
+    /// single owner of the bullet's font, size and entrance motion.
+    #[serde(default)]
+    pub editorial_bullet_styles: Vec<EditorialBulletStyleV2>,
+}
+
+/// One per-scene editorial bullet presentation pin. Empty fields keep the
+/// presentation default; the Go ingress validator owns the accepted font and
+/// size ranges before a request reaches this compiler.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct EditorialBulletStyleV2 {
+    #[serde(default)]
+    pub scene_id: String,
+    #[serde(default)]
+    pub font_family: String,
+    #[serde(default)]
+    pub font_size_px: f64,
+    #[serde(default)]
+    pub motion_id: String,
 }
 
 /// The resolved map presentation policy. Only the fields that change planner

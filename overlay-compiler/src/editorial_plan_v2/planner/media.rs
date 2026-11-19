@@ -30,8 +30,58 @@ pub(super) fn append_image(
         sha256: candidate.sha256.clone(),
         media_type: candidate.media_type.clone(),
     }];
-    item.params = Some(json!({"priority": candidate.score}));
+    let mut params = json!({"priority": candidate.score});
+    if kind == "image" {
+        // Authored, readable viewport. Without one the renderer falls back to a
+        // 320px card anchored by the preset's side layout: tiny and off-centre
+        // at 1080p. The box and the centring are plan data, the renderer only
+        // interprets them.
+        if let Some(object) = params.as_object_mut() {
+            object.insert("width".to_string(), json!(IMAGE_VIEWPORT_WIDTH));
+            object.insert("height".to_string(), json!(IMAGE_VIEWPORT_HEIGHT));
+            object.insert("position".to_string(), json!("center"));
+            object.insert("fit".to_string(), json!("contain"));
+        }
+    }
+    item.params = Some(params);
     items.push(item);
+}
+
+/// Viewport an independent image card occupies: about 70% of a 1920x1080
+/// canvas. Shared with `normalize_image_presentation` so the two writers of an
+/// image card cannot disagree.
+const IMAGE_VIEWPORT_WIDTH: f64 = 1340.0;
+const IMAGE_VIEWPORT_HEIGHT: f64 = 760.0;
+
+/// Entrance used when the run handed no image-motion pool: the certified
+/// single-image focus reveal, the same fallback a chain segment gets. An image
+/// with no motion is a card that simply switches on, which is one of the
+/// reasons the sequence read as "one image behind the other".
+const FALLBACK_IMAGE_MOTION: &str = "image_focus_reveal";
+
+/// Side of the square portrait box an entity card is authored into.
+const ENTITY_IMAGE_VIEWPORT: f64 = 820.0;
+
+/// Stamps the readable square viewport on an entity card. The layout belongs to
+/// the card, not to the standalone-image pass: a card fused into an image_chain
+/// never reaches `normalize_image_presentation`, so the same geometry must be
+/// authored before coalescing. Existing explicit values always win.
+fn stamp_entity_image_viewport(item: &mut PlanItemV2) {
+    let Some(Value::Object(params)) = item.params.as_mut() else {
+        return;
+    };
+    params
+        .entry("width".to_string())
+        .or_insert_with(|| json!(ENTITY_IMAGE_VIEWPORT));
+    params
+        .entry("height".to_string())
+        .or_insert_with(|| json!(ENTITY_IMAGE_VIEWPORT));
+    params
+        .entry("position_x".to_string())
+        .or_insert_with(|| json!(0.0));
+    params
+        .entry("position_y".to_string())
+        .or_insert_with(|| json!(0.0));
 }
 
 pub(super) fn append_map(
@@ -300,9 +350,13 @@ fn entity_window(scene: &SceneV2, entity: &EntityOccurrenceV2) -> Option<(i64, i
     } else {
         start.saturating_add(2_000_000)
     }
-    // The entity resolver keeps a card readable for at least one second even
-    // when the spoken name is shorter; the scene boundary still wins.
-    .max(start.saturating_add(1_000_000))
+    // A card must stay readable for at least 2.5s even when the spoken name is
+    // shorter: one second was a flash, not an overlay (a name spoken in ~0.8s
+    // produced a 1.0s card that the viewer could not read). 2.5s matches the
+    // minimum hold a chained image segment already gets, so a standalone card
+    // and the first segment of a chain have the same floor. The scene boundary
+    // still wins.
+    .max(start.saturating_add(2_500_000))
     .min(scene_end);
     (end > start).then_some((start, end - start))
 }
@@ -374,9 +428,7 @@ pub(super) fn attach_resolved_entity_images(mut items: Vec<PlanItemV2>) -> Vec<P
         let verified: Vec<AssetRefV2> = item
             .asset_refs
             .iter()
-            .filter(|asset| {
-                !asset.url.trim().is_empty() && asset.sha256.trim().len() == 64
-            })
+            .filter(|asset| !asset.url.trim().is_empty() && asset.sha256.trim().len() == 64)
             .cloned()
             .collect();
         if verified.is_empty() {
@@ -459,10 +511,16 @@ mod identity_ownership_tests {
 
         let out = attach_resolved_entity_images(vec![card, donor]);
         let card = &out[0];
-        assert_eq!("entity_card", card.kind, "the planner must not promote the card");
+        assert_eq!(
+            "entity_card", card.kind,
+            "the planner must not promote the card"
+        );
         assert_eq!("person_default", card.template_id);
         assert_eq!("Ada Lovelace", card.text, "the card keeps its own text");
-        assert!(card.preset_id.is_empty(), "preset selection belongs to the Go sampler");
+        assert!(
+            card.preset_id.is_empty(),
+            "preset selection belongs to the Go sampler"
+        );
         assert!(card.image_preset_id.is_empty());
         assert_eq!(1, card.asset_refs.len(), "the donor bytes are attached");
         assert_eq!("portrait-ada", card.asset_refs[0].asset_id);
@@ -503,6 +561,97 @@ mod identity_ownership_tests {
 /// on a card that carries both a portrait and a caption — the same fail-closed
 /// precondition RenderingGen enforces. `render_key` stays empty: sealing clears
 /// it and Go recomputes it from the finished document.
+/// A card a viewer can actually read. Below this the image is a flash.
+const ENTITY_IMAGE_MIN_HOLD_US: i64 = 2_500_000;
+/// Breathing room between two cards of the same scene; the same handoff the
+/// image chain container uses.
+const ENTITY_IMAGE_GAP_US: i64 = 400_000;
+
+/// Kinds that share the scene's image lane and must take turns.
+fn sequenced_image_kind(kind: &str) -> bool {
+    matches!(kind.trim(), "entity_image" | "image")
+}
+
+/// Gives the images of one scene their own turn on screen.
+///
+/// An entity that is only named has no audio window of its own, so
+/// `entity_window` falls back to the scene start. Three named entities in one
+/// scene therefore produced three cards at the exact same instant: stacked on
+/// top of each other, which reads as "one image behind the other" rather than a
+/// sequence, and the last admitted card is the only one a viewer ever sees.
+/// Cards now start in plan order, each keeping its admitted hold (never shorter
+/// than the readable floor) with the chain handoff between them, all clamped to
+/// the scene window so a card never outlives its scene.
+pub(super) fn sequence_scene_image_windows(
+    scene_windows: &std::collections::BTreeMap<String, [i64; 2]>,
+    items: Vec<PlanItemV2>,
+) -> Vec<PlanItemV2> {
+    // Take turns in timeline order, never in vector order: a card admitted
+    // later in the list can start earlier, and shuffling by list position used
+    // to give the same instant to two images.
+    let mut order: Vec<usize> = items
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| sequenced_image_kind(&item.kind) && item.duration_us > 0)
+        .map(|(index, _)| index)
+        .collect();
+    order.sort_by(|left, right| {
+        items[*left]
+            .start_us
+            .cmp(&items[*right].start_us)
+            .then_with(|| items[*left].id.cmp(&items[*right].id))
+    });
+    let mut cursor: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    let mut dropped: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    let mut sequenced = items;
+    for index in order {
+        let item = &mut sequenced[index];
+        let scene_id = item.scene_id.trim().to_string();
+        let (scene_start, scene_end) = match scene_windows.get(&scene_id) {
+            Some([start, end]) => (*start, *end),
+            None => (
+                item.start_us,
+                item.start_us.saturating_add(item.duration_us),
+            ),
+        };
+        if scene_end <= scene_start {
+            continue;
+        }
+        let start = match cursor.get(&scene_id) {
+            Some(next) => item.start_us.max(*next),
+            None => item.start_us.max(scene_start),
+        };
+        if start >= scene_end {
+            // No readable slot left in this scene. An image that cannot get one
+            // is not shown at all: holding it over the previous one is the
+            // stacking defect this pass exists to remove.
+            dropped.insert(index);
+            continue;
+        }
+        let available = scene_end - start;
+        let hold = if available >= ENTITY_IMAGE_MIN_HOLD_US {
+            item.duration_us
+                .max(ENTITY_IMAGE_MIN_HOLD_US)
+                .min(available)
+        } else {
+            available
+        };
+        item.start_us = start;
+        item.duration_us = hold;
+        item.start_ms = start / 1000;
+        item.end_ms = (start.saturating_add(hold) + 999) / 1000;
+        cursor.insert(scene_id, start.saturating_add(hold + ENTITY_IMAGE_GAP_US));
+    }
+    if dropped.is_empty() {
+        return sequenced;
+    }
+    sequenced
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, item)| (!dropped.contains(&index)).then_some(item))
+        .collect()
+}
+
 pub(super) fn assign_entity_media(
     request: &EditorialPlanV2Request,
     items: &mut [PlanItemV2],
@@ -547,12 +696,177 @@ pub(super) fn assign_entity_media(
             // an explicit pinned selector survives instead of being replaced.
             item.entity_style_id = pinned.to_string();
         }
+        // Authored here, before coalescing, so a captioned card keeps its
+        // readable center viewport even when it becomes a chain segment.
+        stamp_entity_image_viewport(item);
     }
+    // Sequencing runs on the finished set, after coalescing: it only rewrites
+    // windows, so a dropped card never leaves a gap in the run.
     Ok(())
+}
+
+/// Stamps the run-level entrance and the readable viewport on every independent
+/// image item.
+///
+/// A standalone image used to reach the renderer with no motion and no authored
+/// box: a 320px card parked at the preset's side layout that simply switched on.
+/// The entrance pool rotates exactly like the entity-card pool, and the box is
+/// only filled in when the item authored none, so an explicit plan wins.
+pub(super) fn normalize_image_presentation(
+    request: &EditorialPlanV2Request,
+    items: &mut [PlanItemV2],
+) {
+    let canvas = &request.canvas;
+    for (ordinal, item) in items
+        .iter_mut()
+        .filter(|item| sequenced_image_kind(&item.kind))
+        .enumerate()
+    {
+        if item.motion_id.trim().is_empty() {
+            item.motion_id = if canvas.image_motions.is_empty() {
+                FALLBACK_IMAGE_MOTION.to_string()
+            } else {
+                rotate_motion(
+                    &canvas.image_motions,
+                    canvas.image_motion_offset,
+                    ordinal as i64,
+                )
+            };
+        }
+        if item.kind == "entity_image" {
+            // Entity cards are portraits: a square box keeps the aspect and
+            // makes the card roughly twice the width of the preset fallback,
+            // while the caption still fits below it on a 1080p canvas. This
+            // stays as the idempotent second writer for standalone cards; the
+            // same helper already stamped them before coalescing.
+            stamp_entity_image_viewport(item);
+            continue;
+        }
+        let Some(serde_json::Value::Object(params)) = item.params.as_mut() else {
+            continue;
+        };
+        params
+            .entry("width".to_string())
+            .or_insert_with(|| json!(IMAGE_VIEWPORT_WIDTH));
+        params
+            .entry("height".to_string())
+            .or_insert_with(|| json!(IMAGE_VIEWPORT_HEIGHT));
+        // The renderer reads an explicit offset before the string selector,
+        // and an entrance motion can leave its own Position behind, so the
+        // offsets are pinned at 0 instead of merely omitted: that is what
+        // actually centres the card on the canvas.
+        params.insert("position".to_string(), json!("center"));
+        params.insert("position_x".to_string(), json!(0.0));
+        params.insert("position_y".to_string(), json!(0.0));
+        params
+            .entry("fit".to_string())
+            .or_insert_with(|| json!("contain"));
+    }
 }
 
 fn rotate_motion(pool: &[String], offset: i64, ordinal: i64) -> String {
     let len = pool.len() as i64;
     let index = (offset.rem_euclid(len) + ordinal).rem_euclid(len) as usize;
     pool[index].clone()
+}
+
+#[cfg(test)]
+mod entity_window_sequencing_tests {
+    use super::*;
+
+    fn entity_image(id: &str, start_us: i64, duration_us: i64) -> PlanItemV2 {
+        PlanItemV2 {
+            id: id.to_string(),
+            scene_id: "scene-3".to_string(),
+            kind: "entity_image".to_string(),
+            start_us,
+            duration_us,
+            ..Default::default()
+        }
+    }
+
+    fn scene_windows() -> std::collections::BTreeMap<String, [i64; 2]> {
+        std::collections::BTreeMap::from([("scene-3".to_string(), [50_000_000, 80_000_000])])
+    }
+
+    /// Three entities named in the same scene all fall back to the scene start.
+    /// They must take turns instead of stacking on top of each other.
+    #[test]
+    fn cards_that_share_a_window_are_sequenced() {
+        let mut items = vec![
+            entity_image("a", 50_000_000, 1_000_000),
+            entity_image("b", 50_000_000, 1_000_000),
+            entity_image("c", 50_000_000, 1_000_000),
+        ];
+        let items = sequence_scene_image_windows(&scene_windows(), items);
+        assert_eq!(items[0].start_us, 50_000_000);
+        assert_eq!(items[0].duration_us, ENTITY_IMAGE_MIN_HOLD_US);
+        assert_eq!(items[1].start_us, 52_900_000);
+        assert_eq!(items[1].duration_us, ENTITY_IMAGE_MIN_HOLD_US);
+        assert_eq!(items[2].start_us, 55_800_000);
+        for pair in items.windows(2) {
+            assert!(
+                pair[1].start_us >= pair[0].start_us + pair[0].duration_us,
+                "cards must not overlap: {:?} then {:?}",
+                pair[0].id,
+                pair[1].id
+            );
+        }
+    }
+
+    /// A card never outlives its scene, and a late card still fits by shrinking.
+    #[test]
+    fn sequencing_stays_inside_the_scene_window() {
+        let mut items = vec![
+            entity_image("a", 50_000_000, 2_000_000),
+            entity_image("b", 76_000_000, 2_000_000),
+        ];
+        let items = sequence_scene_image_windows(&scene_windows(), items);
+        for item in &items {
+            assert!(item.start_us >= 50_000_000);
+            assert!(item.start_us + item.duration_us <= 80_000_000);
+        }
+    }
+
+    /// Plain images share the lane: two images admitted at the same instant
+    /// must also take turns.
+    #[test]
+    fn plain_images_are_sequenced_with_the_cards() {
+        let mut items = vec![
+            PlanItemV2 {
+                id: "card".to_string(),
+                scene_id: "scene-3".to_string(),
+                kind: "entity_image".to_string(),
+                start_us: 50_000_000,
+                duration_us: 3_000_000,
+                ..Default::default()
+            },
+            PlanItemV2 {
+                id: "photo".to_string(),
+                scene_id: "scene-3".to_string(),
+                kind: "image".to_string(),
+                start_us: 50_000_000,
+                duration_us: 3_000_000,
+                ..Default::default()
+            },
+        ];
+        let items = sequence_scene_image_windows(&scene_windows(), items);
+        assert_eq!(items[1].start_us, 53_400_000);
+    }
+
+    /// Other kinds keep their admitted window untouched.
+    #[test]
+    fn text_and_plain_images_are_not_resequenced() {
+        let mut items = vec![PlanItemV2 {
+            id: "phrase".to_string(),
+            scene_id: "scene-3".to_string(),
+            kind: "text_phrase".to_string(),
+            start_us: 50_000_000,
+            duration_us: 3_000_000,
+            ..Default::default()
+        }];
+        let items = sequence_scene_image_windows(&scene_windows(), items);
+        assert_eq!(items[0].start_us, 50_000_000);
+        assert_eq!(items[0].duration_us, 3_000_000);
+    }
 }

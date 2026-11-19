@@ -54,9 +54,9 @@
         "entity_id": "org:nike",
         "kind": "entity_image",
         "start_ms": 100,
-        "end_ms": 1100,
+        "end_ms": 2600,
         "start_us": 100000,
-        "duration_us": 1000000,
+        "duration_us": 2500000,
         "template_id": "image_popup",
         "image_preset_id": "image_scale_in",
         "motion_id": "entity_reveal_push",
@@ -81,9 +81,11 @@
           "canonical_entity_id": "org:nike",
           "caption_layout": "below",
           "entity_type": "ORG",
+          "height": 820.0,
           "position_x": 0.0,
           "position_y": 0.0,
-          "priority": 0.95
+          "priority": 0.95,
+          "width": 820.0
         }
       }
     ],

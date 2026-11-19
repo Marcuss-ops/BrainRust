@@ -65,7 +65,10 @@ pub(crate) fn chronological_groups(
             .then(a.1.sentence_index.cmp(&b.1.sentence_index))
     });
     vec![SemanticGroup {
-        id: "chronology_01".to_string(),
+        // Group ids are scene-scoped. A chronology exists per scene, and an
+        // unscoped `chronology_01` makes two scenes' chronologies
+        // indistinguishable downstream (timeline asset keys, event links).
+        id: format!("chronology_{scene_id}_01"),
         group_type: "chronological".to_string(),
         title: "Cronologia".to_string(),
         ranking_basis: None,

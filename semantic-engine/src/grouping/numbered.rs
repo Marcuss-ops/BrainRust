@@ -131,7 +131,9 @@ pub(crate) fn numbered_groups(
             && (1..=target).all(|rank| candidates.iter().any(|item| item.0 == rank))
     });
     vec![SemanticGroup {
-        id: "numbered_list_01".to_string(),
+        // Scene-scoped for the same reason as `chronology_*`: every scene may
+        // emit one numbered list, and the id is carried into the plan.
+        id: format!("numbered_list_{scene_id}_01"),
         group_type: if target_count.is_some() {
             "ranking"
         } else {
