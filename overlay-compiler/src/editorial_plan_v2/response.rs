@@ -9,6 +9,9 @@
 //! Item fields mirror the `capmodel.OverlayItem` JSON tags one for one, so a
 //! plan produced here round-trips through the current Go plan document without
 //! losing opaque render metadata (`params`, `map`, `image_layers`, `style`).
+//! The one addition is `entity_ref`: the planner owns WHO a card is about, Go
+//! projects it onto the producer-internal `OverlayItem.EntityRef`, and it never
+//! reaches the `overlay-plan.v1` wire the worker renders.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -77,6 +80,11 @@ pub struct PlanItemV2 {
     pub subgroup_id: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub entity_id: String,
+    // The planner-owned canonical identity of the card. It travels on this
+    // response only: Go projects it onto `OverlayItem.EntityRef`, which is
+    // PipelineGen-internal and never part of the overlay-plan.v1 wire.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entity_ref: Option<EntityRefV2>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub kind: String,
     #[serde(default)]
@@ -143,6 +151,19 @@ impl PlanItemV2 {
             (self.start_ms * 1_000, self.end_ms * 1_000)
         }
     }
+}
+
+/// Content-addressed identity of one entity card: the stable occurrence id,
+/// the canonical type and name, and the canonical entity id the media resolver
+/// indexed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EntityRefV2 {
+    pub entity_id: String,
+    #[serde(rename = "type")]
+    pub entity_type: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub canonical_entity_id: String,
 }
 
 fn is_zero(value: &i64) -> bool {

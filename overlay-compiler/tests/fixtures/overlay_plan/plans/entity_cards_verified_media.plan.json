@@ -61,6 +61,12 @@
         "id": "entity-soft-rise__nike__entity_image__01",
         "scene_id": "s1",
         "entity_id": "org:nike",
+        "entity_ref": {
+          "entity_id": "org:nike",
+          "type": "ORG",
+          "name": "Nike",
+          "canonical_entity_id": "org:nike"
+        },
         "kind": "entity_image",
         "start_ms": 2900,
         "end_ms": 3000,
@@ -101,6 +107,12 @@
         "id": "static__ferrari__organization__01",
         "scene_id": "s2",
         "entity_id": "org:ferrari",
+        "entity_ref": {
+          "entity_id": "org:ferrari",
+          "type": "ORG",
+          "name": "Ferrari",
+          "canonical_entity_id": "org:ferrari"
+        },
         "kind": "organization",
         "start_ms": 3200,
         "end_ms": 5700,

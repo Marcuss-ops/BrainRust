@@ -4,7 +4,7 @@ use super::{
     compile_plan, resolve_chain_overlaps, EditorialPlanV2Request, PlanItemV2,
 };
 
-fn request() -> EditorialPlanV2Request {
+pub(super) fn request() -> EditorialPlanV2Request {
     serde_json::from_value(serde_json::json!({
             "operation": "compile_editorial_plan",
             "schema_version": "editorial_plan.v2",

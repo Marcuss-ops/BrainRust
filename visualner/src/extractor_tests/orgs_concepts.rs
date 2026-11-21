@@ -277,3 +277,33 @@ fn capitalized_multilingual_institution_heads_keep_the_full_name() {
         assert_eq!(&source[entity.start..entity.end], expected);
     }
 }
+
+#[test]
+fn a_name_particle_fragment_is_not_a_visual_concept() {
+    // The lowercase particle breaks the title-case run, so "Sanne" and
+    // "Vries" were emitted as standalone concepts next to the person. A
+    // concept fully inside a longer person name is a fragment, not B-roll.
+    let source = "In 2019 gaf de gemeente Utrecht de ingenieur Sanne de Vries de opdracht om de werkzaamheden te controleren.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "nl".to_string(),
+            entity_count: 64,
+        },
+    )
+    .expect("nl extraction");
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Sanne de Vries" && entity.r#type == "PERSON"),
+        "the full person name is missing: {entities:?}"
+    );
+    for fragment in ["Sanne", "de", "Vries"] {
+        assert!(
+            !entities
+                .iter()
+                .any(|entity| entity.text == fragment && entity.r#type == "VISUAL_CONCEPT"),
+            "name fragment {fragment:?} became a visual concept: {entities:?}"
+        );
+    }
+}

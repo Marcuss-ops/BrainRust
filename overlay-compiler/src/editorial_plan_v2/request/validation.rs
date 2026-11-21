@@ -532,6 +532,19 @@ impl MediaV2 {
                 validate_asset_ref("media.verified_entity_assets", asset)?;
             }
         }
+        for promotable in &self.promotable_entity_assets {
+            if promotable.entity_id.trim().is_empty()
+                && promotable.canonical_entity_id.trim().is_empty()
+            {
+                return Err(EditorialPlanError::invalid(
+                    "media.promotable_entity_assets",
+                    "entity_id or canonical_entity_id is required",
+                ));
+            }
+            for asset in &promotable.assets {
+                validate_asset_ref("media.promotable_entity_assets", asset)?;
+            }
+        }
         let mut seen_scenes = BTreeSet::new();
         for set in &self.scene_image_candidates {
             if !known_scenes.contains(set.scene_id.as_str()) {

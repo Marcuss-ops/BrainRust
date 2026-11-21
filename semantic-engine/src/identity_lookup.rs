@@ -26,6 +26,7 @@ impl IdentityLookup {
         scene_id: &str,
         entities: &[VisualEntity],
         context: &visualner::ScriptContext,
+        language: &str,
     ) -> Self {
         let ids = entities
             .iter()
@@ -43,8 +44,15 @@ impl IdentityLookup {
                         );
                     }
                 }
-                registry.register(
+                // The mention keeps the source span; the identity publishes
+                // the language's dictionary form when one is certified
+                // (Polish oblique nouns, feminine adjective surnames and
+                // curated place aliases). Every other language is unchanged.
+                let canonical =
+                    visualner::canonical_surface(&entity.text, language, &entity.r#type);
+                registry.register_mention(
                     &entity.r#type,
+                    &canonical,
                     &entity.text,
                     scene_id,
                     entity.start,

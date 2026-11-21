@@ -374,7 +374,7 @@ fn analyze_scene_with_search(
         &mut analysis,
     );
     let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
-    let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context);
+    let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context, language);
     let mut entity_facts = extract_entity_facts(
         source,
         &sentence_spans,

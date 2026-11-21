@@ -52,6 +52,12 @@
         "id": "entity-reveal-push__nike__entity_image__01",
         "scene_id": "s1",
         "entity_id": "org:nike",
+        "entity_ref": {
+          "entity_id": "org:nike",
+          "type": "ORG",
+          "name": "Nike",
+          "canonical_entity_id": "org:nike"
+        },
         "kind": "entity_image",
         "start_ms": 100,
         "end_ms": 2600,

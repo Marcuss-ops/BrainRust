@@ -1,7 +1,7 @@
 # TICKET-30 — numeric facts have no unit, scale, year or comparison
 
 - Priority: P1
-- Status: PARTIAL (verified 2026-11-21)
+- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
 - Depends on: TICKET-29
 - Files: `semantic-core/src/{numbers.rs,quantity.rs (new)}`,
   `lexicon/units.json`, `semantic-engine` (new `quantities.rs`),

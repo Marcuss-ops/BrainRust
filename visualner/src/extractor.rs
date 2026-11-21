@@ -36,6 +36,7 @@ mod pos;
 pub use pos::cached_model_slots;
 mod ranking;
 mod stopwords;
+mod surface;
 mod tokenizer;
 mod validation;
 mod values;
@@ -47,6 +48,7 @@ pub use numeric::{numeric_value_spans, NumericSpan};
 pub(crate) use pipeline::extract_with_context_and_spellout;
 pub(crate) use pipeline::extract_with_context_and_spellout_preserving_mentions;
 pub use pipeline::{extract, extract_with_context, script_person_tokens, ScriptContext};
+pub use surface::canonical_surface;
 
 #[cfg(test)]
 pub(crate) use tokenizer::{tokenize, tokenize_untyped};

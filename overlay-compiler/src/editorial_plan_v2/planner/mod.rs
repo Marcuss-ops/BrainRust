@@ -19,9 +19,11 @@ use super::editorial::project_editorial_scenes;
 use super::error::EditorialPlanError;
 use super::request::{
     AssetRefV2, EditorialPlanV2Request, EntityOccurrenceV2, ImageCandidateV2, MapCandidateV2,
-    MediaV2, SceneV2, TimedAnnotationV2,
+    MediaV2, PromotableEntityAssetV2, SceneV2, TimedAnnotationV2,
 };
-use super::response::{EditorialPlanV2Compiled, FinalPlanV2, IntakeBudgetV2, IntakeV2, PlanItemV2};
+use super::response::{
+    EditorialPlanV2Compiled, EntityRefV2, FinalPlanV2, IntakeBudgetV2, IntakeV2, PlanItemV2,
+};
 use super::EDITORIAL_PLAN_V2_SCHEMA_VERSION;
 
 mod admission;
@@ -30,12 +32,16 @@ mod coalesce;
 mod map_groups;
 mod media;
 mod presentation;
+mod preset_sampler;
+mod promotion;
 
 use admission::*;
 use candidates::*;
 use coalesce::*;
 use media::*;
 use presentation::*;
+use preset_sampler::*;
+use promotion::*;
 
 /// Validates the complete request, runs every phase in order and seals the
 /// final plan. There is no empty-plan fallback: a missing input is an error.
@@ -196,6 +202,11 @@ pub fn compile_plan(
     // letting `validate_for` reject the whole plan after the fact.
     items = clip_items_to_scene_bounds(items, request);
     name_items_for_review(&mut items);
+    // Entity-card promotion is the planner's decision (CHAIN-SEGMENT v2): the
+    // request carries the promotable portraits, and a promoted chain segment
+    // seeds its preset with the fused chain id, exactly like the Go media plane
+    // it replaces. Running after naming keeps that seed identical.
+    items = promote_entity_cards(request, items);
     finalize_intake(&mut intake, &items);
     let plan = seal(request, items, intake, recap.placements);
     let compiled = EditorialPlanV2Compiled {

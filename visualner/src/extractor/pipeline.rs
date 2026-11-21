@@ -841,6 +841,21 @@ fn drop_name_fragments(
             }) {
                 return false;
             }
+            // A concept fully inside a personal or organizational name is a
+            // name fragment, not B-roll vocabulary: the Dutch particle leaves
+            // "Sanne" / "de" / "Vries" outside the title-case run that formed
+            // "Sanne de Vries", and each fragment used to become a visual
+            // concept of its own. The longer typed mention owns the span.
+            if matches!(entity.r#type.as_str(), "VISUAL_CONCEPT" | "OBJECT") {
+                let inside = person_spans.iter().chain(organization_spans.iter()).any(
+                    |(owner_start, owner_end)| {
+                        (*owner_start, *owner_end) != (entity.start, entity.end)
+                            && entity.start >= *owner_start
+                            && entity.end <= *owner_end
+                    },
+                );
+                return !inside;
+            }
             if !matches!(
                 entity.r#type.as_str(),
                 "LOCATION" | "PERSON" | "ORG" | "ORGANIZATION"

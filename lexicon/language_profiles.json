@@ -21,7 +21,12 @@
       "pro_drop_subjects": true,
       "infinitive_suffixes": ["re"]
     },
-    "pl": { "treebank": "polish-pdb", "script": "latin" },
+    "pl": {
+      "treebank": "polish-pdb",
+      "script": "latin",
+      "verb_filter": true,
+      "infinitive_suffixes": ["ć"]
+    },
     "ru": { "treebank": "russian-syntagrus", "script": "cyrillic" },
     "de": {
       "treebank": "german-gsd",
@@ -31,7 +36,12 @@
     "es": { "treebank": "spanish-gsd", "script": "latin", "lowercase_propn_lemmas": true },
     "pt": { "treebank": "portuguese-gsd", "script": "latin", "lowercase_propn_lemmas": true },
     "fr": { "treebank": "french-gsd", "script": "latin" },
-    "nl": { "treebank": "dutch-alpino", "script": "latin" },
+    "nl": {
+      "treebank": "dutch-alpino",
+      "script": "latin",
+      "verb_filter": true,
+      "infinitive_suffixes": ["en"]
+    },
     "tr": { "treebank": "turkish-imst", "script": "latin" },
     "id": { "treebank": "indonesian-gsd", "script": "latin", "lowercase_propn_lemmas": true },
     "zh": { "treebank": "chinese-gsdsimp", "script": "han" },

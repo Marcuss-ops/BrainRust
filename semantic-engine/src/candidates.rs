@@ -604,7 +604,7 @@ mod typed_entity_candidate_tests {
         ];
         let mut registry = semantic_core::IdentityRegistry::new();
         let context = visualner::ScriptContext::default();
-        let identities = IdentityLookup::build(&mut registry, "scene", &entities, &context);
+        let identities = IdentityLookup::build(&mut registry, "scene", &entities, &context, "en");
         let sentences = semantic_core::split_sentences(source, "en", None);
 
         let candidates = typed_entity_candidates(source, &sentences, &entities, &identities);

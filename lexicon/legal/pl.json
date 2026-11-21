@@ -11,12 +11,35 @@
     {
       "cue": "Sąd",
       "kind": "ORG"
-    },
-    {
-      "cue": "Trybunał",
-      "kind": "ORG"
-    }
-  ],
+    },  {
+   "cue": "Trybunał",
+   "kind": "ORG"
+  },
+  {
+   "cue": "Firma ",
+   "kind": "ORG"
+  },
+  {
+   "cue": "Biuro ",
+   "kind": "ORG"
+  },
+  {
+   "cue": "biuro ",
+   "kind": "ORG"
+  },
+  {
+   "cue": "Spółka ",
+   "kind": "ORG"
+  },
+  {
+   "cue": "Koncern ",
+   "kind": "ORG"
+  },
+  {
+   "cue": "Przedsiębiorstwo ",
+   "kind": "ORG"
+  }
+ ],
   "entity_alias_cues": [],
   "finality_markers": [],
   "outcome_markers": [],

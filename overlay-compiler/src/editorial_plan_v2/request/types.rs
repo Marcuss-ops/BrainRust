@@ -136,6 +136,12 @@ pub struct CanvasV2 {
     pub image_motions: Vec<String>,
     #[serde(default)]
     pub image_with_text_motions: Vec<String>,
+    /// The certified `preset.image` vocabulary, shipped as input exactly like
+    /// the motion pools. The planner's seeded sampler selects from it when it
+    /// promotes an entity card to an image; an empty pool mirrors the Go
+    /// sampler's empty selection (no hardcoded preset id on the Rust side).
+    #[serde(default)]
+    pub image_presets: Vec<String>,
     /// Certified entrance pool for entity-image cards. The planner rotates it
     /// per admitted card; a run that admits a card without a pool fails closed.
     #[serde(default)]
@@ -652,8 +658,29 @@ pub struct MediaV2 {
     pub materialized_assets: Vec<AssetRefV2>,
     #[serde(default)]
     pub verified_entity_assets: Vec<VerifiedEntityAssetV2>,
+    /// Portraits the planner may still promote to `entity_image`. This is a
+    /// *separate* surface from `verified_entity_assets`: a card that already
+    /// carries a verified asset is not promotable, and a portrait that only the
+    /// producer's bundle resolves (no annotation image, so no entry above) is.
+    /// The Go resolver fills `entity_id` with the plan occurrence identity, so
+    /// the planner promotes by identity without re-deriving the catalog.
+    #[serde(default)]
+    pub promotable_entity_assets: Vec<PromotableEntityAssetV2>,
     #[serde(default)]
     pub scene_image_candidates: Vec<SceneImageCandidateSetV2>,
+}
+
+/// One portrait the planner is allowed to promote onto an identity card.
+/// Same content contract as `VerifiedEntityAssetV2`, kept as a distinct type
+/// so the two surfaces cannot be confused at a call site.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PromotableEntityAssetV2 {
+    /// The plan occurrence identity (`EntityOccurrenceV2::entity_id`).
+    pub entity_id: String,
+    #[serde(default)]
+    pub canonical_entity_id: String,
+    #[serde(default)]
+    pub assets: Vec<AssetRefV2>,
 }
 
 /// The verified assets one canonical entity may render with.

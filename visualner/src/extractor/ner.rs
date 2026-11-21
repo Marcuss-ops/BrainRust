@@ -96,16 +96,18 @@ fn extract_candidates(model: &mut BoundaryEngine, source: &str, language: &str) 
         .collect();
     let tasks = [SchemaTask::Entities(labels)];
     let mut params = BoundaryParams::default();
-    params.threshold = std::env::var("BRAINRUST_NER_THRESHOLD")
-        .ok()
-        .and_then(|value| value.parse::<f32>().ok())
-        .filter(|value| (0.0..=1.0).contains(value))
-        .unwrap_or(0.80);
-    let location_threshold = std::env::var("BRAINRUST_NER_LOCATION_THRESHOLD")
-        .ok()
-        .and_then(|value| value.parse::<f32>().ok())
-        .filter(|value| (0.0..=1.0).contains(value))
-        .unwrap_or(0.90);
+    let global_threshold = threshold_from_env("BRAINRUST_NER_THRESHOLD", 0.80);
+    let location_threshold = threshold_from_env("BRAINRUST_NER_LOCATION_THRESHOLD", 0.90);
+    // Organizations carry the weakest zero-shot signal: synthetic company names
+    // such as "Büro Steinbach" land around 0.5 while person and location
+    // mentions are usually well above 0.8. A single flat threshold either
+    // loses those organizations or lets common nouns through.
+    let organization_threshold =
+        threshold_from_env("BRAINRUST_NER_ORG_THRESHOLD", global_threshold.min(0.50));
+    // The engine drops mentions below `params.threshold`, so it must see the
+    // most permissive class threshold; the per-class filter below applies the
+    // stricter value afterwards.
+    params.threshold = global_threshold.min(organization_threshold);
 
     let Ok(output) = model.extract_long_with(source, &tasks, &params, Default::default()) else {
         return Vec::new();
@@ -116,7 +118,12 @@ fn extract_candidates(model: &mut BoundaryEngine, source: &str, language: &str) 
         .into_iter()
         .filter_map(|mention| {
             let kind = entity_kind(&mention.field)?;
-            if kind == "LOCATION" && mention.score < location_threshold {
+            let threshold = match kind {
+                "LOCATION" => location_threshold,
+                "ORG" => organization_threshold,
+                _ => global_threshold,
+            };
+            if mention.score < threshold {
                 return None;
             }
             let text = source.get(mention.char_start..mention.char_end)?;
@@ -150,6 +157,14 @@ fn load_model(model_dir: &std::path::Path) -> Result<BoundaryEngine, String> {
         eprintln!("visualner: {message}");
         message
     })
+}
+
+fn threshold_from_env(name: &str, fallback: f32) -> f32 {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<f32>().ok())
+        .filter(|value| (0.0..=1.0).contains(value))
+        .unwrap_or(fallback)
 }
 
 fn model_disabled() -> bool {

@@ -1,7 +1,7 @@
 # TICKET-36 — pronoun and role-nominal coreference is too conservative
 
 - Priority: P2
-- Status: PARTIAL (verified 2026-11-21)
+- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
 - Depends on: TICKET-35 (reliable antecedent identities); benefits from 33
 - Files: `semantic-engine/src/discourse/{references.rs,resolution.rs,threads.rs}`,
   `semantic-core/src/narrative.rs`, `lexicon/languages/<lang>/pronouns.txt`

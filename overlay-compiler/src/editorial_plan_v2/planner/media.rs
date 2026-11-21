@@ -227,6 +227,7 @@ pub(super) fn append_entity_cards(
                 item.asset_refs = assets;
             }
             item.entity_id = entity.entity_id.clone();
+            item.entity_ref = entity_ref_of(entity, &name);
             item.params = Some(json!({
                 "entity_type": entity.entity_type,
                 "canonical_entity_id": entity.canonical_entity_id,
@@ -430,6 +431,24 @@ fn entity_card_kind(entity_type: &str) -> Option<(&'static str, &'static str)> {
 
 pub(super) fn word_count(text: &str) -> usize {
     text.split_whitespace().count()
+}
+
+/// The planner-owned identity of one card. Emitted only when the three fields
+/// the plan contract requires are non-empty, so a malformed occurrence degrades
+/// to "no ref" instead of a plan that cannot validate.
+fn entity_ref_of(entity: &EntityOccurrenceV2, name: &str) -> Option<EntityRefV2> {
+    let entity_id = entity.entity_id.trim();
+    let entity_type = entity.entity_type.trim();
+    let name = name.trim();
+    if entity_id.is_empty() || entity_type.is_empty() || name.is_empty() {
+        return None;
+    }
+    Some(EntityRefV2 {
+        entity_id: entity_id.to_string(),
+        entity_type: entity_type.to_string(),
+        name: name.to_string(),
+        canonical_entity_id: entity.canonical_entity_id.trim().to_string(),
+    })
 }
 
 fn entity_name(entity: &EntityOccurrenceV2) -> String {

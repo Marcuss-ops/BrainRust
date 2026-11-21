@@ -49,6 +49,7 @@ pub use analysis::{
     analyze_with_context_preserving_mentions_and_reference, Analysis,
 };
 pub use extractor::cached_model_slots;
+pub use extractor::canonical_surface;
 pub use extractor::is_heading_surface;
 pub use extractor::model_path;
 pub use extractor::{extract, extract_with_context, script_person_tokens, ScriptContext};

@@ -5,9 +5,10 @@
 //! cards with and without verified media, editorial toggles with charts, a
 //! localized run with a short-phrase scene plus an untimed fixed-media scene,
 //! recap cards plus clip-start light leaks, the general chain coalescer's
-//! phrase/image/mixed sequences with maps left standalone, and a map collision
-//! that is resolved before the surviving phrases fuse. The plan files are
-//! produced by the real planner with
+//! phrase/image/mixed sequences with maps left standalone, a map collision
+//! that is resolved before the surviving phrases fuse, and entity cards whose
+//! portraits arrive only on `media.promotable_entity_assets` (the planner, not
+//! Go, promotes them). The plan files are produced by the real planner with
 //! `cargo run -p overlay-compiler --example compile_fixture -- <request>`.
 //!
 //! A missing section, an unknown version, a duplicate identity, an unmaterialized
@@ -75,6 +76,13 @@ const FIXTURES: &[Fixture] = &[
             "fixtures/overlay_plan/requests/chain_collision_resolution.request.json"
         ),
         plan: include_str!("fixtures/overlay_plan/plans/chain_collision_resolution.plan.json"),
+    },
+    Fixture {
+        name: "entity_cards_promotable_media",
+        request: include_str!(
+            "fixtures/overlay_plan/requests/entity_cards_promotable_media.request.json"
+        ),
+        plan: include_str!("fixtures/overlay_plan/plans/entity_cards_promotable_media.plan.json"),
     },
 ];
 
@@ -712,6 +720,104 @@ fn a_missing_editorial_manifest_fails_closed() {
         error,
         EditorialPlanError::MissingSection("editorial")
     ));
+}
+
+#[test]
+fn promotable_media_is_promoted_by_the_planner_not_by_the_consumer() {
+    let plan = compile("entity_cards_promotable_media").plan;
+    assert_eq!(
+        plan.items.len(),
+        2,
+        "the two adjacent cards fused, the isolated one stayed standalone"
+    );
+    let chain = plan
+        .items
+        .iter()
+        .find(|item| item.kind == "image_chain")
+        .expect("the fused chain");
+    assert_eq!(chain.kind, "image_chain", "every segment became an image");
+    assert_eq!(chain.template_id, "IMAGE_CHAIN");
+    assert_eq!(
+        chain.asset_refs.len(),
+        2,
+        "both portraits reached the chain"
+    );
+    // The fused chain id is the preset seed, exactly like the Go media plane.
+    assert_eq!(chain.preset_id, "image_fade_in");
+    let segments = chain.params.as_ref().expect("params")["chain_segments"]
+        .as_array()
+        .expect("segments")
+        .clone();
+    assert_eq!(segments.len(), 2, "promotion never drops a segment");
+    for (segment, (entity, caption, asset)) in segments.iter().zip([
+        ("person-ada", "Ada Lovelace", "asset-ada"),
+        ("person-grace", "Grace Hopper", "asset-grace"),
+    ]) {
+        assert_eq!(Some("entity_image"), segment["kind"].as_str());
+        assert_eq!(Some("image_popup"), segment["template_id"].as_str());
+        assert_eq!(
+            Some(chain.preset_id.as_str()),
+            segment["preset_id"].as_str()
+        );
+        assert_eq!(Some("image_scale_in"), segment["image_preset_id"].as_str());
+        assert_eq!(Some(entity), segment["entity_id"].as_str());
+        assert_eq!(Some(caption), segment["entity_caption"].as_str());
+        assert_eq!(Some(asset), segment["asset_id"].as_str());
+        // The card-only surface is gone: the planner, not the consumer, decided.
+        for dropped in [
+            "text",
+            "motion_id",
+            "motion_params",
+            "params",
+            "entity_style_id",
+        ] {
+            assert!(
+                segment.get(dropped).is_none(),
+                "a promoted segment must not carry {dropped}"
+            );
+        }
+    }
+    // A lone card is promoted in place and keeps the planner-owned identity Go
+    // projects onto OverlayItem.EntityRef (never serialized on the plan wire).
+    let solo = plan
+        .items
+        .iter()
+        .find(|item| item.id.contains("alan-turing"))
+        .expect("the isolated promoted card");
+    assert_eq!(solo.kind, "entity_image");
+    assert_eq!(solo.template_id, "image_popup");
+    assert_eq!(solo.entity_id, "person-alan");
+    assert_eq!(solo.entity_caption, "Alan Turing");
+    assert_eq!(solo.asset_refs.len(), 1);
+    let entity_ref = solo.entity_ref.as_ref().expect("canonical identity");
+    assert_eq!(entity_ref.entity_id, "person-alan");
+    assert_eq!(entity_ref.entity_type, "PERSON");
+    assert_eq!(entity_ref.name, "Alan Turing");
+    assert_eq!(entity_ref.canonical_entity_id, "person:alan-turing");
+    assert!(
+        solo.text.is_empty(),
+        "the promoted caption replaces the text"
+    );
+}
+
+#[test]
+fn promotable_media_without_entries_leaves_the_cards_text_only() {
+    let mut request = parse_request(fixture("entity_cards_promotable_media").request);
+    request
+        .media
+        .as_mut()
+        .expect("media")
+        .promotable_entity_assets
+        .clear();
+    let compiled = compile_overlay_plan_v2(&request).expect("compile");
+    assert!(
+        compiled
+            .plan
+            .items
+            .iter()
+            .all(|item| item.kind != "entity_image" && item.kind != "image_chain"),
+        "without a promotable portrait the cards stay text-only"
+    );
 }
 
 #[test]

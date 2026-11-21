@@ -1,7 +1,7 @@
 # TICKET-34 — events are not a first-class fact
 
 - Priority: P2
-- Status: PARTIAL (verified 2026-11-21)
+- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
 - Depends on: TICKET-31 (dates), TICKET-32 (places), TICKET-33 (roles)
 - Files: `semantic-core/src/event.rs` (new), `lexicon/events/<lang>.json`,
   `semantic-engine/src/events.rs` (new), `semantic-engine/src/groups.rs`,

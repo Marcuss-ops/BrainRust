@@ -252,8 +252,29 @@ def score_one(worker: Worker, script_id: str, spec: dict, default_authority: str
     manifest = response["manifest"]
     scene = manifest["scenes"][0]
     sequence = score_sequence(scene, source, spec.get("sequence", []))
-    entities = unique_candidates([x for x in scene.get("entities", []) if x.get("type") in NAMED_TYPES])
-    objects = unique_candidates([x for x in scene.get("entities", []) if x.get("type") in OBJECT_TYPES])
+    # The scene entity list is typed-only by contract, while the script-level
+    # identity registry publishes every plan-facing identity with its
+    # canonical surface: VISUAL_CONCEPT rows (so entity-search proposals keep
+    # resolving their ids) and the dictionary form of an inflected mention
+    # (Polish "Krakowie" -> "Kraków"). Reading the scene list alone scored
+    # visual objects against a list that deliberately omits them (40/105
+    # instead of 92/105) and missed every canonical name (Anna Kowalska, Ewa
+    # Zielińska, Kraków). Score the identity registry as well, and keep any
+    # typed row the scene list still carries.
+    entities = unique_candidates(
+        [x for x in scene.get("entities", []) if x.get("type") in NAMED_TYPES]
+        + [{"text": entity.get("canonical_surface", entity.get("canonical_name", "")),
+            "type": entity.get("entity_type")}
+           for entity in manifest.get("entities", [])
+           if entity.get("entity_type") in NAMED_TYPES]
+    )
+    objects = unique_candidates(
+        [x for x in scene.get("entities", []) if x.get("type") in OBJECT_TYPES]
+        + [{"text": entity.get("canonical_surface", entity.get("canonical_name", "")),
+            "type": entity.get("entity_type")}
+           for entity in manifest.get("entities", [])
+           if entity.get("entity_type") in OBJECT_TYPES]
+    )
     phrases = []
     for field in ("short_phrases", "long_phrases", "important_segments"):
         for item in scene.get(field, []):

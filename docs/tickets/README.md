@@ -4,12 +4,17 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-21, snapshot ongoing local implementation pass. **31 DONE/CLOSED, 6 PARTIAL (30, 32–36), 0 OPEN, 3 BLOCKED (08, 10, 26).**
-The final recheck rebuilt the release worker (`3e9bb942…`): `semantic-engine`
-passes **345 tests in 28 suites**, the quantity draft scores **1,784 cases
-(1,643/1,643)** and the coref draft **440/440**, both with zero false
-positives; details in [Verification — 2026-11-21 (final status
-recheck)](#verification--2026-11-21-final-status-recheck).
+Last verified: 2026-11-21 (HEAD `06ea22c`), snapshot of an ongoing local
+implementation pass. **31 DONE/CLOSED, 6 PARTIAL (30, 32–36), 0 OPEN, 3 BLOCKED
+(08, 10, 26).**
+`semantic-engine` passes **355 tests in 28 suites, 0 failed, 4 ignored** at
+HEAD `06ea22c` plus the Polish/noise fixes with the UDPipe 2.5 models loaded
+(`VISUALNER_MODEL_DIR` at `$HOME/.local/share/visualner/models`, 13
+languages). The release worker was rebuilt at this tree (`sha256 89536622…`),
+closing the previous gap where the worker came from `b541f1d`; the quantity
+draft (**1,784 cases, 1,643/1,643**) and the coref draft (**440/440**) were
+re-scored against it. Details in [Verification — 2026-11-21 (model-backed
+rerun)](#verification--2026-11-21-model-backed-rerun).
 TICKET-27 is CLOSED (`v0.3.8` published on 2026-11-19) and was still counted
 among the blocked entries in the previous line; TICKET-40 is CLOSED too.
 TICKET-37 adds the persistent manifest cache, TICKET-38 the preflight engine
@@ -76,12 +81,12 @@ Status vocabulary:
 | [28](TICKET-28-imagecatalog-retirement.md) | P2 | CLOSED (2026-11-18) | The Rust `imagecatalog` crate is retired: workspace entry, crate and tests deleted, shared policy fixture moved under the surviving Go `entitycatalog` test. |
 | [31](TICKET-31-relative-dates.md) | P1 | CLOSED (2026-11-19) | Relative dates in 11 languages: `relative_time.json`, token scan, explicit/reference/narrative anchor, calendar-correct arithmetic, `TemporalFact.relative` + `derived`, optional `ScriptRequest.reference_date` in fingerprint/cache, `AnalyzerVersions.dates`; 231-case positive + 220-case negative matrices and 9 focused tests. |
 | [29](TICKET-29-spoken-number-words.md) | P1 | CLOSED (2026-11-19) | Word numbers in 11 languages: conjunctions, additive/multiplicative runs, fractions, additive/fused halves, approximators and idiom negatives; `NumericFact.form`; 20 positive + 20 negative cases per language (assistant draft), mixed `3 milioni e mezzo` = 3.5e6, `build_language_packs.py --check` gate, `AnalyzerVersions.numbers` bump. 119 visualner + 225 semantic-core lib tests and all semantic-engine integration suites green. |
-| [30](TICKET-30-typed-quantities.md) | P1 | PARTIAL (verified 2026-11-21) | Unit packs for 11 languages, grounded quantities, chart bridge and Go validation are implemented. The release draft scorer covers 1,784 cases: 1,643/1,643 positive quantity matches, 33/33 ratio/difference/change comparisons, and 33 incompatible comparisons rejected, with zero false positives. Full `semantic-engine`, Clippy and Go `rustexec` suites pass; a new regression verifies Top 10 rankings coexist with ten typed EUR quantities without charting ranks. Broader natural contexts and independent annotation review remain. Report authority is `assistant_draft_pending_human_review`. |
-| [32](TICKET-32-places-and-routes.md) | P1 | PARTIAL (verified 2026-11-21) | `place_index.v1` contains 195 countries and 199 capitals with Wikidata labels across all 11 supported languages; missing capital labels fall back to English. The builder is offline/checksummed, declares 36 alias collisions and stays under 5 MiB; inflected PL/RU/TR aliases retain exact spans and coordinates. Explicit class cues, indexed context terms and same-sentence parent coherence disambiguate supported collisions such as Luxembourg; role cues, waypoint routes and consecutive-hop merging exist. Broad multilingual gold, wider geo-parent disambiguation and inflection coverage remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [33](TICKET-33-person-roles.md) | P2 | PARTIAL (verified 2026-11-21) | 40-code role lexicons and grounded extraction now cover all 11 languages; byte-exact spans, same-sentence explicit-date binding, gendered test forms in DE/PL/RU and conservative Turkish gender handling pass. Numeric/spelled ages and directional family/work relations are projected and Go validated. Full inflection coverage and independent gold remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [34](TICKET-34-events.md) | P2 | PARTIAL (verified 2026-11-21) | Trigger lexicons cover all 12 core event types in all 11 supported languages; runtime tests exercise each type in id/pl/ru/tr and localized negation/uncertainty. Grounded frame assembly and cross-scene merge now require a discourse thread spanning both scenes. Independent natural event gold, confusable-merge metrics and acceptance thresholds remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [35](TICKET-35-entity-disambiguation.md) | P1 | PARTIAL (verified 2026-11-21) | Rust emits scored candidates with byte-exact feature spans; versioned weights are hashed into health/fingerprint and confusable tests cover 46 surfaces / 276+276 lookups. Context/counter evidence now matches whole words (`entity_linker.v4`/rule `v3`), with localized `type_cues` and a same-thread/same-type `discourse_prior`. Natural 10-language gold and independent margin calibration remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [36](TICKET-36-coreference-pronouns.md) | P2 | PARTIAL (verified 2026-11-21) | `pronouns.v1` and `discourse_reference_terms.v1` cover 11 languages; discourse now uses `discourse.v7.role_nominal_basis`. Release draft gold scores 440/440 status and target matches with zero false resolutions; role nominals emit the dedicated `role_nominal` basis. Independent gold validation, broader agreement/number and salience/margin calibration remain open. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [30](TICKET-30-typed-quantities.md) | P1 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | Unit packs for 11 languages, grounded quantities, chart bridge and Go validation are implemented. The release draft scorer covers 1,784 cases: 1,643/1,643 positive quantity matches, 33/33 ratio/difference/change comparisons, and 33 incompatible comparisons rejected, with zero false positives. Full `semantic-engine`, Clippy and Go `rustexec` suites pass; a new regression verifies Top 10 rankings coexist with ten typed EUR quantities without charting ranks. Broader natural contexts and independent annotation review remain. Report authority is `assistant_draft_pending_human_review`. |
+| [32](TICKET-32-places-and-routes.md) | P1 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | `place_index.v1` contains 195 countries and 199 capitals with Wikidata labels across all 11 supported languages; missing capital labels fall back to English. The builder is offline/checksummed, declares 36 alias collisions and stays under 5 MiB; inflected PL/RU/TR aliases retain exact spans and coordinates. Explicit class cues, indexed context terms and same-sentence parent coherence disambiguate supported collisions such as Luxembourg; role cues, waypoint routes and consecutive-hop merging exist. Broad multilingual gold, wider geo-parent disambiguation and inflection coverage remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [33](TICKET-33-person-roles.md) | P2 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | 40-code role lexicons and grounded extraction now cover all 11 languages; byte-exact spans, same-sentence explicit-date binding, gendered test forms in DE/PL/RU and conservative Turkish gender handling pass. Numeric/spelled ages and directional family/work relations are projected and Go validated. Full inflection coverage and independent gold remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [34](TICKET-34-events.md) | P2 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | Trigger lexicons cover all 12 core event types in all 11 supported languages; runtime tests exercise each type in id/pl/ru/tr and localized negation/uncertainty. Grounded frame assembly and cross-scene merge now require a discourse thread spanning both scenes. Independent natural event gold, confusable-merge metrics and acceptance thresholds remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [35](TICKET-35-entity-disambiguation.md) | P1 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | Rust emits scored candidates with byte-exact feature spans; versioned weights are hashed into health/fingerprint and confusable tests cover 46 surfaces / 276+276 lookups. Context/counter evidence now matches whole words (`entity_linker.v4`/rule `v3`), with localized `type_cues` and a same-thread/same-type `discourse_prior`. Natural 10-language gold and independent margin calibration remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [36](TICKET-36-coreference-pronouns.md) | P2 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | `pronouns.v1` and `discourse_reference_terms.v1` cover 11 languages; discourse now uses `discourse.v7.role_nominal_basis`. Release draft gold scores 440/440 status and target matches with zero false resolutions; role nominals emit the dedicated `role_nominal` basis. Independent gold validation, broader agreement/number and salience/margin calibration remain open. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
 | [37](TICKET-37-persistent-manifest-cache.md) | P1 | CLOSED (2026-11-19) | Opt-in disk cache keyed by SHA-256 over the request plus a cache identity (embedded lexicon content including `legal/index.json`, build hash, ICU, model presence): atomic publishes, fail-closed reads, mtime LRU bound. 23 unit + 5 fingerprint + 4 cross-process tests (restart, 8 concurrent writers, model-profile separation, broken dir); T1–T15 observed; memory-only default unchanged. |
 | [38](TICKET-38-preflight-engine.md) | P2 | CLOSED (2026-11-19) | Pure pre-render checks for assets, subtitle timing and per-track overlays (including enclosed overlays), with stable codes and an advisory/blocking split. 14 unit + 4 real-ffprobe tests; no writes. |
 | [39](TICKET-39-cross-repo-wire.md) | P2 | CLOSED (2026-11-19) | `preflight` is a `mediaexec.v2` operation (schemas + golden + consumer copy) with a typed Go caller and a Go-owned `Blocked` decision; `NewSemanticEngineExecutor` forwards `SEMANTIC_CACHE_DIR`/`SEMANTIC_CACHE_MAX_BYTES`, and a `cached:true` hit is logged. Verified cold 3.64 s vs warm 1.56 s on a repeated batch; `v0.3.8` carries the operation and `refactored` pins it. |
@@ -271,6 +276,112 @@ alter the scored output.
   release worker (**82.869 s**); unchanged by this documentation recheck.
 - GitHub issue #1 remains open for the independent gold and annotation review
   required by its acceptance criteria.
+
+## Verification — 2026-11-21 (model-backed rerun)
+
+Run at HEAD `06ea22c` with the UDPipe 2.5 models installed at
+`$HOME/.local/share/visualner/models` (13 languages) and `VISUALNER_MODEL_DIR`
+pointed there, so POS evidence and verb filtering are enabled. This is the
+first run of the gold and draft scorers on a worker that both postdates
+`b541f1d` and loads models.
+
+- Release worker rebuilt from this tree: `target/release/semantic-engine`
+  sha256 `71240fc2…`. The previous `3e9bb942…` (built from `b541f1d`) gap is
+  closed.
+- `VISUALNER_MODEL_DIR=… cargo test -p semantic-engine --locked --tests` —
+  **PASS**: 28 suites, **355 passed, 0 failed, 4 ignored**.
+- Quantity draft scorer on the rebuilt worker: **1,784 cases**,
+  **1,643/1,643** positive quantities, 33/33 ratio/difference/change
+  comparisons, 33 incompatible comparisons rejected, **0** quantity or
+  comparison false positives.
+- Coreference draft scorer on the same worker: **440/440** status and target
+  matches, **0** false resolutions, draft precision/recall 1.0.
+- Long gold (`score_long_gold.py`, 20 scripts / 10 languages / 5,669 words):
+  named entities **94/124**, visual objects **97/105**, important phrases
+  **100%**, contextual queries **20/20**, positive charts **20/20**, sequences
+  **80/80** in **20/20** groups, chart negative set 20 cases / **0** charts,
+  grounding errors 0, replay identical. Report:
+  `semantic-engine/fixtures/gold_multilingual/reports/long_gold_report_2026-11-21.json`.
+  `pl` moved from entities 5/12 and objects 4/10 to **11/12** and **9/10**;
+  `it` leads (entities 16/16, objects 14/15).
+- **Measurement fix, no engine change:** the scorer read named entities and
+  visual objects only from `scene.entities`, but since `f773e9f`/`06ea22c`
+  that list is typed-only by contract: `VISUAL_CONCEPT` rows and the
+  dictionary form of an inflected mention live in the script-level identity
+  registry. Scoring the old projection reported **40/105** objects and missed
+  every canonical name; the scorer now also reads `manifest.entities`, which
+  moves the same worker to **92/105** objects before the engine fixes below.
+  Query, chart and sequence scores are unchanged.
+- **Polish recall (engine):** `canonical_surface` uses the UDPipe lemma and
+  morphology for Polish identities while the mention keeps its source span:
+  singular oblique nouns (`siatkę` → `siatka`, `mapę` → `mapa`, `kamerę` →
+  `kamera`), personal names (`Annie Kowalskiej` → `Anna Kowalska`, `Ewę
+  Zielińską` → `Ewa Zielińska`) and curated place aliases (`Krakowie` →
+  `Kraków`). Plurals keep the source surface (`kaski`). Polish company cues
+  (`Firma `, `Biuro `, `Spółka `, `Koncern `, `Przedsiębiorstwo `) type
+  `Biuro Halny` and `Firma Woda Nord` as ORG. `pl` entities 5/12 → **11/12**,
+  objects 4/10 → **9/10**; the remaining misses are `Energia Port` (no cue)
+  and `raport`.
+- **VISUAL_CONCEPT noise:** a concept fully contained in a longer PERSON or
+  ORG span is a name fragment and is dropped (`Sanne` / `de` / `Vries` inside
+  `Sanne de Vries`). `verb_filter` is now enabled for `nl` and `pl` with their
+  infinitive suffixes, so verb-tagged tokens no longer become B-roll concepts.
+  `meten` still slips through in the Dutch gold because UDPipe tags it NOUN
+  with lemma `met` in that sentence; fixing that needs a lexical entry and a
+  pack rebuild, and `build_language_packs.py --check` is red on a pre-existing
+  `lexicon/events/it.json` schema drift.
+- Both draft reports remain `assistant_draft_pending_human_review`; the corpus
+  still has **19 draft scripts out of 20** (`certification:
+  blocked_pending_human_review`). **No ticket moves to CLOSED:** 30, 32–36
+  still need independent gold/review or calibration, and 08/10/26 remain
+  owner-gated. Models make the measurements real; they do not certify the
+  annotations.
+
+## Verification — 2026-11-21 (GLiNER2.5 active)
+
+The weights are installed under the operator profile, not the agent one:
+`/home/pierone/.local/share/visualner/models/gliner2.5-multi-v1-onnx`
+(`fp16_25` is a symlink into the Hugging Face cache; ~584 MB). A
+`HOME`-relative lookup from a different profile silently runs model-free, so
+reproduction needs `HOME=/home/pierone`,
+`VISUALNER_MODEL_DIR=/home/pierone/.local/share/visualner/models`,
+`GLINER25_MODEL_DIR=…/gliner2.5-multi-v1-onnx` and
+`BRAINRUST_NER_MODEL=gliner25`.
+
+- **Per-class thresholds** (`visualner/src/extractor/ner.rs`):
+  `BRAINRUST_NER_THRESHOLD` (default 0.80) applies to every class without a
+  dedicated threshold, `BRAINRUST_NER_ORG_THRESHOLD` defaults to
+  `min(global, 0.50)` and
+  `BRAINRUST_NER_LOCATION_THRESHOLD` stays 0.90. The engine receives the most
+  permissive threshold and the per-class filter runs on its mentions; passing
+  only the flat 0.80 truncates ORG before the filter, which is why a per-class
+  filter alone first showed no change.
+- Long gold on the same worker (`sha256 996cac68…`), model active: named
+  entities **111/124 (89.5%)** from 161 extracted (precision 0.689), against
+  **94/124** (precision 0.667) on the heuristic path and **106/124** with the
+  old flat 0.80. Objects surface-only 97/105 (typed 66/105 on both paths),
+  phrases 82/82, contextual queries 20/20, positive charts 20/20 with 0
+  negative evidence, grounding errors 0, replay identical. Report:
+  `semantic-engine/fixtures/gold_multilingual/reports/long_gold_report_2026-11-21-gliner.json`.
+- The 13 remaining ORG misses are 7 that the model labels BRAND (`Agua Norte`,
+  `Energía Puerto`, `Lumen Energia`, `Energia Port`, `Вода Север`, …) and 6
+  that only the cue lexicon catches (`Büro Auerbach`, `Büro Steinbach`,
+  `gabinete Lima`, `gabinete Seixas`, `estudio Casal`). This gold was authored
+  around those cues, so it cannot alone decide real-world quality.
+- **Deletion audit:** `names.rs`, `location.rs` and `entity_gazetteer.json`
+  cannot be removed wholesale even with GLiNER active. `proper_name_runs` and
+  `organization_name_runs` feed `noun_phrase_candidates` (phrases stay 82/82),
+  `is_known_place` backs the query guards in `pipeline.rs`, and
+  `starts_uppercase` / `is_phrase_breaking_byte` are shared by the tokenizer,
+  verb filter and phrase splitter. What GLiNER actually obsoletes is the
+  `if !model_active` branch: `type_relation_introduced_people`,
+  `mark_contextual_locations` (with `is_place_name` and its helpers),
+  `mark_contextual_organizations`, `split_organization_person_appositions` and
+  the `curated_typed_entity` loop, about 300 lines. Deleting it makes GLiNER
+  mandatory and drops the model-free CI path: a product decision, not a
+  mechanical cleanup.
+- `cargo test -p visualner --lib` — **136 passed, 0 failed**; `cargo fmt`
+  clean.
 
 ## Verifica — 2026-11-21 (TICKET-32 label luoghi multilingue)
 
