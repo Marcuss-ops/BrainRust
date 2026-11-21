@@ -83,3 +83,68 @@ fn gliner25_types_people_places_organizations_and_works_from_context() {
         "legacy typing must not override GLiNER spans: {disambiguated:?}"
     );
 }
+
+#[test]
+#[ignore = "requires the local GLiNER2.5 model; run with BRAINRUST_NER_MODEL=gliner25 --ignored"]
+fn gliner25_keeps_gesu_out_of_location_and_dedupes_la_repubblica() {
+    assert!(
+        std::env::var("BRAINRUST_NER_MODEL")
+            .is_ok_and(|value| value.eq_ignore_ascii_case("gliner25")),
+        "set BRAINRUST_NER_MODEL=gliner25 to run this model-backed test"
+    );
+    let model_dir = std::env::var_os("GLINER25_MODEL_DIR")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("VISUALNER_MODEL_DIR")
+                .map(std::path::PathBuf::from)
+                .map(|path| path.join("gliner2.5-multi-v1-onnx"))
+        })
+        .unwrap_or_else(|| {
+            std::env::var_os("HOME")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join(".local/share/visualner/models/gliner2.5-multi-v1-onnx")
+        });
+    assert!(
+        ["fp16_25", "fp32_25"].iter().any(|variant| {
+            model_dir
+                .join(variant)
+                .join("boundary_manifest.json")
+                .is_file()
+        }),
+        "GLiNER2.5 model is missing under {}",
+        model_dir.display()
+    );
+
+    let source = "Corrado Augias pubblica Inchiesta su Gesù. Nel 1981 scrive su la Repubblica. La Repubblica lo intervista.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 30,
+        },
+    )
+    .expect("extract Augias publication sentence with GLiNER2.5");
+
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| entity.text == "Gesù" && entity.r#type == "LOCATION"),
+        "Gesù must not be a LOCATION inside the work title: {entities:?}"
+    );
+    let repubblica = entities
+        .iter()
+        .filter(|entity| {
+            matches!(
+                entity.text.trim().to_lowercase().as_str(),
+                "repubblica" | "la repubblica"
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        repubblica.len(),
+        1,
+        "la Repubblica must be one entity, not article + name: {entities:?}"
+    );
+    assert_eq!(repubblica[0].r#type, "ORG", "{entities:?}");
+}

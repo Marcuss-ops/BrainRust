@@ -9,7 +9,7 @@ use super::location::{is_phrase_breaking_byte, mark_contextual_locations, starts
 use super::names::{is_heading_surface, is_known_place, is_name_particle, opens_organization_name};
 use super::phrases::{
     delimited_work_candidates, keeps_as_visual_candidate, noun_phrase_candidates,
-    object_lexicon_candidates, type_relation_introduced_people,
+    object_lexicon_candidates, type_relation_introduced_people, work_title_candidates,
 };
 use super::pos::is_stop_token;
 use super::ranking::{entity_identity_key, named_entity_rank, score_entity};
@@ -134,6 +134,7 @@ fn extract_with_context_and_spellout_mode(
     }
     let work_candidates: Vec<_> = delimited_work_candidates(source_text)
         .into_iter()
+        .chain(work_title_candidates(&tokens, source_text, language))
         .filter(|work| {
             !model_candidates.iter().any(|model| {
                 model.start == work.start
