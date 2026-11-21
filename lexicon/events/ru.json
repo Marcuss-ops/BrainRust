@@ -1,0 +1,187 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "ru",
+  "event_types": {
+    "birth": [
+      {
+        "surface": "родился",
+        "lemma": "родиться",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "родилась",
+        "lemma": "родиться",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "death": [
+      {
+        "surface": "умер",
+        "lemma": "умереть",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "умерла",
+        "lemma": "умереть",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "arrest": [
+      {
+        "surface": "арестован",
+        "lemma": "арестовать",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "осужден",
+        "lemma": "осудить",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "избран",
+        "lemma": "избрать",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "назначен",
+        "lemma": "назначить",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "ушел в отставку",
+        "lemma": "уйти в отставку",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "основан",
+        "lemma": "основать",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "приобрел",
+        "lemma": "приобрести",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "объединился с",
+        "lemma": "объединиться",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "выпустил",
+        "lemma": "выпустить",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "запустил",
+        "lemma": "запустить",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "разбился",
+        "lemma": "разбиться",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "потерпел крушение",
+        "lemma": "потерпеть крушение",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "атаковал",
+        "lemma": "атаковать",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "победил",
+        "lemma": "победить",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "выиграл",
+        "lemma": "выиграть",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ]
+  }
+}

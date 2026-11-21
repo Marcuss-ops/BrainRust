@@ -1,0 +1,16 @@
+{
+  "schema": "place_routes.v1",
+  "languages": {
+    "de": {"origin": ["aus", "von"], "destination": ["nach"], "motion": ["reisen", "reiste", "fuhr", "flog", "fährt", "fuhr"], "air": ["flog", "fliegen"], "road": ["fuhr", "fahren"], "rail": ["zug"], "sea": ["segelte", "schiff"], "waypoint": ["über"]},
+    "en": {"origin": ["from"], "destination": ["to", "toward", "towards"], "motion": ["travel", "traveled", "travelled", "drove", "drive", "flew", "fly", "sailed", "journeyed", "departed"], "air": ["flew", "fly"], "road": ["drove", "drive"], "rail": ["train"], "sea": ["sailed"], "waypoint": ["via", "through"]},
+    "es": {"origin": ["desde", "de"], "destination": ["hacia", "a"], "motion": ["viajó", "viaja", "viajaron", "condujo", "voló", "partió"], "air": ["voló"], "road": ["condujo"], "rail": ["tren"], "sea": ["navegó"], "waypoint": ["vía", "pasando por"]},
+    "fr": {"origin": ["depuis", "de"], "destination": ["vers", "à"], "motion": ["voyagé", "voyage", "parti", "conduit", "volé"], "air": ["volé"], "road": ["conduit"], "rail": ["train"], "sea": ["navigué"], "waypoint": ["via", "par"]},
+    "id": {"origin": ["dari"], "destination": ["menuju", "ke"], "motion": ["bepergian", "pergi", "berkendara", "terbang"], "air": ["terbang"], "road": ["berkendara"], "rail": ["kereta"], "sea": ["berlayar"], "waypoint": ["melalui"]},
+    "it": {"origin": ["da", "dalla", "dallo", "dai", "dagli", "dalle", "dal"], "destination": ["verso", "a", "ad"], "motion": ["viaggiò", "viaggia", "viaggiare", "partì", "partire", "andò", "andare", "volò", "volare", "guidò", "guidare"], "air": ["volò", "volare"], "road": ["guidò", "guidare"], "rail": ["treno"], "sea": ["navigò", "navigare"], "waypoint": ["via", "passando per"]},
+    "nl": {"origin": ["uit", "van"], "destination": ["naar"], "motion": ["reisde", "reizen", "vertrok", "reed", "vloog"], "air": ["vloog"], "road": ["reed"], "rail": ["trein"], "sea": ["voer"], "waypoint": ["via", "door"]},
+    "pl": {"origin": ["z", "ze"], "destination": ["do"], "motion": ["podróżował", "pojechał", "poleciał", "wyruszył"], "air": ["poleciał"], "road": ["pojechał"], "rail": ["pociąg"], "sea": ["popłynął"], "waypoint": ["przez"]},
+    "pt": {"origin": ["desde", "de"], "destination": ["para", "a"], "motion": ["viajou", "partiu", "dirigiu", "voou", "navegou"], "air": ["voou"], "road": ["dirigiu"], "rail": ["trem", "comboio"], "sea": ["navegou"], "waypoint": ["via", "passando por"]},
+    "ru": {"origin": ["из", "от"], "destination": ["в", "во"], "motion": ["поехал", "поехала", "полетел", "отправился", "отправилась"], "air": ["полетел"], "road": ["поехал"], "rail": ["поезд"], "sea": ["поплыл"], "waypoint": ["через"]},
+    "tr": {"origin": ["dan", "den", "tan", "ten"], "destination": ["ye", "ya"], "motion": ["seyahat etti", "yola çıktı", "gitti", "uçtu", "sürdü"], "air": ["uçtu"], "road": ["sürdü"], "rail": ["tren"], "sea": ["yelken açtı"], "waypoint": ["üzerinden"]}
+  }
+}

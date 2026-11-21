@@ -145,9 +145,16 @@ pub(crate) fn comparisons(
         if sentence_quantities.len() < 2 {
             continue;
         }
-        let Some((local_start, local_end)) =
-            semantic_core::discourse::comparison_cue(sentence.text(source))
-        else {
+        let sentence_text = sentence.text(source);
+        let language_key = language.split(['-', '_']).next().unwrap_or(language);
+        let change_span = semantic_core::lexicon::lexicon()
+            .discourse
+            .change_signals
+            .get(language_key)
+            .and_then(|signals| find_cue_span(sentence_text, signals));
+        let cue_span =
+            change_span.or_else(|| semantic_core::discourse::comparison_cue(sentence_text));
+        let Some((local_start, local_end)) = cue_span else {
             continue;
         };
         let cue_start = sentence.start_byte + local_start;
@@ -155,7 +162,11 @@ pub(crate) fn comparisons(
         let [left, right, ..] = sentence_quantities.as_slice() else {
             continue;
         };
-        if cue_start < left.end_byte || cue_end > right.start_byte {
+        let is_change = change_span.is_some();
+        if cue_start < left.end_byte
+            || (!is_change && cue_end > right.start_byte)
+            || (is_change && cue_start > right.end_byte.saturating_add(24))
+        {
             continue;
         }
         if left.dimension != right.dimension || left.unit != right.unit {
@@ -170,22 +181,72 @@ pub(crate) fn comparisons(
         let (Some(left_value), Some(right_value)) = (left.value, right.value) else {
             continue;
         };
-        let cue = sentence.text(source).to_lowercase();
-        let ratio_cue = ["doppio", "triplic", "double", "triple", "twice"]
-            .iter()
-            .any(|term| cue.contains(term));
+        let ratio_cue = semantic_core::lexicon::lexicon()
+            .discourse
+            .ratio_signals
+            .get(language_key)
+            .is_some_and(|signals| contains_cue_phrase(sentence.text(source), signals));
+        let kind = if is_change {
+            "change"
+        } else if ratio_cue {
+            "ratio"
+        } else {
+            "difference"
+        };
         out.push(QuantityComparison {
-            kind: if ratio_cue { "ratio" } else { "difference" }.to_string(),
+            kind: kind.to_string(),
             left: left.id.clone(),
             right: right.id.clone(),
             dimension: left.dimension.clone(),
             ratio: (ratio_cue && right_value != 0.0).then_some(left_value / right_value),
-            difference: (!ratio_cue).then_some(left_value - right_value),
+            difference: (!ratio_cue).then_some(if is_change {
+                right_value - left_value
+            } else {
+                left_value - right_value
+            }),
             evidence_start_byte: cue_start,
             evidence_end_byte: cue_end,
         });
     }
     out
+}
+
+fn find_cue_span(text: &str, cues: &[String]) -> Option<(usize, usize)> {
+    let words = semantic_core::discourse::word_spans(text);
+    let mut best = None;
+    for cue in cues {
+        let expected = semantic_core::discourse::word_spans(cue);
+        if expected.is_empty() {
+            continue;
+        }
+        for window in words.windows(expected.len()) {
+            if window
+                .iter()
+                .zip(&expected)
+                .all(|(actual, expected)| actual.lowered == expected.lowered)
+            {
+                let span = (window[0].start, window[window.len() - 1].end);
+                if best.is_none_or(|current: (usize, usize)| span.0 < current.0) {
+                    best = Some(span);
+                }
+            }
+        }
+    }
+    best
+}
+
+fn contains_cue_phrase(text: &str, cues: &[String]) -> bool {
+    let words = word_spans(text);
+    cues.iter().any(|cue| {
+        let expected = word_spans(cue);
+        !expected.is_empty()
+            && words.windows(expected.len()).any(|window| {
+                window
+                    .iter()
+                    .zip(&expected)
+                    .all(|(actual, expected)| actual.lowered == expected.lowered)
+            })
+    })
 }
 
 pub(crate) fn attach_grounded_facts(
@@ -220,9 +281,12 @@ fn is_explicit_range(
             .any(|cue| prefix.trim_end().ends_with(&cue.to_lowercase()))
     });
     range_open
-        && [" and ", " e ", " a ", " to ", " y ", " et ", " und ", " i "]
-            .iter()
-            .any(|cue| connector.contains(cue))
+        && [
+            " and ", " e ", " a ", " to ", " y ", " et ", " und ", " i ", " sampai ", " en ",
+            " и ", " ile ",
+        ]
+        .iter()
+        .any(|cue| connector.contains(cue))
 }
 
 fn assign_range_pairs(source: &str, language: &str, quantities: &mut [Quantity]) {
@@ -405,6 +469,7 @@ fn adjacent_symbol(source: &str, fact: &NumericFact, symbol: &str) -> Option<(us
 fn qualifier_for(source: &str, start: usize, data: &semantic_core::units::LanguageUnits) -> String {
     let prefix = &source[..start];
     let normalized_prefix = prefix.to_lowercase();
+    let mut best_match: Option<(&str, usize)> = None;
     for (kind, cues) in &data.qualifiers {
         for cue in cues {
             let normalized_cue = cue.to_lowercase();
@@ -418,16 +483,16 @@ fn qualifier_for(source: &str, start: usize, data: &semantic_core::units::Langua
                     .chars()
                     .next_back()
                     .is_some_and(char::is_alphanumeric);
-            if has_boundary {
-                return if kind == "range" {
-                    "range_start".to_string()
-                } else {
-                    kind.clone()
-                };
+            if has_boundary && best_match.is_none_or(|(_, length)| normalized_cue.len() > length) {
+                best_match = Some((kind, normalized_cue.len()));
             }
         }
     }
-    "exact".to_string()
+    match best_match {
+        Some(("range", _)) => "range_start".to_string(),
+        Some((kind, _)) => kind.to_string(),
+        None => "exact".to_string(),
+    }
 }
 
 fn predicate_for(
@@ -632,6 +697,64 @@ mod tests {
         assert_eq!(found_comparisons.len(), 1);
         assert_eq!(found_comparisons[0].kind, "ratio");
         assert_eq!(found_comparisons[0].ratio, Some(2.0));
+    }
+
+    #[test]
+    fn explicit_change_cues_measure_new_value_minus_previous_value() {
+        for (language, source, previous_value, current_value, expected) in [
+            ("en", "5% rose to 10%.", 5.0, 10.0, 5.0),
+            ("en", "10% fell to 5%.", 10.0, 5.0, -5.0),
+            ("tr", "5% yükselerek 10% oldu.", 5.0, 10.0, 5.0),
+        ] {
+            let facts = [
+                fact(
+                    source,
+                    if previous_value == 5.0 { "5%" } else { "10%" },
+                    "PERCENT",
+                    Some(previous_value),
+                ),
+                fact(
+                    source,
+                    if current_value == 5.0 { "5%" } else { "10%" },
+                    "PERCENT",
+                    Some(current_value),
+                ),
+            ];
+            let quantities = extract(source, language, &facts, &[]);
+            let found = comparisons(source, language, &quantities);
+            assert_eq!(found.len(), 1, "{language}: {source}: {found:?}");
+            assert_eq!(found[0].kind, "change", "{language}: {source}");
+            assert_eq!(found[0].difference, Some(expected), "{language}: {source}");
+        }
+    }
+
+    #[test]
+    fn localized_ratio_cues_are_data_driven_in_all_supported_languages() {
+        let examples = [
+            ("de", "10% im Vergleich zum Doppelten von 5%"),
+            ("en", "10% compared with twice 5%"),
+            ("es", "10% frente al doble de 5%"),
+            ("fr", "10% par rapport au double de 5%"),
+            ("id", "10% dibandingkan dengan dua kali 5%"),
+            ("it", "10% rispetto al doppio di 5%"),
+            ("nl", "10% tegenover het dubbele van 5%"),
+            ("pl", "10% wobec dwukrotności 5%"),
+            ("pt", "10% contra o dobro de 5%"),
+            ("ru", "10% против удвоенных 5%"),
+            ("tr", "10% karşısında iki kat 5%"),
+        ];
+
+        for (language, source) in examples {
+            let facts = [
+                fact(source, "10%", "PERCENT", Some(10.0)),
+                fact(source, "5%", "PERCENT", Some(5.0)),
+            ];
+            let quantities = extract(source, language, &facts, &[]);
+            let found = comparisons(source, language, &quantities);
+            assert_eq!(found.len(), 1, "{language}: {source}; {found:?}");
+            assert_eq!(found[0].kind, "ratio", "{language}: {source}");
+            assert_eq!(found[0].ratio, Some(2.0), "{language}: {source}");
+        }
     }
 
     #[test]

@@ -13,6 +13,8 @@ struct Case {
     text: String,
     expected: String,
     expected_values: Vec<f64>,
+    #[serde(default)]
+    expected_item_texts: Vec<String>,
 }
 
 #[test]
@@ -50,6 +52,22 @@ fn chart_decisions_match_the_36_case_acceptance_corpus() {
                 "case {:02}: expected values {:?}, found {:?}",
                 case.id, expected_values, actual_values
             ));
+        }
+        if !case.expected_item_texts.is_empty() {
+            let mut actual_texts: Vec<String> = charts
+                .iter()
+                .flat_map(|chart| chart["chart_items"].as_array().into_iter().flatten())
+                .filter_map(|item| item["text"].as_str().map(str::to_string))
+                .collect();
+            let mut expected_texts = case.expected_item_texts.clone();
+            actual_texts.sort();
+            expected_texts.sort();
+            if actual_texts != expected_texts {
+                mismatches.push(format!(
+                    "case {:02}: expected item text {:?}, found {:?}",
+                    case.id, expected_texts, actual_texts
+                ));
+            }
         }
         for chart in &charts {
             for item in chart["chart_items"].as_array().into_iter().flatten() {

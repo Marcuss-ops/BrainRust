@@ -1,0 +1,16 @@
+{
+  "schema": "place_kind_cues.v1",
+  "languages": {
+    "de": {"city": ["stadt"], "river": ["fluss"], "mountain": ["berg"], "island": ["insel"], "country": ["land"]},
+    "en": {"city": ["city of"], "river": ["river"], "mountain": ["mountain"], "island": ["island"], "country": ["country of"]},
+    "es": {"city": ["ciudad de"], "river": ["río", "rio"], "mountain": ["monte", "montaña"], "island": ["isla"], "country": ["país de", "pais de"]},
+    "fr": {"city": ["ville de"], "river": ["fleuve", "rivière"], "mountain": ["mont"], "island": ["île"], "country": ["pays de"]},
+    "id": {"city": ["kota"], "river": ["sungai"], "mountain": ["gunung"], "island": ["pulau"], "country": ["negara"]},
+    "it": {"city": ["città di", "citta di"], "river": ["fiume"], "mountain": ["monte", "montagna"], "island": ["isola"], "country": ["paese di"]},
+    "nl": {"city": ["stad"], "river": ["rivier"], "mountain": ["berg"], "island": ["eiland"], "country": ["land"]},
+    "pl": {"city": ["miasto"], "river": ["rzeka"], "mountain": ["góra", "gora"], "island": ["wyspa"], "country": ["kraj"]},
+    "pt": {"city": ["cidade de"], "river": ["rio"], "mountain": ["monte", "montanha"], "island": ["ilha"], "country": ["país de", "pais de"]},
+    "ru": {"city": ["город"], "river": ["река"], "mountain": ["гора"], "island": ["остров"], "country": ["страна"]},
+    "tr": {"city": ["şehri", "sehir"], "river": ["nehri"], "mountain": ["dağı", "dagi"], "island": ["adası", "adasi"], "country": ["ülkesi", "ulkesi"]}
+  }
+}

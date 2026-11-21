@@ -125,6 +125,10 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
             include_str!("../../lexicon/discourse_cues.json"),
         ),
         (
+            "lexicon/discourse_reference_terms_v1.json".to_string(),
+            include_str!("../../lexicon/discourse_reference_terms_v1.json"),
+        ),
+        (
             "lexicon/relation_cues.json".to_string(),
             include_str!("../../lexicon/relation_cues.json"),
         ),
@@ -135,6 +139,166 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
         (
             "lexicon/link_weights_v1.json".to_string(),
             include_str!("../../lexicon/link_weights_v1.json"),
+        ),
+        (
+            "lexicon/type_cues.json".to_string(),
+            include_str!("../../lexicon/type_cues.json"),
+        ),
+        (
+            "lexicon/roles/en.json".to_string(),
+            include_str!("../../lexicon/roles/en.json"),
+        ),
+        (
+            "lexicon/roles/it.json".to_string(),
+            include_str!("../../lexicon/roles/it.json"),
+        ),
+        (
+            "lexicon/roles/es.json".to_string(),
+            include_str!("../../lexicon/roles/es.json"),
+        ),
+        (
+            "lexicon/roles/de.json".to_string(),
+            include_str!("../../lexicon/roles/de.json"),
+        ),
+        (
+            "lexicon/roles/fr.json".to_string(),
+            include_str!("../../lexicon/roles/fr.json"),
+        ),
+        (
+            "lexicon/roles/id.json".to_string(),
+            include_str!("../../lexicon/roles/id.json"),
+        ),
+        (
+            "lexicon/roles/nl.json".to_string(),
+            include_str!("../../lexicon/roles/nl.json"),
+        ),
+        (
+            "lexicon/roles/pl.json".to_string(),
+            include_str!("../../lexicon/roles/pl.json"),
+        ),
+        (
+            "lexicon/roles/pt.json".to_string(),
+            include_str!("../../lexicon/roles/pt.json"),
+        ),
+        (
+            "lexicon/roles/ru.json".to_string(),
+            include_str!("../../lexicon/roles/ru.json"),
+        ),
+        (
+            "lexicon/roles/tr.json".to_string(),
+            include_str!("../../lexicon/roles/tr.json"),
+        ),
+        (
+            "lexicon/events/en.json".to_string(),
+            include_str!("../../lexicon/events/en.json"),
+        ),
+        (
+            "lexicon/events/it.json".to_string(),
+            include_str!("../../lexicon/events/it.json"),
+        ),
+        (
+            "lexicon/events/es.json".to_string(),
+            include_str!("../../lexicon/events/es.json"),
+        ),
+        (
+            "lexicon/events/fr.json".to_string(),
+            include_str!("../../lexicon/events/fr.json"),
+        ),
+        (
+            "lexicon/events/pt.json".to_string(),
+            include_str!("../../lexicon/events/pt.json"),
+        ),
+        (
+            "lexicon/events/de.json".to_string(),
+            include_str!("../../lexicon/events/de.json"),
+        ),
+        (
+            "lexicon/events/nl.json".to_string(),
+            include_str!("../../lexicon/events/nl.json"),
+        ),
+        (
+            "lexicon/events/id.json".to_string(),
+            include_str!("../../lexicon/events/id.json"),
+        ),
+        (
+            "lexicon/events/pl.json".to_string(),
+            include_str!("../../lexicon/events/pl.json"),
+        ),
+        (
+            "lexicon/events/ru.json".to_string(),
+            include_str!("../../lexicon/events/ru.json"),
+        ),
+        (
+            "lexicon/events/tr.json".to_string(),
+            include_str!("../../lexicon/events/tr.json"),
+        ),
+        (
+            "lexicon/place_index_v1.json".to_string(),
+            include_str!("../../lexicon/place_index_v1.json"),
+        ),
+        (
+            "lexicon/place_roles.json".to_string(),
+            include_str!("../../lexicon/place_roles.json"),
+        ),
+        (
+            "lexicon/languages/de/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/de/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/en/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/en/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/es/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/es/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/fr/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/fr/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/id/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/id/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/it/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/it/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/nl/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/nl/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/pl/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/pl/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/pt/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/pt/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/ru/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/ru/pronouns.json"),
+        ),
+        (
+            "lexicon/languages/tr/pronouns.json".to_string(),
+            include_str!("../../lexicon/languages/tr/pronouns.json"),
+        ),
+        (
+            "lexicon/family_relations.json".to_string(),
+            include_str!("../../lexicon/family_relations.json"),
+        ),
+        (
+            "lexicon/given_names.json".to_string(),
+            include_str!("../../lexicon/given_names.json"),
+        ),
+        (
+            "lexicon/place_kind_cues.json".to_string(),
+            include_str!("../../lexicon/place_kind_cues.json"),
+        ),
+        (
+            "lexicon/route_cues.json".to_string(),
+            include_str!("../../lexicon/route_cues.json"),
         ),
         // The legal pack index decides which domain packs load and is parsed at
         // startup, so it is a compiled asset like the packs themselves.
@@ -271,7 +435,35 @@ mod tests {
 
         assert!(has("lexicon/entity_gazetteer_delta.json"));
         assert!(has("lexicon/entity_index_v1.json"));
+        assert!(has("lexicon/discourse_reference_terms_v1.json"));
         assert!(has("lexicon/link_weights_v1.json"));
+        assert!(has("lexicon/type_cues.json"));
+        assert!(has("lexicon/roles/en.json"));
+        assert!(has("lexicon/roles/it.json"));
+        assert!(has("lexicon/roles/es.json"));
+        for language in ["de", "fr", "id", "nl", "pl", "pt", "ru", "tr"] {
+            assert!(has(&format!("lexicon/roles/{language}.json")));
+        }
+        assert!(has("lexicon/events/en.json"));
+        assert!(has("lexicon/events/it.json"));
+        assert!(has("lexicon/events/es.json"));
+        assert!(has("lexicon/events/fr.json"));
+        assert!(has("lexicon/events/pt.json"));
+        assert!(has("lexicon/events/de.json"));
+        assert!(has("lexicon/events/nl.json"));
+        assert!(has("lexicon/events/id.json"));
+        assert!(has("lexicon/events/pl.json"));
+        assert!(has("lexicon/events/ru.json"));
+        assert!(has("lexicon/events/tr.json"));
+        assert!(has("lexicon/place_index_v1.json"));
+        assert!(has("lexicon/family_relations.json"));
+        assert!(has("lexicon/given_names.json"));
+        for language in [
+            "de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr",
+        ] {
+            assert!(has(&format!("lexicon/languages/{language}/pronouns.json")));
+        }
+        assert!(has("lexicon/place_kind_cues.json"));
         assert!(has("lexicon/legal/index.json"));
         for (language, _) in crate::generated_language_packs::PACKS {
             assert!(has(&format!("lexicon/packs/{language}.json")));
@@ -286,8 +478,8 @@ mod tests {
 
     /// Guards the invariant the fingerprint relies on: a table that is added to
     /// `lexicon/` and compiled into the binary must appear in the digest. The
-    /// two `index.json` files under `packs/` and `profiles/` are build-tool
-    /// manifests; they are not compiled and are the only explicit exemption.
+    /// generated pack/profile indexes and the frozen place-index source are
+    /// build-tool inputs; their generated/runtime outputs are fingerprinted.
     #[test]
     fn every_compiled_lexicon_table_is_in_the_fingerprint() {
         const BUILD_TOOL_ONLY: &[&str] = &[
@@ -296,6 +488,7 @@ mod tests {
             "entity_index_sources_v1.json",
             "entity_index_collisions_v1.json",
             "entity_index_confusables_v1.json",
+            "source/wikidata_country_capitals_20261121.json",
         ];
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../lexicon");
         let Ok(top) = std::fs::read_dir(&root) else {

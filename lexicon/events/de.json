@@ -1,0 +1,188 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "de",
+  "event_types": {
+    "birth": [
+      {
+        "surface": "geboren",
+        "lemma": "geboren werden",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "death": [
+      {
+        "surface": "starb",
+        "lemma": "sterben",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "gestorben",
+        "lemma": "sterben",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "arrest": [
+      {
+        "surface": "festgenommen",
+        "lemma": "festnehmen",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "verurteilt",
+        "lemma": "verurteilen",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "gewählt",
+        "lemma": "wählen",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "ernannt",
+        "lemma": "ernennen",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "trat zurück",
+        "lemma": "zurücktreten",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "gegründet",
+        "lemma": "gründen",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "übernahm",
+        "lemma": "übernehmen",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "fusionierte mit",
+        "lemma": "fusionieren",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "veröffentlichte",
+        "lemma": "veröffentlichen",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "startete",
+        "lemma": "starten",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "stürzte ab",
+        "lemma": "abstürzen",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "verunglückte",
+        "lemma": "verunglücken",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "attackierte",
+        "lemma": "attackieren",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "überfiel",
+        "lemma": "überfallen",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "besiegte",
+        "lemma": "besiegen",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "gewann",
+        "lemma": "gewinnen",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ]
+  }
+}

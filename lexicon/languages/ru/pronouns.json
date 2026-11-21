@@ -1,0 +1,312 @@
+{
+  "schema": "pronouns.v1",
+  "language": "ru",
+  "pronouns": [
+    {
+      "surface": "вам",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "вами",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "вас",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "вы",
+      "person": "2",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "его",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ей",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ему",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ею",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "её",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "им",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ими",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "их",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "меня",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "мне",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "мной",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "мы",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "нам",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "нами",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "нас",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "него",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ней",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "нею",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "неё",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ним",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "них",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "он",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "она",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "они",
+      "person": "3",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "оно",
+      "person": "3",
+      "gender": "neuter",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "тебе",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "тебя",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "тобой",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ты",
+      "person": "2",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "я",
+      "person": "1",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    }
+  ]
+}

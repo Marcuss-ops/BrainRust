@@ -417,3 +417,79 @@ fn a_place_surname_stays_a_person_name() {
         "a person with a place surname must stay whole: {entities:?}"
     );
 }
+
+#[test]
+fn curated_given_name_evidence_recovers_mistagged_full_person_names() {
+    assert_eq!(
+        semantic_core::lexicon::given_name_gender("pt", "Inês"),
+        "feminine"
+    );
+    let examples = [
+        (
+            "it",
+            "Sara Costa ha incontrato Elena Fontana, e lei ha parlato.",
+            &["Sara Costa", "Elena Fontana"][..],
+        ),
+        (
+            "nl",
+            "Sara de Boer ontmoette Mila Mulder, en zij zong.",
+            &["Sara de Boer", "Mila Mulder"][..],
+        ),
+        (
+            "pl",
+            "Oliwia Szymańska spotkała Maja Woźniak, a ona pobiegła.",
+            &["Oliwia Szymańska", "Maja Woźniak"][..],
+        ),
+        (
+            "pt",
+            "Inês Oliveira encontrou Sofia Rodrigues, e ela ficou.",
+            &["Inês Oliveira", "Sofia Rodrigues"][..],
+        ),
+        (
+            "tr",
+            "Ayşe Yılmaz, Fatma Demir ile görüştü ve o gülümsedi.",
+            &["Ayşe Yılmaz", "Fatma Demir"][..],
+        ),
+        (
+            "tr",
+            "Derya Aydın, Selin Özdemir ile görüştü ve o şarkı söyledi.",
+            &["Derya Aydın", "Selin Özdemir"][..],
+        ),
+        ("tr", "Derya Aydın yoluna devam etti.", &["Derya Aydın"][..]),
+        (
+            "ru",
+            "Артём Фёдоров и Иван Иванов пришли.",
+            &["Артём Фёдоров", "Иван Иванов"][..],
+        ),
+        ("de", "Sophie Becker blieb stehen.", &["Sophie Becker"][..]),
+    ];
+    for (language, source, expected) in examples {
+        let tokens = tokenize(source, language).expect("tokenize");
+        let runs = super::super::names::proper_name_runs(&tokens, source.as_bytes(), language)
+            .into_iter()
+            .map(|(start, end)| {
+                tokens[start..end]
+                    .iter()
+                    .map(|token| token.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect::<Vec<_>>();
+        let entities = extract(
+            source,
+            &ExtractOptions {
+                language: language.into(),
+                entity_count: 50,
+            },
+        )
+        .expect("extract");
+        for name in expected {
+            assert!(
+                entities
+                    .iter()
+                    .any(|entity| entity.text == *name && entity.r#type == "PERSON"),
+                "{language}: missing person {name:?}; runs={runs:?}; entities={entities:?}"
+            );
+        }
+    }
+}

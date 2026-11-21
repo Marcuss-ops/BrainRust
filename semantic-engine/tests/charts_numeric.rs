@@ -113,6 +113,41 @@ fn a_comparison_word_inside_a_top_ten_item_does_not_chart_the_ranks() {
 }
 
 #[test]
+fn top_ten_ranked_quantities_keep_their_ranks_without_becoming_a_chart() {
+    let text = "Top 10 revenues:\n\
+                1. France earned 10 EUR.\n\
+                2. Italy earned 9 EUR.\n\
+                3. Spain earned 8 EUR.\n\
+                4. Poland earned 7 EUR.\n\
+                5. Portugal earned 6 EUR.\n\
+                6. Greece earned 5 EUR.\n\
+                7. Austria earned 4 EUR.\n\
+                8. Belgium earned 3 EUR.\n\
+                9. Sweden earned 2 EUR.\n\
+                10. Norway earned 1 EUR.";
+    let value = manifest_value(vec![scene("ranked-quantities", text)]);
+    let scene = &value["scenes"][0];
+    let quantities = scene["quantities"].as_array().unwrap();
+    assert_eq!(quantities.len(), 10, "typed quantities: {quantities:?}");
+    assert!(quantities
+        .iter()
+        .all(|quantity| { quantity["dimension"] == "currency" && quantity["unit"] == "EUR" }));
+
+    let groups = scene["semantic_groups"].as_array().unwrap();
+    let ranking = groups
+        .iter()
+        .find(|group| group["group_type"] == "ranking")
+        .expect("explicit Top 10 ranking");
+    assert_eq!(ranking["complete"], true);
+    let members = ranking["members"].as_array().unwrap();
+    assert_eq!(members.len(), 10);
+    for (index, member) in members.iter().enumerate() {
+        assert_eq!(member["rank"], index + 1);
+    }
+    assert!(proposals_of(scene, "chart").is_empty());
+}
+
+#[test]
 fn spelled_percentages_form_one_chart_of_both_values() {
     // T05: spelled values ("quarantadue per cento") resolve exactly like
     // digits ("42%") when they state their unit.

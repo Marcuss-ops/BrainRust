@@ -1,0 +1,150 @@
+{
+  "schema": "pronouns.v1",
+  "language": "pt",
+  "pronouns": [
+    {
+      "surface": "consigo",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ela",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "elas",
+      "person": "3",
+      "gender": "feminine",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "ele",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "eles",
+      "person": "3",
+      "gender": "masculine",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "eu",
+      "person": "1",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "lhe",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "lhes",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "mim",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "nós",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "si",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ti",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "tu",
+      "person": "2",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "você",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "vocês",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "vós",
+      "person": "2",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    }
+  ]
+}

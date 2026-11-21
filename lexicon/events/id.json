@@ -1,0 +1,171 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "id",
+  "event_types": {
+    "birth": [
+      {
+        "surface": "lahir",
+        "lemma": "lahir",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "death": [
+      {
+        "surface": "meninggal",
+        "lemma": "meninggal",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "arrest": [
+      {
+        "surface": "ditangkap",
+        "lemma": "menangkap",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "dihukum",
+        "lemma": "menghukum",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "terpilih",
+        "lemma": "memilih",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "diangkat",
+        "lemma": "mengangkat",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "mengundurkan diri",
+        "lemma": "mengundurkan diri",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "didirikan",
+        "lemma": "mendirikan",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "mengakuisisi",
+        "lemma": "mengakuisisi",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "bergabung dengan",
+        "lemma": "bergabung",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "meluncurkan",
+        "lemma": "meluncurkan",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "merilis",
+        "lemma": "merilis",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "jatuh",
+        "lemma": "jatuh",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "mengalami kecelakaan",
+        "lemma": "mengalami kecelakaan",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "menyerang",
+        "lemma": "menyerang",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "mengalahkan",
+        "lemma": "mengalahkan",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "menang",
+        "lemma": "menang",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ]
+  }
+}

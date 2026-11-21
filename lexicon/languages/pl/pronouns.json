@@ -1,0 +1,240 @@
+{
+  "schema": "pronouns.v1",
+  "language": "pl",
+  "pronouns": [
+    {
+      "surface": "ci",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ciebie",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "im",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ja",
+      "person": "1",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "jego",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "jej",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "mi",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "mnie",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "mu",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "my",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "nam",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "nich",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "niego",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "niej",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "nim",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "nimi",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "nią",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "on",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "ona",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "one",
+      "person": "3",
+      "gender": "feminine",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "oni",
+      "person": "3",
+      "gender": "masculine",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "ono",
+      "person": "3",
+      "gender": "neuter",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "tobie",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ty",
+      "person": "2",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "wam",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "wy",
+      "person": "2",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    }
+  ]
+}

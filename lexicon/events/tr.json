@@ -1,0 +1,179 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "tr",
+  "event_types": {
+    "birth": [
+      {
+        "surface": "doğdu",
+        "lemma": "doğmak",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "death": [
+      {
+        "surface": "öldü",
+        "lemma": "ölmek",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "arrest": [
+      {
+        "surface": "tutuklandı",
+        "lemma": "tutuklamak",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "tutuklu",
+        "lemma": "tutuklu olmak",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "mahkûm edildi",
+        "lemma": "mahkûm etmek",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "seçildi",
+        "lemma": "seçmek",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "atandı",
+        "lemma": "atamak",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "istifa etti",
+        "lemma": "istifa etmek",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "kuruldu",
+        "lemma": "kurmak",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "satın aldı",
+        "lemma": "satın almak",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "birleşti",
+        "lemma": "birleşmek",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "yayımladı",
+        "lemma": "yayımlamak",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "başlattı",
+        "lemma": "başlatmak",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "düştü",
+        "lemma": "düşmek",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "kaza yaptı",
+        "lemma": "kaza yapmak",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "saldırdı",
+        "lemma": "saldırmak",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "yendi",
+        "lemma": "yenmek",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "kazandı",
+        "lemma": "kazanmak",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ]
+  }
+}

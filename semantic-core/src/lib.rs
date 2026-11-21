@@ -30,6 +30,7 @@ pub mod cue_timing;
 pub mod dates;
 pub mod discourse;
 pub mod entity_linker;
+pub mod event;
 mod generated_language_packs;
 mod generated_language_profiles;
 mod generated_legal_packs;
@@ -57,6 +58,7 @@ pub mod units;
 
 pub use bullets::{BulletCandidate, BulletSignal, SignalKind};
 pub use dates::{temporal_facts, TemporalFact};
+pub use event::{EventEvidence, EventFrame, EventParticipant, EventTime};
 pub use identity::{
     role_of, stable_surface_key, CanonicalIdentity, EntityRole, IdentityRegistry, LinkCandidate,
     LinkEvidenceSpan, LinkFeature, LinkStatus, LinkedEntity, Mention, SearchIntent,
@@ -65,8 +67,10 @@ pub use manifest::ChartItem;
 pub use manifest::{
     AnalyzerVersions, Candidate, ComposedImageQuery, ConsolidatedDate, ConsolidatedDateSpan,
     ConsolidatedEventLink, ConsolidatedFact, ConsolidationInventory, ConsolidationMetrics,
-    ConsolidationSceneStats, ContextualImageQuery, CoverageItem, EntityFact, FactRepresentation,
-    ImportantSegment, MicroSummary, ProductionCandidate, QueryComponent, ReferenceNumber,
+    ConsolidationSceneStats, ContextualImageQuery, CoverageItem, CrossSceneRoute,
+    CrossSceneRouteStop, EntityFact, FactRepresentation, ImportantSegment, MicroSummary,
+    PersonAgeFact, PersonRelation, PersonRole, Place, ProductionCandidate, QueryComponent,
+    ReferenceNumber, RoleRank, RoleStatus, RoleTense, Route, RouteEvidence, RouteStop,
     SceneCoverage, SceneInput, SceneManifest, ScriptRequest, SearchFeedback, SearchFeedbackEntry,
     SearchQuery, SearchRetry, SemanticGroup, SemanticGroupMember, SemanticManifest, StoryEdge,
     StoryGraph, StoryNode, VisualConsolidation, VisualCoverage, VisualProposal, SCHEMA_VERSION,

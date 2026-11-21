@@ -160,6 +160,9 @@
       "sem",
       "sob",
       "sobre"
+    ],
+    "country_names": [
+      "brasil"
     ]
   },
   "phrase_policy": {

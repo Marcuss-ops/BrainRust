@@ -1,0 +1,168 @@
+{
+  "schema": "pronouns.v1",
+  "language": "it",
+  "pronouns": [
+    {
+      "surface": "cui",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "egli",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "ella",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "essa",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "esse",
+      "person": "3",
+      "gender": "feminine",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "essi",
+      "person": "3",
+      "gender": "masculine",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "esso",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "lei",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "oblique",
+      "kind": "personal"
+    },
+    {
+      "surface": "loro",
+      "person": "3",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "oblique",
+      "kind": "personal"
+    },
+    {
+      "surface": "lui",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "oblique",
+      "kind": "personal"
+    },
+    {
+      "surface": "questa",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "demonstrative"
+    },
+    {
+      "surface": "queste",
+      "person": "3",
+      "gender": "feminine",
+      "number": "plural",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "demonstrative"
+    },
+    {
+      "surface": "questi",
+      "person": "3",
+      "gender": "masculine",
+      "number": "plural",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "demonstrative"
+    },
+    {
+      "surface": "questo",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "demonstrative"
+    },
+    {
+      "surface": "sua",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "unknown",
+      "case": "genitive",
+      "kind": "possessive"
+    },
+    {
+      "surface": "sue",
+      "person": "3",
+      "gender": "feminine",
+      "number": "plural",
+      "animacy": "unknown",
+      "case": "genitive",
+      "kind": "possessive"
+    },
+    {
+      "surface": "suo",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "unknown",
+      "case": "genitive",
+      "kind": "possessive"
+    },
+    {
+      "surface": "suoi",
+      "person": "3",
+      "gender": "masculine",
+      "number": "plural",
+      "animacy": "unknown",
+      "case": "genitive",
+      "kind": "possessive"
+    }
+  ]
+}

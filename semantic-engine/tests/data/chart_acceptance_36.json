@@ -256,6 +256,10 @@
     "expected_values": [
       240,
       150
+    ],
+    "expected_item_texts": [
+      "20 euro al mese",
+      "150 euro all’anno"
     ]
   },
   {

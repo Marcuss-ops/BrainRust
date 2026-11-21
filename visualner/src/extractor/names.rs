@@ -113,8 +113,11 @@ pub(crate) fn proper_name_runs(
         // Torino"): the capitalized segment inside the token is name evidence
         // even though the token itself starts lowercase.
         let opens_elided_name = elided_name_prefix_len(&tokens[i].text) > 0;
+        let opens_curated_person_name =
+            semantic_core::lexicon::is_curated_given_name(language, &tokens[i].text);
         if !opens_elided_name
-            && (is_stop_token(&tokens[i], language) || !starts_uppercase(&tokens[i].text))
+            && ((is_stop_token(&tokens[i], language) && !opens_curated_person_name)
+                || !starts_uppercase(&tokens[i].text))
         {
             i += 1;
             continue;
@@ -304,6 +307,9 @@ pub(crate) fn is_known_place(text: &str, language: &str) -> bool {
 pub(crate) fn opens_with_name_evidence(token: &Token, language: &str) -> bool {
     if is_stop_word(&token.text, language) {
         return false;
+    }
+    if semantic_core::lexicon::is_curated_given_name(language, &token.text) {
+        return true;
     }
     // An elided article carries the name segment inside the token
     // ("dell'Università di Torino"): the capitalized segment is the evidence,

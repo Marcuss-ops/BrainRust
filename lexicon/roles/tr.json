@@ -1,0 +1,525 @@
+{
+  "schema": "role_lexicon.v1",
+  "language": "tr",
+  "roles": [
+    {
+      "role_code": "chief_executive",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "genel müdür",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "başkan",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "başkanı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "accusative"
+        },
+        {
+          "text": "başkana",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "dative"
+        },
+        {
+          "text": "başkandan",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "ablative"
+        },
+        {
+          "text": "başkanın",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "genitive"
+        }
+      ]
+    },
+    {
+      "role_code": "vice_president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "başkan yardımcısı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_operating_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "operasyon direktörü",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_financial_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "mali işler direktörü",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_technology_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "teknoloji direktörü",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "kurucu",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "co_founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ortak kurucu",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "director",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direktör",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "board_member",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "yönetim kurulu üyesi",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chairperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "yönetim kurulu başkanı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "secretary",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "sekreter",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "treasurer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "sayman",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "bakan",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "prime_minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "başbakan",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "mayor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "belediye başkanı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "governor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "vali",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "senator",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "senatör",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "representative",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "milletvekili",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "judge",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "hâkim",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "prosecutor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "savcı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "lawyer",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "avukat",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "police_chief",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "emniyet müdürü",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "coach",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "antrenör",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "captain",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "kaptan",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "player",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "oyuncu",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "manager",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "yönetici",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "spokesperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "sözcü",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "journalist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "gazeteci",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "editor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "editör",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "professor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "profesör",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "researcher",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "araştırmacı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "scientist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "bilim insanı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "doctor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "doktor",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "engineer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "mühendis",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "artist",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "sanatçı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "actor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "oyuncu",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "singer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "şarkıcı",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "author",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "yazar",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "owner",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "sahip",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    }
+  ],
+  "tense_markers": {
+    "former": [
+      "eski"
+    ],
+    "acting": [
+      "vekâleten",
+      "vekaleten"
+    ],
+    "appointed": [
+      "atandı"
+    ],
+    "resigned": [
+      "istifa etti"
+    ]
+  }
+}

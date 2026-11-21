@@ -4,24 +4,82 @@
     "pl": {
       "query_form": "canonical",
       "places": {
-        "Poznań": ["Poznaniu"],
-        "Kraków": ["Krakowie"],
-        "Warszawa": ["Warszawie"],
-        "Gdańsk": ["Gdańsku"],
-        "Wrocław": ["Wrocławiu"]
+        "Poznań": [
+          "Poznaniu"
+        ],
+        "Kraków": [
+          "Krakowie"
+        ],
+        "Warszawa": [
+          "Warszawie"
+        ],
+        "Gdańsk": [
+          "Gdańsku"
+        ],
+        "Wrocław": [
+          "Wrocławiu"
+        ],
+        "Polska": [
+          "Polsce"
+        ]
       },
-      "blocklist": ["daniu", "staniu", "panu", "domu", "potem", "następnie", "wreszcie"]
+      "blocklist": [
+        "daniu",
+        "staniu",
+        "panu",
+        "domu",
+        "potem",
+        "następnie",
+        "wreszcie"
+      ]
     },
     "ru": {
       "query_form": "source",
       "places": {
-        "Казань": ["Казани"],
-        "Самара": ["Самаре"],
-        "Москва": ["Москве"],
-        "Новосибирск": ["Новосибирске"],
-        "Екатеринбург": ["Екатеринбурге"]
+        "Казань": [
+          "Казани"
+        ],
+        "Самара": [
+          "Самаре"
+        ],
+        "Москва": [
+          "Москве"
+        ],
+        "Новосибирск": [
+          "Новосибирске"
+        ],
+        "Екатеринбург": [
+          "Екатеринбурге"
+        ],
+        "Россия": [
+          "России"
+        ]
       },
-      "blocklist": ["бане", "маме", "папе", "руке", "доме", "затем", "наконец"]
+      "blocklist": [
+        "бане",
+        "маме",
+        "папе",
+        "руке",
+        "доме",
+        "затем",
+        "наконец"
+      ]
+    },
+    "tr": {
+      "query_form": "canonical",
+      "places": {
+        "Ankara": [
+          "Ankara'da",
+          "Ankara'dan",
+          "Ankara'ya"
+        ],
+        "Türkiye": [
+          "Türkiye'de",
+          "Türkiye'den",
+          "Türkiye'ye"
+        ]
+      },
+      "blocklist": []
     }
   }
 }

@@ -39,3 +39,10 @@ probability.
 
 Decide the model and storage owner, then land the schema/contract in
 PipelineGen before adding any Rust ranking code.
+
+## Verifica 2026-11-20
+
+Blocco invariato: nel workspace non esiste alcun riferimento a SigLIP o
+pgvector, né uno schema/migrazione o un set di associazioni giudicato. Lo
+stato resta **BLOCKED** in attesa del modello, dello storage e delle etichette
+calibrate.

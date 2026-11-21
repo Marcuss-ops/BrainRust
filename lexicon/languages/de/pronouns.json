@@ -1,0 +1,105 @@
+{
+  "schema": "pronouns.v1",
+  "language": "de",
+  "pronouns": [
+    {
+      "surface": "er",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "ihn",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "accusative",
+      "kind": "personal"
+    },
+    {
+      "surface": "ihm",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "dative",
+      "kind": "personal"
+    },
+    {
+      "surface": "sie",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "ihr",
+      "person": "2",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "es",
+      "person": "3",
+      "gender": "neuter",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "wir",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "uns",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "oblique",
+      "kind": "personal"
+    },
+    {
+      "surface": "ich",
+      "person": "1",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "du",
+      "person": "2",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "Sie",
+      "person": "2",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    }
+  ]
+}

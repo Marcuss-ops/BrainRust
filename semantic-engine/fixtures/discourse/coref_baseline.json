@@ -1,0 +1,502 @@
+{
+  "schema": "brainrust.coref_baseline_report.v1",
+  "annotation_authority": "assistant_draft_pending_human_review",
+  "worker_sha256": "fe2c2ab967939b94c7fca1ef3b4658a7cd2c2f578973abedd3d8f34512415d1c",
+  "languages": {
+    "de": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "en": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "es": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "fr": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "id": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "it": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "nl": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "pl": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "pt": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "ru": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    },
+    "tr": {
+      "cases": 40,
+      "expected_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "observed_status_counts": {
+        "ambiguous": 10,
+        "resolved": 20,
+        "unresolved": 10
+      },
+      "status_accuracy": 1.0,
+      "target_accuracy": 1.0,
+      "resolved_true_positive": 20,
+      "resolved_false_positive": 0,
+      "resolved_false_negative": 0,
+      "resolved_precision": 1.0,
+      "resolved_recall": 1.0,
+      "confidently_wrong": 0,
+      "scenario_results": {
+        "resolved_singular": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "same_gender_competitors": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "no_antecedent": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        },
+        "plural_pair": {
+          "cases": 10,
+          "status_matches": 10,
+          "target_matches": 10
+        }
+      },
+      "failures": []
+    }
+  },
+  "totals": {
+    "cases": 440,
+    "status_matches": 440,
+    "target_matches": 440,
+    "confidently_wrong": 0,
+    "resolved_true_positive": 220,
+    "resolved_false_positive": 0,
+    "resolved_false_negative": 0,
+    "resolved_precision": 1.0,
+    "resolved_recall": 1.0
+  }
+}

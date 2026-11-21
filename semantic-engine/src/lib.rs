@@ -12,22 +12,28 @@
 
 #![deny(unsafe_code)]
 
+mod ages;
 pub mod cache;
 mod chart_rules;
 pub mod consolidate;
 pub mod discourse;
+mod events;
 pub mod groups;
 pub mod identity_lookup;
 pub mod legal;
 pub mod micro;
+mod person_relations;
 pub mod protocol;
 pub mod story;
 
 pub(crate) mod candidates;
 pub(crate) mod facts;
 pub(crate) mod grouping;
+mod places;
 pub(crate) mod proposals;
 mod quantities;
+mod roles;
+mod routes;
 
 use candidates::*;
 use facts::*;
@@ -69,9 +75,8 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
     semantic_core::AnalyzerVersions {
         visualner: "visualner".to_string(),
         semantic_core: env!("CARGO_PKG_VERSION").to_string(),
-        phrase_impact:
-            "phrase_impact+editorial-selection-v3+image-query-fanout-v3+chart-gate-v1+discourse-v1"
-                .to_string(),
+        phrase_impact: "phrase_impact+editorial-selection-v3+image-query-fanout-v3+chart-gate-v1"
+            .to_string(),
         lexicon: semantic_core::lexicon::LEXICON_VERSION.to_string(),
         entity_index: semantic_core::entity_linker::entity_index_version().to_string(),
         linker: format!(
@@ -81,7 +86,14 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
         ),
         numbers: "number_words.v1".to_string(),
         dates: "relative_time.v1".to_string(),
-        quantities: "typed_quantities.v1".to_string(),
+        quantities: "typed_quantities.v2.change_signals".to_string(),
+        roles: "person_roles.v4.all_11".to_string(),
+        age_facts: "person_age_facts.v2.localized_dated_age".to_string(),
+        person_relations: "person_relations.seed11.v2".to_string(),
+        places: "place_index.v3.multilingual_labels".to_string(),
+        routes: "place_routes.v3.cross_scene_hops".to_string(),
+        events: "event_frames.v2.cross_scene_facts".to_string(),
+        discourse: "discourse.v7.role_nominal_basis".to_string(),
     }
 }
 
@@ -151,6 +163,11 @@ fn rejected_scene(
             reason: Some(reason),
             entities: Vec::new(),
             identities: Vec::new(),
+            person_roles: Vec::new(),
+            age_facts: Vec::new(),
+            person_relations: Vec::new(),
+            places: Vec::new(),
+            routes: Vec::new(),
             relations: RelationView::default(),
             numeric_facts: Vec::new(),
             quantities: Vec::new(),
@@ -366,6 +383,34 @@ fn analyze_scene_with_search(
     let entity_ids: Vec<String> = (0..entities.len())
         .map(|index| identities.id_of(index))
         .collect();
+    let person_roles = roles::extract(
+        source,
+        language,
+        &sentence_spans,
+        &entities,
+        &entity_ids,
+        &temporal_facts,
+    );
+    let age_facts = ages::extract(
+        source,
+        language,
+        &sentence_spans,
+        &entities,
+        &entity_ids,
+        &analysis.numeric_facts,
+        &temporal_facts,
+    );
+    let person_relations =
+        person_relations::extract(source, language, &sentence_spans, &entities, &entity_ids);
+    let places = places::extract(source, language, &sentence_spans, &entities, &entity_ids);
+    let routes = routes::extract_with_people(
+        source,
+        language,
+        &sentence_spans,
+        &places,
+        &entities,
+        &entity_ids,
+    );
     entity_facts.extend(legal::extract(
         source,
         language,
@@ -501,6 +546,11 @@ fn analyze_scene_with_search(
             reason: None,
             entities: entity_candidate_list,
             identities: registry.identities().to_vec(),
+            person_roles,
+            age_facts,
+            person_relations,
+            places,
+            routes,
             relations,
             numeric_facts: analysis.numeric_facts,
             quantities,
@@ -551,6 +601,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
     let mut registry = IdentityRegistry::new();
     let mut search_entries: Vec<SearchFeedbackEntry> = Vec::new();
     let mut scenes: Vec<SceneManifest> = Vec::with_capacity(request.scenes.len());
+    let mut event_frames = Vec::new();
     // Visual-context query seeds for the production planner. They are not
     // part of the manifest contract and never leave this call.
     let mut scene_query_seeds: Vec<(String, Vec<semantic_core::ContextualImageQuery>)> =
@@ -563,7 +614,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         .map(|scene| scene.text.as_str())
         .collect();
     let context = visualner::script_person_tokens(&texts, language);
-    for scene in &request.scenes {
+    for (scene_index, scene) in request.scenes.iter().enumerate() {
         let (manifest, entries, seeds) = analyze_scene_with_search(
             scene,
             language,
@@ -572,10 +623,56 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
             &context,
             request.reference_date.as_deref(),
         );
+        let remaining_event_capacity = events::MAX_EVENT_FRAMES.saturating_sub(event_frames.len());
+        event_frames.extend(events::extract_bounded(
+            events::SceneEventInput {
+                scene_index,
+                scene_id: &scene.scene_id,
+                source: &scene.text,
+                language,
+                candidates: &manifest.entities,
+                temporal_facts: &manifest.temporal_facts,
+                places: &manifest.places,
+            },
+            remaining_event_capacity,
+        ));
         scene_query_seeds.push((manifest.scene_id.clone(), seeds));
         scenes.push(manifest);
         search_entries.extend(entries);
     }
+    for event in &mut event_frames {
+        let participant_ids: HashSet<&str> = event
+            .participants
+            .iter()
+            .map(|participant| participant.entity_id.as_str())
+            .collect();
+        for scene in &scenes {
+            if !event.scene_ids.iter().any(|id| id == &scene.scene_id) {
+                continue;
+            }
+            for fact in &scene.entity_facts {
+                let has_event_participant = participant_ids
+                    .contains(fact.subject_entity_id.as_str())
+                    || fact
+                        .target_entity_id
+                        .as_deref()
+                        .is_some_and(|id| participant_ids.contains(id));
+                let evidence_overlaps = event.evidence.iter().any(|evidence| {
+                    evidence.scene_id == scene.scene_id
+                        && fact.evidence_start_byte >= evidence.start_byte
+                        && fact.evidence_end_byte <= evidence.end_byte
+                });
+                if has_event_participant && evidence_overlaps {
+                    event.source_fact_ids.push(fact.id.clone());
+                }
+            }
+        }
+        event.source_fact_ids.sort();
+        event.source_fact_ids.dedup();
+    }
+    let discourse = discourse::build(language, &request.scenes, &scenes);
+    event_frames = events::merge_cross_scene(event_frames, &discourse.threads);
+    let cross_scene_routes = routes::merge_cross_scene_routes(&scenes);
     add_cross_scene_comparison_groups(&request.scenes, &mut scenes);
     add_cross_scene_causal_groups(&request.scenes, &mut scenes);
     add_cross_scene_process_groups(&request.scenes, &mut scenes, language);
@@ -587,12 +684,15 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         .iter()
         .map(|scene| (scene.scene_id.as_str(), scene.text.as_str()))
         .collect();
-    let entities =
-        semantic_core::entity_linker::link_all(language, &scene_texts, registry.identities());
+    let entities = semantic_core::entity_linker::link_all_with_threads(
+        language,
+        &scene_texts,
+        registry.identities(),
+        &discourse.threads,
+    );
 
     let story_graph = story::build_story_graph(&scenes);
     let visual_coverage = story::build_visual_coverage(&scenes);
-    let discourse = discourse::build(language, &request.scenes, &scenes);
     let visual_consolidation = consolidate::build(
         language,
         &request.scenes,
@@ -630,6 +730,8 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         fingerprint,
         analyzers,
         scenes,
+        cross_scene_routes,
+        events: event_frames,
         entities,
         story_graph,
         visual_coverage,

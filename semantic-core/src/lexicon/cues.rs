@@ -95,6 +95,13 @@ pub struct DiscourseCues {
     pub contribute: Vec<Vec<String>>,
     pub sequence: Vec<String>,
     pub comparison_signals: Vec<Vec<String>>,
+    /// Ratio/multiplier terms scoped to one supported language.
+    #[serde(default)]
+    pub ratio_signals: BTreeMap<String, Vec<String>>,
+    /// Verbs that explicitly describe a transition from the first value to the
+    /// second one in a quantitative comparison.
+    #[serde(default)]
+    pub change_signals: BTreeMap<String, Vec<String>>,
     pub comparative_adj: Vec<String>,
     pub negation_tokens: Vec<String>,
     pub contrast_verbs: Vec<String>,

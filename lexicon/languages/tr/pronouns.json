@@ -1,0 +1,60 @@
+{
+  "schema": "pronouns.v1",
+  "language": "tr",
+  "pronouns": [
+    {
+      "surface": "ben",
+      "person": "1",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "sen",
+      "person": "2",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "o",
+      "person": "3",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "unknown",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "biz",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "siz",
+      "person": "2",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "onlar",
+      "person": "3",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    }
+  ]
+}

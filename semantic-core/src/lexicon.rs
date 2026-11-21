@@ -22,6 +22,71 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
+#[derive(serde::Deserialize)]
+struct GivenNameInventory {
+    languages: BTreeMap<String, GivenNameGenderLists>,
+}
+
+#[derive(serde::Deserialize)]
+struct GivenNameGenderLists {
+    feminine: Vec<String>,
+    masculine: Vec<String>,
+    #[serde(default)]
+    unknown: Vec<String>,
+}
+
+fn given_name_inventory() -> &'static GivenNameInventory {
+    static INVENTORY: OnceLock<GivenNameInventory> = OnceLock::new();
+    INVENTORY.get_or_init(|| {
+        serde_json::from_str(include_str!("../../lexicon/given_names.json"))
+            .expect("embedded given-name inventory must be valid")
+    })
+}
+
+/// Gender evidence for the first token in a grounded full name. Names absent
+/// from the curated language inventory stay `unknown` and remain compatible.
+pub fn given_name_gender(language: &str, full_name: &str) -> &'static str {
+    let language = language.split(['-', '_']).next().unwrap_or(language);
+    let given_name = full_name.split_whitespace().next().unwrap_or("");
+    let Some(lists) = given_name_inventory().languages.get(language) else {
+        return "unknown";
+    };
+    let feminine = lists
+        .feminine
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case(given_name));
+    let masculine = lists
+        .masculine
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case(given_name));
+    let unknown = lists
+        .unknown
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case(given_name));
+    match (feminine, masculine, unknown) {
+        (true, false, false) => "feminine",
+        (false, true, false) => "masculine",
+        _ => "unknown",
+    }
+}
+
+/// Whether a name opener has curated given-name evidence in its language.
+pub fn is_curated_given_name(language: &str, surface: &str) -> bool {
+    let language = language.split(['-', '_']).next().unwrap_or(language);
+    let given_name = surface.split_whitespace().next().unwrap_or("");
+    given_name_inventory()
+        .languages
+        .get(language)
+        .is_some_and(|lists| {
+            lists
+                .feminine
+                .iter()
+                .chain(&lists.masculine)
+                .chain(&lists.unknown)
+                .any(|name| name.eq_ignore_ascii_case(given_name))
+        })
+}
+
 /// Version of the lexicon tables. Bump whenever a table changes semantics.
 pub const LEXICON_VERSION: &str = "lexicon.v6";
 

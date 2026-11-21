@@ -91,19 +91,30 @@ inventare dati. Il motivo è verificabile nei file, non una stima:
 | Ticket | Cosa manca davvero | Evidenza |
 |---|---|---|
 | 29 | **CLOSED 2026-11-19** | lessico, grammatica, frazioni/mezzi, 220+220 casi e gate di build |
-| 30 | **PARTIAL 2026-11-19**; gold umano vario e copertura completa di classi/qualificatori/confronti | `lexicon/units.json` e pack generati, `Quantity` nel manifest, chart bridge; draft 33 positivi + 20 negativi per lingua (363/363, 0 falsi positivi), `charts_numeric` 17/17; manca revisione indipendente e maggior varietà |
+| 30 | **PARTIAL 2026-11-21**; revisione umana indipendente e contesti positivi più vari | `lexicon/units.json` e pack generati, `Quantity` nel manifest, chart bridge; matrix draft: 1.784 casi, 1.643/1.643 quantità positive, 220 negativi quantitativi, 33 comparazioni incompatibili e 33 rapporti/differenze/change positivi, 0 falsi positivi; test Rust dimostra compatibilità fra ranking Top 10, quantità tipizzate e veto ai chart sui ranghi |
 | 31 | **CLOSED 2026-11-19** | lessico 11 lingue, ancora esplicita/riferimento/narrativa, aritmetica civile, 231 casi gold |
-| 32 | `lexicon/place_index_v1.json` e `build_place_index.py` | entrambi assenti; servono GeoNames/Wikidata con licenza e data di retrieval |
-| 33 | `lexicon/roles/<lang>.json` (~80 codici × 10 lingue), relazioni e età | nessun file ruoli o `person_roles` nel manifest |
-| 34 | `lexicon/events/<lang>.json` (12 tipi × 10 lingue) e merge cross-scena | nessun `event.rs` o `events` nel manifest |
-| 35 | Explainability/scoring | **OPEN**; acceptance gold requires index coverage tracked separately by TICKET-40 |
-| 36 | `pronouns.json` strutturato per lingua e gold ≥40 × 10 | i pronomi sono ancora `pronouns.txt` piatti; nessun `resolution_basis` |
-| 40 | Crescita indice entity per gold ambiguo | **OPEN**; fonte/licenza/provenienza, builder, collision report e ≥40 superfici confondibili |
+| 32 | **PARTIAL 2026-11-21**; indice `place_index.v1` riproducibile con 195 paesi, 199 capitali, alias localizzati seeded per Warszawa/Mosca/Ankara e forme flesse pl/ru/tr linkate a coordinate con span esatto; cue roles/class nelle 11 lingue, waypoint e merge di hop tra scene consecutive same-person sono implementati; gold e geo-parent coherence generale restano | snapshot Wikidata CC0 + alias override hashed, 10 place + 9 route unit test, 2 protocol test; 35b migliora le collisioni non risolte dal seed |
+| 33 | **PARTIAL 2026-11-21**; 40 role codes in English and Italian, grounded same-sentence extractor, exact byte spans and explicit date binding; numeric age facts require a grounded age form, spelled-out ages pass end-to-end in 11 languages, and birth-year derivation requires a dated-age construction; directional family/work relations use an 11-language enumerated seed; independent gold, broad inflection, Go parity and broader role coverage remain | `PersonRole`, `PersonAgeFact`, `PersonRelation`, `person_age_facts.v2.localized_dated_age`, all-language protocol acceptance and duration-negative test |
+| 34 | **PARTIAL 2026-11-21**; all 12 core event types have trigger coverage in all 11 supported languages (agreement remains an extra legacy type); asserted cross-scene repeats merge only when a shared participant has a discourse thread spanning both scenes plus exact date/place, and overlapping entity facts are linked by ID; runtime tests cover id/pl/ru/tr plus localized negation and uncertainty; 200-frame cap | independently annotated natural gold, confusable-merge metrics and acceptance thresholds remain |
+| 35 | Explainability/scoring | **PARTIAL 2026-11-21**; `link_candidates`/`link_margin`/`link_rule`, versioned weights, localized `type_cues` and a same-thread/same-type `discourse_prior` with exact evidence spans are implemented; natural 10-language gold and independent margin calibration remain. TICKET-40 is CLOSED |
+| 36 | **PARTIAL 2026-11-21**; technical 440-case coref baseline now scores 440/440 status/target matches and zero false resolutions on draft labels; Turkish given-name coverage fixed a gold-detected missing antecedent; explicit role nominals use `resolution_basis=role_nominal`; structured pronoun/reference inventories cover 11 languages; independent gold, agreement breadth and salience margin remain | `coref_baseline.json`, `PersonRole.gender`, `discourse.v7.role_nominal_basis`, pronoun/name/role/reference-term inventory fingerprints wired |
+| 40 | Crescita indice entity per gold ambiguo | **CLOSED 2026-11-19**; 86 righe, 46 superfici e 276+276 lookup, con provenance, collision report e check in CI |
 
-Conseguenza operativa: 29 e 31 sono chiusi, 30 è parziale; restano da
-completare la sua matrice gold e i ticket 32–36. TICKET-35 dipende da TICKET-40
-per la crescita dell'indice; lo scorer resta invariato finché non esistono un
-seed confondibile con provenienza verificata e i relativi fixture di regressione.
+Conseguenza operativa (aggiornata 2026-11-21): 29, 31 e 40 sono chiusi;
+30 e 32–36 sono parziali; nessuno è OPEN. Restano i gate di gold indipendente per 30/35/36, il discourse prior e la
+calibrazione per 35, le nove lingue e il gold per 33 (relazioni/età hanno uno
+slice iniziale), e merge thread-aware e gold per 34. I ticket 08, 10 e 26 restano bloccati da
+annotazioni, infrastruttura o credenziali esterne.
+
+Piano operativo 2026-11-20 (terza passata): lo split dettagliato è nel
+[README dei ticket](README.md#closure-plans-and-splits--2026-11-20). Sono
+atterrati 32a–32d (slice iniziali), 33a–33d (slice iniziali), 34a–34c (slice
+iniziali; ora i 12 tipi core sono coperti in tutte le 11 lingue), 35a, 36a (baseline draft), 36b e 36c (slice iniziale). Restano la
+disambiguazione geo-parent e il gold 32e; il gold e
+le nove lingue 33e; il merge thread-aware e il gold 34d;
+35b/35c/35d; la validazione umana del gold 36 e il resolver 36d/36e; 30a.
+**35b** migliora la disambiguazione di **32b**; **30b** richiede un revisore
+umano indipendente.
 
 ## Out of scope for the whole series
 

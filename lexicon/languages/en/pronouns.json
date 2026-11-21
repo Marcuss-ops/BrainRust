@@ -1,0 +1,132 @@
+{
+  "schema": "pronouns.v1",
+  "language": "en",
+  "pronouns": [
+    {
+      "surface": "he",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "her",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "oblique",
+      "kind": "personal"
+    },
+    {
+      "surface": "hers",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "genitive",
+      "kind": "possessive"
+    },
+    {
+      "surface": "him",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "accusative",
+      "kind": "personal"
+    },
+    {
+      "surface": "his",
+      "person": "3",
+      "gender": "masculine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "genitive",
+      "kind": "possessive"
+    },
+    {
+      "surface": "it",
+      "person": "3",
+      "gender": "neuter",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "its",
+      "person": "3",
+      "gender": "neuter",
+      "number": "singular",
+      "animacy": "inanimate",
+      "case": "genitive",
+      "kind": "possessive"
+    },
+    {
+      "surface": "our",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "genitive",
+      "kind": "possessive"
+    },
+    {
+      "surface": "she",
+      "person": "3",
+      "gender": "feminine",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "their",
+      "person": "3",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "genitive",
+      "kind": "possessive"
+    },
+    {
+      "surface": "them",
+      "person": "3",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "oblique",
+      "kind": "personal"
+    },
+    {
+      "surface": "they",
+      "person": "3",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "us",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "oblique",
+      "kind": "personal"
+    },
+    {
+      "surface": "we",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    }
+  ]
+}

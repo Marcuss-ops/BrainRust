@@ -1,0 +1,16 @@
+{
+  "schema": "given_names.v1",
+  "languages": {
+    "de": {"feminine": ["Anna", "Maria", "Sophie"], "masculine": ["Hans", "Thomas"], "unknown": []},
+    "en": {"feminine": ["Emma", "Mary"], "masculine": ["John", "James"], "unknown": []},
+    "es": {"feminine": ["María", "Ana"], "masculine": ["Juan", "José"], "unknown": []},
+    "fr": {"feminine": ["Marie", "Sophie"], "masculine": ["Jean", "Pierre"], "unknown": []},
+    "id": {"feminine": ["Siti", "Dewi"], "masculine": ["Budi", "Agus"], "unknown": []},
+    "it": {"feminine": ["Anna", "Elena", "Maria", "Sara"], "masculine": ["Marco", "Luca"], "unknown": []},
+    "nl": {"feminine": ["Emma", "Sara", "Sophie"], "masculine": ["Jan", "Daan", "Sem"], "unknown": []},
+    "pl": {"feminine": ["Anna", "Ewa", "Maria", "Maja", "Oliwia"], "masculine": ["Jan", "Piotr"], "unknown": []},
+    "pt": {"feminine": ["Inês", "Maria", "Ana"], "masculine": ["João", "Pedro"], "unknown": []},
+    "ru": {"feminine": ["Анна", "Мария"], "masculine": ["Артём", "Иван", "Сергей"], "unknown": []},
+    "tr": {"feminine": ["Aylin", "Ayşe", "Elif", "Fatma", "Merve", "Selin", "Zeynep"], "masculine": ["Mehmet", "Mustafa"], "unknown": ["Derya"]}
+  }
+}

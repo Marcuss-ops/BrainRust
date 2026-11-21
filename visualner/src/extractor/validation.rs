@@ -74,6 +74,8 @@ pub(crate) fn validate_evidence(
         .iter()
         .filter(|token| token.start >= c.start && token.end <= c.end)
         .find(|token| token.text.chars().filter(|ch| ch.is_alphabetic()).count() >= 2);
+    let curated_given_name = name_token
+        .is_some_and(|token| semantic_core::lexicon::is_curated_given_name(language, &token.text));
     // A sentence-initial name is lemmatized as its lowercase homograph by the
     // tagger ("Chiara Poggi" -> lemma "chiaro" at the start of a sentence,
     // "Chiara" mid-sentence). The tag survives that: when every significant
@@ -108,7 +110,8 @@ pub(crate) fn validate_evidence(
                 .as_deref()
                 .is_some_and(|lemma| lemma.chars().next().is_some_and(char::is_uppercase))
         });
-    let name_evidence = !cased
+    let name_evidence = curated_given_name
+        || !cased
         || !multi_word
         || all_propn_names
         || name_token.is_none_or(|token| {

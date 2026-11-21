@@ -183,13 +183,21 @@ mod tests {
             lexicon: "lexicon.v1".to_string(),
             entity_index: "entity_index.v1".to_string(),
             linker: format!(
-                "entity_linker.v1+sha256:{}",
+                "{}+sha256:{}",
+                semantic_core::entity_linker::linker_version(),
                 semantic_core::entity_linker::linker_weights_sha256()
             ),
             numbers: "number_words.v1".to_string(),
 
             dates: "relative_time.v1".to_string(),
-            quantities: "typed_quantities.v1".to_string(),
+            quantities: "typed_quantities.v2.change_signals".to_string(),
+            roles: "person_roles.v4.all_11".to_string(),
+            age_facts: "person_age_facts.v2.localized_dated_age".to_string(),
+            person_relations: "person_relations.seed11.v2".to_string(),
+            places: "place_index.v3.multilingual_labels".to_string(),
+            routes: "place_routes.v2.subject_hops".to_string(),
+            events: "event_frames.v2.cross_scene_facts".to_string(),
+            discourse: "discourse.v7.role_nominal_basis".to_string(),
         }
     }
 
@@ -223,13 +231,21 @@ mod tests {
             lexicon: "lexicon.v1".to_string(),
             entity_index: "entity_index.v1".to_string(),
             linker: format!(
-                "entity_linker.v1+sha256:{}",
+                "{}+sha256:{}",
+                semantic_core::entity_linker::linker_version(),
                 semantic_core::entity_linker::linker_weights_sha256()
             ),
             numbers: "number_words.v1".to_string(),
 
             dates: "relative_time.v1".to_string(),
-            quantities: "typed_quantities.v1".to_string(),
+            quantities: "typed_quantities.v2.change_signals".to_string(),
+            roles: "person_roles.v4.all_11".to_string(),
+            age_facts: "person_age_facts.v2.localized_dated_age".to_string(),
+            person_relations: "person_relations.seed11.v2".to_string(),
+            places: "place_index.v3.multilingual_labels".to_string(),
+            routes: "place_routes.v2.subject_hops".to_string(),
+            events: "event_frames.v2.cross_scene_facts".to_string(),
+            discourse: "discourse.v7.role_nominal_basis".to_string(),
         };
         let v2 = AnalyzerVersions {
             semantic_core: "0.2.0".to_string(),

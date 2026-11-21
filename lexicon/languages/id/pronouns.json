@@ -1,0 +1,114 @@
+{
+  "schema": "pronouns.v1",
+  "language": "id",
+  "pronouns": [
+    {
+      "surface": "aku",
+      "person": "1",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "beliau",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "dia",
+      "person": "3",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "engkau",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "ia",
+      "person": "3",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "kalian",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "kami",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "kamu",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "kau",
+      "person": "unknown",
+      "gender": "unknown",
+      "number": "unknown",
+      "animacy": "unknown",
+      "case": "unknown",
+      "kind": "personal"
+    },
+    {
+      "surface": "kita",
+      "person": "1",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "mereka",
+      "person": "3",
+      "gender": "unknown",
+      "number": "plural",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    },
+    {
+      "surface": "saya",
+      "person": "1",
+      "gender": "unknown",
+      "number": "singular",
+      "animacy": "animate",
+      "case": "nominative",
+      "kind": "personal"
+    }
+  ]
+}

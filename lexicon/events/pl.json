@@ -1,0 +1,187 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "pl",
+  "event_types": {
+    "birth": [
+      {
+        "surface": "urodził się",
+        "lemma": "urodzić się",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "urodziła się",
+        "lemma": "urodzić się",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "death": [
+      {
+        "surface": "zmarł",
+        "lemma": "umrzeć",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "zmarła",
+        "lemma": "umrzeć",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "arrest": [
+      {
+        "surface": "aresztowany",
+        "lemma": "aresztować",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "skazany",
+        "lemma": "skazać",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "wybrany",
+        "lemma": "wybrać",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "mianowany",
+        "lemma": "mianować",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "ustąpił",
+        "lemma": "ustąpić",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "założony",
+        "lemma": "założyć",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "przejął",
+        "lemma": "przejąć",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "połączył się z",
+        "lemma": "połączyć się",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "wydał",
+        "lemma": "wydać",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "uruchomił",
+        "lemma": "uruchomić",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "rozbił się",
+        "lemma": "rozbić się",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "rozbiła się",
+        "lemma": "rozbić się",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "zaatakował",
+        "lemma": "zaatakować",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "pokonał",
+        "lemma": "pokonać",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "wygrał",
+        "lemma": "wygrać",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ]
+  }
+}

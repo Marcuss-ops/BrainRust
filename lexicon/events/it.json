@@ -1,0 +1,382 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "it",
+  "event_types": {
+    "arrest": [
+      {
+        "surface": "arrestato",
+        "lemma": "arrestare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "arresta",
+        "lemma": "arrestare",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "arrestata",
+        "lemma": "arrestare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "arrestati",
+        "lemma": "arrestare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "arrestate",
+        "lemma": "arrestare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "eletto",
+        "lemma": "eleggere",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "ha vinto le elezioni",
+        "lemma": "vincere",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ],
+    "agreement": [
+      {
+        "surface": "ha firmato un accordo",
+        "lemma": "firmare",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject",
+          "counterparty": "object"
+        }
+      },
+      {
+        "surface": "accordo",
+        "lemma": "accordare",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "si è schiantato",
+        "lemma": "schiantarsi",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "incidente",
+        "lemma": "incidentare",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "birth": [
+      {
+        "surface": "è nato",
+        "lemma": "nascere",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è nata",
+        "lemma": "nascere",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "nascita",
+        "lemma": "nascere",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "death": [
+      {
+        "surface": "è morto",
+        "lemma": "morire",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è morta",
+        "lemma": "morire",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "morte",
+        "lemma": "morire",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "è stato condannato",
+        "lemma": "condannare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stata condannata",
+        "lemma": "condannare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stato assolto",
+        "lemma": "assolvere",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stata assolta",
+        "lemma": "assolvere",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "è stato nominato",
+        "lemma": "nominare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stata nominata",
+        "lemma": "nominare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "si è dimesso",
+        "lemma": "dimettersi",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "si è dimessa",
+        "lemma": "dimettersi",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "è stata fondata",
+        "lemma": "fondare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stato fondato",
+        "lemma": "fondare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "ha fondato",
+        "lemma": "fondare",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "è stata acquisita",
+        "lemma": "acquisire",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stato acquisito",
+        "lemma": "acquisire",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "ha acquisito",
+        "lemma": "acquisire",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "si è fusa con",
+        "lemma": "fondersi",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "counterparty": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "è stato lanciato",
+        "lemma": "lanciare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stata lanciata",
+        "lemma": "lanciare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "ha lanciato",
+        "lemma": "lanciare",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "è stato pubblicato",
+        "lemma": "pubblicare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stata pubblicata",
+        "lemma": "pubblicare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "è stato attaccato",
+        "lemma": "attaccare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "è stata attaccata",
+        "lemma": "attaccare",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "ha attaccato",
+        "lemma": "attaccare",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "attacco",
+        "lemma": "attaccare",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "ha sconfitto",
+        "lemma": "sconfiggere",
+        "voice": "active",
+        "roles": {
+          "winner": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "ha vinto la partita",
+        "lemma": "vincere",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "ha vinto",
+        "lemma": "vincere",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ]
+  }
+}

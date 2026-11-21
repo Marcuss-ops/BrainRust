@@ -49,7 +49,7 @@ requires at least one literal query; otherwise the status is
 `blocked_literal_queries_missing`. The command exits 2 for every non-measured
 status.
 
-Tests: `python3 provider_precision_test.py` — **8 passed**. The fixture is
+Tests: `python3 provider_precision_test.py` — **9 passed**. The fixture is
 synthetic and exercises validation/arithmetic only; it is not a provider
 measurement. The acceptance criteria above remain unchecked until a real
 production-cascade run and an independent judge provide the two artifacts.
@@ -74,3 +74,12 @@ fails closed rather than treating missing credentials or judges as a pass.
    si dichiara PASS.
 
 Gate: precision@10 misurata sul report, con i due input riproducibili.
+
+## Verifica 2026-11-20
+
+Ricontrollato sul working tree corrente (`2bbeca1` più le modifiche non
+committate). Blocco invariato: nel repository ci sono solo
+`provider_precision.py` e il suo test sintetico (9 test verdi, eseguiti il
+2026-11-20). Non esistono un run provider congelato, byte scaricati o un file
+di giudizi indipendente; il harness non può fabbricarli. Lo stato resta
+**BLOCKED**.

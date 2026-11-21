@@ -1,0 +1,4429 @@
+{
+  "schema": "brainrust.coref_gold.v1",
+  "annotation_authority": "assistant_draft_pending_human_review",
+  "case_design": "40 draft pronoun references per language: 10 each resolved singular, same-gender competitors, no antecedent, and plural pair.",
+  "languages": {
+    "de": [
+      {
+        "case_id": "de_resolved_01",
+        "text": "Anna Schmidt kam an. Sie lächelte.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Anna Schmidt"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_01",
+        "text": "Anna Schmidt traf Maria Weber, und sie lächelte.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Anna Schmidt",
+          "Maria Weber"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_01",
+        "text": "Sie lächelte.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_01",
+        "text": "Hans Müller und Thomas Fischer kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Hans Müller",
+          "Thomas Fischer"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_02",
+        "text": "Maria Weber kehrte zurück. Sie winkte.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Maria Weber"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_02",
+        "text": "Maria Weber traf Lisa Fischer, und sie winkte.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Maria Weber",
+          "Lisa Fischer"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_02",
+        "text": "Sie winkte.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_02",
+        "text": "Thomas Fischer und Peter Weber kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Thomas Fischer",
+          "Peter Weber"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_03",
+        "text": "Lisa Fischer trat ein. Sie antwortete.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lisa Fischer"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_03",
+        "text": "Lisa Fischer traf Emma Wagner, und sie antwortete.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Lisa Fischer",
+          "Emma Wagner"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_03",
+        "text": "Sie antwortete.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_03",
+        "text": "Peter Weber und Paul Schmidt kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Peter Weber",
+          "Paul Schmidt"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_04",
+        "text": "Emma Wagner reiste ab. Sie ging.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Emma Wagner"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_04",
+        "text": "Emma Wagner traf Sophie Becker, und sie ging.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Emma Wagner",
+          "Sophie Becker"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_04",
+        "text": "Sie ging.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_04",
+        "text": "Paul Schmidt und Lukas Wagner kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Paul Schmidt",
+          "Lukas Wagner"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_05",
+        "text": "Sophie Becker blieb stehen. Sie blieb.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sophie Becker"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_05",
+        "text": "Sophie Becker traf Laura Hoffmann, und sie blieb.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sophie Becker",
+          "Laura Hoffmann"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_05",
+        "text": "Sie blieb.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_05",
+        "text": "Lukas Wagner und Felix Becker kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lukas Wagner",
+          "Felix Becker"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_06",
+        "text": "Laura Hoffmann setzte sich. Sie sprach.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Laura Hoffmann"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_06",
+        "text": "Laura Hoffmann traf Lena Schulz, und sie sprach.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Laura Hoffmann",
+          "Lena Schulz"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_06",
+        "text": "Sie sprach.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_06",
+        "text": "Felix Becker und Leon Hoffmann kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Felix Becker",
+          "Leon Hoffmann"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_07",
+        "text": "Lena Schulz ging weiter. Sie sang.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lena Schulz"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_07",
+        "text": "Lena Schulz traf Julia Koch, und sie sang.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Lena Schulz",
+          "Julia Koch"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_07",
+        "text": "Sie sang.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_07",
+        "text": "Leon Hoffmann und Max Schulz kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Leon Hoffmann",
+          "Max Schulz"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_08",
+        "text": "Julia Koch wartete. Sie rannte.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Julia Koch"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_08",
+        "text": "Julia Koch traf Mia Bauer, und sie rannte.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Julia Koch",
+          "Mia Bauer"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_08",
+        "text": "Sie rannte.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_08",
+        "text": "Max Schulz und Jonas Koch kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Max Schulz",
+          "Jonas Koch"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_09",
+        "text": "Mia Bauer nickte. Sie wartete.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Mia Bauer"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_09",
+        "text": "Mia Bauer traf Clara Wolf, und sie wartete.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Mia Bauer",
+          "Clara Wolf"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_09",
+        "text": "Sie wartete.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_09",
+        "text": "Jonas Koch und Ben Bauer kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Jonas Koch",
+          "Ben Bauer"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "de_resolved_10",
+        "text": "Clara Wolf rief an. Sie nickte.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Clara Wolf"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "de_ambiguous_10",
+        "text": "Clara Wolf traf Anna Schmidt, und sie nickte.",
+        "reference": "Sie",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Clara Wolf",
+          "Anna Schmidt"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "de_unresolved_10",
+        "text": "Sie nickte.",
+        "reference": "Sie",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "de_plural_10",
+        "text": "Ben Bauer und Hans Müller kamen an. Sie feierten.",
+        "reference": "Sie",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ben Bauer",
+          "Hans Müller"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "en": [
+      {
+        "case_id": "en_resolved_01",
+        "text": "Anna Smith arrived. She smiled.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Anna Smith"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_01",
+        "text": "Anna Smith met Mary Jones, and she smiled.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Anna Smith",
+          "Mary Jones"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_01",
+        "text": "She smiled.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_01",
+        "text": "John Smith and James Jones arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "John Smith",
+          "James Jones"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_02",
+        "text": "Mary Jones returned. She waved.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Mary Jones"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_02",
+        "text": "Mary Jones met Emma Brown, and she waved.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Mary Jones",
+          "Emma Brown"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_02",
+        "text": "She waved.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_02",
+        "text": "James Jones and Peter Brown arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "James Jones",
+          "Peter Brown"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_03",
+        "text": "Emma Brown entered. She answered.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Emma Brown"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_03",
+        "text": "Emma Brown met Sarah Wilson, and she answered.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Emma Brown",
+          "Sarah Wilson"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_03",
+        "text": "She answered.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_03",
+        "text": "Peter Brown and David Wilson arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Peter Brown",
+          "David Wilson"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_04",
+        "text": "Sarah Wilson left. She left.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sarah Wilson"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_04",
+        "text": "Sarah Wilson met Olivia Taylor, and she left.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sarah Wilson",
+          "Olivia Taylor"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_04",
+        "text": "She left.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_04",
+        "text": "David Wilson and Oliver Taylor arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "David Wilson",
+          "Oliver Taylor"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_05",
+        "text": "Olivia Taylor stopped. She stayed.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Olivia Taylor"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_05",
+        "text": "Olivia Taylor met Jane Miller, and she stayed.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Olivia Taylor",
+          "Jane Miller"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_05",
+        "text": "She stayed.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_05",
+        "text": "Oliver Taylor and Mark Miller arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Oliver Taylor",
+          "Mark Miller"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_06",
+        "text": "Jane Miller sat down. She spoke.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Jane Miller"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_06",
+        "text": "Jane Miller met Lily Davis, and she spoke.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Jane Miller",
+          "Lily Davis"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_06",
+        "text": "She spoke.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_06",
+        "text": "Mark Miller and Daniel Davis arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Mark Miller",
+          "Daniel Davis"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_07",
+        "text": "Lily Davis continued. She sang.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lily Davis"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_07",
+        "text": "Lily Davis met Grace Martin, and she sang.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Lily Davis",
+          "Grace Martin"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_07",
+        "text": "She sang.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_07",
+        "text": "Daniel Davis and Henry Martin arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Daniel Davis",
+          "Henry Martin"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_08",
+        "text": "Grace Martin waited. She ran.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Grace Martin"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_08",
+        "text": "Grace Martin met Alice Moore, and she ran.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Grace Martin",
+          "Alice Moore"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_08",
+        "text": "She ran.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_08",
+        "text": "Henry Martin and Michael Moore arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Henry Martin",
+          "Michael Moore"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_09",
+        "text": "Alice Moore nodded. She waited.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Alice Moore"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_09",
+        "text": "Alice Moore met Kate Lee, and she waited.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Alice Moore",
+          "Kate Lee"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_09",
+        "text": "She waited.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_09",
+        "text": "Michael Moore and Robert Lee arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Michael Moore",
+          "Robert Lee"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "en_resolved_10",
+        "text": "Kate Lee called. She nodded.",
+        "reference": "She",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Kate Lee"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "en_ambiguous_10",
+        "text": "Kate Lee met Anna Smith, and she nodded.",
+        "reference": "She",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Kate Lee",
+          "Anna Smith"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "en_unresolved_10",
+        "text": "She nodded.",
+        "reference": "She",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "en_plural_10",
+        "text": "Robert Lee and John Smith arrived. They celebrated.",
+        "reference": "They",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Robert Lee",
+          "John Smith"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "es": [
+      {
+        "case_id": "es_resolved_01",
+        "text": "Ana García llegó. Ella sonrió.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ana García"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_01",
+        "text": "Ana García vio a María López, y ella sonrió.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ana García",
+          "María López"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_01",
+        "text": "Ella sonrió.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_01",
+        "text": "Juan García y José López llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Juan García",
+          "José López"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_02",
+        "text": "María López regresó. Ella saludó.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "María López"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_02",
+        "text": "María López vio a Lucía Pérez, y ella saludó.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "María López",
+          "Lucía Pérez"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_02",
+        "text": "Ella saludó.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_02",
+        "text": "José López y Luis Pérez llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "José López",
+          "Luis Pérez"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_03",
+        "text": "Lucía Pérez entró. Ella respondió.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lucía Pérez"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_03",
+        "text": "Lucía Pérez vio a Carmen Sánchez, y ella respondió.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Lucía Pérez",
+          "Carmen Sánchez"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_03",
+        "text": "Ella respondió.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_03",
+        "text": "Luis Pérez y Carlos Sánchez llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Luis Pérez",
+          "Carlos Sánchez"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_04",
+        "text": "Carmen Sánchez salió. Ella se fue.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Carmen Sánchez"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_04",
+        "text": "Carmen Sánchez vio a Elena Martín, y ella se fue.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Carmen Sánchez",
+          "Elena Martín"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_04",
+        "text": "Ella se fue.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_04",
+        "text": "Carlos Sánchez y Pedro Martín llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Carlos Sánchez",
+          "Pedro Martín"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_05",
+        "text": "Elena Martín se detuvo. Ella se quedó.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Elena Martín"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_05",
+        "text": "Elena Martín vio a Paula Ruiz, y ella se quedó.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Elena Martín",
+          "Paula Ruiz"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_05",
+        "text": "Ella se quedó.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_05",
+        "text": "Pedro Martín y Pablo Ruiz llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Pedro Martín",
+          "Pablo Ruiz"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_06",
+        "text": "Paula Ruiz se sentó. Ella habló.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Paula Ruiz"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_06",
+        "text": "Paula Ruiz vio a Laura Torres, y ella habló.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Paula Ruiz",
+          "Laura Torres"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_06",
+        "text": "Ella habló.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_06",
+        "text": "Pablo Ruiz y Diego Torres llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Pablo Ruiz",
+          "Diego Torres"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_07",
+        "text": "Laura Torres continuó. Ella cantó.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Laura Torres"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_07",
+        "text": "Laura Torres vio a Sofía Romero, y ella cantó.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Laura Torres",
+          "Sofía Romero"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_07",
+        "text": "Ella cantó.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_07",
+        "text": "Diego Torres y Miguel Romero llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Diego Torres",
+          "Miguel Romero"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_08",
+        "text": "Sofía Romero esperó. Ella corrió.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sofía Romero"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_08",
+        "text": "Sofía Romero vio a Marta Díaz, y ella corrió.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sofía Romero",
+          "Marta Díaz"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_08",
+        "text": "Ella corrió.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_08",
+        "text": "Miguel Romero y Javier Díaz llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Miguel Romero",
+          "Javier Díaz"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_09",
+        "text": "Marta Díaz asintió. Ella esperó.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Marta Díaz"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_09",
+        "text": "Marta Díaz vio a Isabel Flores, y ella esperó.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Marta Díaz",
+          "Isabel Flores"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_09",
+        "text": "Ella esperó.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_09",
+        "text": "Javier Díaz y Andrés Flores llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Javier Díaz",
+          "Andrés Flores"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "es_resolved_10",
+        "text": "Isabel Flores llamó. Ella asintió.",
+        "reference": "Ella",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Isabel Flores"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "es_ambiguous_10",
+        "text": "Isabel Flores vio a Ana García, y ella asintió.",
+        "reference": "Ella",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Isabel Flores",
+          "Ana García"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "es_unresolved_10",
+        "text": "Ella asintió.",
+        "reference": "Ella",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "es_plural_10",
+        "text": "Andrés Flores y Juan García llegaron. Ellos celebraron.",
+        "reference": "Ellos",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Andrés Flores",
+          "Juan García"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "fr": [
+      {
+        "case_id": "fr_resolved_01",
+        "text": "Marie Martin est arrivée. Elle a souri.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Marie Martin"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_01",
+        "text": "Marie Martin a rencontré Sophie Bernard, et elle a souri.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Marie Martin",
+          "Sophie Bernard"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_01",
+        "text": "Elle a souri.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_01",
+        "text": "Jean Martin et Pierre Bernard sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Jean Martin",
+          "Pierre Bernard"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_02",
+        "text": "Sophie Bernard est revenue. Elle a salué.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sophie Bernard"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_02",
+        "text": "Sophie Bernard a rencontré Claire Dubois, et elle a salué.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sophie Bernard",
+          "Claire Dubois"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_02",
+        "text": "Elle a salué.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_02",
+        "text": "Pierre Bernard et Louis Dubois sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Pierre Bernard",
+          "Louis Dubois"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_03",
+        "text": "Claire Dubois est entrée. Elle a répondu.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Claire Dubois"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_03",
+        "text": "Claire Dubois a rencontré Julie Thomas, et elle a répondu.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Claire Dubois",
+          "Julie Thomas"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_03",
+        "text": "Elle a répondu.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_03",
+        "text": "Louis Dubois et Paul Thomas sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Louis Dubois",
+          "Paul Thomas"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_04",
+        "text": "Julie Thomas est partie. Elle est partie.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Julie Thomas"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_04",
+        "text": "Julie Thomas a rencontré Anne Robert, et elle est partie.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Julie Thomas",
+          "Anne Robert"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_04",
+        "text": "Elle est partie.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_04",
+        "text": "Paul Thomas et André Robert sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Paul Thomas",
+          "André Robert"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_05",
+        "text": "Anne Robert s'est arrêtée. Elle est restée.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Anne Robert"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_05",
+        "text": "Anne Robert a rencontré Louise Richard, et elle est restée.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Anne Robert",
+          "Louise Richard"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_05",
+        "text": "Elle est restée.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_05",
+        "text": "André Robert et Luc Richard sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "André Robert",
+          "Luc Richard"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_06",
+        "text": "Louise Richard s'est assise. Elle a parlé.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Louise Richard"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_06",
+        "text": "Louise Richard a rencontré Camille Petit, et elle a parlé.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Louise Richard",
+          "Camille Petit"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_06",
+        "text": "Elle a parlé.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_06",
+        "text": "Luc Richard et Michel Petit sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Luc Richard",
+          "Michel Petit"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_07",
+        "text": "Camille Petit a continué. Elle a chanté.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Camille Petit"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_07",
+        "text": "Camille Petit a rencontré Alice Durand, et elle a chanté.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Camille Petit",
+          "Alice Durand"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_07",
+        "text": "Elle a chanté.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_07",
+        "text": "Michel Petit et Henri Durand sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Michel Petit",
+          "Henri Durand"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_08",
+        "text": "Alice Durand a attendu. Elle a couru.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Alice Durand"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_08",
+        "text": "Alice Durand a rencontré Emma Leroy, et elle a couru.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Alice Durand",
+          "Emma Leroy"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_08",
+        "text": "Elle a couru.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_08",
+        "text": "Henri Durand et Marc Leroy sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Henri Durand",
+          "Marc Leroy"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_09",
+        "text": "Emma Leroy a hoché la tête. Elle a attendu.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Emma Leroy"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_09",
+        "text": "Emma Leroy a rencontré Chloé Moreau, et elle a attendu.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Emma Leroy",
+          "Chloé Moreau"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_09",
+        "text": "Elle a attendu.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_09",
+        "text": "Marc Leroy et François Moreau sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Marc Leroy",
+          "François Moreau"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "fr_resolved_10",
+        "text": "Chloé Moreau a appelé. Elle a hoché la tête.",
+        "reference": "Elle",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Chloé Moreau"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "fr_ambiguous_10",
+        "text": "Chloé Moreau a rencontré Marie Martin, et elle a hoché la tête.",
+        "reference": "Elle",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Chloé Moreau",
+          "Marie Martin"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "fr_unresolved_10",
+        "text": "Elle a hoché la tête.",
+        "reference": "Elle",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "fr_plural_10",
+        "text": "François Moreau et Jean Martin sont arrivés. Ils ont célébré.",
+        "reference": "Ils",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "François Moreau",
+          "Jean Martin"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "id": [
+      {
+        "case_id": "id_resolved_01",
+        "text": "Siti Putri tiba. Dia tersenyum.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Siti Putri"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_01",
+        "text": "Siti Putri bertemu Dewi Lestari, lalu dia tersenyum.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Siti Putri",
+          "Dewi Lestari"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_01",
+        "text": "Dia tersenyum.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_01",
+        "text": "Budi Santoso dan Agus Wijaya tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Budi Santoso",
+          "Agus Wijaya"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_02",
+        "text": "Dewi Lestari kembali. Dia melambaikan tangan.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Dewi Lestari"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_02",
+        "text": "Dewi Lestari bertemu Rina Sari, lalu dia melambaikan tangan.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Dewi Lestari",
+          "Rina Sari"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_02",
+        "text": "Dia melambaikan tangan.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_02",
+        "text": "Agus Wijaya dan Rudi Hartono tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Agus Wijaya",
+          "Rudi Hartono"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_03",
+        "text": "Rina Sari masuk. Dia menjawab.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Rina Sari"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_03",
+        "text": "Rina Sari bertemu Ani Wulandari, lalu dia menjawab.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Rina Sari",
+          "Ani Wulandari"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_03",
+        "text": "Dia menjawab.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_03",
+        "text": "Rudi Hartono dan Andi Saputra tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Rudi Hartono",
+          "Andi Saputra"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_04",
+        "text": "Ani Wulandari pergi. Dia pergi.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ani Wulandari"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_04",
+        "text": "Ani Wulandari bertemu Maya Pratiwi, lalu dia pergi.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ani Wulandari",
+          "Maya Pratiwi"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_04",
+        "text": "Dia pergi.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_04",
+        "text": "Andi Saputra dan Doni Kurniawan tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Andi Saputra",
+          "Doni Kurniawan"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_05",
+        "text": "Maya Pratiwi berhenti. Dia tetap tinggal.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Maya Pratiwi"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_05",
+        "text": "Maya Pratiwi bertemu Nia Safitri, lalu dia tetap tinggal.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Maya Pratiwi",
+          "Nia Safitri"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_05",
+        "text": "Dia tetap tinggal.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_05",
+        "text": "Doni Kurniawan dan Eko Prasetyo tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Doni Kurniawan",
+          "Eko Prasetyo"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_06",
+        "text": "Nia Safitri duduk. Dia berbicara.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Nia Safitri"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_06",
+        "text": "Nia Safitri bertemu Ratna Dewi, lalu dia berbicara.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Nia Safitri",
+          "Ratna Dewi"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_06",
+        "text": "Dia berbicara.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_06",
+        "text": "Eko Prasetyo dan Dedi Setiawan tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Eko Prasetyo",
+          "Dedi Setiawan"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_07",
+        "text": "Ratna Dewi melanjutkan perjalanan. Dia bernyanyi.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ratna Dewi"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_07",
+        "text": "Ratna Dewi bertemu Lina Marlina, lalu dia bernyanyi.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ratna Dewi",
+          "Lina Marlina"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_07",
+        "text": "Dia bernyanyi.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_07",
+        "text": "Dedi Setiawan dan Joko Susilo tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Dedi Setiawan",
+          "Joko Susilo"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_08",
+        "text": "Lina Marlina menunggu. Dia berlari.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lina Marlina"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_08",
+        "text": "Lina Marlina bertemu Ayu Permata, lalu dia berlari.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Lina Marlina",
+          "Ayu Permata"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_08",
+        "text": "Dia berlari.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_08",
+        "text": "Joko Susilo dan Hadi Nugroho tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Joko Susilo",
+          "Hadi Nugroho"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_09",
+        "text": "Ayu Permata mengangguk. Dia menunggu.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ayu Permata"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_09",
+        "text": "Ayu Permata bertemu Fitri Handayani, lalu dia menunggu.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ayu Permata",
+          "Fitri Handayani"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_09",
+        "text": "Dia menunggu.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_09",
+        "text": "Hadi Nugroho dan Ari Firmansyah tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Hadi Nugroho",
+          "Ari Firmansyah"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "id_resolved_10",
+        "text": "Fitri Handayani menelepon. Dia mengangguk.",
+        "reference": "Dia",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Fitri Handayani"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "id_ambiguous_10",
+        "text": "Fitri Handayani bertemu Siti Putri, lalu dia mengangguk.",
+        "reference": "Dia",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Fitri Handayani",
+          "Siti Putri"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "id_unresolved_10",
+        "text": "Dia mengangguk.",
+        "reference": "Dia",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "id_plural_10",
+        "text": "Ari Firmansyah dan Budi Santoso tiba. Mereka merayakan bersama.",
+        "reference": "Mereka",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ari Firmansyah",
+          "Budi Santoso"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "it": [
+      {
+        "case_id": "it_resolved_01",
+        "text": "Anna Rossi è arrivata. Lei ha sorriso.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Anna Rossi"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_01",
+        "text": "Anna Rossi ha incontrato Maria Bianchi, e lei ha sorriso.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Anna Rossi",
+          "Maria Bianchi"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_01",
+        "text": "Lei ha sorriso.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_01",
+        "text": "Marco Rossi e Luca Bianchi sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Marco Rossi",
+          "Luca Bianchi"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_02",
+        "text": "Maria Bianchi è tornata. Lei ha salutato.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Maria Bianchi"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_02",
+        "text": "Maria Bianchi ha incontrato Giulia Conti, e lei ha salutato.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Maria Bianchi",
+          "Giulia Conti"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_02",
+        "text": "Lei ha salutato.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_02",
+        "text": "Luca Bianchi e Giovanni Conti sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Luca Bianchi",
+          "Giovanni Conti"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_03",
+        "text": "Giulia Conti è entrata. Lei ha risposto.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Giulia Conti"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_03",
+        "text": "Giulia Conti ha incontrato Sofia Romano, e lei ha risposto.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Giulia Conti",
+          "Sofia Romano"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_03",
+        "text": "Lei ha risposto.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_03",
+        "text": "Giovanni Conti e Paolo Romano sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Giovanni Conti",
+          "Paolo Romano"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_04",
+        "text": "Sofia Romano è partita. Lei se n'è andata.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sofia Romano"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_04",
+        "text": "Sofia Romano ha incontrato Laura Gallo, e lei se n'è andata.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sofia Romano",
+          "Laura Gallo"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_04",
+        "text": "Lei se n'è andata.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_04",
+        "text": "Paolo Romano e Matteo Gallo sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Paolo Romano",
+          "Matteo Gallo"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_05",
+        "text": "Laura Gallo si è fermata. Lei è rimasta.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Laura Gallo"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_05",
+        "text": "Laura Gallo ha incontrato Sara Costa, e lei è rimasta.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Laura Gallo",
+          "Sara Costa"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_05",
+        "text": "Lei è rimasta.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_05",
+        "text": "Matteo Gallo e Andrea Costa sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Matteo Gallo",
+          "Andrea Costa"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_06",
+        "text": "Sara Costa si è seduta. Lei ha parlato.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sara Costa"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_06",
+        "text": "Sara Costa ha incontrato Elena Fontana, e lei ha parlato.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sara Costa",
+          "Elena Fontana"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_06",
+        "text": "Lei ha parlato.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_06",
+        "text": "Andrea Costa e Franco Fontana sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Andrea Costa",
+          "Franco Fontana"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_07",
+        "text": "Elena Fontana ha proseguito. Lei ha cantato.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Elena Fontana"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_07",
+        "text": "Elena Fontana ha incontrato Marta Greco, e lei ha cantato.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Elena Fontana",
+          "Marta Greco"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_07",
+        "text": "Lei ha cantato.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_07",
+        "text": "Franco Fontana e Stefano Greco sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Franco Fontana",
+          "Stefano Greco"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_08",
+        "text": "Marta Greco ha aspettato. Lei ha corso.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Marta Greco"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_08",
+        "text": "Marta Greco ha incontrato Chiara Bruno, e lei ha corso.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Marta Greco",
+          "Chiara Bruno"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_08",
+        "text": "Lei ha corso.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_08",
+        "text": "Stefano Greco e Carlo Bruno sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Stefano Greco",
+          "Carlo Bruno"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_09",
+        "text": "Chiara Bruno ha annuito. Lei ha aspettato.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Chiara Bruno"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_09",
+        "text": "Chiara Bruno ha incontrato Lucia Ricci, e lei ha aspettato.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Chiara Bruno",
+          "Lucia Ricci"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_09",
+        "text": "Lei ha aspettato.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_09",
+        "text": "Carlo Bruno e Pietro Ricci sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Carlo Bruno",
+          "Pietro Ricci"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "it_resolved_10",
+        "text": "Lucia Ricci ha chiamato. Lei ha annuito.",
+        "reference": "Lei",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lucia Ricci"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "it_ambiguous_10",
+        "text": "Lucia Ricci ha incontrato Anna Rossi, e lei ha annuito.",
+        "reference": "Lei",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Lucia Ricci",
+          "Anna Rossi"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "it_unresolved_10",
+        "text": "Lei ha annuito.",
+        "reference": "Lei",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "it_plural_10",
+        "text": "Pietro Ricci e Marco Rossi sono arrivati. Loro hanno festeggiato.",
+        "reference": "Loro",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Pietro Ricci",
+          "Marco Rossi"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "nl": [
+      {
+        "case_id": "nl_resolved_01",
+        "text": "Anna de Vries kwam aan. Zij glimlachte.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Anna de Vries"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_01",
+        "text": "Anna de Vries ontmoette Emma Jansen, en zij glimlachte.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Anna de Vries",
+          "Emma Jansen"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_01",
+        "text": "Zij glimlachte.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_01",
+        "text": "Jan de Vries en Daan Jansen kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Jan de Vries",
+          "Daan Jansen"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_02",
+        "text": "Emma Jansen keerde terug. Zij zwaaide.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Emma Jansen"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_02",
+        "text": "Emma Jansen ontmoette Sophie Bakker, en zij zwaaide.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Emma Jansen",
+          "Sophie Bakker"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_02",
+        "text": "Zij zwaaide.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_02",
+        "text": "Daan Jansen en Pieter Bakker kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Daan Jansen",
+          "Pieter Bakker"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_03",
+        "text": "Sophie Bakker ging naar binnen. Zij antwoordde.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sophie Bakker"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_03",
+        "text": "Sophie Bakker ontmoette Lisa Visser, en zij antwoordde.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sophie Bakker",
+          "Lisa Visser"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_03",
+        "text": "Zij antwoordde.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_03",
+        "text": "Pieter Bakker en Thomas Visser kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Pieter Bakker",
+          "Thomas Visser"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_04",
+        "text": "Lisa Visser vertrok. Zij vertrok.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lisa Visser"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_04",
+        "text": "Lisa Visser ontmoette Julia Smit, en zij vertrok.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Lisa Visser",
+          "Julia Smit"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_04",
+        "text": "Zij vertrok.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_04",
+        "text": "Thomas Visser en Lucas Smit kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Thomas Visser",
+          "Lucas Smit"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_05",
+        "text": "Julia Smit stond stil. Zij bleef.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Julia Smit"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_05",
+        "text": "Julia Smit ontmoette Eva Meijer, en zij bleef.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Julia Smit",
+          "Eva Meijer"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_05",
+        "text": "Zij bleef.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_05",
+        "text": "Lucas Smit en Bram Meijer kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lucas Smit",
+          "Bram Meijer"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_06",
+        "text": "Eva Meijer ging zitten. Zij sprak.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Eva Meijer"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_06",
+        "text": "Eva Meijer ontmoette Sara de Boer, en zij sprak.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Eva Meijer",
+          "Sara de Boer"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_06",
+        "text": "Zij sprak.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_06",
+        "text": "Bram Meijer en Sem de Boer kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Bram Meijer",
+          "Sem de Boer"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_07",
+        "text": "Sara de Boer ging verder. Zij zong.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sara de Boer"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_07",
+        "text": "Sara de Boer ontmoette Mila Mulder, en zij zong.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sara de Boer",
+          "Mila Mulder"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_07",
+        "text": "Zij zong.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_07",
+        "text": "Sem de Boer en Milan Mulder kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sem de Boer",
+          "Milan Mulder"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_08",
+        "text": "Mila Mulder wachtte. Zij rende.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Mila Mulder"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_08",
+        "text": "Mila Mulder ontmoette Noor Bos, en zij rende.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Mila Mulder",
+          "Noor Bos"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_08",
+        "text": "Zij rende.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_08",
+        "text": "Milan Mulder en Tim Bos kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Milan Mulder",
+          "Tim Bos"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_09",
+        "text": "Noor Bos knikte. Zij wachtte.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Noor Bos"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_09",
+        "text": "Noor Bos ontmoette Tess Vos, en zij wachtte.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Noor Bos",
+          "Tess Vos"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_09",
+        "text": "Zij wachtte.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_09",
+        "text": "Tim Bos en Joost Vos kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Tim Bos",
+          "Joost Vos"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "nl_resolved_10",
+        "text": "Tess Vos belde. Zij knikte.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Tess Vos"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "nl_ambiguous_10",
+        "text": "Tess Vos ontmoette Anna de Vries, en zij knikte.",
+        "reference": "Zij",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Tess Vos",
+          "Anna de Vries"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "nl_unresolved_10",
+        "text": "Zij knikte.",
+        "reference": "Zij",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "nl_plural_10",
+        "text": "Joost Vos en Jan de Vries kwamen aan. Zij vierden feest.",
+        "reference": "Zij",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Joost Vos",
+          "Jan de Vries"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "pl": [
+      {
+        "case_id": "pl_resolved_01",
+        "text": "Anna Kowalska przyjechała. Ona uśmiechnęła się.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Anna Kowalska"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_01",
+        "text": "Anna Kowalska spotkała Maria Nowak, a ona uśmiechnęła się.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Anna Kowalska",
+          "Maria Nowak"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_01",
+        "text": "Ona uśmiechnęła się.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_01",
+        "text": "Jan Kowalski i Piotr Nowak przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Jan Kowalski",
+          "Piotr Nowak"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_02",
+        "text": "Maria Nowak wróciła. Ona pomachała.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Maria Nowak"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_02",
+        "text": "Maria Nowak spotkała Zofia Wójcik, a ona pomachała.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Maria Nowak",
+          "Zofia Wójcik"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_02",
+        "text": "Ona pomachała.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_02",
+        "text": "Piotr Nowak i Adam Wójcik przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Piotr Nowak",
+          "Adam Wójcik"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_03",
+        "text": "Zofia Wójcik weszła. Ona odpowiedziała.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Zofia Wójcik"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_03",
+        "text": "Zofia Wójcik spotkała Julia Kowalczyk, a ona odpowiedziała.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Zofia Wójcik",
+          "Julia Kowalczyk"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_03",
+        "text": "Ona odpowiedziała.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_03",
+        "text": "Adam Wójcik i Paweł Kowalczyk przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Adam Wójcik",
+          "Paweł Kowalczyk"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_04",
+        "text": "Julia Kowalczyk wyszła. Ona wyszła.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Julia Kowalczyk"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_04",
+        "text": "Julia Kowalczyk spotkała Lena Kamińska, a ona wyszła.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Julia Kowalczyk",
+          "Lena Kamińska"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_04",
+        "text": "Ona wyszła.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_04",
+        "text": "Paweł Kowalczyk i Marek Kamiński przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Paweł Kowalczyk",
+          "Marek Kamiński"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_05",
+        "text": "Lena Kamińska zatrzymała się. Ona została.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lena Kamińska"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_05",
+        "text": "Lena Kamińska spotkała Alicja Lewandowska, a ona została.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Lena Kamińska",
+          "Alicja Lewandowska"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_05",
+        "text": "Ona została.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_05",
+        "text": "Marek Kamiński i Tomasz Lewandowski przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Marek Kamiński",
+          "Tomasz Lewandowski"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_06",
+        "text": "Alicja Lewandowska usiadła. Ona rozmawiała.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Alicja Lewandowska"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_06",
+        "text": "Alicja Lewandowska spotkała Natalia Zielińska, a ona rozmawiała.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Alicja Lewandowska",
+          "Natalia Zielińska"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_06",
+        "text": "Ona rozmawiała.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_06",
+        "text": "Tomasz Lewandowski i Jakub Zieliński przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Tomasz Lewandowski",
+          "Jakub Zieliński"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_07",
+        "text": "Natalia Zielińska poszła dalej. Ona śpiewała.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Natalia Zielińska"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_07",
+        "text": "Natalia Zielińska spotkała Oliwia Szymańska, a ona śpiewała.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Natalia Zielińska",
+          "Oliwia Szymańska"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_07",
+        "text": "Ona śpiewała.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_07",
+        "text": "Jakub Zieliński i Kacper Szymański przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Jakub Zieliński",
+          "Kacper Szymański"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_08",
+        "text": "Oliwia Szymańska czekała. Ona pobiegła.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Oliwia Szymańska"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_08",
+        "text": "Oliwia Szymańska spotkała Maja Woźniak, a ona pobiegła.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Oliwia Szymańska",
+          "Maja Woźniak"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_08",
+        "text": "Ona pobiegła.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_08",
+        "text": "Kacper Szymański i Michał Woźniak przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Kacper Szymański",
+          "Michał Woźniak"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_09",
+        "text": "Maja Woźniak skinęła głową. Ona czekała.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Maja Woźniak"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_09",
+        "text": "Maja Woźniak spotkała Ewa Dąbrowska, a ona czekała.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Maja Woźniak",
+          "Ewa Dąbrowska"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_09",
+        "text": "Ona czekała.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_09",
+        "text": "Michał Woźniak i Kamil Dąbrowski przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Michał Woźniak",
+          "Kamil Dąbrowski"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pl_resolved_10",
+        "text": "Ewa Dąbrowska zadzwoniła. Ona skinęła głową.",
+        "reference": "Ona",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ewa Dąbrowska"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pl_ambiguous_10",
+        "text": "Ewa Dąbrowska spotkała Anna Kowalska, a ona skinęła głową.",
+        "reference": "Ona",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ewa Dąbrowska",
+          "Anna Kowalska"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pl_unresolved_10",
+        "text": "Ona skinęła głową.",
+        "reference": "Ona",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pl_plural_10",
+        "text": "Kamil Dąbrowski i Jan Kowalski przyjechali. Oni świętowali.",
+        "reference": "Oni",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Kamil Dąbrowski",
+          "Jan Kowalski"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "pt": [
+      {
+        "case_id": "pt_resolved_01",
+        "text": "Maria Silva chegou. Ela sorriu.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Maria Silva"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_01",
+        "text": "Maria Silva encontrou Ana Santos, e ela sorriu.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Maria Silva",
+          "Ana Santos"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_01",
+        "text": "Ela sorriu.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_01",
+        "text": "João Silva e Pedro Santos chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "João Silva",
+          "Pedro Santos"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_02",
+        "text": "Ana Santos voltou. Ela acenou.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ana Santos"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_02",
+        "text": "Ana Santos encontrou Beatriz Costa, e ela acenou.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ana Santos",
+          "Beatriz Costa"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_02",
+        "text": "Ela acenou.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_02",
+        "text": "Pedro Santos e Paulo Costa chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Pedro Santos",
+          "Paulo Costa"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_03",
+        "text": "Beatriz Costa entrou. Ela respondeu.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Beatriz Costa"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_03",
+        "text": "Beatriz Costa encontrou Joana Pereira, e ela respondeu.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Beatriz Costa",
+          "Joana Pereira"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_03",
+        "text": "Ela respondeu.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_03",
+        "text": "Paulo Costa e Rui Pereira chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Paulo Costa",
+          "Rui Pereira"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_04",
+        "text": "Joana Pereira saiu. Ela saiu.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Joana Pereira"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_04",
+        "text": "Joana Pereira encontrou Inês Oliveira, e ela saiu.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Joana Pereira",
+          "Inês Oliveira"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_04",
+        "text": "Ela saiu.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_04",
+        "text": "Rui Pereira e Miguel Oliveira chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Rui Pereira",
+          "Miguel Oliveira"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_05",
+        "text": "Inês Oliveira parou. Ela ficou.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Inês Oliveira"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_05",
+        "text": "Inês Oliveira encontrou Sofia Rodrigues, e ela ficou.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Inês Oliveira",
+          "Sofia Rodrigues"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_05",
+        "text": "Ela ficou.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_05",
+        "text": "Miguel Oliveira e Tiago Rodrigues chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Miguel Oliveira",
+          "Tiago Rodrigues"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_06",
+        "text": "Sofia Rodrigues sentou-se. Ela falou.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Sofia Rodrigues"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_06",
+        "text": "Sofia Rodrigues encontrou Mariana Ferreira, e ela falou.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Sofia Rodrigues",
+          "Mariana Ferreira"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_06",
+        "text": "Ela falou.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_06",
+        "text": "Tiago Rodrigues e Lucas Ferreira chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Tiago Rodrigues",
+          "Lucas Ferreira"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_07",
+        "text": "Mariana Ferreira continuou. Ela cantou.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Mariana Ferreira"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_07",
+        "text": "Mariana Ferreira encontrou Carolina Alves, e ela cantou.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Mariana Ferreira",
+          "Carolina Alves"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_07",
+        "text": "Ela cantou.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_07",
+        "text": "Lucas Ferreira e Carlos Alves chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Lucas Ferreira",
+          "Carlos Alves"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_08",
+        "text": "Carolina Alves esperou. Ela correu.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Carolina Alves"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_08",
+        "text": "Carolina Alves encontrou Clara Sousa, e ela correu.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Carolina Alves",
+          "Clara Sousa"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_08",
+        "text": "Ela correu.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_08",
+        "text": "Carlos Alves e Bruno Sousa chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Carlos Alves",
+          "Bruno Sousa"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_09",
+        "text": "Clara Sousa assentiu. Ela esperou.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Clara Sousa"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_09",
+        "text": "Clara Sousa encontrou Laura Gomes, e ela esperou.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Clara Sousa",
+          "Laura Gomes"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_09",
+        "text": "Ela esperou.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_09",
+        "text": "Bruno Sousa e André Gomes chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Bruno Sousa",
+          "André Gomes"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "pt_resolved_10",
+        "text": "Laura Gomes telefonou. Ela assentiu.",
+        "reference": "Ela",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Laura Gomes"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "pt_ambiguous_10",
+        "text": "Laura Gomes encontrou Maria Silva, e ela assentiu.",
+        "reference": "Ela",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Laura Gomes",
+          "Maria Silva"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "pt_unresolved_10",
+        "text": "Ela assentiu.",
+        "reference": "Ela",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "pt_plural_10",
+        "text": "André Gomes e João Silva chegaram. Eles comemoraram.",
+        "reference": "Eles",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "André Gomes",
+          "João Silva"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "ru": [
+      {
+        "case_id": "ru_resolved_01",
+        "text": "Анна Иванова пришла. Она улыбнулась.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Анна Иванова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_01",
+        "text": "Анна Иванова встретила Мария Смирнова, и она улыбнулась.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Анна Иванова",
+          "Мария Смирнова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_01",
+        "text": "Она улыбнулась.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_01",
+        "text": "Иван Иванов и Сергей Смирнов пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Иван Иванов",
+          "Сергей Смирнов"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_02",
+        "text": "Мария Смирнова вернулась. Она помахала.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Мария Смирнова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_02",
+        "text": "Мария Смирнова встретила Елена Кузнецова, и она помахала.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Мария Смирнова",
+          "Елена Кузнецова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_02",
+        "text": "Она помахала.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_02",
+        "text": "Сергей Смирнов и Алексей Кузнецов пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Сергей Смирнов",
+          "Алексей Кузнецов"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_03",
+        "text": "Елена Кузнецова вошла. Она ответила.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Елена Кузнецова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_03",
+        "text": "Елена Кузнецова встретила Ольга Попова, и она ответила.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Елена Кузнецова",
+          "Ольга Попова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_03",
+        "text": "Она ответила.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_03",
+        "text": "Алексей Кузнецов и Дмитрий Попов пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Алексей Кузнецов",
+          "Дмитрий Попов"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_04",
+        "text": "Ольга Попова ушла. Она ушла.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ольга Попова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_04",
+        "text": "Ольга Попова встретила Наталья Васильева, и она ушла.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ольга Попова",
+          "Наталья Васильева"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_04",
+        "text": "Она ушла.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_04",
+        "text": "Дмитрий Попов и Андрей Васильев пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Дмитрий Попов",
+          "Андрей Васильев"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_05",
+        "text": "Наталья Васильева остановилась. Она осталась.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Наталья Васильева"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_05",
+        "text": "Наталья Васильева встретила Татьяна Петрова, и она осталась.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Наталья Васильева",
+          "Татьяна Петрова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_05",
+        "text": "Она осталась.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_05",
+        "text": "Андрей Васильев и Николай Петров пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Андрей Васильев",
+          "Николай Петров"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_06",
+        "text": "Татьяна Петрова села. Она говорила.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Татьяна Петрова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_06",
+        "text": "Татьяна Петрова встретила Ирина Соколова, и она говорила.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Татьяна Петрова",
+          "Ирина Соколова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_06",
+        "text": "Она говорила.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_06",
+        "text": "Николай Петров и Михаил Соколов пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Николай Петров",
+          "Михаил Соколов"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_07",
+        "text": "Ирина Соколова продолжила путь. Она пела.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ирина Соколова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_07",
+        "text": "Ирина Соколова встретила Екатерина Михайлова, и она пела.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ирина Соколова",
+          "Екатерина Михайлова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_07",
+        "text": "Она пела.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_07",
+        "text": "Михаил Соколов и Владимир Михайлов пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Михаил Соколов",
+          "Владимир Михайлов"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_08",
+        "text": "Екатерина Михайлова подождала. Она побежала.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Екатерина Михайлова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_08",
+        "text": "Екатерина Михайлова встретила Юлия Новикова, и она побежала.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Екатерина Михайлова",
+          "Юлия Новикова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_08",
+        "text": "Она побежала.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_08",
+        "text": "Владимир Михайлов и Павел Новиков пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Владимир Михайлов",
+          "Павел Новиков"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_09",
+        "text": "Юлия Новикова кивнула. Она подождала.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Юлия Новикова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_09",
+        "text": "Юлия Новикова встретила София Фёдорова, и она подождала.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Юлия Новикова",
+          "София Фёдорова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_09",
+        "text": "Она подождала.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_09",
+        "text": "Павел Новиков и Артём Фёдоров пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Павел Новиков",
+          "Артём Фёдоров"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "ru_resolved_10",
+        "text": "София Фёдорова позвонила. Она кивнула.",
+        "reference": "Она",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "София Фёдорова"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "ru_ambiguous_10",
+        "text": "София Фёдорова встретила Анна Иванова, и она кивнула.",
+        "reference": "Она",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "София Фёдорова",
+          "Анна Иванова"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "ru_unresolved_10",
+        "text": "Она кивнула.",
+        "reference": "Она",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "ru_plural_10",
+        "text": "Артём Фёдоров и Иван Иванов пришли. Они отпраздновали.",
+        "reference": "Они",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Артём Фёдоров",
+          "Иван Иванов"
+        ],
+        "scenario": "plural_pair"
+      }
+    ],
+    "tr": [
+      {
+        "case_id": "tr_resolved_01",
+        "text": "Ayşe Yılmaz geldi. O gülümsedi.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ayşe Yılmaz"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_01",
+        "text": "Ayşe Yılmaz, Fatma Demir ile görüştü ve o gülümsedi.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Ayşe Yılmaz",
+          "Fatma Demir"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_01",
+        "text": "O gülümsedi.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_01",
+        "text": "Mehmet Yılmaz ve Mustafa Demir geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Mehmet Yılmaz",
+          "Mustafa Demir"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_02",
+        "text": "Fatma Demir geri döndü. O el salladı.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Fatma Demir"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_02",
+        "text": "Fatma Demir, Zeynep Kaya ile görüştü ve o el salladı.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Fatma Demir",
+          "Zeynep Kaya"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_02",
+        "text": "O el salladı.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_02",
+        "text": "Mustafa Demir ve Ahmet Kaya geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Mustafa Demir",
+          "Ahmet Kaya"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_03",
+        "text": "Zeynep Kaya içeri girdi. O yanıt verdi.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Zeynep Kaya"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_03",
+        "text": "Zeynep Kaya, Elif Çelik ile görüştü ve o yanıt verdi.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Zeynep Kaya",
+          "Elif Çelik"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_03",
+        "text": "O yanıt verdi.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_03",
+        "text": "Ahmet Kaya ve Ali Çelik geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ahmet Kaya",
+          "Ali Çelik"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_04",
+        "text": "Elif Çelik ayrıldı. O ayrıldı.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Elif Çelik"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_04",
+        "text": "Elif Çelik, Merve Şahin ile görüştü ve o ayrıldı.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Elif Çelik",
+          "Merve Şahin"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_04",
+        "text": "O ayrıldı.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_04",
+        "text": "Ali Çelik ve Emre Şahin geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Ali Çelik",
+          "Emre Şahin"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_05",
+        "text": "Merve Şahin durdu. O kaldı.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Merve Şahin"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_05",
+        "text": "Merve Şahin, Esra Yıldız ile görüştü ve o kaldı.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Merve Şahin",
+          "Esra Yıldız"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_05",
+        "text": "O kaldı.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_05",
+        "text": "Emre Şahin ve Burak Yıldız geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Emre Şahin",
+          "Burak Yıldız"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_06",
+        "text": "Esra Yıldız oturdu. O konuştu.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Esra Yıldız"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_06",
+        "text": "Esra Yıldız, Derya Aydın ile görüştü ve o konuştu.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Esra Yıldız",
+          "Derya Aydın"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_06",
+        "text": "O konuştu.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_06",
+        "text": "Burak Yıldız ve Murat Aydın geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Burak Yıldız",
+          "Murat Aydın"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_07",
+        "text": "Derya Aydın yoluna devam etti. O şarkı söyledi.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Derya Aydın"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_07",
+        "text": "Derya Aydın, Selin Özdemir ile görüştü ve o şarkı söyledi.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Derya Aydın",
+          "Selin Özdemir"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_07",
+        "text": "O şarkı söyledi.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_07",
+        "text": "Murat Aydın ve Onur Özdemir geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Murat Aydın",
+          "Onur Özdemir"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_08",
+        "text": "Selin Özdemir bekledi. O koştu.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Selin Özdemir"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_08",
+        "text": "Selin Özdemir, Aylin Arslan ile görüştü ve o koştu.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Selin Özdemir",
+          "Aylin Arslan"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_08",
+        "text": "O koştu.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_08",
+        "text": "Onur Özdemir ve Cem Arslan geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Onur Özdemir",
+          "Cem Arslan"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_09",
+        "text": "Aylin Arslan başını salladı. O bekledi.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Aylin Arslan"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_09",
+        "text": "Aylin Arslan, Aylin Kılıç ile görüştü ve o bekledi.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Aylin Arslan",
+          "Aylin Kılıç"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_09",
+        "text": "O bekledi.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_09",
+        "text": "Cem Arslan ve Can Kılıç geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Cem Arslan",
+          "Can Kılıç"
+        ],
+        "scenario": "plural_pair"
+      },
+      {
+        "case_id": "tr_resolved_10",
+        "text": "Aylin Kılıç aradı. O başını salladı.",
+        "reference": "O",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Aylin Kılıç"
+        ],
+        "scenario": "resolved_singular"
+      },
+      {
+        "case_id": "tr_ambiguous_10",
+        "text": "Aylin Kılıç, Ayşe Yılmaz ile görüştü ve o başını salladı.",
+        "reference": "O",
+        "expected_status": "ambiguous",
+        "expected_targets": [
+          "Aylin Kılıç",
+          "Ayşe Yılmaz"
+        ],
+        "scenario": "same_gender_competitors"
+      },
+      {
+        "case_id": "tr_unresolved_10",
+        "text": "O başını salladı.",
+        "reference": "O",
+        "expected_status": "unresolved",
+        "expected_targets": [],
+        "scenario": "no_antecedent"
+      },
+      {
+        "case_id": "tr_plural_10",
+        "text": "Can Kılıç ve Mehmet Yılmaz geldi. Onlar kutlama yaptı.",
+        "reference": "Onlar",
+        "expected_status": "resolved",
+        "expected_targets": [
+          "Can Kılıç",
+          "Mehmet Yılmaz"
+        ],
+        "scenario": "plural_pair"
+      }
+    ]
+  }
+}

@@ -51,6 +51,18 @@ jobs:
     - name: Entity index provenance and collision report are current
       run: python3 lexicon/tools/build_entity_index.py --check
 
+    - name: Country and capital place index is current
+      run: python3 lexicon/tools/build_place_index.py --check
+
+    - name: Place index validation tests
+      run: python3 -m unittest discover -s lexicon/tools -p 'test_build_place_index.py'
+
+    - name: Initial role lexicons are valid
+      run: python3 lexicon/tools/check_roles.py
+
+    - name: Initial event trigger lexicons are valid
+      run: python3 lexicon/tools/check_event_lexicons.py
+
     # rust-toolchain.toml is the single toolchain pin; the explicit install
     # keeps the container from falling back to a distro or floating rustc.
     - name: Install pinned Rust toolchain

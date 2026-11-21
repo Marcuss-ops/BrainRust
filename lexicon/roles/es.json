@@ -1,0 +1,729 @@
+{
+  "schema": "role_lexicon.v1",
+  "language": "es",
+  "roles": [
+    {
+      "role_code": "chief_executive",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "director ejecutivo",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "directora ejecutiva",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "CEO",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "presidente",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "presidenta",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "vice_president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "vicepresidente",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "vicepresidenta",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_operating_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "director de operaciones",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "directora de operaciones",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_financial_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "director financiero",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "directora financiera",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_technology_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "director de tecnología",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "directora de tecnología",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "fundador",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "fundadora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "co_founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "cofundador",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "cofundadora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "director",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "director",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "directora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "board_member",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "miembro del consejo",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "chairperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "presidente del consejo",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "presidenta del consejo",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "secretary",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "secretario",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "secretaria",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "treasurer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "tesorero",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "tesorera",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ministro",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "ministra",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "prime_minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "primer ministro",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "primera ministra",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "mayor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "alcalde",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "alcaldesa",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "governor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "gobernador",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "gobernadora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "senator",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "senador",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "senadora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "representative",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "diputado",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "diputada",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "representante",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "judge",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "juez",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "jueza",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "prosecutor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "fiscal",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "lawyer",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "abogado",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "abogada",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "police_chief",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "jefe de policía",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "jefa de policía",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "coach",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "entrenador",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "entrenadora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "captain",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "capitán",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "capitana",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "player",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "jugador",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "jugadora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "manager",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "gerente",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "spokesperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "portavoz",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "journalist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "periodista",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "editor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "editor",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "editora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "professor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "profesor",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "profesora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "researcher",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "investigador",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "investigadora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "scientist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "científico",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "científica",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "doctor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "médico",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "médica",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "doctor",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "doctora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "engineer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ingeniero",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "ingeniera",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "artist",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "artista",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "actor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "actor",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "actriz",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "singer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "cantante",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "author",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "autor",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "autora",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "owner",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "propietario",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "propietaria",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    }
+  ],
+  "tense_markers": {
+    "former": [
+      "ex",
+      "antiguo",
+      "antigua"
+    ],
+    "acting": [
+      "interino",
+      "interina",
+      "en funciones"
+    ],
+    "appointed": [
+      "nombrado",
+      "nombrada"
+    ],
+    "resigned": [
+      "dimisionario",
+      "dimisionaria",
+      "dimisión"
+    ]
+  }
+}

@@ -1,0 +1,618 @@
+{
+  "schema": "role_lexicon.v1",
+  "language": "it",
+  "roles": [
+    {
+      "role_code": "chief_executive",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "amministratore delegato",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "CEO",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "presidente",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "vice_president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "vicepresidente",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_operating_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direttore operativo",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_financial_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direttore finanziario",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_technology_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direttore tecnologico",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "fondatore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "fondatrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "co_founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "cofondatore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "cofondatrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "director",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direttore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "direttrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "board_member",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "membro del consiglio",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "chairperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "presidente del consiglio",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "secretary",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "segretario",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "segretaria",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "treasurer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "tesoriere",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "tesoriera",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ministro",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "ministra",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "prime_minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "primo ministro",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "mayor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "sindaco",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "governor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "governatore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "governatrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "senator",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "senatore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "senatrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "representative",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "deputato",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "deputata",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "judge",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "giudice",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "prosecutor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "procuratore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "procuratrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "lawyer",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "avvocato",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "police_chief",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "capo della polizia",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "coach",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "allenatore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "allenatrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "captain",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "capitano",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "player",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "giocatore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "giocatrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "manager",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "responsabile",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "spokesperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "portavoce",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "journalist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "giornalista",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "editor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "redattore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "professor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "professore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "researcher",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ricercatore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "ricercatrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "scientist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "scienziato",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "scienziata",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "doctor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "medico",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "engineer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ingegnere",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "ingegnera",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "artist",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "artista",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "actor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "attore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "attrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "singer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "cantante",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "author",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "autore",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "autrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    },
+    {
+      "role_code": "owner",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "proprietario",
+          "gender": "common",
+          "number": "singular",
+          "case": "invariant"
+        },
+        {
+          "text": "proprietaria",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "invariant"
+        }
+      ]
+    }
+  ],
+  "tense_markers": {
+    "former": [
+      "ex",
+      "già"
+    ],
+    "acting": [
+      "facente funzione",
+      "ad interim"
+    ],
+    "appointed": [
+      "nominato",
+      "nominata"
+    ],
+    "resigned": [
+      "dimissionario",
+      "dimissionaria"
+    ]
+  }
+}

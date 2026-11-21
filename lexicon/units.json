@@ -1525,7 +1525,10 @@
             "usd",
             "us$",
             "dolar",
-            "dolary"
+            "dolara",
+            "dolary",
+            "dolarów",
+            "dolarze"
           ],
           "dimension": "currency",
           "code": "USD",
@@ -1536,7 +1539,10 @@
             "£",
             "gbp",
             "funt",
-            "funty"
+            "funta",
+            "funty",
+            "funtów",
+            "funcie"
           ],
           "dimension": "currency",
           "code": "GBP",
@@ -2247,7 +2253,8 @@
           "surfaces": [
             "€",
             "eur",
-            "euro"
+            "euro",
+            "avro"
           ],
           "dimension": "currency",
           "code": "EUR",
@@ -2370,7 +2377,11 @@
         {
           "surfaces": [
             "birim",
-            "adet"
+            "adet",
+            "otomobil",
+            "otomobiller",
+            "otomobili",
+            "otomobilleri"
           ],
           "dimension": "count",
           "code": "count",

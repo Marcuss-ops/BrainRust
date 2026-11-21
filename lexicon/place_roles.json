@@ -1,0 +1,188 @@
+{
+  "schema": "place_roles.v1",
+  "languages": {
+    "de": {
+      "origin": [
+        "aus",
+        "von"
+      ],
+      "destination": [
+        "nach",
+        "zu"
+      ],
+      "setting": [
+        "in",
+        "am",
+        "an"
+      ]
+    },
+    "en": {
+      "origin": [
+        "from"
+      ],
+      "destination": [
+        "to",
+        "toward",
+        "towards"
+      ],
+      "setting": [
+        "in",
+        "at",
+        "near"
+      ]
+    },
+    "es": {
+      "origin": [
+        "de",
+        "desde"
+      ],
+      "destination": [
+        "a",
+        "hacia"
+      ],
+      "setting": [
+        "en",
+        "cerca de"
+      ]
+    },
+    "fr": {
+      "origin": [
+        "de",
+        "depuis"
+      ],
+      "destination": [
+        "à",
+        "vers"
+      ],
+      "setting": [
+        "à",
+        "dans",
+        "près de"
+      ]
+    },
+    "id": {
+      "origin": [
+        "dari"
+      ],
+      "destination": [
+        "ke",
+        "menuju"
+      ],
+      "setting": [
+        "di",
+        "dekat"
+      ]
+    },
+    "it": {
+      "origin": [
+        "da",
+        "dalla",
+        "dallo",
+        "dai",
+        "dagli",
+        "dalle",
+        "dal",
+        "dell'"
+      ],
+      "destination": [
+        "verso"
+      ],
+      "setting": [
+        "in",
+        "a",
+        "ad",
+        "nel",
+        "nella",
+        "nello",
+        "nei",
+        "nelle",
+        "presso"
+      ]
+    },
+    "nl": {
+      "origin": [
+        "uit",
+        "van"
+      ],
+      "destination": [
+        "naar",
+        "tot"
+      ],
+      "setting": [
+        "in",
+        "bij"
+      ]
+    },
+    "pl": {
+      "origin": [
+        "z",
+        "ze"
+      ],
+      "destination": [
+        "do",
+        "ku",
+        "na"
+      ],
+      "setting": [
+        "w",
+        "we",
+        "na",
+        "pod"
+      ]
+    },
+    "pt": {
+      "origin": [
+        "de",
+        "desde"
+      ],
+      "destination": [
+        "a",
+        "para",
+        "até"
+      ],
+      "setting": [
+        "em",
+        "no",
+        "na",
+        "perto de"
+      ]
+    },
+    "ru": {
+      "origin": [
+        "из",
+        "от"
+      ],
+      "destination": [
+        "в",
+        "во",
+        "к"
+      ],
+      "setting": [
+        "в",
+        "во",
+        "на",
+        "около"
+      ]
+    },
+    "tr": {
+      "origin": [
+        "dan",
+        "den",
+        "tan",
+        "ten"
+      ],
+      "destination": [
+        "a",
+        "e",
+        "ya",
+        "ye"
+      ],
+      "setting": [
+        "da",
+        "de",
+        "ta",
+        "te"
+      ]
+    }
+  }
+}

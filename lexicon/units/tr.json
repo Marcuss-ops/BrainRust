@@ -6,7 +6,8 @@
       "surfaces": [
         "€",
         "eur",
-        "euro"
+        "euro",
+        "avro"
       ],
       "dimension": "currency",
       "code": "EUR",
@@ -129,7 +130,11 @@
     {
       "surfaces": [
         "birim",
-        "adet"
+        "adet",
+        "otomobil",
+        "otomobiller",
+        "otomobili",
+        "otomobilleri"
       ],
       "dimension": "count",
       "code": "count",

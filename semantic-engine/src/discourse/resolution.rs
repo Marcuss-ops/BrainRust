@@ -8,6 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use semantic_core::lexicon::given_name_gender;
 use semantic_core::narrative::DiscourseReference;
 use semantic_core::{SceneInput, SceneManifest, SentenceSpan};
 
@@ -27,6 +28,7 @@ struct NamedMention {
 struct IdentityInfo {
     canonical_surface: String,
     kind: String,
+    gender: &'static str,
     mentions: Vec<NamedMention>,
 }
 
@@ -61,7 +63,11 @@ pub(super) fn resolve_references(
     inputs: &[SceneInput],
     scenes: &[SceneManifest],
 ) -> Vec<DiscourseReference> {
-    let context = Context::build(language, inputs, scenes);
+    let context = Context::build(
+        language.split('-').next().unwrap_or(language),
+        inputs,
+        scenes,
+    );
     let mut output = Vec::new();
     for scene_index in 0..scenes.len() {
         let text = &context.inputs[scene_index].text;
@@ -92,7 +98,7 @@ pub(super) fn resolve_references(
             let resolved = match reference {
                 RawReference::Explicit(mention) => explicit_reference(text, &context, &mention),
                 RawReference::Detected(detected) => {
-                    detected_reference(text, scene_index, &context, &detected, named)
+                    detected_reference(language, text, scene_index, &context, &detected, named)
                 }
             };
             output.push(resolved);
@@ -111,6 +117,24 @@ impl<'a> Context<'a> {
             .map(|input| semantic_core::split_sentences(&input.text, language, None))
             .collect();
         let mut identities: BTreeMap<String, IdentityInfo> = BTreeMap::new();
+        let mut genders: BTreeMap<String, &'static str> = BTreeMap::new();
+        for scene in scenes {
+            for role in &scene.person_roles {
+                let gender = match role.gender.as_str() {
+                    "masculine" => "masculine",
+                    "feminine" => "feminine",
+                    _ => continue,
+                };
+                genders
+                    .entry(role.person_id.clone())
+                    .and_modify(|existing| {
+                        if *existing != gender {
+                            *existing = "unknown";
+                        }
+                    })
+                    .or_insert(gender);
+            }
+        }
         let mut scene_mentions: Vec<Vec<NamedMention>> = vec![Vec::new(); scenes.len()];
         let mut seen: BTreeSet<(String, String, usize, usize)> = BTreeSet::new();
         for (scene_index, scene) in scenes.iter().enumerate() {
@@ -120,6 +144,9 @@ impl<'a> Context<'a> {
                     .or_insert_with(|| IdentityInfo {
                         canonical_surface: identity.canonical_surface.clone(),
                         kind: identity.kind.clone(),
+                        gender: genders.get(&identity.id).copied().unwrap_or_else(|| {
+                            given_name_gender(language, &identity.canonical_surface)
+                        }),
                         mentions: Vec::new(),
                     });
                 if info.canonical_surface.is_empty() {
@@ -191,13 +218,22 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn unique_globally(&self, kind_hint: &str) -> Option<String> {
+    fn gender_compatible(&self, identity_id: &str, gender_hint: &str) -> bool {
+        self.identities
+            .get(identity_id)
+            .is_none_or(|identity| genders_compatible(identity.gender, gender_hint))
+    }
+
+    fn unique_globally(&self, kind_hint: &str, gender_hint: &str) -> Option<String> {
         let candidates: Vec<(&String, &IdentityInfo)> = self
             .identities
             .iter()
             .filter(|(_, identity)| !identity.mentions.is_empty())
             .filter(|(_, identity)| {
                 is_referenceable_kind(&identity.kind)
+                    && (gender_hint == "unknown"
+                        || identity.gender == "unknown"
+                        || identity.gender == gender_hint)
                     && match kind_hint {
                         "PERSON" => identity.kind == "PERSON",
                         "ORG" => matches!(identity.kind.as_str(), "ORG" | "ORGANIZATION"),
@@ -225,6 +261,10 @@ impl<'a> Context<'a> {
             span.end_byte,
         )
     }
+}
+
+fn genders_compatible(candidate: &str, hint: &str) -> bool {
+    hint == "unknown" || candidate == "unknown" || candidate == hint
 }
 
 fn explicit_reference(
@@ -269,6 +309,7 @@ fn explicit_reference(
 }
 
 fn detected_reference(
+    language: &str,
     text: &str,
     scene_index: usize,
     context: &Context<'_>,
@@ -277,19 +318,29 @@ fn detected_reference(
 ) -> DiscourseReference {
     let sentence_index = sentence_index_at(&context.sentences[scene_index], detected.start);
     let (evidence, sentence_start, sentence_end) = context.sentence(scene_index, sentence_index);
+    let plural_by_agreement = detected.reference_type == "pronoun"
+        && detected.number == "unknown"
+        && plural_agreement_after(language, text, detected.end, sentence_end);
+    let plural_number = detected.number == "plural" || plural_by_agreement;
+    let gender_hint = if plural_number {
+        "unknown"
+    } else {
+        detected.gender_hint.as_str()
+    };
     let active = active_mentions(context, scene_index, sentence_index, detected.start);
-    let active_ids = distinct_ids(&active, detected.kind_hint, context);
+    let active_ids = distinct_ids(&active, &detected.kind_hint, gender_hint, context);
     let scene_ids = distinct_ids(
         &context.scene_mentions[scene_index],
-        detected.kind_hint,
+        &detected.kind_hint,
+        gender_hint,
         context,
     );
     let same_sentence = same_sentence_before(named, sentence_index, detected.start);
-    let same_sentence_ids = distinct_ids(&same_sentence, detected.kind_hint, context);
-    let nearest = nearest_sentence(&active);
+    let same_sentence_ids = distinct_ids(&same_sentence, &detected.kind_hint, gender_hint, context);
+    let nearest = nearest_sentence(&active, &detected.kind_hint, gender_hint, context);
     let nearest_ids = nearest
         .as_ref()
-        .map(|(_, mentions)| distinct_ids(mentions, detected.kind_hint, context))
+        .map(|(_, mentions)| distinct_ids(mentions, &detected.kind_hint, gender_hint, context))
         .unwrap_or_default();
 
     let mut reference = DiscourseReference {
@@ -300,7 +351,7 @@ fn detected_reference(
             .get(detected.start..detected.end)
             .unwrap_or(&detected.surface)
             .to_string(),
-        reference_type: detected.reference_type.to_string(),
+        reference_type: detected.reference_type.clone(),
         status: "unresolved".to_string(),
         target_entity_ids: Vec::new(),
         candidate_entity_ids: Vec::new(),
@@ -319,11 +370,18 @@ fn detected_reference(
     }
 
     if detected.reference_type == "pronoun" || detected.reference_type == "nominal_reference" {
-        if detected.number == "plural" {
+        if plural_number {
             if nearest_ids.len() == 2 {
                 reference.status = "resolved".to_string();
                 reference.target_entity_ids = nearest_ids;
-                reference.resolution_basis = Some("plural_pair_antecedent".to_string());
+                reference.resolution_basis = Some(
+                    if plural_by_agreement {
+                        "agreement"
+                    } else {
+                        "plural_pair_antecedent"
+                    }
+                    .to_string(),
+                );
             } else if nearest_ids.len() > 2 {
                 reference.status = "ambiguous".to_string();
                 reference.candidate_entity_ids = nearest_ids;
@@ -338,7 +396,7 @@ fn detected_reference(
             if role_ids.len() == 1 {
                 reference.status = "resolved".to_string();
                 reference.target_entity_ids = role_ids.clone();
-                reference.resolution_basis = Some("unique_active_role_antecedent".to_string());
+                reference.resolution_basis = Some("role_nominal".to_string());
             } else if role_ids.len() > 1 {
                 reference.status = "ambiguous".to_string();
                 reference.candidate_entity_ids = role_ids.clone();
@@ -364,7 +422,7 @@ fn detected_reference(
     }
 
     if reference.status == "unresolved" && reference.reason.is_none() {
-        if let Some(identity_id) = context.unique_globally(detected.kind_hint) {
+        if let Some(identity_id) = context.unique_globally(&detected.kind_hint, gender_hint) {
             reference.status = "resolved".to_string();
             reference.target_entity_ids = vec![identity_id];
             reference.resolution_basis = Some("globally_unique_compatible_entity".to_string());
@@ -377,6 +435,32 @@ fn detected_reference(
         }
     }
     reference
+}
+
+/// German and Dutch third-person plural finite verbs are distinguished from
+/// the singular by an `-en` ending. Use only the first predicate after an
+/// otherwise number-ambiguous pronoun; modal/periphrastic cases stay unknown.
+fn plural_agreement_after(
+    language: &str,
+    source: &str,
+    pronoun_end: usize,
+    sentence_end: usize,
+) -> bool {
+    if !matches!(
+        language.split(['-', '_']).next().unwrap_or(language),
+        "de" | "nl"
+    ) {
+        return false;
+    }
+    let predicate = source
+        .get(pronoun_end..sentence_end)
+        .unwrap_or("")
+        .trim_start()
+        .split(|character: char| !character.is_alphabetic())
+        .find(|word| !word.is_empty())
+        .unwrap_or("")
+        .to_lowercase();
+    predicate.ends_with("en")
 }
 
 fn active_mentions(
@@ -417,22 +501,43 @@ fn same_sentence_before(
         .collect()
 }
 
-fn nearest_sentence(active: &[NamedMention]) -> Option<(usize, Vec<NamedMention>)> {
-    let latest = active.iter().map(|mention| mention.sentence_index).max()?;
+fn nearest_sentence(
+    active: &[NamedMention],
+    kind_hint: &str,
+    gender_hint: &str,
+    context: &Context<'_>,
+) -> Option<(usize, Vec<NamedMention>)> {
+    let compatible: Vec<&NamedMention> = active
+        .iter()
+        .filter(|mention| {
+            context.compatible(&mention.identity_id, kind_hint)
+                && context.gender_compatible(&mention.identity_id, gender_hint)
+        })
+        .collect();
+    let latest = compatible
+        .iter()
+        .map(|mention| mention.sentence_index)
+        .max()?;
     Some((
         latest,
-        active
+        compatible
             .iter()
             .filter(|mention| mention.sentence_index == latest)
-            .cloned()
+            .map(|mention| (*mention).clone())
             .collect(),
     ))
 }
 
-fn distinct_ids(mentions: &[NamedMention], kind_hint: &str, context: &Context<'_>) -> Vec<String> {
+fn distinct_ids(
+    mentions: &[NamedMention],
+    kind_hint: &str,
+    gender_hint: &str,
+    context: &Context<'_>,
+) -> Vec<String> {
     let mut ids = Vec::new();
     for mention in mentions {
         if context.compatible(&mention.identity_id, kind_hint)
+            && context.gender_compatible(&mention.identity_id, gender_hint)
             && !ids.iter().any(|known| known == &mention.identity_id)
         {
             ids.push(mention.identity_id.clone());
@@ -471,4 +576,59 @@ fn sentence_index_at(sentences: &[SentenceSpan], offset: usize) -> usize {
         .iter()
         .position(|sentence| offset >= sentence.start_byte && offset < sentence.end_byte)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod gender_tests {
+    use super::{genders_compatible, given_name_gender};
+
+    #[test]
+    fn unknown_gender_never_filters_a_candidate() {
+        assert!(genders_compatible("unknown", "feminine"));
+        assert!(genders_compatible("masculine", "unknown"));
+        assert!(!genders_compatible("masculine", "feminine"));
+        assert!(genders_compatible("feminine", "feminine"));
+    }
+
+    #[test]
+    fn given_name_inventory_is_localized_and_omissions_stay_unknown() {
+        let examples = [
+            ("de", "Sophie", "feminine"),
+            ("de", "Anna", "feminine"),
+            ("en", "John", "masculine"),
+            ("es", "María", "feminine"),
+            ("fr", "Jean", "masculine"),
+            ("id", "Siti", "feminine"),
+            ("it", "Marco", "masculine"),
+            ("it", "Elena", "feminine"),
+            ("it", "Sara", "feminine"),
+            ("nl", "Daan", "masculine"),
+            ("nl", "Sara", "feminine"),
+            ("nl", "Sem", "masculine"),
+            ("pl", "Anna", "feminine"),
+            ("pl", "Oliwia", "feminine"),
+            ("pl", "Ewa", "feminine"),
+            ("pt", "João", "masculine"),
+            ("pt", "Inês", "feminine"),
+            ("ru", "Анна", "feminine"),
+            ("ru", "Артём", "masculine"),
+            ("tr", "Ayşe", "feminine"),
+            ("tr", "Zeynep", "feminine"),
+            ("tr", "Selin", "feminine"),
+            ("tr", "Derya", "unknown"),
+        ];
+        for (language, name, expected) in examples {
+            assert_eq!(
+                given_name_gender(language, name),
+                expected,
+                "{language}: {name}"
+            );
+            assert_eq!(given_name_gender(language, "Alex"), "unknown", "{language}");
+        }
+        assert!(semantic_core::lexicon::is_curated_given_name("tr", "Derya"));
+        assert!(semantic_core::lexicon::is_curated_given_name(
+            "tr",
+            "Derya Aydın"
+        ));
+    }
 }

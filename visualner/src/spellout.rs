@@ -13,6 +13,12 @@ use rust_icu_uloc::ULoc;
 use rust_icu_unum::UNumberFormat;
 use semantic_core::number_words::NumberWordRules;
 
+#[path = "spellout/quantity.rs"]
+mod quantity;
+#[path = "spellout/tokens.rs"]
+mod tokens;
+use tokens::{word_tokens, WordToken};
+
 #[derive(Debug, Clone)]
 pub(crate) struct WordNumberCandidate {
     pub start: usize,
@@ -24,12 +30,6 @@ pub(crate) struct WordNumberCandidate {
     /// consulenze", "five reports"). A bare count ("quarantadue dei
     /// tecnici") stays false: it is not a measurement.
     pub has_unit: bool,
-}
-
-#[derive(Debug, Clone)]
-struct WordToken {
-    start: usize,
-    end: usize,
 }
 
 struct LocaleFormatters {
@@ -219,7 +219,7 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
             "ICU spellout rules are unavailable for language {language:?}"
         ));
     }
-    let tokens = word_tokens(source);
+    let tokens = tokens::word_tokens(source);
     let vocabulary = number_vocabulary(language)?;
     let rules = semantic_core::number_words::rules(language);
     let mut out = denominator_fractions(source, &tokens, rules, formatters.spellout.as_ref());
@@ -355,7 +355,7 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
             // for those, and do not treat duration phrases such as "one day"
             // as standalone numbers.
             let magnitude = value.abs();
-            let suffix = quantity_suffix(source, end);
+            let suffix = quantity::quantity_suffix(source, end);
             if !ordinal_parse
                 && magnitude <= 1.0
                 && token_count <= 2
@@ -367,13 +367,14 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
                 continue;
             }
 
-            let (candidate_end, classified_type) = extend_quantity(source, end, entity_type);
+            let (candidate_end, classified_type) =
+                quantity::extend_quantity(source, end, entity_type);
             // CLDR parses "tre milioni" as the prefix `3` in several locales,
             // because the scale noun is a suffix of the window. Apply the
             // shared scale table to the surface that was actually consumed:
             // the value is multiplied only when it is smaller than the scale
             // itself, so an already-complete parse ("3.000.000") is untouched.
-            let value = match suffix_scale_factor(source, end, candidate_end) {
+            let value = match quantity::suffix_scale_factor(source, end, candidate_end) {
                 Some(factor) if value.abs() < factor => value * factor,
                 _ => value,
             };
@@ -398,8 +399,8 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
             }) {
                 continue;
             }
-            let has_unit =
-                candidate_end > end || next_token_is_open_class(source, candidate_end, language);
+            let has_unit = candidate_end > end
+                || quantity::next_token_is_open_class(source, candidate_end, language);
             // A spelled year with no unit is a date, exactly like a digit year
             // ("42" is a count, "2007" is a year). Typing it as a number
             // would let a bar chart plot it.
@@ -423,7 +424,7 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
             // Prefer a unit/currency-extended quantity; a bare scale word must
             // not stop the scan, because the phrase may continue
             // ("due mila sette" = 2007, not 2000 + 7).
-            if candidate_end > end && quantity_suffix(source, end).is_some() {
+            if candidate_end > end && quantity::quantity_suffix(source, end).is_some() {
                 break;
             }
         }
@@ -728,7 +729,7 @@ fn extend_additive_fraction(
     if !spec.additive {
         return (candidate_end, value);
     }
-    let scale_before = suffix_scale_factor(source, number_end, candidate_end)
+    let scale_before = quantity::suffix_scale_factor(source, number_end, candidate_end)
         .or_else(|| last_scale_factor(source, number_start, number_end));
     let unit = scale_before.unwrap_or(1.0);
     let mut end = candidate_end + fraction.end;
@@ -926,48 +927,6 @@ fn parse_complete(surface: &str, formatter: &UNumberFormat) -> Option<f64> {
     })
 }
 
-fn word_tokens(source: &str) -> Vec<WordToken> {
-    let mut tokens = Vec::new();
-    let mut start = None;
-    let mut previous_was_word = false;
-    for (offset, character) in source.char_indices() {
-        let word = character.is_alphanumeric() || is_combining_mark(character);
-        let connector = matches!(
-            character,
-            '-' | '\u{2010}' | '\u{2011}' | '\u{00AD}' | '\'' | '\u{2019}'
-        ) && previous_was_word
-            && source[offset + character.len_utf8()..]
-                .chars()
-                .next()
-                .is_some_and(char::is_alphanumeric);
-        if word || connector {
-            start.get_or_insert(offset);
-            previous_was_word = word;
-        } else {
-            if let Some(token_start) = start.take() {
-                tokens.push(WordToken {
-                    start: token_start,
-                    end: offset,
-                });
-            }
-            previous_was_word = false;
-        }
-    }
-    if let Some(token_start) = start {
-        tokens.push(WordToken {
-            start: token_start,
-            end: source.len(),
-        });
-    }
-    tokens
-}
-
-fn is_combining_mark(character: char) -> bool {
-    matches!(character as u32,
-        0x0300..=0x036F | 0x1AB0..=0x1AFF | 0x1DC0..=0x1DFF |
-        0x20D0..=0x20FF | 0xFE20..=0xFE2F)
-}
-
 fn ordinal_equivalent(surface: &str, canonical: &str) -> bool {
     let mut left = surface.to_lowercase();
     let mut right = canonical.to_lowercase();
@@ -1015,509 +974,6 @@ fn crosses_hard_punctuation(separator: &str) -> bool {
     })
 }
 
-fn quantity_suffix(source: &str, end: usize) -> Option<(&'static str, &'static str)> {
-    let tail = source.get(end..)?.trim_start();
-    let lower = tail.to_lowercase();
-    let suffixes = [
-        ("percent", "PERCENT"),
-        ("per cent", "PERCENT"),
-        ("per cento", "PERCENT"),
-        ("pour cent", "PERCENT"),
-        ("por cento", "PERCENT"),
-        ("percento", "PERCENT"),
-        ("prozent", "PERCENT"),
-        ("процентов", "PERCENT"),
-        ("процента", "PERCENT"),
-        ("процент", "PERCENT"),
-        ("dollars", "MONEY"),
-        ("dollar", "MONEY"),
-        ("euros", "MONEY"),
-        ("euro", "MONEY"),
-        ("pounds", "MONEY"),
-        ("pound", "MONEY"),
-        ("yen", "MONEY"),
-        ("рублей", "MONEY"),
-        ("рубля", "MONEY"),
-        ("million", "MONEY"),
-        ("billion", "MONEY"),
-        ("trillion", "MONEY"),
-        ("mille", "NUMBER"),
-        ("milioni", "NUMBER"),
-        ("millions", "NUMBER"),
-        ("orders", "NUMBER"),
-        ("people", "NUMBER"),
-        ("years", "TIME"),
-        ("year", "TIME"),
-        ("days", "TIME"),
-        ("day", "TIME"),
-        ("hours", "TIME"),
-        ("hour", "TIME"),
-        ("minutes", "TIME"),
-        ("minute", "TIME"),
-        ("votes", "NUMBER"),
-        ("ordini", "NUMBER"),
-        ("persone", "NUMBER"),
-        ("ans", "NUMBER"),
-        ("jahre", "NUMBER"),
-        ("bestellungen", "NUMBER"),
-        ("años", "NUMBER"),
-        ("personas", "NUMBER"),
-        ("pessoas", "NUMBER"),
-        ("personnes", "NUMBER"),
-        ("menschen", "NUMBER"),
-        ("mensen", "NUMBER"),
-        ("osób", "NUMBER"),
-        ("человек", "NUMBER"),
-        ("kişi", "NUMBER"),
-        ("insan", "NUMBER"),
-        ("orang", "NUMBER"),
-    ];
-    suffixes.into_iter().find(|(suffix, _)| {
-        lower.starts_with(suffix)
-            && lower
-                .chars()
-                .nth(suffix.chars().count())
-                .is_none_or(|next| !next.is_alphanumeric())
-    })
-}
-
-/// True when the token immediately after `end` is an open-class word, which
-/// makes it a unit for the preceding spelled quantity. A preposition or
-/// article from the language pack means the number is a bare count ("quaranta
-/// dei tecnici"), not a measurement. Without a pack the check fails closed:
-/// an unprovable unit never enters the numeric projection.
-fn next_token_is_open_class(source: &str, end: usize, language: &str) -> bool {
-    let Some(tail) = source.get(end..) else {
-        return false;
-    };
-    let tail = tail.trim_start();
-    let Some(first) = tail.chars().next() else {
-        return false;
-    };
-    if !first.is_alphanumeric() {
-        return false;
-    }
-    let word_end = tail
-        .char_indices()
-        .find(|(_, character)| !character.is_alphanumeric())
-        .map(|(index, _)| index)
-        .unwrap_or(tail.len());
-    let word = tail[..word_end].to_lowercase();
-    semantic_core::language_packs::get(language)
-        .map(|pack| !pack.is_stopword(&word))
-        .unwrap_or(false)
-}
-
-/// Scale word among the tokens consumed by [`extend_quantity`]. The table is
-/// `semantic_core::scale_word_factor`, so a new scale spelling is a data edit
-/// in `lexicon/scale_words.json` (and its factor table), never a second copy.
-fn suffix_scale_factor(source: &str, end: usize, candidate_end: usize) -> Option<f64> {
-    source
-        .get(end..candidate_end)?
-        .split(|character: char| !character.is_alphanumeric())
-        .filter(|word| !word.is_empty())
-        .find_map(semantic_core::scale_word_factor)
-}
-
-fn extend_quantity(source: &str, end: usize, default_type: &'static str) -> (usize, &'static str) {
-    let Some((suffix, kind)) = quantity_suffix(source, end) else {
-        return (end, default_type);
-    };
-    let suffix_start = end + source[end..].len() - source[end..].trim_start().len();
-    (
-        suffix_start + suffix.len(),
-        if kind == "TIME" { "NUMBER" } else { kind },
-    )
-}
-
 #[cfg(test)]
-mod number_words_gold {
-    use super::*;
-
-    // Assistant draft pending human review, as required by the semantic
-    // expansion roadmap. Expected values are independent of the scanner.
-    const VALUES: [i64; 21] = [
-        2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 20, 21, 30, 42, 100, 1200, 2000, 1_000_000,
-    ];
-
-    const FRACTIONS: &[(&str, &str)] = &[
-        ("it", "un terzo"),
-        ("en", "one third"),
-        ("es", "un tercio"),
-        ("pt", "um terço"),
-        ("fr", "un tiers"),
-        ("de", "ein Drittel"),
-        ("nl", "een derde"),
-        ("pl", "jedna trzecia"),
-        ("ru", "одна треть"),
-        ("tr", "üçte biri"),
-        ("id", "sepertiga"),
-    ];
-
-    const APPROXIMATORS: &[(&str, &str)] = &[
-        ("it", "circa"),
-        ("en", "about"),
-        ("es", "alrededor de"),
-        ("pt", "cerca de"),
-        ("fr", "environ"),
-        ("de", "rund"),
-        ("nl", "ongeveer"),
-        ("pl", "około"),
-        ("ru", "около"),
-        ("tr", "yaklaşık"),
-        ("id", "sekitar"),
-    ];
-
-    const UNITS: &[(&str, &str)] = &[
-        ("it", "persone"),
-        ("en", "people"),
-        ("es", "personas"),
-        ("pt", "pessoas"),
-        ("fr", "personnes"),
-        ("de", "Menschen"),
-        ("nl", "mensen"),
-        ("pl", "osób"),
-        ("ru", "человек"),
-        ("tr", "kişi"),
-        ("id", "orang"),
-    ];
-
-    const NEGATIVES: &[(&str, &[&str; 20])] = &[
-        (
-            "it",
-            &[
-                "il",
-                "lo",
-                "la",
-                "i",
-                "gli",
-                "le",
-                "un",
-                "una",
-                "di",
-                "da",
-                "in",
-                "con",
-                "su",
-                "per",
-                "tra",
-                "il gatto",
-                "la casa",
-                "mille grazie",
-                "grazie mille",
-                "mille scuse",
-            ],
-        ),
-        (
-            "en",
-            &[
-                "the",
-                "a",
-                "an",
-                "of",
-                "to",
-                "in",
-                "with",
-                "on",
-                "for",
-                "by",
-                "from",
-                "at",
-                "it",
-                "they",
-                "we",
-                "the cat",
-                "a house",
-                "thanks a million",
-                "a million thanks",
-                "one in a million",
-            ],
-        ),
-        (
-            "es",
-            &[
-                "el",
-                "la",
-                "los",
-                "las",
-                "un",
-                "una",
-                "de",
-                "a",
-                "en",
-                "con",
-                "por",
-                "para",
-                "sin",
-                "sobre",
-                "entre",
-                "el gato",
-                "la casa",
-                "mil gracias",
-                "gracias mil",
-                "por favor",
-            ],
-        ),
-        (
-            "pt",
-            &[
-                "o",
-                "a",
-                "os",
-                "as",
-                "um",
-                "uma",
-                "de",
-                "do",
-                "da",
-                "em",
-                "com",
-                "por",
-                "para",
-                "sem",
-                "entre",
-                "o gato",
-                "a casa",
-                "mil obrigados",
-                "obrigado mil vezes",
-                "por favor",
-            ],
-        ),
-        (
-            "fr",
-            &[
-                "le",
-                "la",
-                "les",
-                "un",
-                "une",
-                "de",
-                "du",
-                "des",
-                "en",
-                "avec",
-                "par",
-                "pour",
-                "sans",
-                "sur",
-                "entre",
-                "le chat",
-                "la maison",
-                "mille mercis",
-                "merci mille fois",
-                "s'il vous plaît",
-            ],
-        ),
-        (
-            "de",
-            &[
-                "der",
-                "die",
-                "das",
-                "den",
-                "dem",
-                "des",
-                "ein",
-                "eine",
-                "von",
-                "zu",
-                "in",
-                "mit",
-                "auf",
-                "für",
-                "ohne",
-                "die Katze",
-                "das Haus",
-                "tausend dank",
-                "vielen dank",
-                "bitte sehr",
-            ],
-        ),
-        (
-            "nl",
-            &[
-                "de",
-                "het",
-                "een",
-                "van",
-                "naar",
-                "in",
-                "met",
-                "op",
-                "voor",
-                "zonder",
-                "tussen",
-                "over",
-                "bij",
-                "aan",
-                "door",
-                "de kat",
-                "het huis",
-                "duizendmaal dank",
-                "hartelijk dank",
-                "alsjeblieft",
-            ],
-        ),
-        (
-            "pl",
-            &[
-                "ten",
-                "ta",
-                "to",
-                "te",
-                "ci",
-                "te",
-                "jeden",
-                "jedna",
-                "z",
-                "do",
-                "w",
-                "na",
-                "pod",
-                "przez",
-                "bez",
-                "kot",
-                "dom",
-                "tysiąc podziękowań",
-                "stokrotne dzięki",
-                "proszę",
-            ],
-        ),
-        (
-            "ru",
-            &[
-                "этот",
-                "эта",
-                "это",
-                "эти",
-                "один",
-                "одна",
-                "из",
-                "к",
-                "в",
-                "с",
-                "на",
-                "для",
-                "без",
-                "между",
-                "через",
-                "кот",
-                "дом",
-                "тысяча благодарностей",
-                "спасибо тысячу раз",
-                "пожалуйста",
-            ],
-        ),
-        (
-            "tr",
-            &[
-                "bu",
-                "şu",
-                "o",
-                "bir",
-                "ve",
-                "ile",
-                "için",
-                "den",
-                "dan",
-                "de",
-                "da",
-                "üzerinde",
-                "altında",
-                "arasında",
-                "gibi",
-                "kedi",
-                "ev",
-                "bin teşekkür",
-                "binlerce teşekkür",
-                "lütfen",
-            ],
-        ),
-        (
-            "id",
-            &[
-                "ini",
-                "itu",
-                "sebuah",
-                "satu",
-                "dan",
-                "dengan",
-                "untuk",
-                "dari",
-                "di",
-                "pada",
-                "atas",
-                "bawah",
-                "antara",
-                "seperti",
-                "tanpa",
-                "kucing",
-                "rumah",
-                "seribu terima kasih",
-                "terima kasih banyak",
-                "tolong",
-            ],
-        ),
-    ];
-
-    #[test]
-    fn twenty_positive_cases_per_language() {
-        assert_eq!(UNITS.len(), 11);
-        for (language, unit) in UNITS {
-            let formatters = formatters(language).expect("locale");
-            let spellout = formatters.spellout.as_ref().expect("spellout data");
-            for value in VALUES {
-                let spelled = spellout.format_i64(value).expect("format");
-                let text = format!("{spelled} {unit}");
-                let found = candidates(&text, language).expect("scan");
-                assert!(
-                    found
-                        .iter()
-                        .any(|c| (c.value - value as f64).abs() < 1e-9 && c.start == 0),
-                    "{language} {value} {text:?}: {found:?}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn fractions_in_every_language() {
-        for (language, phrase) in FRACTIONS {
-            let found = candidates(phrase, language).expect("scan");
-            assert!(
-                found
-                    .iter()
-                    .any(|c| { c.entity_type == "FRACTION" && (c.value - 1.0 / 3.0).abs() < 1e-9 }),
-                "{language} {phrase:?}: {found:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn approximators_in_every_language() {
-        for ((language, approximator), (_, unit)) in APPROXIMATORS.iter().zip(UNITS) {
-            let formatters = formatters(language).expect("locale");
-            let spellout = formatters.spellout.as_ref().expect("spellout data");
-            let spelled = spellout.format_i64(5000).expect("format");
-            let text = format!("{approximator} {spelled} {unit}");
-            let found = candidates(&text, language).expect("scan");
-            assert!(
-                found.iter().any(|c| {
-                    (c.value - 5000.0).abs() < 1e-9 && c.start == 0 && c.end > approximator.len()
-                }),
-                "{language} {text:?}: {found:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn twenty_negative_cases_per_language() {
-        assert_eq!(NEGATIVES.len(), 11);
-        for (language, phrases) in NEGATIVES {
-            for phrase in phrases.iter() {
-                let found = candidates(phrase, language).expect("scan");
-                assert!(found.is_empty(), "{language} {phrase:?}: {found:?}");
-            }
-        }
-    }
-}
+#[path = "spellout_tests.rs"]
+mod number_words_gold;

@@ -1,4 +1,4 @@
-# TICKET-27 — Publish v0.3.7: the tag and the assets exist, the release does not
+# TICKET-27 — Publish the release: v0.3.7 candidate → v0.3.8 published
 
 - Priority: P0
 - Status: CLOSED (2026-11-19) — `v0.3.8` è pubblicata con manifest, binari e checksum coerenti; `refactored` pinna la release e `make rust-fetch` l'ha installata.

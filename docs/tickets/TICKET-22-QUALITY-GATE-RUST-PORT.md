@@ -1,13 +1,12 @@
 # TICKET-22 — Port the editorial quality gate to Rust
 
 - Priority: P2
-- Status: DONE (committed 2026-11-18; bound: v0.3.7 publication). Rust
+- Status: DONE (committed 2026-11-18; released in `v0.3.8` on 2026-11-19). Rust
   `quality_gate` is the only production gate: the Go implementation, the
   opt-in flag and the knob are deleted, and the Go↔Rust differential is
   byte-identical on 27 scenarios. The cutover and the Rust goldens are
-  committed (see “Repository state”). Publishing the `v0.3.7` tag (TICKET-27)
-  is the other remaining external step; `make rust-fetch` consumes the
-  hash-verified local bundle in the meantime.
+  committed (see “Repository state”). TICKET-27 is CLOSED: `v0.3.8` is
+  published and `make rust-fetch` installs the released binaries.
 - Source: follow-up to the 2026-11-16 architecture audit
 - Depends on: TICKET-18 (Rust language profiles)
 - Blocks: none

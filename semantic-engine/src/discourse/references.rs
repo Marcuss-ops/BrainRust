@@ -5,6 +5,9 @@
 //! must satisfy. A token inside a recognised named entity is not re-detected.
 
 use semantic_core::discourse::word_spans;
+use serde::Deserialize;
+use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
 /// One detected non-explicit referring expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,337 +15,225 @@ pub(super) struct DetectedReference {
     pub start: usize,
     pub end: usize,
     pub surface: String,
-    pub reference_type: &'static str,
+    pub reference_type: String,
     /// `PERSON`, `ORG` or `ANY`.
-    pub kind_hint: &'static str,
+    pub kind_hint: String,
+    /// `masculine`, `feminine`, or `unknown` from the matched pronoun/role.
+    pub gender_hint: String,
     /// `singular`, `plural` or `unknown`.
-    pub number: &'static str,
+    pub number: String,
 }
 
-#[derive(Clone, Copy)]
-struct Term {
-    text: &'static str,
-    kind: &'static str,
-    number: &'static str,
+#[derive(Deserialize)]
+struct ReferenceInventory {
+    schema: String,
+    languages: BTreeMap<String, LanguageReferenceTerms>,
 }
 
-const fn term(text: &'static str, kind: &'static str, number: &'static str) -> Term {
-    Term { text, kind, number }
+#[derive(Deserialize)]
+struct LanguageReferenceTerms {
+    terms: Vec<ReferenceTerm>,
+    phrases: Vec<ReferencePhrase>,
 }
 
-/// Pronouns that can refer to a person. Demonstratives are `ANY` so the
-/// resolver may select a non-person subject only when the scene leaves no
-/// competing candidate.
-const PERSON_PRONOUNS: &[Term] = &[
-    term("lui", "PERSON", "singular"),
-    term("lei", "PERSON", "singular"),
-    term("egli", "PERSON", "singular"),
-    term("ella", "PERSON", "singular"),
-    term("loro", "PERSON", "plural"),
-    term("essi", "PERSON", "plural"),
-    term("esse", "PERSON", "plural"),
-    term("he", "PERSON", "singular"),
-    term("she", "PERSON", "singular"),
-    term("him", "PERSON", "singular"),
-    term("her", "PERSON", "singular"),
-    term("they", "PERSON", "plural"),
-    term("them", "PERSON", "plural"),
-    term("él", "PERSON", "singular"),
-    term("ella", "PERSON", "singular"),
-    term("ellos", "PERSON", "plural"),
-    term("ellas", "PERSON", "plural"),
-    term("ele", "PERSON", "singular"),
-    term("ela", "PERSON", "singular"),
-    term("eles", "PERSON", "plural"),
-    term("elas", "PERSON", "plural"),
-    term("il", "PERSON", "singular"),
-    term("elle", "PERSON", "singular"),
-    term("ils", "PERSON", "plural"),
-    term("elles", "PERSON", "plural"),
-    term("er", "PERSON", "singular"),
-    term("ihn", "PERSON", "singular"),
-    term("ihm", "PERSON", "singular"),
-    term("ihnen", "PERSON", "plural"),
-    term("hij", "PERSON", "singular"),
-    term("hem", "PERSON", "singular"),
-    term("haar", "PERSON", "singular"),
-    term("hen", "PERSON", "plural"),
-    term("hun", "PERSON", "plural"),
-    term("on", "PERSON", "singular"),
-    term("ona", "PERSON", "singular"),
-    term("oni", "PERSON", "plural"),
-    term("one", "PERSON", "plural"),
-    term("он", "PERSON", "singular"),
-    term("она", "PERSON", "singular"),
-    term("они", "PERSON", "plural"),
-    term("dia", "PERSON", "singular"),
-    term("ia", "PERSON", "singular"),
-    term("mereka", "PERSON", "plural"),
-    // German/Dutch third-person forms are syncretic; leave the number open
-    // rather than silently choosing "she" or "they".
-    term("sie", "PERSON", "unknown"),
-    term("zij", "PERSON", "unknown"),
-    term("ze", "PERSON", "unknown"),
-];
+#[derive(Deserialize)]
+struct ReferenceTerm {
+    text: String,
+    #[serde(rename = "type")]
+    reference_type: String,
+    kind: String,
+    number: String,
+}
 
-const DEMONSTRATIVES: &[Term] = &[
-    term("questo", "ANY", "singular"),
-    term("questa", "ANY", "singular"),
-    term("questi", "ANY", "plural"),
-    term("queste", "ANY", "plural"),
-    term("quello", "ANY", "singular"),
-    term("quella", "ANY", "singular"),
-    term("quelli", "ANY", "plural"),
-    term("quelle", "ANY", "plural"),
-    term("quest'ultimo", "ANY", "singular"),
-    term("quest'ultima", "ANY", "singular"),
-    term("this", "ANY", "singular"),
-    term("that", "ANY", "singular"),
-    term("these", "ANY", "plural"),
-    term("those", "ANY", "plural"),
-    term("este", "ANY", "singular"),
-    term("esta", "ANY", "singular"),
-    term("estos", "ANY", "plural"),
-    term("estas", "ANY", "plural"),
-    term("aquel", "ANY", "singular"),
-    term("aquella", "ANY", "singular"),
-    term("aquellos", "ANY", "plural"),
-    term("aquellas", "ANY", "plural"),
-    term("aquele", "ANY", "singular"),
-    term("aquela", "ANY", "singular"),
-    term("aqueles", "ANY", "plural"),
-    term("aquelas", "ANY", "plural"),
-    term("celui-ci", "ANY", "singular"),
-    term("celle-ci", "ANY", "singular"),
-    term("ceux-ci", "ANY", "plural"),
-    term("celles-ci", "ANY", "plural"),
-    term("dieser", "ANY", "singular"),
-    term("diese", "ANY", "singular"),
-    term("dieses", "ANY", "singular"),
-    term("jener", "ANY", "singular"),
-    term("jene", "ANY", "singular"),
-    term("deze", "ANY", "singular"),
-    term("dit", "ANY", "singular"),
-    term("die", "ANY", "unknown"),
-    term("dat", "ANY", "unknown"),
-    term("ten", "ANY", "singular"),
-    term("ta", "ANY", "singular"),
-    term("to", "ANY", "singular"),
-    term("te", "ANY", "plural"),
-    term("этот", "ANY", "singular"),
-    term("эта", "ANY", "singular"),
-    term("это", "ANY", "singular"),
-    term("эти", "ANY", "plural"),
-    term("ini", "ANY", "singular"),
-    term("itu", "ANY", "singular"),
-    term("tersebut", "ANY", "unknown"),
-];
+#[derive(Deserialize)]
+struct ReferencePhrase {
+    text: String,
+    kind: String,
+    number: String,
+}
 
-/// Role nominals whose head is a person. They are resolved only through a
-/// compatible identity; the role word alone never invents a subject.
-const PERSON_ROLES: &[Term] = &[
-    term("imprenditore", "PERSON", "singular"),
-    term("imprenditrice", "PERSON", "singular"),
-    term("fondatore", "PERSON", "singular"),
-    term("fondatrice", "PERSON", "singular"),
-    term("investitore", "PERSON", "singular"),
-    term("investitrice", "PERSON", "singular"),
-    term("uomo", "PERSON", "singular"),
-    term("donna", "PERSON", "singular"),
-    term("ragazzo", "PERSON", "singular"),
-    term("ragazza", "PERSON", "singular"),
-    term("dirigente", "PERSON", "singular"),
-    term("avvocato", "PERSON", "singular"),
-    term("avvocatessa", "PERSON", "singular"),
-    term("giudice", "PERSON", "singular"),
-    term("testimone", "PERSON", "singular"),
-    term("vittima", "PERSON", "singular"),
-    term("sospettato", "PERSON", "singular"),
-    term("indagato", "PERSON", "singular"),
-    term("imputato", "PERSON", "singular"),
-    term("architetto", "PERSON", "singular"),
-    term("ingegnere", "PERSON", "singular"),
-    term("medico", "PERSON", "singular"),
-    term("presidente", "PERSON", "singular"),
-    term("amministratore", "PERSON", "singular"),
-    term("socio", "PERSON", "singular"),
-    term("entrepreneur", "PERSON", "singular"),
-    term("founder", "PERSON", "singular"),
-    term("investor", "PERSON", "singular"),
-    term("businessman", "PERSON", "singular"),
-    term("businesswoman", "PERSON", "singular"),
-    term("executive", "PERSON", "singular"),
-    term("lawyer", "PERSON", "singular"),
-    term("judge", "PERSON", "singular"),
-    term("witness", "PERSON", "singular"),
-    term("victim", "PERSON", "singular"),
-    term("suspect", "PERSON", "singular"),
-    term("defendant", "PERSON", "singular"),
-    term("architect", "PERSON", "singular"),
-    term("engineer", "PERSON", "singular"),
-    term("doctor", "PERSON", "singular"),
-    term("president", "PERSON", "singular"),
-    term("director", "PERSON", "singular"),
-    term("partner", "PERSON", "singular"),
-    term("empresario", "PERSON", "singular"),
-    term("empresaria", "PERSON", "singular"),
-    term("fundador", "PERSON", "singular"),
-    term("fundadora", "PERSON", "singular"),
-    term("inversor", "PERSON", "singular"),
-    term("inversora", "PERSON", "singular"),
-    term("abogado", "PERSON", "singular"),
-    term("juez", "PERSON", "singular"),
-    term("testigo", "PERSON", "singular"),
-    term("víctima", "PERSON", "singular"),
-    term("sospechoso", "PERSON", "singular"),
-    term("acusado", "PERSON", "singular"),
-    term("arquitecto", "PERSON", "singular"),
-    term("ingeniero", "PERSON", "singular"),
-    term("médico", "PERSON", "singular"),
-    term("empresário", "PERSON", "singular"),
-    term("empresária", "PERSON", "singular"),
-    term("fundador", "PERSON", "singular"),
-    term("fundadora", "PERSON", "singular"),
-    term("investidor", "PERSON", "singular"),
-    term("investidora", "PERSON", "singular"),
-    term("advogado", "PERSON", "singular"),
-    term("juiz", "PERSON", "singular"),
-    term("testemunha", "PERSON", "singular"),
-    term("vítima", "PERSON", "singular"),
-    term("suspeito", "PERSON", "singular"),
-    term("acusado", "PERSON", "singular"),
-    term("arquiteto", "PERSON", "singular"),
-    term("engenheiro", "PERSON", "singular"),
-    term("fondateur", "PERSON", "singular"),
-    term("fondatrice", "PERSON", "singular"),
-    term("investisseur", "PERSON", "singular"),
-    term("investisseuse", "PERSON", "singular"),
-    term("avocat", "PERSON", "singular"),
-    term("juge", "PERSON", "singular"),
-    term("témoin", "PERSON", "singular"),
-    term("victime", "PERSON", "singular"),
-    term("suspect", "PERSON", "singular"),
-    term("accusé", "PERSON", "singular"),
-    term("architecte", "PERSON", "singular"),
-    term("ingénieur", "PERSON", "singular"),
-    term("médecin", "PERSON", "singular"),
-    term("unternehmer", "PERSON", "singular"),
-    term("unternehmerin", "PERSON", "singular"),
-    term("gründer", "PERSON", "singular"),
-    term("gründerin", "PERSON", "singular"),
-    term("investor", "PERSON", "singular"),
-    term("anwalt", "PERSON", "singular"),
-    term("richter", "PERSON", "singular"),
-    term("zeuge", "PERSON", "singular"),
-    term("opfer", "PERSON", "singular"),
-    term("verdächtiger", "PERSON", "singular"),
-    term("angeklagter", "PERSON", "singular"),
-    term("architekt", "PERSON", "singular"),
-    term("ingenieur", "PERSON", "singular"),
-    term("arzt", "PERSON", "singular"),
-    term("ondernemer", "PERSON", "singular"),
-    term("oprichter", "PERSON", "singular"),
-    term("investeerder", "PERSON", "singular"),
-    term("advocaat", "PERSON", "singular"),
-    term("rechter", "PERSON", "singular"),
-    term("getuige", "PERSON", "singular"),
-    term("slachtoffer", "PERSON", "singular"),
-    term("verdachte", "PERSON", "singular"),
-    term("beklaagde", "PERSON", "singular"),
-    term("ingenieur", "PERSON", "singular"),
-    term("arts", "PERSON", "singular"),
-    term("przedsiębiorca", "PERSON", "singular"),
-    term("założyciel", "PERSON", "singular"),
-    term("inwestor", "PERSON", "singular"),
-    term("prawnik", "PERSON", "singular"),
-    term("sędzia", "PERSON", "singular"),
-    term("świadek", "PERSON", "singular"),
-    term("ofiara", "PERSON", "singular"),
-    term("podejrzany", "PERSON", "singular"),
-    term("oskarżony", "PERSON", "singular"),
-    term("architekt", "PERSON", "singular"),
-    term("inżynier", "PERSON", "singular"),
-    term("lekarz", "PERSON", "singular"),
-    term("предприниматель", "PERSON", "singular"),
-    term("основатель", "PERSON", "singular"),
-    term("инвестор", "PERSON", "singular"),
-    term("адвокат", "PERSON", "singular"),
-    term("судья", "PERSON", "singular"),
-    term("свидетель", "PERSON", "singular"),
-    term("жертва", "PERSON", "singular"),
-    term("подозреваемый", "PERSON", "singular"),
-    term("обвиняемый", "PERSON", "singular"),
-    term("архитектор", "PERSON", "singular"),
-    term("инженер", "PERSON", "singular"),
-    term("врач", "PERSON", "singular"),
-    term("pengusaha", "PERSON", "singular"),
-    term("pendiri", "PERSON", "singular"),
-    term("investor", "PERSON", "singular"),
-    term("pengacara", "PERSON", "singular"),
-    term("hakim", "PERSON", "singular"),
-    term("saksi", "PERSON", "singular"),
-    term("korban", "PERSON", "singular"),
-    term("tersangka", "PERSON", "singular"),
-    term("terdakwa", "PERSON", "singular"),
-    term("arsitek", "PERSON", "singular"),
-    term("insinyur", "PERSON", "singular"),
-    term("dokter", "PERSON", "singular"),
-];
+#[derive(Deserialize)]
+struct PronounInventory {
+    pronouns: Vec<PronounGender>,
+}
 
-const ORG_ROLES: &[Term] = &[
-    term("azienda", "ORG", "singular"),
-    term("impresa", "ORG", "singular"),
-    term("società", "ORG", "singular"),
-    term("compagnia", "ORG", "singular"),
-    term("company", "ORG", "singular"),
-    term("firm", "ORG", "singular"),
-    term("business", "ORG", "singular"),
-    term("startup", "ORG", "singular"),
-    term("organization", "ORG", "singular"),
-    term("empresa", "ORG", "singular"),
-    term("organización", "ORG", "singular"),
-    term("société", "ORG", "singular"),
-    term("entreprise", "ORG", "singular"),
-    term("unternehmen", "ORG", "singular"),
-    term("firma", "ORG", "singular"),
-    term("bedrijf", "ORG", "singular"),
-    term("spółka", "ORG", "singular"),
-    term("компания", "ORG", "singular"),
-    term("perusahaan", "ORG", "singular"),
-];
+#[derive(Deserialize)]
+struct PronounGender {
+    surface: String,
+    gender: String,
+}
 
-const PHRASES: &[(&str, &str, &str)] = &[
-    ("the former", "ANY", "singular"),
-    ("the latter", "ANY", "singular"),
-    ("the two", "PERSON", "plural"),
-    ("ce dernier", "ANY", "singular"),
-    ("cette dernière", "ANY", "singular"),
-    ("les deux", "PERSON", "plural"),
-    ("questo ultimo", "ANY", "singular"),
-    ("questa ultima", "ANY", "singular"),
-    ("i due", "PERSON", "plural"),
-    ("los dos", "PERSON", "plural"),
-    ("os dois", "PERSON", "plural"),
-    ("die beiden", "PERSON", "plural"),
-    ("de twee", "PERSON", "plural"),
-    ("obaj", "PERSON", "plural"),
-    ("оба", "PERSON", "plural"),
-    ("keduanya", "PERSON", "plural"),
-];
+#[derive(Deserialize)]
+struct RoleInventory {
+    roles: Vec<RoleDefinition>,
+}
+
+#[derive(Deserialize)]
+struct RoleDefinition {
+    surfaces: Vec<RoleSurface>,
+}
+
+#[derive(Deserialize)]
+struct RoleSurface {
+    text: String,
+    gender: String,
+}
+
+fn pronoun_gender(language: &str, surface: &str) -> String {
+    static INVENTORIES: OnceLock<BTreeMap<(String, String), String>> = OnceLock::new();
+    let inventories = INVENTORIES.get_or_init(|| {
+        let sources = [
+            (
+                "de",
+                include_str!("../../../lexicon/languages/de/pronouns.json"),
+            ),
+            (
+                "en",
+                include_str!("../../../lexicon/languages/en/pronouns.json"),
+            ),
+            (
+                "es",
+                include_str!("../../../lexicon/languages/es/pronouns.json"),
+            ),
+            (
+                "fr",
+                include_str!("../../../lexicon/languages/fr/pronouns.json"),
+            ),
+            (
+                "id",
+                include_str!("../../../lexicon/languages/id/pronouns.json"),
+            ),
+            (
+                "it",
+                include_str!("../../../lexicon/languages/it/pronouns.json"),
+            ),
+            (
+                "nl",
+                include_str!("../../../lexicon/languages/nl/pronouns.json"),
+            ),
+            (
+                "pl",
+                include_str!("../../../lexicon/languages/pl/pronouns.json"),
+            ),
+            (
+                "pt",
+                include_str!("../../../lexicon/languages/pt/pronouns.json"),
+            ),
+            (
+                "ru",
+                include_str!("../../../lexicon/languages/ru/pronouns.json"),
+            ),
+            (
+                "tr",
+                include_str!("../../../lexicon/languages/tr/pronouns.json"),
+            ),
+        ];
+        let mut output = BTreeMap::new();
+        for (language, source) in sources {
+            let inventory: PronounInventory = serde_json::from_str(source)
+                .expect("embedded structured pronoun inventory must be valid");
+            for item in inventory.pronouns {
+                let gender = if matches!(item.gender.as_str(), "masculine" | "feminine") {
+                    item.gender
+                } else {
+                    "unknown".to_string()
+                };
+                output
+                    .entry((language.to_string(), item.surface.to_lowercase()))
+                    .and_modify(|existing: &mut String| {
+                        if existing != &gender {
+                            *existing = "unknown".to_string();
+                        }
+                    })
+                    .or_insert(gender);
+            }
+        }
+        output
+    });
+    inventories
+        .get(&(language.to_string(), surface.to_lowercase()))
+        .cloned()
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn reference_inventory(language: &str) -> Option<&'static LanguageReferenceTerms> {
+    static INVENTORY: OnceLock<ReferenceInventory> = OnceLock::new();
+    let inventory = INVENTORY.get_or_init(|| {
+        let inventory: ReferenceInventory = serde_json::from_str(include_str!(
+            "../../../lexicon/discourse_reference_terms_v1.json"
+        ))
+        .expect("embedded discourse reference terms must be valid");
+        assert_eq!(
+            inventory.schema, "discourse_reference_terms.v1",
+            "embedded discourse reference terms schema must be supported"
+        );
+        inventory
+    });
+    inventory.languages.get(language)
+}
+
+fn role_gender(language: &str, surface: &str) -> String {
+    static INVENTORIES: OnceLock<BTreeMap<String, BTreeMap<String, String>>> = OnceLock::new();
+    let inventories = INVENTORIES.get_or_init(|| {
+        let sources = [
+            ("en", include_str!("../../../lexicon/roles/en.json")),
+            ("it", include_str!("../../../lexicon/roles/it.json")),
+            ("es", include_str!("../../../lexicon/roles/es.json")),
+            ("de", include_str!("../../../lexicon/roles/de.json")),
+            ("fr", include_str!("../../../lexicon/roles/fr.json")),
+            ("id", include_str!("../../../lexicon/roles/id.json")),
+            ("nl", include_str!("../../../lexicon/roles/nl.json")),
+            ("pl", include_str!("../../../lexicon/roles/pl.json")),
+            ("pt", include_str!("../../../lexicon/roles/pt.json")),
+            ("ru", include_str!("../../../lexicon/roles/ru.json")),
+            ("tr", include_str!("../../../lexicon/roles/tr.json")),
+        ];
+        let mut output = BTreeMap::new();
+        for (language, source) in sources {
+            let inventory: RoleInventory =
+                serde_json::from_str(source).expect("embedded role inventory must be valid");
+            let mut forms = BTreeMap::new();
+            for role in inventory.roles {
+                for surface in role.surfaces {
+                    let gender = if matches!(surface.gender.as_str(), "masculine" | "feminine") {
+                        surface.gender
+                    } else {
+                        "unknown".to_string()
+                    };
+                    forms
+                        .entry(surface.text.to_lowercase())
+                        .and_modify(|known| {
+                            if known != &gender {
+                                *known = "unknown".to_string();
+                            }
+                        })
+                        .or_insert(gender);
+                }
+            }
+            output.insert(language.to_string(), forms);
+        }
+        output
+    });
+    inventories
+        .get(language)
+        .and_then(|forms| forms.get(&surface.to_lowercase()))
+        .cloned()
+        .unwrap_or_else(|| "unknown".to_string())
+}
 
 /// Finds pronouns and role nominals, preserving exact byte offsets.
 pub(super) fn detect(text: &str, language: &str) -> Vec<DetectedReference> {
+    let Some(inventory) = reference_inventory(language) else {
+        return Vec::new();
+    };
     let words = word_spans(text);
     let mut found = Vec::new();
     let mut index = 0;
     while index < words.len() {
         // Multi-word phrases first (longest match wins).
         let mut matched = None;
-        for &(phrase, kind, number) in PHRASES {
-            if !phrase_applies(phrase, language) {
-                continue;
-            }
-            let count = phrase.split_whitespace().count();
+        for phrase in &inventory.phrases {
+            let count = phrase.text.split_whitespace().count();
             if index + count > words.len() {
                 continue;
             }
@@ -351,25 +242,25 @@ pub(super) fn detect(text: &str, language: &str) -> Vec<DetectedReference> {
                 .map(|word| word.lowered.as_str())
                 .collect::<Vec<_>>()
                 .join(" ");
-            if candidate == phrase {
+            if candidate == phrase.text {
                 matched = Some((
                     words[index].start,
                     words[index + count - 1].end,
                     count,
-                    kind,
-                    number,
+                    phrase,
                 ));
                 break;
             }
         }
-        if let Some((start, end, count, kind, number)) = matched {
+        if let Some((start, end, count, phrase)) = matched {
             found.push(DetectedReference {
                 start,
                 end,
                 surface: text[start..end].to_string(),
-                reference_type: "pronoun",
-                kind_hint: kind,
-                number,
+                reference_type: "pronoun".to_string(),
+                kind_hint: phrase.kind.clone(),
+                gender_hint: "unknown".to_string(),
+                number: phrase.number.clone(),
             });
             index += count;
             continue;
@@ -410,91 +301,25 @@ fn variants(text: &str, word: &semantic_core::discourse::WordSpan) -> Vec<(usize
     values
 }
 
-fn phrase_applies(phrase: &str, language: &str) -> bool {
-    match phrase {
-        "the former" | "the latter" | "the two" => language == "en",
-        "ce dernier" | "cette dernière" | "les deux" => language == "fr",
-        "questo ultimo" | "questa ultima" | "i due" => language == "it",
-        "los dos" => language == "es",
-        "os dois" => language == "pt",
-        "die beiden" => language == "de",
-        "de twee" => language == "nl",
-        "obaj" => language == "pl",
-        "оба" => language == "ru",
-        "keduanya" => language == "id",
-        _ => false,
-    }
-}
-
 fn lookup(lowered: &str, language: &str) -> Option<DetectedReference> {
-    let found = PERSON_PRONOUNS
+    let term = reference_inventory(language)?
+        .terms
         .iter()
-        .chain(DEMONSTRATIVES)
-        .find(|term| term.text == lowered && term_applies(term.text, language));
-    if let Some(term) = found {
-        return Some(DetectedReference {
-            start: 0,
-            end: 0,
-            surface: String::new(),
-            reference_type: "pronoun",
-            kind_hint: term.kind,
-            number: term.number,
-        });
-    }
-    for (table, reference_type) in [
-        (PERSON_ROLES, "nominal_reference"),
-        (ORG_ROLES, "nominal_reference"),
-    ] {
-        if let Some(term) = table
-            .iter()
-            .find(|term| term.text == lowered && term_applies(term.text, language))
-        {
-            return Some(DetectedReference {
-                start: 0,
-                end: 0,
-                surface: String::new(),
-                reference_type,
-                kind_hint: term.kind,
-                number: term.number,
-            });
-        }
-    }
-    None
-}
-
-/// Cross-language false positives are excluded by the language tag. This is
-/// vocabulary control, not a language model: a term resolves only in the
-/// languages where it is a pronoun/role rather than an article or verb.
-fn term_applies(text: &str, language: &str) -> bool {
-    match text {
-        "il" | "elle" | "ils" | "elles" => language == "fr",
-        "to" | "ten" | "ta" | "on" | "ona" | "oni" | "one" => language == "pl",
-        "dit" | "deze" | "hij" | "hem" | "haar" | "hen" | "hun" | "zij" | "ze" => language == "nl",
-        "die" | "dat" => matches!(language, "de" | "nl"),
-        "er" | "ihn" | "ihm" | "ihnen" | "sie" => language == "de",
-        "ele" | "ela" | "eles" | "elas" => language == "pt",
-        "él" | "ellos" | "ellas" => language == "es",
-        "ella" => matches!(language, "it" | "es"),
-        "he" | "she" | "him" | "her" | "they" | "them" | "this" | "that" | "these" | "those" => {
-            language == "en"
-        }
-        "lui" => matches!(language, "it" | "fr"),
-        "lei" | "egli" | "loro" | "essi" | "esse" => language == "it",
-        "он" | "она" | "они" | "этот" | "эта" | "это" | "эти" => {
-            language == "ru"
-        }
-        "dia" | "ia" | "mereka" | "ini" | "itu" | "tersebut" => language == "id",
-        "firma" => matches!(language, "de" | "nl" | "pl"),
-        "investor" => matches!(language, "en" | "de"),
-        "entrepreneur" | "suspect" => matches!(language, "en" | "fr"),
-        "president" | "director" | "partner" | "business" | "company" | "firm" | "startup" => {
-            language == "en"
-        }
-        "empresa" | "fundador" | "fundadora" | "médico" | "acusado" => {
-            matches!(language, "es" | "pt")
-        }
-        _ => true,
-    }
+        .find(|term| term.text == lowered)?;
+    let gender_hint = match term.reference_type.as_str() {
+        "pronoun" => pronoun_gender(language, lowered),
+        "nominal_reference" if term.kind == "PERSON" => role_gender(language, lowered),
+        _ => "unknown".to_string(),
+    };
+    Some(DetectedReference {
+        start: 0,
+        end: 0,
+        surface: String::new(),
+        reference_type: term.reference_type.clone(),
+        kind_hint: term.kind.clone(),
+        gender_hint,
+        number: term.number.clone(),
+    })
 }
 
 /// True when `offset` sits inside double quotes or guillemets. Quoted speech
@@ -550,11 +375,28 @@ mod tests {
             ("pl", "On zdecydował.", "On"),
             ("ru", "Он решил.", "Он"),
             ("id", "Dia memutuskan.", "Dia"),
+            ("tr", "O karar verdi.", "O"),
         ] {
             let refs = detect(text, language);
             assert!(
                 refs.iter().any(|reference| reference.surface == expected),
                 "{language}: {refs:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn role_gender_inventory_includes_localized_lexicons() {
+        for (language, surface, expected) in [
+            ("de", "Bürgermeisterin", "feminine"),
+            ("pl", "ministra", "feminine"),
+            ("ru", "певица", "feminine"),
+            ("tr", "başkan", "unknown"),
+        ] {
+            assert_eq!(
+                role_gender(language, surface),
+                expected,
+                "{language}: {surface}"
             );
         }
     }
@@ -572,6 +414,12 @@ mod tests {
                 .iter()
                 .all(|reference| reference.surface != "to"),
             "English preposition `to` must not become a Polish pronoun"
+        );
+        assert!(
+            detect("O karar verdi.", "en")
+                .iter()
+                .all(|reference| reference.surface != "O"),
+            "Turkish pronoun `o` must be language-scoped"
         );
         assert!(
             detect("On zdecydował.", "pl")

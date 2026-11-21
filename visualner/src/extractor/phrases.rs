@@ -190,7 +190,24 @@ pub(crate) fn noun_phrase_candidates(
     name_runs.sort_unstable();
     name_runs.dedup();
     for (start, end) in name_runs {
-        out.push(candidate_from_tokens(tokens, source_text, start, end));
+        let mut candidate = candidate_from_tokens(tokens, source_text, start, end);
+        let capitalized_words = tokens[start..end]
+            .iter()
+            .filter(|token| starts_uppercase(&token.text))
+            .count();
+        if capitalized_words >= 2
+            && semantic_core::lexicon::is_curated_given_name(language, &tokens[start].text)
+            && !semantic_core::lexicon::lexicon().is_place(&candidate.text, language)
+            && super::values::institution_cue_kind(&candidate.text, language).is_none()
+            && !super::names::opens_organization_name(&tokens[start].text, language)
+        {
+            // Some UDPipe models tag real names as a verb/adjective/determiner
+            // (for example, Turkish Fatma Demir and Polish Oliwia Szymańska).
+            // A curated given name followed by another title-cased name token
+            // is enough to type this already grounded full run as PERSON.
+            candidate.entity_type = Some("PERSON".to_string());
+        }
+        out.push(candidate);
     }
     // In a coordinated list of proper-noun subjects, a single-token member
     // is a person mention even though it is too short to establish an

@@ -1,0 +1,282 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "en",
+  "event_types": {
+    "arrest": [
+      {
+        "surface": "arrested",
+        "lemma": "arrest",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "arrested",
+        "lemma": "arrest",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "elected",
+        "lemma": "elect",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "won the election",
+        "lemma": "win",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ],
+    "agreement": [
+      {
+        "surface": "signed an agreement",
+        "lemma": "sign",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject",
+          "counterparty": "object"
+        }
+      },
+      {
+        "surface": "agreement",
+        "lemma": "agree",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "crashed",
+        "lemma": "crash",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "accident",
+        "lemma": "accident",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "birth": [
+      {
+        "surface": "was born",
+        "lemma": "be born",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "born",
+        "lemma": "bear",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "death": [
+      {
+        "surface": "died",
+        "lemma": "die",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "death",
+        "lemma": "die",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "was convicted",
+        "lemma": "convict",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "was acquitted",
+        "lemma": "acquit",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "convicted",
+        "lemma": "convict",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "was appointed",
+        "lemma": "appoint",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "appointed",
+        "lemma": "appoint",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "resigned",
+        "lemma": "resign",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "was founded",
+        "lemma": "found",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "founded",
+        "lemma": "found",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "was acquired",
+        "lemma": "acquire",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "acquired",
+        "lemma": "acquire",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "merged with",
+        "lemma": "merge",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "counterparty": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "was released",
+        "lemma": "release",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "launched",
+        "lemma": "launch",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "was attacked",
+        "lemma": "attack",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "attacked",
+        "lemma": "attack",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "attack",
+        "lemma": "attack",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "defeated",
+        "lemma": "defeat",
+        "voice": "active",
+        "roles": {
+          "winner": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "won the match",
+        "lemma": "win",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "won",
+        "lemma": "win",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ]
+  }
+}

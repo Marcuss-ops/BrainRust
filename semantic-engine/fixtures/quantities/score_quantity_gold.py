@@ -21,17 +21,94 @@ ROOT = Path(__file__).resolve().parents[3]
 UNITS = json.loads((ROOT / "lexicon/units.json").read_text(encoding="utf-8"))
 LANGUAGES = ("de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr")
 MEASURE_CONTEXTS = {
-    "de": ("Im Bericht beträgt der Messwert {measure}.", "Die Tabelle nennt {measure} für diesen Zeitraum.", "Nach den vorliegenden Daten liegt der Wert bei {measure}."),
-    "en": ("The report puts the measured value at {measure}.", "The table lists {measure} for this period.", "According to the available data, the value is {measure}."),
-    "es": ("El informe sitúa la medida en {measure}.", "La tabla recoge {measure} para este periodo.", "Según los datos disponibles, el valor es de {measure}."),
-    "fr": ("Le rapport situe la mesure à {measure}.", "Le tableau indique {measure} pour cette période.", "D'après les données disponibles, la valeur est de {measure}."),
-    "id": ("Laporan itu mencatat ukuran sebesar {measure}.", "Tabel tersebut memuat {measure} untuk periode ini.", "Menurut data yang tersedia, nilainya adalah {measure}."),
-    "it": ("Nel rapporto la misura è pari a {measure}.", "La tabella riporta {measure} per questo periodo.", "Secondo i dati disponibili, il valore è di {measure}."),
-    "nl": ("Het rapport stelt de meting vast op {measure}.", "De tabel vermeldt {measure} voor deze periode.", "Volgens de beschikbare gegevens bedraagt de waarde {measure}."),
-    "pl": ("Raport podaje wartość pomiaru: {measure}.", "Tabela zawiera {measure} dla tego okresu.", "Według dostępnych danych wartość wynosi {measure}."),
-    "pt": ("O relatório situa a medida em {measure}.", "A tabela regista {measure} para este período.", "Segundo os dados disponíveis, o valor é de {measure}."),
-    "ru": ("В отчёте указано значение измерения: {measure}.", "В таблице приведено {measure} за этот период.", "Согласно имеющимся данным, значение составляет {measure}."),
-    "tr": ("Raporda ölçüm değeri {measure} olarak veriliyor.", "Tabloda bu dönem için {measure} yer alıyor.", "Mevcut verilere göre değer {measure} düzeyinde."),
+    "de": (
+        "Im Bericht beträgt der Messwert {measure}.",
+        "Die Tabelle nennt {measure} für diesen Zeitraum.",
+        "Nach den vorliegenden Daten liegt der Wert bei {measure}.",
+        "Der Wert wird mit {measure} angegeben.",
+        "Die erfasste Größe liegt bei {measure}.",
+        "Bei der Prüfung wurde ein Wert von {measure} festgestellt.",
+    ),
+    "en": (
+        "The report puts the measured value at {measure}.",
+        "The table lists {measure} for this period.",
+        "According to the available data, the value is {measure}.",
+        "A recorded measurement came to {measure}.",
+        "The stated figure was {measure}.",
+        "Researchers recorded a value of {measure}.",
+    ),
+    "es": (
+        "El informe sitúa la medida en {measure}.",
+        "La tabla recoge {measure} para este periodo.",
+        "Según los datos disponibles, el valor es de {measure}.",
+        "La medición registrada fue de {measure}.",
+        "El dato consignado asciende a {measure}.",
+        "Durante el análisis se obtuvo un valor de {measure}.",
+    ),
+    "fr": (
+        "Le rapport situe la mesure à {measure}.",
+        "Le tableau indique {measure} pour cette période.",
+        "D'après les données disponibles, la valeur est de {measure}.",
+        "La mesure enregistrée s'élève à {measure}.",
+        "La valeur observée était de {measure}.",
+        "L'analyse a relevé une valeur de {measure}.",
+    ),
+    "id": (
+        "Laporan itu mencatat ukuran sebesar {measure}.",
+        "Tabel tersebut memuat {measure} untuk periode ini.",
+        "Menurut data yang tersedia, nilainya adalah {measure}.",
+        "Hasil pengukuran yang tercatat adalah {measure}.",
+        "Angka yang dilaporkan mencapai {measure}.",
+        "Analisis tersebut menghasilkan nilai {measure}.",
+    ),
+    "it": (
+        "Nel rapporto la misura è pari a {measure}.",
+        "La tabella riporta {measure} per questo periodo.",
+        "Secondo i dati disponibili, il valore è di {measure}.",
+        "La misurazione registrata ha dato {measure}.",
+        "Il dato riportato ammonta a {measure}.",
+        "Dall'analisi è emerso un valore di {measure}.",
+    ),
+    "nl": (
+        "Het rapport stelt de meting vast op {measure}.",
+        "De tabel vermeldt {measure} voor deze periode.",
+        "Volgens de beschikbare gegevens bedraagt de waarde {measure}.",
+        "De geregistreerde meting kwam uit op {measure}.",
+        "Het gerapporteerde cijfer bedroeg {measure}.",
+        "Bij de analyse werd een waarde van {measure} vastgesteld.",
+    ),
+    "pl": (
+        "Raport podaje wartość pomiaru: {measure}.",
+        "Tabela zawiera {measure} dla tego okresu.",
+        "Według dostępnych danych wartość wynosi {measure}.",
+        "Zarejestrowany wynik pomiaru wyniósł {measure}.",
+        "W raporcie odnotowano wartość {measure}.",
+        "Analiza wykazała wynik na poziomie {measure}.",
+    ),
+    "pt": (
+        "O relatório situa a medida em {measure}.",
+        "A tabela regista {measure} para este período.",
+        "Segundo os dados disponíveis, o valor é de {measure}.",
+        "A medição registada apontou para {measure}.",
+        "O valor indicado no relatório foi de {measure}.",
+        "A análise apurou um resultado de {measure}.",
+    ),
+    "ru": (
+        "В отчёте указано значение измерения: {measure}.",
+        "В таблице приведено {measure} за этот период.",
+        "Согласно имеющимся данным, значение составляет {measure}.",
+        "Зафиксированный результат измерения составил {measure}.",
+        "В отчёте приводится величина {measure}.",
+        "При анализе было получено значение {measure}.",
+    ),
+    "tr": (
+        "Raporda ölçüm değeri {measure} olarak veriliyor.",
+        "Tabloda bu dönem için {measure} yer alıyor.",
+        "Mevcut verilere göre değer {measure} düzeyinde.",
+        "Ölçüm sonucu {measure} olarak kaydedildi.",
+        "Raporlanan miktar {measure} oldu.",
+        "İnceleme sırasında {measure} değeri elde edildi.",
+    ),
 }
 NEGATIVES = (
     "2019", "123456789", "1st", "3 times", "3 volte", "APT 3",
@@ -92,6 +169,141 @@ def cases(language: str) -> list[dict]:
                       "scale": 1_000_000.0}],
         "negative": False,
     })
+    qualifier_cues = UNITS["languages"][language]["qualifiers"]
+    for qualifier, value, expected_qualifier in (
+        ("lower_bound", 5, "lower_bound"),
+        ("upper_bound", 8, "upper_bound"),
+    ):
+        cue = qualifier_cues[qualifier][0]
+        rows.append({
+            "scene_id": f"{language}_{qualifier}_eur_01",
+            "text": f"{cue} {value} EUR",
+            "expected": [{"evidence": str(value), "dimension": "currency",
+                          "unit": "EUR", "value": float(value),
+                          "qualifier": expected_qualifier}],
+            "negative": False,
+        })
+    range_cue = qualifier_cues["range"][0]
+    range_joiner = {
+        "de": " und ", "en": " and ", "es": " y ", "fr": " et ",
+        "id": " sampai ", "it": " e ", "nl": " en ", "pl": " i ",
+        "pt": " e ", "ru": " и ", "tr": " ile ",
+    }[language]
+    rows.append({
+        "scene_id": f"{language}_range_eur_01",
+        "text": f"{range_cue} 5 EUR{range_joiner}8 EUR",
+        "expected": [
+            {"evidence": "5", "dimension": "currency", "unit": "EUR",
+             "value": 5.0, "qualifier": "range_start"},
+            {"evidence": "8", "dimension": "currency", "unit": "EUR",
+             "value": 8.0, "qualifier": "range_end"},
+        ],
+        "negative": False,
+    })
+    ratio_text = {
+        "de": "10% im Vergleich zum Doppelten von 5%.",
+        "en": "10% compared with twice 5%.",
+        "es": "10% frente al doble de 5%.",
+        "fr": "10% par rapport au double de 5%.",
+        "id": "10% dibandingkan dengan dua kali 5%.",
+        "it": "10% rispetto al doppio di 5%.",
+        "nl": "10% tegenover het dubbele van 5%.",
+        "pl": "10% wobec dwukrotności 5%.",
+        "pt": "10% contra o dobro de 5%.",
+        "ru": "10% против удвоенных 5%.",
+        "tr": "10% karşısında iki kat 5%.",
+    }[language]
+    rows.append({
+        "scene_id": f"{language}_ratio_01",
+        "text": ratio_text,
+        "expected": [
+            {"evidence": "10%", "dimension": "percent", "unit": "PCT", "value": 10.0},
+            {"evidence": "5%", "dimension": "percent", "unit": "PCT", "value": 5.0},
+        ],
+        "expected_comparisons": [{"kind": "ratio", "dimension": "percent", "ratio": 2.0}],
+        "negative": False,
+    })
+    difference_text = {
+        "de": "10% im Vergleich zu 5%.",
+        "en": "10% compared with 5%.",
+        "es": "10% frente a 5%.",
+        "fr": "10% par rapport à 5%.",
+        "id": "10% dibandingkan dengan 5%.",
+        "it": "10% rispetto a 5%.",
+        "nl": "10% tegenover 5%.",
+        "pl": "10% wobec 5%.",
+        "pt": "10% contra 5%.",
+        "ru": "10% против 5%.",
+        "tr": "10% karşısında 5%.",
+    }[language]
+    rows.append({
+        "scene_id": f"{language}_difference_01",
+        "text": difference_text,
+        "expected": [
+            {"evidence": "10%", "dimension": "percent", "unit": "PCT", "value": 10.0},
+            {"evidence": "5%", "dimension": "percent", "unit": "PCT", "value": 5.0},
+        ],
+        "expected_comparisons": [{"kind": "difference", "dimension": "percent", "difference": 5.0}],
+        "negative": False,
+    })
+    change_text = {
+        "de": "5% stieg auf 10%.",
+        "en": "5% rose to 10%.",
+        "es": "5% subió a 10%.",
+        "fr": "5% a augmenté à 10%.",
+        "id": "5% meningkat menjadi 10%.",
+        "it": "5% è salito al 10%.",
+        "nl": "5% steeg naar 10%.",
+        "pl": "5% wzrosło do 10%.",
+        "pt": "5% subiu para 10%.",
+        "ru": "5% выросло до 10%.",
+        "tr": "5% yükselerek 10% oldu.",
+    }[language]
+    change_evidence = ["5%", "10%"]
+    rows.append({
+        "scene_id": f"{language}_change_01",
+        "text": change_text,
+        "expected": [
+            {"evidence": change_evidence[0], "dimension": "percent", "unit": "PCT", "value": 5.0},
+            {"evidence": change_evidence[1], "dimension": "percent", "unit": "PCT", "value": 10.0},
+        ],
+        "expected_comparisons": [{"kind": "change", "dimension": "percent", "difference": 5.0}],
+        "negative": False,
+    })
+    comparison_negatives = (
+        (
+            "cross_currency",
+            ratio_text.replace("10%", "10 EUR").replace("5%", "5 USD"),
+            [
+                {"evidence": "10", "dimension": "currency", "unit": "EUR", "value": 10.0},
+                {"evidence": "5", "dimension": "currency", "unit": "USD", "value": 5.0},
+            ],
+        ),
+        (
+            "cross_dimension",
+            ratio_text.replace("10%", "10 EUR").replace("5%", "5%"),
+            [
+                {"evidence": "10", "dimension": "currency", "unit": "EUR", "value": 10.0},
+                {"evidence": "5%", "dimension": "percent", "unit": "PCT", "value": 5.0},
+            ],
+        ),
+        (
+            "cross_period",
+            ratio_text.replace("10%", "10 EUR in 2019").replace("5%", "5 EUR in 2020"),
+            [
+                {"evidence": "10", "dimension": "currency", "unit": "EUR", "value": 10.0, "period_year": 2019},
+                {"evidence": "5", "dimension": "currency", "unit": "EUR", "value": 5.0, "period_year": 2020},
+            ],
+        ),
+    )
+    for comparison_kind, text, expected in comparison_negatives:
+        rows.append({
+            "scene_id": f"{language}_{comparison_kind}_comparison_01",
+            "text": text,
+            "expected": expected,
+            "expected_comparisons": [],
+            "negative": False,
+        })
     approximate_cue = UNITS["languages"][language]["qualifiers"]["approx"][0]
     rows.extend((
         {
@@ -111,16 +323,6 @@ def cases(language: str) -> list[dict]:
     ))
     if language == "it":
         rows.extend((
-            {
-                "scene_id": "it_ratio_01",
-                "text": "Il valore è 10% rispetto al doppio di 5%.",
-                "expected": [
-                    {"evidence": "10%", "dimension": "percent", "unit": "PCT", "value": 10.0},
-                    {"evidence": "5%", "dimension": "percent", "unit": "PCT", "value": 5.0},
-                ],
-                "expected_comparisons": [{"kind": "ratio", "dimension": "percent", "ratio": 2.0}],
-                "negative": False,
-            },
             {
                 "scene_id": "it_cross_currency_01",
                 "text": "Il valore è 10 EUR contro 5 USD.",

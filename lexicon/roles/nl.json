@@ -1,0 +1,526 @@
+{
+  "schema": "role_lexicon.v1",
+  "language": "nl",
+  "roles": [
+    {
+      "role_code": "chief_executive",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "algemeen directeur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "voorzitter",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "presidente",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "vice_president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "vicevoorzitter",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_operating_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "operationeel directeur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_financial_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "financieel directeur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_technology_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "technisch directeur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "oprichter",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "oprichtster",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "co_founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "medeoprichter",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "director",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "directeur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "board_member",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "bestuurslid",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chairperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "voorzitter",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "secretary",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "secretaris",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "treasurer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "penningmeester",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "minister",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "prime_minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "premier",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "mayor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "burgemeester",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "governor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "gouverneur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "senator",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "senator",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "representative",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "volksvertegenwoordiger",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "judge",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "rechter",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "prosecutor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "officier van justitie",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "lawyer",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "advocaat",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "police_chief",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "politiechef",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "coach",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "coach",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "captain",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "aanvoerder",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "player",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "speler",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "manager",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "manager",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "spokesperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "woordvoerder",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "journalist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "journalist",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "editor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "redacteur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "professor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "hoogleraar",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "researcher",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "onderzoeker",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "scientist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "wetenschapper",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "doctor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "arts",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "engineer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ingenieur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "artist",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "kunstenaar",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "actor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "acteur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "actrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "singer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "zanger",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "zangeres",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "author",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "auteur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "owner",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "eigenaar",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    }
+  ],
+  "tense_markers": {
+    "former": [
+      "voormalig",
+      "ex-"
+    ],
+    "acting": [
+      "waarnemend"
+    ],
+    "appointed": [
+      "benoemd"
+    ],
+    "resigned": [
+      "afgetreden",
+      "trad af"
+    ]
+  }
+}

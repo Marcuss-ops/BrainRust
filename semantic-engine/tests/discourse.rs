@@ -101,6 +101,121 @@ fn pronoun_resolves_when_the_script_leaves_one_person() {
 }
 
 #[test]
+fn pronoun_gender_filters_only_explicitly_gendered_role_antecedents() {
+    let value = manifest_value_for(
+        "it",
+        vec![scene(
+            "gender",
+            "Anna Bianchi, ministra, ha parlato. Marco Rossi, ministro, ha parlato. Lei ha vinto.",
+        )],
+    );
+    assert_eq!(
+        value["analyzers"]["discourse"],
+        "discourse.v7.role_nominal_basis"
+    );
+    let anna = entity_id(&value, "Anna Bianchi");
+    let marco = entity_id(&value, "Marco Rossi");
+    let anna_role = value["scenes"][0]["person_roles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|role| role["person_id"] == anna)
+        .unwrap();
+    let marco_role = value["scenes"][0]["person_roles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|role| role["person_id"] == marco)
+        .unwrap();
+    assert_eq!(anna_role["gender"], "feminine");
+    assert_eq!(marco_role["gender"], "masculine");
+    let lei = reference(&value, "Lei");
+    assert_eq!(lei["status"], "resolved");
+    assert_eq!(lei["target_entity_ids"][0], anna);
+    assert_eq!(lei["resolution_basis"], "nearest_sentence_antecedent");
+}
+
+#[test]
+fn gendered_role_nominal_filters_only_known_conflicting_candidates() {
+    let value = manifest_value_for(
+        "it",
+        vec![scene(
+            "role-gender",
+            "Anna Bianchi e Marco Rossi erano presenti. La fondatrice ha parlato.",
+        )],
+    );
+    let anna = entity_id(&value, "Anna Bianchi");
+    let founder_reference = reference(&value, "fondatrice");
+    assert_eq!(
+        founder_reference["status"], "resolved",
+        "{founder_reference}"
+    );
+    assert_eq!(
+        founder_reference["target_entity_ids"],
+        serde_json::json!([anna])
+    );
+    assert_eq!(founder_reference["resolution_basis"], "role_nominal");
+
+    let common = manifest_value_for(
+        "it",
+        vec![scene(
+            "role-gender-unknown",
+            "Anna Bianchi e Marco Rossi erano presenti. Il presidente ha parlato.",
+        )],
+    );
+    let common_reference = reference(&common, "presidente");
+    assert_eq!(
+        common_reference["status"], "ambiguous",
+        "{common_reference}"
+    );
+    assert_eq!(
+        common_reference["candidate_entity_ids"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn curated_given_name_gender_filters_only_known_conflicts() {
+    let value = manifest_value_for(
+        "it",
+        vec![scene(
+            "name-gender",
+            "Anna Bianchi ha parlato. Marco Rossi ha parlato. Lei ha vinto.",
+        )],
+    );
+    let anna = entity_id(&value, "Anna Bianchi");
+    let lei = reference(&value, "Lei");
+    assert_eq!(lei["status"], "resolved");
+    assert_eq!(lei["target_entity_ids"], serde_json::json!([anna]));
+
+    let uncertain = manifest_value_for(
+        "it",
+        vec![scene(
+            "unknown-gender",
+            "Alex Smith ha incontrato Taylor Jones e Lei ha vinto.",
+        )],
+    );
+    let lei = reference(&uncertain, "Lei");
+    assert_eq!(lei["status"], "ambiguous");
+    assert_eq!(lei["candidate_entity_ids"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn turkish_genderless_pronoun_resolves_with_one_grounded_person() {
+    let value = manifest_value_for(
+        "tr",
+        vec![scene("turkish", "Ayşe Yılmaz geldi. O gülümsedi.")],
+    );
+    let person = entity_id(&value, "Ayşe Yılmaz");
+    let pronoun = reference(&value, "O");
+    assert_eq!(pronoun["status"], "resolved");
+    assert_eq!(pronoun["target_entity_ids"], serde_json::json!([person]));
+}
+
+#[test]
 fn pronoun_stays_ambiguous_when_two_people_are_plausible() {
     let value = manifest_value(vec![scene(
         "due-persone",
@@ -156,7 +271,7 @@ fn role_nominal_resolves_when_the_scene_has_one_person() {
     let role = reference(&value, "imprenditore");
     assert_eq!(role["status"], "resolved", "{role}");
     assert_eq!(role["target_entity_ids"], serde_json::json!([mario]));
-    assert_eq!(role["resolution_basis"], "unique_active_role_antecedent");
+    assert_eq!(role["resolution_basis"], "role_nominal");
 }
 
 #[test]
@@ -324,4 +439,44 @@ fn scene_continuity_reports_shared_and_shifted_entity_sets() {
         "a scene with no shared resolved entity must not claim continuity: {}",
         continuity[2]
     );
+}
+
+#[test]
+fn german_and_dutch_plural_verb_agreement_resolves_number_ambiguous_pronouns() {
+    for (language, text, pronoun) in [
+        (
+            "de",
+            "Hans Müller und Thomas Fischer kamen an. Sie feierten.",
+            "Sie",
+        ),
+        (
+            "nl",
+            "Sem de Boer en Milan Mulder kwamen aan. Zij vierden feest.",
+            "Zij",
+        ),
+    ] {
+        let value = manifest_value_for(language, vec![scene("pair", text)]);
+        let resolved = reference(&value, pronoun);
+        assert_eq!(resolved["status"], "resolved", "{language}: {resolved}");
+        assert_eq!(
+            resolved["target_entity_ids"].as_array().unwrap().len(),
+            2,
+            "{language}: plural agreement must retain both antecedents"
+        );
+        assert_eq!(resolved["resolution_basis"], "agreement");
+    }
+}
+
+#[test]
+fn singular_verb_agreement_does_not_turn_ambiguous_sie_into_a_plural_pair() {
+    let value = manifest_value_for(
+        "de",
+        vec![scene(
+            "singular",
+            "Anna Schmidt und Maria Weber kamen an. Sie lächelte.",
+        )],
+    );
+    let pronoun = reference(&value, "Sie");
+    assert_eq!(pronoun["status"], "ambiguous", "{pronoun}");
+    assert_eq!(pronoun["candidate_entity_ids"].as_array().unwrap().len(), 2);
 }

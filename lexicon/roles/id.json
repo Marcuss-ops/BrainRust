@@ -1,0 +1,506 @@
+{
+  "schema": "role_lexicon.v1",
+  "language": "id",
+  "roles": [
+    {
+      "role_code": "chief_executive",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direktur utama",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "presiden",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "vice_president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "wakil presiden",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_operating_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direktur operasional",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_financial_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direktur keuangan",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_technology_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direktur teknologi",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "pendiri",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "co_founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "pendiri bersama",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "director",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "direktur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "board_member",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "anggota dewan",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chairperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ketua",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "secretary",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "sekretaris",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "treasurer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "bendahara",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "menteri",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "prime_minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "perdana menteri",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "mayor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "wali kota",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "governor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "gubernur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "senator",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "senator",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "representative",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "anggota parlemen",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "judge",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "hakim",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "prosecutor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "jaksa",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "lawyer",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "pengacara",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "police_chief",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "kepala polisi",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "coach",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "pelatih",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "captain",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "kapten",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "player",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "pemain",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "manager",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "manajer",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "spokesperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "juru bicara",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "journalist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "jurnalis",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "editor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "editor",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "professor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "profesor",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "researcher",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "peneliti",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "scientist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ilmuwan",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "doctor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "dokter",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "engineer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "insinyur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "artist",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "seniman",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "actor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "aktor",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "aktris",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "singer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "penyanyi",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "author",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "penulis",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "owner",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "pemilik",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    }
+  ],
+  "tense_markers": {
+    "former": [
+      "mantan"
+    ],
+    "acting": [
+      "pelaksana tugas"
+    ],
+    "appointed": [
+      "diangkat"
+    ],
+    "resigned": [
+      "mengundurkan diri"
+    ]
+  }
+}

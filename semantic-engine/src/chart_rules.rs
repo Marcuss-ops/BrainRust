@@ -37,6 +37,8 @@ pub(crate) fn chart_claim_is_eligible(sentence: &str) -> bool {
         &["ложная"],
         &["ложное"],
         &["palsu"],
+        &["yanlış"],
+        &["doğru", "değil"],
         &["falsa"],
         &["falso"],
         &["fake"],
@@ -118,49 +120,54 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
     }
     let prefix = &sentence[..start];
     let words = semantic_core::discourse::word_spans(prefix);
-    let Some(last) = words.last() else {
-        return (start, end);
-    };
-    let last_word = last.lowered.as_str();
-    if words.len() >= 2 {
-        let previous = words[words.len() - 2].lowered.as_str();
-        if matches!(
-            (previous, last_word),
-            ("more", "than")
-                | ("più", "di")
-                | ("piu", "di")
-                | ("at", "least")
-                | ("al", "menos")
-                | ("más", "de")
-                | ("mas", "de")
-        ) {
-            return (words[words.len() - 2].start, end);
+    if let Some(last) = words.last() {
+        let last_word = last.lowered.as_str();
+        if words.len() >= 2 {
+            let previous = words[words.len() - 2].lowered.as_str();
+            if matches!(
+                (previous, last_word),
+                ("more", "than")
+                    | ("più", "di")
+                    | ("piu", "di")
+                    | ("at", "least")
+                    | ("al", "menos")
+                    | ("más", "de")
+                    | ("mas", "de")
+            ) {
+                return (words[words.len() - 2].start, end);
+            }
+        }
+        let one_word = [
+            "circa",
+            "about",
+            "approximately",
+            "approx",
+            "around",
+            "roughly",
+            "nearly",
+            "almost",
+            "oltre",
+            "over",
+            "above",
+            "quasi",
+            "etwa",
+            "ungefähr",
+            "aproximadamente",
+            "cerca",
+            "almeno",
+        ];
+        if one_word.contains(&last_word) {
+            return (last.start, end);
         }
     }
-    let one_word = [
-        "circa",
-        "about",
-        "approximately",
-        "approx",
-        "around",
-        "roughly",
-        "nearly",
-        "almost",
-        "oltre",
-        "over",
-        "above",
-        "quasi",
-        "etwa",
-        "ungefähr",
-        "aproximadamente",
-        "cerca",
-        "almeno",
-    ];
-    if one_word.contains(&last_word) {
-        return (last.start, end);
-    }
+    let mut display_start = start;
     let mut display_end = end;
     let suffix_words = semantic_core::discourse::word_spans(&sentence[end..]);
+    let prefix_currency = prefix
+        .trim_end()
+        .chars()
+        .next_back()
+        .is_some_and(|ch| matches!(ch, '€' | '$' | '£'));
     if let Some(first) = suffix_words.first() {
         let suffix = first.lowered.as_str();
         if [
@@ -211,6 +218,12 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
             "dollari",
             "dollar",
             "dollars",
+            "eur",
+            "usd",
+            "gbp",
+            "€",
+            "$",
+            "£",
             "mese",
             "mesi",
             "month",
@@ -223,29 +236,85 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
         .contains(&suffix)
         {
             display_end = end + first.end;
-            if matches!(
-                suffix,
-                "mese" | "mesi" | "month" | "months" | "anno" | "anni" | "year" | "years"
-            ) {
-                // Keep the currency and rate basis together, e.g. "euro al mese".
-                let before_unit = &sentence[..start];
-                if let Some(currency) = ["euro", "euros", "dollari", "dollars"]
-                    .iter()
-                    .filter_map(|unit| before_unit.rfind(unit))
-                    .min()
-                {
-                    let _ = currency;
-                }
-            }
         }
     }
-    (start, display_end)
+    let suffix_currency = suffix_words.first().is_some_and(|word| {
+        matches!(
+            word.lowered.as_str(),
+            "euro"
+                | "euros"
+                | "eur"
+                | "dollaro"
+                | "dollari"
+                | "dollar"
+                | "dollars"
+                | "usd"
+                | "sterlina"
+                | "sterline"
+                | "pound"
+                | "pounds"
+                | "gbp"
+                | "€"
+                | "$"
+                | "£"
+        )
+    });
+    if prefix_currency || suffix_currency {
+        if prefix_currency {
+            display_start = prefix
+                .char_indices()
+                .rev()
+                .find(|(_, ch)| !ch.is_whitespace())
+                .map_or(start, |(index, _)| index);
+        }
+        let remainder = sentence[display_end..].trim_start();
+        let leading_space = sentence[display_end..].len() - remainder.len();
+        let lower = remainder.to_lowercase();
+        let rate_cues = [
+            "al mese",
+            "al anno",
+            "all'anno",
+            "all’anno",
+            "per month",
+            "per year",
+            "a month",
+            "a year",
+            "im monat",
+            "pro monat",
+            "im jahr",
+            "pro jahr",
+            "por mes",
+            "al mes",
+            "por año",
+            "al año",
+            "par mois",
+            "par an",
+            "par année",
+            "per maand",
+            "per jaar",
+            "na miesiąc",
+            "na rok",
+            "miesięcznie",
+            "rocznie",
+            "в месяц",
+            "в год",
+            "por mês",
+            "ao mês",
+            "por ano",
+            "per bulan",
+            "per tahun",
+        ];
+        if let Some(cue) = rate_cues.iter().find(|cue| lower.starts_with(**cue)) {
+            display_end += leading_space + cue.len();
+        }
+    }
+    (display_start, display_end)
 }
 
 /// Fallback for real same-metric series that have no explicit comparison
 /// operator. It is deliberately context-gated to avoid charting arbitrary
 /// pairs of numbers from one sentence.
-pub(crate) fn has_series_context(sentence: &str, point_count: usize) -> bool {
+pub(crate) fn has_series_context(sentence: &str, point_count: usize, language: &str) -> bool {
     if point_count < 2 {
         return false;
     }
@@ -265,15 +334,7 @@ pub(crate) fn has_series_context(sentence: &str, point_count: usize) -> bool {
         return false;
     }
     let words = normalize_words(sentence);
-    let years = words
-        .iter()
-        .filter(|word| {
-            word.len() == 4
-                && word
-                    .parse::<u16>()
-                    .is_ok_and(|year| (1900..=2099).contains(&year))
-        })
-        .count();
+    let years = words.iter().filter(|word| is_year_token(word)).count();
     if years >= 2 {
         if !sentence.contains(';') {
             return true;
@@ -299,6 +360,16 @@ pub(crate) fn has_series_context(sentence: &str, point_count: usize) -> bool {
     {
         return true;
     }
+    let language = language.split(['-', '_']).next().unwrap_or(language);
+    if semantic_core::units::language_units(language).is_some_and(|units| {
+        units
+            .predicates
+            .values()
+            .flatten()
+            .any(|cue| lower.contains(&cue.to_lowercase()))
+    }) {
+        return true;
+    }
     if lower.contains("richieste")
         && (lower.contains("approvat") || lower.contains("approved"))
         && (lower.contains("respint") || lower.contains("rejected"))
@@ -322,6 +393,24 @@ pub(crate) fn has_series_context(sentence: &str, point_count: usize) -> bool {
             .any(|unit| lower.matches(unit).count() >= 2);
     }
     false
+}
+
+fn is_year_token(word: &str) -> bool {
+    let year_digits = word.get(..4).unwrap_or_default();
+    let Ok(year) = year_digits.parse::<u16>() else {
+        return false;
+    };
+    if !(1900..=2099).contains(&year) {
+        return false;
+    }
+    if word.len() == 4 {
+        return true;
+    }
+    let suffix = &word[4..];
+    suffix
+        .strip_prefix('\'')
+        .or_else(|| suffix.strip_prefix('’'))
+        .is_some_and(|suffix| !suffix.is_empty() && suffix.chars().all(char::is_alphabetic))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -528,9 +617,86 @@ fn same_metric_across_semicolon(sentence: &str) -> bool {
     if parts.len() < 2 {
         return false;
     }
+    // Repeated metric predicates make a temporal comparison explicit even
+    // when the sentence uses neither a comparison operator nor a shared noun
+    // (for example, "Aurora sold 120 cars; in 2023 it sold 180"). Keep the
+    // stems localized to supported languages instead of treating any pair of
+    // values and years as a series.
     let stems = [
-        "vendu", "vendit", "ricav", "esport", "produ", "incident", "sales", "revenue", "export",
+        // Italian
+        "vendu",
+        "ricav",
+        "esport",
+        "produ",
+        "incident",
+        // English
+        "sell",
+        "sold",
+        "sale",
+        "revenue",
+        "export",
+        "output",
+        "incident",
+        // German
+        "verkauf",
+        "umsatz",
+        "export",
+        "produ",
+        "unfall",
+        // Spanish
+        "vend",
+        "ingres",
+        "factur",
+        "export",
+        "produ",
         "accident",
+        // French
+        "vend",
+        "revenu",
+        "chiffre",
+        "export",
+        "produ",
+        "accident",
+        // Dutch
+        "verkoop",
+        "verkocht",
+        "omzet",
+        "export",
+        "produ",
+        "incident",
+        // Polish
+        "sprzeda",
+        "przychod",
+        "eksport",
+        "produ",
+        "wypad",
+        // Russian
+        "прода",
+        "выруч",
+        "экспорт",
+        "произвед",
+        "выпуск",
+        "авари",
+        // Portuguese
+        "vend",
+        "receit",
+        "fatur",
+        "export",
+        "produ",
+        "acident",
+        // Indonesian
+        "jual",
+        "penjualan",
+        "pendapatan",
+        "ekspor",
+        "produksi",
+        "kecelakaan",
+        // Turkish
+        "sat",
+        "gelir",
+        "ihracat",
+        "üret",
+        "kaza",
     ];
     stems
         .iter()
@@ -588,5 +754,28 @@ mod tests {
         assert!(!chart_point_is_eligible(text, denied, denied + 3));
         assert!(chart_point_is_eligible(text, first_fact, first_fact + 3));
         assert!(chart_point_is_eligible(text, second_fact, second_fact + 3));
+    }
+
+    #[test]
+    fn turkish_repeated_sales_predicate_supports_annual_series() {
+        let text = "2022'de Aurora 120 otomobil sattı; 2023'te 180 otomobil sattı.";
+        assert!(has_series_context(text, 2, "tr"));
+    }
+
+    #[test]
+    fn chart_measure_text_keeps_currency_and_rate_period() {
+        let text = "Il costo annuo di A è di 20 euro al mese e quello di B è 150 euro all’anno.";
+        let monthly = text.find("20").unwrap();
+        let span = qualified_numeric_span(text, monthly, monthly + 2);
+        assert_eq!(&text[span.0..span.1], "20 euro al mese");
+
+        let yearly = text.find("150").unwrap();
+        let span = qualified_numeric_span(text, yearly, yearly + 3);
+        assert_eq!(&text[span.0..span.1], "150 euro all’anno");
+
+        let symbol = "€20 per month";
+        let amount = symbol.find("20").unwrap();
+        let span = qualified_numeric_span(symbol, amount, amount + 2);
+        assert_eq!(&symbol[span.0..span.1], "€20 per month");
     }
 }

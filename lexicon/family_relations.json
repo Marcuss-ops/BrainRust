@@ -1,0 +1,722 @@
+{
+  "schema": "family_relations.v1",
+  "languages": {
+    "en": [
+      {
+        "surface": "father of",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "mother of",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "son of",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "daughter of",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "brother of",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "sister of",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "husband of",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "wife of",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "married to",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "colleague of",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "works with",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "lawyer for",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "it": [
+      {
+        "surface": "padre di",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "madre di",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "figlio di",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "figlia di",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "fratello di",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "sorella di",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "marito di",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "moglie di",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "sposato con",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "sposata con",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "collega di",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "lavora con",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "avvocato di",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "avvocata di",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "es": [
+      {
+        "surface": "padre de",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "madre de",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "hijo de",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "hija de",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "hermano de",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "hermana de",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "esposo de",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "esposa de",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "casado con",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "casada con",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "compañero de trabajo de",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "abogado de",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "fr": [
+      {
+        "surface": "père de",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "mère de",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "fils de",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "fille de",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "frère de",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "sœur de",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "mari de",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "épouse de",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "marié à",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "collègue de",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "avocat de",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "de": [
+      {
+        "surface": "Vater von",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Mutter von",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Sohn von",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Tochter von",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Bruder von",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Schwester von",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Ehemann von",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Ehefrau von",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "verheiratet mit",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Kollege von",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "Anwalt von",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "pt": [
+      {
+        "surface": "pai de",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "mãe de",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "filho de",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "filha de",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "irmão de",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "irmã de",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "marido de",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "esposa de",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "casado com",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "colega de",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "advogado de",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "nl": [
+      {
+        "surface": "vader van",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "moeder van",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "zoon van",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "dochter van",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "broer van",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "zus van",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "echtgenoot van",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "echtgenote van",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "getrouwd met",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "collega van",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "advocaat van",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "id": [
+      {
+        "surface": "ayah dari",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "ibu dari",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "anak dari",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "saudara dari",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "suami dari",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "istri dari",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "rekan kerja dari",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "pengacara dari",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "pl": [
+      {
+        "surface": "ojciec",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "matka",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "syn",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "córka",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "brat",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "siostra",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "mąż",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "żona",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "kolega",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "adwokat",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "ojcem",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "matką",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "synem",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "córką",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "bratem",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "siostrą",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "mężem",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "żoną",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "kolegą",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "adwokatem",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "ru": [
+      {
+        "surface": "отец",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "мать",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "сын",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "дочь",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "брат",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "сестра",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "муж",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "жена",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "коллега",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "адвокат",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "отцом",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "матерью",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "сыном",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "дочерью",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "братом",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "сестрой",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "мужем",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "женой",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "коллегой",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "адвокатом",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ],
+    "tr": [
+      {
+        "surface": "babası",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "annesi",
+        "kind": "parent_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "oğlu",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "kızı",
+        "kind": "child_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "erkek kardeşi",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "kız kardeşi",
+        "kind": "sibling_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "eşi",
+        "kind": "spouse_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "meslektaşı",
+        "kind": "colleague_of",
+        "direction": "left_to_right"
+      },
+      {
+        "surface": "avukatı",
+        "kind": "lawyer_of",
+        "direction": "left_to_right"
+      }
+    ]
+  }
+}

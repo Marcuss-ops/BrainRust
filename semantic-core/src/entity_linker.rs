@@ -25,6 +25,7 @@ use crate::identity::{
 /// Version recorded in analyzer provenance and health output.
 pub const ENTITY_INDEX_SCHEMA: &str = "entity_index.v1";
 const LINK_WEIGHTS_JSON: &str = include_str!("../../lexicon/link_weights_v1.json");
+const TYPE_CUES_JSON: &str = include_str!("../../lexicon/type_cues.json");
 
 #[derive(Debug, Deserialize)]
 struct LinkWeights {
@@ -33,11 +34,24 @@ struct LinkWeights {
     type_prior_weight: i32,
     context_overlap_weight: i32,
     counter_penalty_weight: i32,
+    type_cue_weight: i32,
+    discourse_prior_weight: i32,
     single_candidate_min_score: i32,
     multi_candidate_min_score: i32,
     multi_candidate_min_margin: i32,
     max_candidates: usize,
     max_features: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct TypeCueFile {
+    schema: String,
+    languages: BTreeMap<String, BTreeMap<String, Vec<String>>>,
+}
+
+fn type_cues() -> &'static TypeCueFile {
+    static CUES: OnceLock<TypeCueFile> = OnceLock::new();
+    CUES.get_or_init(|| serde_json::from_str(TYPE_CUES_JSON).expect("valid entity type cues"))
 }
 
 fn link_weights() -> &'static LinkWeights {
@@ -147,10 +161,22 @@ pub fn link_all(
     scenes: &[(&str, &str)],
     identities: &[CanonicalIdentity],
 ) -> Vec<LinkedEntity> {
+    link_all_with_threads(language, scenes, identities, &[])
+}
+
+/// Links identities with an additive prior only when a resolved discourse
+/// thread provides an unambiguous sense from another mention in that thread.
+pub fn link_all_with_threads(
+    language: &str,
+    scenes: &[(&str, &str)],
+    identities: &[CanonicalIdentity],
+    threads: &[crate::narrative::EntityThread],
+) -> Vec<LinkedEntity> {
     let index = entity_index();
     identities
         .iter()
         .map(|identity| {
+            let discourse_prior = resolved_thread_sense(language, identity, scenes, threads, index);
             // Context is the sentence around each grounded mention, never the
             // whole script: an actor mentioned in the next sentence must not
             // penalize the basketball player's identity. It is used only for
@@ -168,7 +194,20 @@ pub fn link_all(
             let mut scored: Vec<(i32, &EntityIndexEntry)> = index
                 .candidates(&identity.canonical_surface)
                 .into_iter()
-                .map(|entry| (context_score(entry, &identity.kind, &context), entry))
+                .map(|entry| {
+                    let prior = discourse_prior
+                        .as_ref()
+                        .is_some_and(|prior| prior.candidate_id == entry.id);
+                    (
+                        context_score(language, entry, &identity.kind, &context)
+                            + if prior {
+                                link_weights().discourse_prior_weight
+                            } else {
+                                0
+                            },
+                        entry,
+                    )
+                })
                 .collect();
             scored.sort_by(|left, right| {
                 right
@@ -180,7 +219,12 @@ pub fn link_all(
             let link_candidates: Vec<LinkCandidate> = scored
                 .iter()
                 .take(link_weights().max_candidates)
-                .map(|(score, entry)| explain_candidate(*score, entry, identity, scenes))
+                .map(|(score, entry)| {
+                    let prior = discourse_prior
+                        .as_ref()
+                        .filter(|prior| prior.candidate_id == entry.id);
+                    explain_candidate(*score, entry, language, identity, scenes, prior)
+                })
                 .collect();
             let link_margin = scored
                 .get(1)
@@ -254,7 +298,7 @@ pub fn link_all(
                 search_intents,
                 link_candidates,
                 link_margin,
-                link_rule: Some("entity_linker.v1".to_string()),
+                link_rule: Some("entity_linker.v3".to_string()),
                 editorial_surface: decision.surface,
                 editorial_type: decision.kind,
                 prompt_echo: decision.prompt_echo,
@@ -264,11 +308,141 @@ pub fn link_all(
         .collect()
 }
 
+struct DiscourseSense {
+    candidate_id: String,
+    terms: Vec<String>,
+    spans: Vec<crate::identity::LinkEvidenceSpan>,
+}
+
+fn resolved_thread_sense(
+    language: &str,
+    identity: &CanonicalIdentity,
+    scenes: &[(&str, &str)],
+    threads: &[crate::narrative::EntityThread],
+    index: &EntityIndex,
+) -> Option<DiscourseSense> {
+    let thread = threads.iter().find(|thread| {
+        thread.entity_id == identity.id
+            && thread.entity_type.eq_ignore_ascii_case(&identity.kind)
+            && thread.scene_ids.len() > 1
+    })?;
+    let candidates = index.candidates(&identity.canonical_surface);
+    let mut resolved = BTreeSet::new();
+    let mut evidence = BTreeMap::<String, Vec<crate::identity::LinkEvidenceSpan>>::new();
+    for mention in identity
+        .mentions
+        .iter()
+        .filter(|mention| thread.scene_ids.contains(&mention.scene_id))
+    {
+        let Some((_, text)) = scenes
+            .iter()
+            .find(|(scene_id, _)| *scene_id == mention.scene_id)
+        else {
+            continue;
+        };
+        let context = sentence_window(text, mention.start_byte, mention.end_byte);
+        let mut local: Vec<(&EntityIndexEntry, i32)> = index
+            .candidates(&mention.surface)
+            .into_iter()
+            .map(|entry| {
+                (
+                    entry,
+                    context_score(language, entry, &identity.kind, context),
+                )
+            })
+            .collect();
+        local.sort_by(|left, right| {
+            right
+                .1
+                .cmp(&left.1)
+                .then_with(|| left.0.id.cmp(&right.0.id))
+        });
+        let Some((winner, best)) = local.first().copied() else {
+            continue;
+        };
+        let margin = local
+            .get(1)
+            .map(|second| best.saturating_sub(second.1))
+            .unwrap_or(best);
+        if best < link_weights().multi_candidate_min_score
+            || margin < link_weights().multi_candidate_min_margin
+            || !candidates.iter().any(|candidate| candidate.id == winner.id)
+        {
+            continue;
+        }
+        resolved.insert(winner.id.clone());
+        let terms = winner
+            .context_terms
+            .iter()
+            .filter(|term| contains_term(context, term))
+            .cloned()
+            .collect::<Vec<_>>();
+        for term in terms {
+            evidence
+                .entry(winner.id.clone())
+                .or_default()
+                .extend(mention_evidence_spans(&term, mention, scenes));
+        }
+    }
+    if resolved.len() != 1 {
+        return None;
+    }
+    let candidate_id = resolved.into_iter().next()?;
+    let mut spans = evidence.remove(&candidate_id).unwrap_or_default();
+    spans.sort();
+    spans.dedup();
+    let terms = spans
+        .iter()
+        .filter_map(|span| {
+            scenes
+                .iter()
+                .find(|(scene_id, _)| *scene_id == span.scene_id)
+                .and_then(|(_, text)| text.get(span.start_byte..span.end_byte))
+                .map(str::to_string)
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    (!spans.is_empty()).then_some(DiscourseSense {
+        candidate_id,
+        terms,
+        spans,
+    })
+}
+
+fn mention_evidence_spans(
+    term: &str,
+    mention: &crate::identity::Mention,
+    scenes: &[(&str, &str)],
+) -> Vec<crate::identity::LinkEvidenceSpan> {
+    let Some((_, text)) = scenes
+        .iter()
+        .find(|(scene_id, _)| *scene_id == mention.scene_id)
+    else {
+        return Vec::new();
+    };
+    let (window_start, window_end) =
+        sentence_window_bounds(text, mention.start_byte, mention.end_byte);
+    let Some(window) = text.get(window_start..window_end) else {
+        return Vec::new();
+    };
+    term_ranges(window, term)
+        .into_iter()
+        .map(|(start, end)| crate::identity::LinkEvidenceSpan {
+            scene_id: mention.scene_id.clone(),
+            start_byte: window_start + start,
+            end_byte: window_start + end,
+        })
+        .collect()
+}
+
 fn explain_candidate(
     score: i32,
     entry: &EntityIndexEntry,
+    language: &str,
     identity: &CanonicalIdentity,
     scenes: &[(&str, &str)],
+    discourse_prior: Option<&DiscourseSense>,
 ) -> LinkCandidate {
     let exact_alias = entry.canonical_name == identity.canonical_surface
         || entry
@@ -319,6 +493,12 @@ fn explain_candidate(
     counter_spans.dedup();
     let type_match = entry.entity_type.eq_ignore_ascii_case(&identity.kind)
         || (entry.entity_type == "ORG" && identity.kind == "ORGANIZATION");
+    let context = identity_context(identity, scenes);
+    let cue_terms = matching_type_cues(language, &entry.entity_type, &context);
+    let cue_spans: Vec<LinkEvidenceSpan> = cue_terms
+        .iter()
+        .flat_map(|term| evidence_spans(term, identity, scenes))
+        .collect();
 
     let mut features = vec![
         LinkFeature {
@@ -353,7 +533,21 @@ fn explain_candidate(
             terms: counter_terms,
             spans: counter_spans,
         },
+        LinkFeature {
+            name: "type_cue".to_string(),
+            value: link_weights().type_cue_weight * cue_terms.len() as i32,
+            terms: cue_terms,
+            spans: cue_spans,
+        },
     ];
+    if let Some(prior) = discourse_prior {
+        features.push(LinkFeature {
+            name: "discourse_prior".to_string(),
+            value: link_weights().discourse_prior_weight,
+            terms: prior.terms.clone(),
+            spans: prior.spans.clone(),
+        });
+    }
     features.truncate(link_weights().max_features);
     LinkCandidate {
         kb_id: entry.id.clone(),
@@ -384,19 +578,12 @@ fn evidence_spans(
         let Some(window) = text.get(window_start..window_end) else {
             continue;
         };
-        for (start, _) in window.char_indices() {
-            let Some(end) = start.checked_add(term.len()) else {
-                continue;
-            };
-            if let Some(candidate) = window.get(start..end) {
-                if candidate.eq_ignore_ascii_case(term) {
-                    spans.push(LinkEvidenceSpan {
-                        scene_id: mention.scene_id.clone(),
-                        start_byte: window_start + start,
-                        end_byte: window_start + end,
-                    });
-                }
-            }
+        for (start, end) in term_ranges(window, term) {
+            spans.push(LinkEvidenceSpan {
+                scene_id: mention.scene_id.clone(),
+                start_byte: window_start + start,
+                end_byte: window_start + end,
+            });
         }
     }
     spans.sort();
@@ -407,16 +594,15 @@ fn evidence_spans(
 /// Deterministic evidence score. Context terms add support, counter terms
 /// remove it, a spelled-out canonical name is the strongest single signal, and
 /// a matching type is a small prior. A tie is always ambiguous.
-fn context_score(entry: &EntityIndexEntry, kind: &str, context: &str) -> i32 {
-    let context = context.to_lowercase();
+fn context_score(language: &str, entry: &EntityIndexEntry, kind: &str, context: &str) -> i32 {
     let mut score = 0;
     for term in &entry.context_terms {
-        if !term.is_empty() && context.contains(&term.to_lowercase()) {
+        if !term.is_empty() && contains_term(context, term) {
             score += link_weights().context_overlap_weight;
         }
     }
     for term in &entry.counter_terms {
-        if !term.is_empty() && context.contains(&term.to_lowercase()) {
+        if !term.is_empty() && contains_term(context, term) {
             score += link_weights().counter_penalty_weight;
         }
     }
@@ -425,7 +611,93 @@ fn context_score(entry: &EntityIndexEntry, kind: &str, context: &str) -> i32 {
     {
         score += link_weights().type_prior_weight;
     }
+    score += link_weights().type_cue_weight
+        * matching_type_cues(language, &entry.entity_type, &context).len() as i32;
     score
+}
+
+fn identity_context(identity: &CanonicalIdentity, scenes: &[(&str, &str)]) -> String {
+    identity
+        .mentions
+        .iter()
+        .filter_map(|mention| {
+            scenes
+                .iter()
+                .find(|(scene_id, _)| *scene_id == mention.scene_id)
+                .map(|(_, text)| sentence_window(text, mention.start_byte, mention.end_byte))
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn matching_type_cues(language: &str, entity_type: &str, context: &str) -> Vec<String> {
+    let file = type_cues();
+    debug_assert_eq!(file.schema, "entity_type_cues.v1");
+    let cues = file
+        .languages
+        .get(language)
+        .or_else(|| file.languages.get("*"));
+    let class = if entity_type.eq_ignore_ascii_case("ORGANIZATION") {
+        "ORG"
+    } else {
+        entity_type
+    };
+    let Some(terms) = cues.and_then(|classes| classes.get(&class.to_ascii_uppercase())) else {
+        return Vec::new();
+    };
+    terms
+        .iter()
+        .filter(|term| contains_term(context, term))
+        .cloned()
+        .collect()
+}
+
+fn contains_term(text: &str, term: &str) -> bool {
+    let lower = text.to_lowercase();
+    let needle = term.to_lowercase();
+    lower.match_indices(&needle).any(|(start, _)| {
+        let end = start + needle.len();
+        let before_ok = start == 0
+            || !lower[..start]
+                .chars()
+                .last()
+                .is_some_and(char::is_alphanumeric);
+        let after_ok = end == lower.len()
+            || !lower[end..]
+                .chars()
+                .next()
+                .is_some_and(char::is_alphanumeric);
+        before_ok && after_ok
+    })
+}
+
+/// Find case-insensitive whole-word occurrences while retaining byte offsets
+/// into the original source. Context and counter terms are lexical cues, so
+/// `film` must not match inside `filmmaker` or `filmography`.
+fn term_ranges(text: &str, term: &str) -> Vec<(usize, usize)> {
+    if term.is_empty() {
+        return Vec::new();
+    }
+    let mut ranges = Vec::new();
+    for (start, _) in text.char_indices() {
+        let Some(end) = start.checked_add(term.len()) else {
+            continue;
+        };
+        let Some(candidate) = text.get(start..end) else {
+            continue;
+        };
+        if !candidate.eq_ignore_ascii_case(term) && candidate.to_lowercase() != term.to_lowercase()
+        {
+            continue;
+        }
+        let before = text[..start].chars().next_back();
+        let after = text[end..].chars().next();
+        if before.is_some_and(char::is_alphanumeric) || after.is_some_and(char::is_alphanumeric) {
+            continue;
+        }
+        ranges.push((start, end));
+    }
+    ranges
 }
 
 /// Builds at most three ordered intents. Identity is always first for a named
@@ -586,6 +858,29 @@ mod tests {
     }
 
     #[test]
+    fn context_and_counter_terms_match_whole_words_and_ground_the_exact_surface() {
+        let entry = EntityIndexEntry {
+            id: "test:film".into(),
+            canonical_name: "Film".into(),
+            entity_type: "OBJECT".into(),
+            gloss: String::new(),
+            negative_constraints: Vec::new(),
+            aliases: BTreeMap::new(),
+            context_terms: vec!["film".into()],
+            counter_terms: vec!["city".into()],
+        };
+        assert_eq!(context_score("en", &entry, "PERSON", "filmmaker"), 0);
+        assert_eq!(context_score("en", &entry, "PERSON", "film"), 3);
+        assert_eq!(context_score("en", &entry, "PERSON", "cityscape"), 0);
+        assert_eq!(context_score("en", &entry, "PERSON", "city"), -4);
+        assert_eq!(
+            term_ranges("filmmaker", "film"),
+            Vec::<(usize, usize)>::new()
+        );
+        assert_eq!(term_ranges("at the Film festival", "film"), vec![(7, 11)]);
+    }
+
+    #[test]
     fn another_language_alias_matches_the_same_entry() {
         // The index matches normalized aliases across languages, so the same
         // KB id is returned regardless of the mention language.
@@ -631,18 +926,108 @@ mod tests {
     }
 
     #[test]
+    fn discourse_prior_carries_a_resolved_sense_only_within_its_thread() {
+        let first = "Mercury has an orbit around the sun.";
+        let second = "Mercury was mentioned again.";
+        let identity = CanonicalIdentity {
+            id: "loc_mercury".into(),
+            canonical_id: "location:mercury".into(),
+            canonical_surface: "Mercury".into(),
+            kind: "LOCATION".into(),
+            mentions: vec![
+                Mention {
+                    scene_id: "s1".into(),
+                    surface: "Mercury".into(),
+                    start_byte: 0,
+                    end_byte: 7,
+                },
+                Mention {
+                    scene_id: "s2".into(),
+                    surface: "Mercury".into(),
+                    start_byte: 0,
+                    end_byte: 7,
+                },
+            ],
+        };
+        let scenes = [("s1", first), ("s2", second)];
+        let thread = crate::narrative::EntityThread {
+            entity_id: "loc_mercury".into(),
+            canonical_surface: "Mercury".into(),
+            entity_type: "LOCATION".into(),
+            scene_ids: vec!["s1".into(), "s2".into()],
+            first_scene_id: "s1".into(),
+            last_scene_id: "s2".into(),
+            mention_count: 2,
+            return_count: 0,
+            beats: Vec::new(),
+        };
+        let linked = link_all_with_threads("en", &scenes, &[identity.clone()], &[thread.clone()])
+            .pop()
+            .unwrap();
+        assert_eq!(linked.canonical_id.as_deref(), Some("wd:Q308"));
+        let prior = linked.link_candidates[0]
+            .features
+            .iter()
+            .find(|feature| feature.name == "discourse_prior")
+            .expect("winning sense should expose its discourse prior");
+        assert_eq!(prior.value, link_weights().discourse_prior_weight);
+        assert_eq!(prior.terms, ["orbit"]);
+        assert_eq!(prior.spans.len(), 1);
+        assert_eq!(
+            &first[prior.spans[0].start_byte..prior.spans[0].end_byte],
+            "orbit"
+        );
+
+        let wrong_thread = crate::narrative::EntityThread {
+            entity_id: "another_entity".into(),
+            ..thread
+        };
+        let without_prior =
+            link_all_with_threads("en", &scenes, &[identity.clone()], &[wrong_thread])
+                .pop()
+                .unwrap();
+        assert!(without_prior.link_candidates[0]
+            .features
+            .iter()
+            .all(|feature| feature.name != "discourse_prior"));
+
+        let wrong_type = crate::narrative::EntityThread {
+            entity_type: "PERSON".into(),
+            ..crate::narrative::EntityThread {
+                entity_id: "loc_mercury".into(),
+                canonical_surface: "Mercury".into(),
+                entity_type: "LOCATION".into(),
+                scene_ids: vec!["s1".into(), "s2".into()],
+                first_scene_id: "s1".into(),
+                last_scene_id: "s2".into(),
+                mention_count: 2,
+                return_count: 0,
+                beats: Vec::new(),
+            }
+        };
+        let without_cross_type_prior =
+            link_all_with_threads("en", &scenes, &[identity], &[wrong_type])
+                .pop()
+                .unwrap();
+        assert!(without_cross_type_prior.link_candidates[0]
+            .features
+            .iter()
+            .all(|feature| feature.name != "discourse_prior"));
+    }
+
+    #[test]
     fn linked_entities_expose_bounded_candidates_and_byte_exact_evidence() {
         let text = "ESA e NASA studiano Marte con nuove missioni spaziali.";
         let entity = link_one(text, "ESA", "ORG");
         assert_eq!(entity.canonical_id.as_deref(), Some("wd:Q42262"));
-        assert_eq!(entity.link_rule.as_deref(), Some("entity_linker.v1"));
+        assert_eq!(entity.link_rule.as_deref(), Some("entity_linker.v3"));
         assert_eq!(entity.link_candidates.len(), 2);
         assert_eq!(entity.link_candidates[0].kb_id, "wd:Q42262");
         assert!(entity.link_margin.is_some_and(|margin| margin > 0));
         assert!(entity
             .link_candidates
             .iter()
-            .all(|candidate| candidate.features.len() <= 5));
+            .all(|candidate| candidate.features.len() <= 6));
         assert!(entity.link_candidates[0]
             .features
             .iter()
@@ -660,6 +1045,18 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn entity_type_cues_are_localized_and_keep_exact_evidence_spans() {
+        let text = "ESA è un'agenzia spaziale.";
+        let identity = identity("org_01", "ESA", "ORG", "s1");
+        let terms = matching_type_cues("it", "ORG", text);
+        assert!(terms.iter().any(|term| term == "agenzia"));
+        let spans = evidence_spans("agenzia", &identity, &[("s1", text)]);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(&text[spans[0].start_byte..spans[0].end_byte], "agenzia");
+        assert!(matching_type_cues("en", "ORG", "ESA è un'agenzia spaziale.").is_empty());
     }
 
     #[test]

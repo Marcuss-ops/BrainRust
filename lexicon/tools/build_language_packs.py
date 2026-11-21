@@ -43,6 +43,7 @@ ones, so a data edit can never leave a stale pack behind.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -64,6 +65,11 @@ GO_PROFILES = (
 LEGAL = ROOT / "lexicon" / "legal"
 NUMBER_WORDS = ROOT / "lexicon" / "number_words.json"
 RELATIVE_TIME = ROOT / "lexicon" / "relative_time.json"
+GIVEN_NAMES = ROOT / "lexicon" / "given_names.json"
+PRONOUN_FIELDS = {"surface", "person", "gender", "number", "animacy", "case", "kind"}
+REFERENCE_TERM_LANGUAGES = ("de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr")
+REFERENCE_TERM_SCHEMA = "discourse_reference_terms.v1"
+REFERENCE_TERM_FILE = ROOT / "lexicon" / "discourse_reference_terms_v1.json"
 LEGAL_INDEX = LEGAL / "index.json"
 GENERATED_LEGAL = ROOT / "semantic-core" / "src" / "generated_legal_packs.rs"
 
@@ -242,6 +248,79 @@ def validate_relative_time(languages: list[str]) -> None:
                 )
 
 
+def validate_structured_pronouns(languages: list[str]) -> None:
+    """Keep typed pronoun inventories in sync with the closed-class sources."""
+    for language in languages:
+        if language == "fallback":
+            continue
+        source = LANGUAGES / language / "pronouns.txt"
+        structured = LANGUAGES / language / "pronouns.json"
+        if not structured.is_file():
+            raise SystemExit(f"{structured}: missing structured pronoun inventory")
+        payload = json.loads(structured.read_text(encoding="utf-8"))
+        if payload.get("schema") != "pronouns.v1" or payload.get("language") != language:
+            raise SystemExit(f"{structured}: expected pronouns.v1 for {language}")
+        rows = payload.get("pronouns")
+        if not isinstance(rows, list):
+            raise SystemExit(f"{structured}: pronouns must be an array")
+        surfaces = []
+        for row in rows:
+            if set(row) != PRONOUN_FIELDS:
+                raise SystemExit(f"{structured}: each row must contain {sorted(PRONOUN_FIELDS)}")
+            if not isinstance(row["surface"], str) or not row["surface"].strip():
+                raise SystemExit(f"{structured}: surface must be non-empty")
+            for field, allowed in {
+                "person": {"1", "2", "3", "unknown"},
+                "gender": {"masculine", "feminine", "neuter", "common", "unknown"},
+                "number": {"singular", "plural", "unknown"},
+                "animacy": {"animate", "inanimate", "unknown"},
+                "case": {"nominative", "accusative", "dative", "genitive", "oblique", "unknown"},
+                "kind": {"personal", "possessive", "demonstrative", "relative", "reflexive"},
+            }.items():
+                if row[field] not in allowed:
+                    raise SystemExit(f"{structured}: invalid {field} on {row['surface']!r}")
+            surfaces.append(row["surface"].lower())
+        expected = read_words(source)
+        # German, Dutch and Turkish had no dedicated pronouns.txt; their
+        # curated pronouns.json inventory is deliberately additive metadata so
+        # the generated language-pack bytes remain unchanged.
+        if source.is_file() and sorted(set(surfaces)) != expected:
+            raise SystemExit(f"{structured}: surfaces must exactly match {source}")
+        if not surfaces:
+            raise SystemExit(f"{structured}: pronoun inventory must not be empty")
+
+
+def validate_given_names(languages: list[str]) -> None:
+    """Validate the curated names shared by NER and discourse resolution."""
+    data = json.loads(GIVEN_NAMES.read_text(encoding="utf-8"))
+    if data.get("schema") != "given_names.v1":
+        raise SystemExit(f"{GIVEN_NAMES}: expected schema given_names.v1")
+    entries = data.get("languages", {})
+    missing = [language for language in languages if language != "fallback" and language not in entries]
+    if missing:
+        raise SystemExit(f"{GIVEN_NAMES}: missing languages: " + ", ".join(missing))
+    for language in languages:
+        if language == "fallback":
+            continue
+        entry = entries[language]
+        if set(entry) != {"feminine", "masculine", "unknown"}:
+            raise SystemExit(f"{GIVEN_NAMES}: {language} must define feminine, masculine, and unknown lists")
+        normalized: dict[str, set[str]] = {}
+        for gender in ("feminine", "masculine", "unknown"):
+            names = entry[gender]
+            if not isinstance(names, list) or any(not isinstance(name, str) or not name.strip() for name in names):
+                raise SystemExit(f"{GIVEN_NAMES}: {language}.{gender} must contain non-empty strings")
+            folded = [name.casefold() for name in names]
+            if len(folded) != len(set(folded)):
+                raise SystemExit(f"{GIVEN_NAMES}: duplicate {gender} name in {language}")
+            normalized[gender] = set(folded)
+        overlap = (normalized["feminine"] & normalized["masculine"]) | (
+            normalized["unknown"] & (normalized["feminine"] | normalized["masculine"])
+        )
+        if overlap:
+            raise SystemExit(f"{GIVEN_NAMES}: ambiguous gender entries in {language}: {sorted(overlap)}")
+
+
 def build() -> tuple[list[str], list[str], dict[Path, str]]:
     languages = sorted(
         path.name
@@ -270,6 +349,8 @@ def build() -> tuple[list[str], list[str], dict[Path, str]]:
     )
     validate_number_words(profile_languages)
     validate_relative_time(profile_languages)
+    validate_structured_pronouns(profile_languages)
+    validate_given_names(profile_languages)
     profiles = []
     for language in profile_languages:
         profile = build_profile(language)
@@ -347,6 +428,89 @@ def build() -> tuple[list[str], list[str], dict[Path, str]]:
     return languages, profile_languages, files
 
 
+def validate_auxiliary_lexicons() -> list[str]:
+    """Keep additive semantic lexicons under the canonical language-data gate."""
+    tools = ROOT / "lexicon" / "tools"
+    validators = (
+        ("check_roles.py", "role-check", lambda module: [
+            error for language in ("en", "it", "es", "de", "fr", "id", "nl", "pl", "pt", "ru", "tr") for error in module.check(language)
+        ]),
+        ("check_event_lexicons.py", "event-check", lambda module: [
+            error
+            for language in ("en", "it", "es", "fr", "pt", "de", "nl", "id", "pl", "ru", "tr")
+            for error in module.validate(
+                ROOT / "lexicon" / "events" / f"{language}.json", language
+            )
+        ]),
+    )
+    errors = []
+    for filename, module_name, validate in validators:
+        spec = importlib.util.spec_from_file_location(module_name, tools / filename)
+        if spec is None or spec.loader is None:
+            errors.append(f"cannot load lexicon validator: {filename}")
+            continue
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        errors.extend(validate(module))
+    errors.extend(validate_discourse_reference_terms())
+    return errors
+
+
+def validate_discourse_reference_terms() -> list[str]:
+    """Validate the language-scoped terms consumed by the discourse resolver."""
+    try:
+        data = json.loads(REFERENCE_TERM_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"{REFERENCE_TERM_FILE.relative_to(ROOT)}: {error}"]
+
+    errors = []
+    if data.get("schema") != REFERENCE_TERM_SCHEMA:
+        errors.append(f"{REFERENCE_TERM_FILE.relative_to(ROOT)}: expected {REFERENCE_TERM_SCHEMA}")
+    languages = data.get("languages")
+    if not isinstance(languages, dict) or set(languages) != set(REFERENCE_TERM_LANGUAGES):
+        errors.append(
+            f"{REFERENCE_TERM_FILE.relative_to(ROOT)}: languages must be "
+            f"{', '.join(REFERENCE_TERM_LANGUAGES)}"
+        )
+        return errors
+
+    for language, inventory in languages.items():
+        if not isinstance(inventory, dict):
+            errors.append(f"{language}: expected an object")
+            continue
+        for key, allowed_fields in (
+            ("terms", {"text", "type", "kind", "number"}),
+            ("phrases", {"text", "kind", "number"}),
+        ):
+            rows = inventory.get(key)
+            if not isinstance(rows, list):
+                errors.append(f"{language}.{key}: expected an array")
+                continue
+            seen = set()
+            for index, row in enumerate(rows):
+                label = f"{language}.{key}[{index}]"
+                if not isinstance(row, dict) or set(row) != allowed_fields:
+                    errors.append(f"{label}: fields must be {', '.join(sorted(allowed_fields))}")
+                    continue
+                text = row["text"]
+                if not isinstance(text, str) or not text or text != text.lower():
+                    errors.append(f"{label}.text: expected a non-empty lowercase string")
+                    continue
+                if text in seen:
+                    errors.append(f"{label}.text: duplicate {text!r}")
+                seen.add(text)
+                if not isinstance(row["kind"], str) or row["kind"] not in {"PERSON", "ORG", "ANY"}:
+                    errors.append(f"{label}.kind: invalid value {row['kind']!r}")
+                if not isinstance(row["number"], str) or row["number"] not in {"singular", "plural", "unknown"}:
+                    errors.append(f"{label}.number: invalid value {row['number']!r}")
+                if key == "terms" and (
+                    not isinstance(row["type"], str)
+                    or row["type"] not in {"pronoun", "nominal_reference"}
+                ):
+                    errors.append(f"{label}.type: invalid value {row['type']!r}")
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -355,6 +519,12 @@ def main() -> int:
         help="verify the committed packs match the sources; never writes",
     )
     args = parser.parse_args()
+
+    auxiliary_errors = validate_auxiliary_lexicons()
+    if auxiliary_errors:
+        print("semantic lexicons are invalid:", file=sys.stderr)
+        print("\n".join(f"  {error}" for error in auxiliary_errors), file=sys.stderr)
+        return 1
 
     languages, profile_languages, files = build()
     stale = [
@@ -375,7 +545,9 @@ def main() -> int:
             return 1
         print(
             f"language packs: {len(languages)} up to date -> {', '.join(languages)}; "
-            f"profiles: {len(profile_languages)}; Go snapshot up to date"
+            f"profiles: {len(profile_languages)}; Go snapshot up to date; "
+            "role lexicons valid (11 languages); event lexicons valid (11 languages); "
+            "discourse reference lexicon valid (11 languages)"
         )
         return 0
 

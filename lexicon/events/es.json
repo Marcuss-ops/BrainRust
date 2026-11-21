@@ -1,0 +1,343 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "es",
+  "event_types": {
+    "birth": [
+      {
+        "surface": "nació",
+        "lemma": "nacer",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "nacimiento",
+        "lemma": "nacer",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "death": [
+      {
+        "surface": "murió",
+        "lemma": "morir",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "muerte",
+        "lemma": "morir",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "arrest": [
+      {
+        "surface": "fue arrestado",
+        "lemma": "arrestar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue arrestada",
+        "lemma": "arrestar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "arrestó",
+        "lemma": "arrestar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "fue condenado",
+        "lemma": "condenar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue condenada",
+        "lemma": "condenar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue absuelto",
+        "lemma": "absolver",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "condenó",
+        "lemma": "condenar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "fue elegido",
+        "lemma": "elegir",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue elegida",
+        "lemma": "elegir",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "ganó las elecciones",
+        "lemma": "ganar",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "fue nombrado",
+        "lemma": "nombrar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue nombrada",
+        "lemma": "nombrar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "dimitió",
+        "lemma": "dimitir",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "fue fundada",
+        "lemma": "fundar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue fundado",
+        "lemma": "fundar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fundó",
+        "lemma": "fundar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "fue adquirida",
+        "lemma": "adquirir",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue adquirido",
+        "lemma": "adquirir",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "adquirió",
+        "lemma": "adquirir",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "se fusionó con",
+        "lemma": "fusionar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "counterparty": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "fue lanzado",
+        "lemma": "lanzar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue lanzada",
+        "lemma": "lanzar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "lanzó",
+        "lemma": "lanzar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "fue publicado",
+        "lemma": "publicar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "se estrelló",
+        "lemma": "estrellar",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "accidente",
+        "lemma": "accidentar",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "fue atacado",
+        "lemma": "atacar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "fue atacada",
+        "lemma": "atacar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "atacó",
+        "lemma": "atacar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "ataque",
+        "lemma": "atacar",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "derrotó",
+        "lemma": "derrotar",
+        "voice": "active",
+        "roles": {
+          "winner": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "ganó el partido",
+        "lemma": "ganar",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "ganó",
+        "lemma": "ganar",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ],
+    "agreement": [
+      {
+        "surface": "firmó un acuerdo",
+        "lemma": "firmar",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject",
+          "counterparty": "object"
+        }
+      },
+      {
+        "surface": "acuerdo",
+        "lemma": "acordar",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ]
+  }
+}

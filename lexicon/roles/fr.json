@@ -1,0 +1,540 @@
+{
+  "schema": "role_lexicon.v1",
+  "language": "fr",
+  "roles": [
+    {
+      "role_code": "chief_executive",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "directeur général",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "président",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "présidente",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "vice_president",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "vice-président",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_operating_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "directeur des opérations",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_financial_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "directeur financier",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chief_technology_officer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "directeur technique",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "fondateur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "fondatrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "co_founder",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "cofondateur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "director",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "directeur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "board_member",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "membre du conseil",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "chairperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "président du conseil",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "secretary",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "secrétaire",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "treasurer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "trésorier",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ministre",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "prime_minister",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "premier ministre",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "mayor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "maire",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "governor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "gouverneur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "senator",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "sénateur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "representative",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "député",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "judge",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "juge",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "prosecutor",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "procureur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "procureure",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "lawyer",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "avocat",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "avocate",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "police_chief",
+      "scope": "place",
+      "surfaces": [
+        {
+          "text": "chef de police",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "coach",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "entraîneur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "captain",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "capitaine",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "player",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "joueur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "manager",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "directeur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "spokesperson",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "porte-parole",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "journalist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "journaliste",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "editor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "rédacteur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "professor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "professeur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "researcher",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "chercheur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "scientist",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "scientifique",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "doctor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "médecin",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "engineer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "ingénieur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "artist",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "artiste",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "actor",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "acteur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "actrice",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "singer",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "chanteur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        },
+        {
+          "text": "chanteuse",
+          "gender": "feminine",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "author",
+      "scope": "none",
+      "surfaces": [
+        {
+          "text": "auteur",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    },
+    {
+      "role_code": "owner",
+      "scope": "org",
+      "surfaces": [
+        {
+          "text": "propriétaire",
+          "gender": "unknown",
+          "number": "singular",
+          "case": "nominative"
+        }
+      ]
+    }
+  ],
+  "tense_markers": {
+    "former": [
+      "ancien",
+      "ancienne",
+      "ex-"
+    ],
+    "acting": [
+      "par intérim"
+    ],
+    "appointed": [
+      "nommé",
+      "nommée"
+    ],
+    "resigned": [
+      "démissionné",
+      "a démissionné"
+    ]
+  }
+}

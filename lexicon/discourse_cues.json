@@ -389,6 +389,12 @@
     ],
     [
       "enquanto"
+    ],
+    [
+      "karşısında"
+    ],
+    [
+      "kıyasla"
     ]
   ],
   "comparative_adj": [
@@ -674,5 +680,95 @@
     "three years later",
     "anni dopo",
     "years later"
-  ]
+  ],
+  "ratio_signals": {
+    "de": [
+      "doppelt",
+      "doppelte",
+      "doppelten",
+      "zweimal",
+      "dreifach",
+      "dreifache"
+    ],
+    "en": [
+      "double",
+      "twice",
+      "triple",
+      "tripled"
+    ],
+    "es": [
+      "doble",
+      "duplicado",
+      "dos veces",
+      "triple",
+      "triplicado"
+    ],
+    "fr": [
+      "double",
+      "doublé",
+      "doublée",
+      "deux fois",
+      "triple"
+    ],
+    "id": [
+      "dua kali",
+      "dua kali lipat",
+      "tiga kali"
+    ],
+    "it": [
+      "doppio",
+      "doppia",
+      "doppie",
+      "doppî",
+      "triplicato",
+      "triplicata"
+    ],
+    "nl": [
+      "dubbel",
+      "dubbele",
+      "tweemaal",
+      "drie keer"
+    ],
+    "pl": [
+      "dwukrotnie",
+      "dwukrotności",
+      "podwójnie",
+      "dwa razy",
+      "trzykrotnie"
+    ],
+    "pt": [
+      "dobro",
+      "dobro de",
+      "duas vezes",
+      "triplo",
+      "triplicado"
+    ],
+    "ru": [
+      "вдвое",
+      "удвоенных",
+      "удвоенный",
+      "дважды",
+      "втрое"
+    ],
+    "tr": [
+      "iki kat",
+      "iki katı",
+      "iki misli",
+      "üç kat",
+      "uc kat"
+    ]
+  },
+  "change_signals": {
+    "de": ["stieg auf", "sank auf"],
+    "en": ["rose to", "fell to"],
+    "es": ["subió a", "cayó a"],
+    "fr": ["augmenté à", "baissé à"],
+    "id": ["meningkat menjadi", "turun menjadi"],
+    "it": ["salito al", "sceso al"],
+    "nl": ["steeg naar", "daalde naar"],
+    "pl": ["wzrosło do", "spadło do"],
+    "pt": ["subiu para", "caiu para"],
+    "ru": ["выросло до", "снизилось до"],
+    "tr": ["yükseldi", "yükselerek"]
+  }
 }

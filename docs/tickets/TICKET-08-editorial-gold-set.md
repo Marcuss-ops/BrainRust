@@ -60,3 +60,10 @@ Freeze the annotation protocol and the 60/20/20 split, have a second reviewer
 label the held-out portion, then add the measurement harness against that
 frozen set. Use the review packet as the review queue for the 19 existing
 drafts, not as evidence of independent annotation.
+
+## Verifica 2026-11-20
+
+Blocco invariato: `semantic-engine/fixtures/gold_multilingual/long_scripts/gold.json`
+ha **1** script con authority `human_annotator` e **19** con
+`assistant_draft_pending_human_review`. Non è arrivato un secondo revisore né
+un set held-out annotato in modo indipendente; lo stato resta **BLOCKED**.

@@ -1,0 +1,232 @@
+{
+  "schema": "event_triggers.v1",
+  "language": "pt",
+  "event_types": {
+    "birth": [
+      {
+        "surface": "nasceu",
+        "lemma": "nascer",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "nascimento",
+        "lemma": "nascer",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "death": [
+      {
+        "surface": "morreu",
+        "lemma": "morrer",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "morte",
+        "lemma": "morrer",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "arrest": [
+      {
+        "surface": "foi preso",
+        "lemma": "prender",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "foi presa",
+        "lemma": "prender",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "trial_verdict": [
+      {
+        "surface": "foi condenado",
+        "lemma": "condenar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "foi condenada",
+        "lemma": "condenar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "election": [
+      {
+        "surface": "foi eleito",
+        "lemma": "eleger",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "foi eleita",
+        "lemma": "eleger",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "appointment_resignation": [
+      {
+        "surface": "foi nomeado",
+        "lemma": "nomear",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "foi nomeada",
+        "lemma": "nomear",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "renunciou",
+        "lemma": "renunciar",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "founding": [
+      {
+        "surface": "foi fundado",
+        "lemma": "fundar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "foi fundada",
+        "lemma": "fundar",
+        "voice": "passive",
+        "roles": {
+          "patient": "subject"
+        }
+      }
+    ],
+    "acquisition_merger": [
+      {
+        "surface": "adquiriu",
+        "lemma": "adquirir",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "fundiu-se com",
+        "lemma": "fundir",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "launch_release": [
+      {
+        "surface": "lançou",
+        "lemma": "lançar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "publicou",
+        "lemma": "publicar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "accident_disaster": [
+      {
+        "surface": "sofreu um acidente",
+        "lemma": "sofrer",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      },
+      {
+        "surface": "colidiu",
+        "lemma": "colidir",
+        "voice": "active",
+        "roles": {
+          "vehicle": "subject"
+        }
+      }
+    ],
+    "attack_battle": [
+      {
+        "surface": "atacou",
+        "lemma": "atacar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      },
+      {
+        "surface": "invadiu",
+        "lemma": "invadir",
+        "voice": "active",
+        "roles": {
+          "agent": "subject",
+          "patient": "object"
+        }
+      }
+    ],
+    "match_competition_result": [
+      {
+        "surface": "venceu",
+        "lemma": "vencer",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "derrotou",
+        "lemma": "derrotar",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      }
+    ]
+  }
+}
