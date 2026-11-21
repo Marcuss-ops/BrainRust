@@ -2,6 +2,38 @@
 
 use super::super::*;
 use crate::ExtractOptions;
+
+#[test]
+fn institutional_apposition_splits_from_the_person_and_ordinal_modifier_is_not_a_place() {
+    let source = "Il presidente della Repubblica Sergio Mattarella ricordò l’Orchestra Sinfonica Nazionale della Rai. L’Italia era nella Seconda guerra mondiale.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 50,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| { entity.text == "Sergio Mattarella" && entity.r#type == "PERSON" }),
+        "appositional person missing: {entities:?}"
+    );
+    assert!(!entities
+        .iter()
+        .any(|entity| entity.text == "Repubblica Sergio Mattarella"));
+    assert!(
+        entities.iter().any(|entity| {
+            entity.text == "Orchestra Sinfonica Nazionale della Rai" && entity.r#type == "ORG"
+        }),
+        "orchestra organization misclassified: {entities:?}"
+    );
+    assert!(!entities
+        .iter()
+        .any(|entity| entity.text == "Seconda" && entity.r#type == "LOCATION"));
+}
+
 #[test]
 fn spanish_propn_with_lowercase_lemma_is_a_person_and_a_place() {
     // The Spanish model lowercases every PROPN lemma ("Lucía" -> "lucía").
@@ -51,6 +83,61 @@ fn dutch_surname_particle_stays_inside_the_person_name() {
             .any(|entity| entity.text == "Emma de Vries" && entity.r#type == "PERSON"),
         "Dutch particle name missing: {entities:?}"
     );
+}
+
+#[test]
+fn hyphenated_arabic_name_particle_stays_inside_the_person_name() {
+    let source = "Il presidente Abdel Fattah al-Sisi ha parlato.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 50,
+        },
+    )
+    .expect("italian extraction");
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Abdel Fattah al-Sisi" && entity.r#type == "PERSON"),
+        "hyphenated particle name missing: {entities:?}"
+    );
+}
+
+#[test]
+fn apostrophe_name_particles_come_from_the_lexicon() {
+    let source = "Gabriele d'Annunzio arrivò a Roma.";
+    let tokens = super::super::tokenizer::tokenize(source, "it").expect("tokenize");
+    let runs = super::super::names::proper_name_runs(&tokens, source.as_bytes(), "it");
+    assert!(runs.iter().any(|(start, end)| {
+        tokens[*start..*end]
+            .iter()
+            .map(|token| token.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
+            == "Gabriele d'Annunzio"
+    }));
+}
+
+#[test]
+fn relational_context_types_single_person_names_without_a_given_name_allowlist() {
+    let source = "Sua madre, Emma, arrivò con una figlia, Natalia.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 50,
+        },
+    )
+    .expect("italian extraction");
+    for name in ["Emma", "Natalia"] {
+        assert!(
+            entities
+                .iter()
+                .any(|entity| entity.text == name && entity.r#type == "PERSON"),
+            "curated single name {name} missing: {entities:?}"
+        );
+    }
 }
 
 #[test]
@@ -281,7 +368,7 @@ fn dolly_places_and_song_titles_do_not_consume_person_slots() {
         Some("LOCATION")
     );
     assert_eq!(
-        find("Will Always Love You").map(|entity| entity.r#type.as_str()),
+        find("I Will Always Love You").map(|entity| entity.r#type.as_str()),
         Some("WORK")
     );
     assert!(!entities.iter().any(|entity| {
@@ -291,7 +378,7 @@ fn dolly_places_and_song_titles_do_not_consume_person_slots() {
                 "Sevier County"
                     | "Great Smoky Mountains"
                     | "Will Always Love"
-                    | "Will Always Love You"
+                    | "I Will Always Love You"
             )
     }));
 }

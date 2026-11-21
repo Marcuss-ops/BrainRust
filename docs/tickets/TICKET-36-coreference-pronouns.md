@@ -331,3 +331,12 @@ dipende da 35, 36e da 33.
 - Verificati i casi con un antecedente unico, due persone concorrenti e ruolo
   femminile discriminante: `cargo test -p semantic-engine --test discourse
   --locked` — **20/20 PASS**. Formatter e `git diff --check` — **PASS**.
+
+## Final recheck 2026-11-21 — current worker
+
+- Release worker on disk (`3e9bb942…`, built from HEAD `b541f1d`) used to
+  regenerate `coref_baseline.json`: **440/440** status and target matches,
+  **0** false resolutions, draft precision/recall 1.0. The report now carries
+  the current worker hash. Authority remains
+  `assistant_draft_pending_human_review`; independent review, agreement
+  breadth and the salience margin remain open.

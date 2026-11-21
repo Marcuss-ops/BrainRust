@@ -15,6 +15,11 @@ pub(crate) struct Token {
     pub(crate) upos: Option<String>,
     /// Dictionary form from the same UDPipe model, when it is installed.
     pub(crate) lemma: Option<String>,
+    pub(crate) features: Option<String>,
+    pub(crate) dependency: Option<String>,
+    pub(crate) id: Option<i32>,
+    pub(crate) head: Option<i32>,
+    pub(crate) sentence_id: Option<i32>,
 }
 
 /// tokenize segments `source_text` into words with ICU's word-break rules for
@@ -95,6 +100,11 @@ pub(crate) fn tokenize_untyped(source_text: &str, language: &str) -> Result<Vec<
             end: token_end,
             upos: None,
             lemma: None,
+            features: None,
+            dependency: None,
+            id: None,
+            head: None,
+            sentence_id: None,
         });
     }
     Ok(split_elided_clitics(source_text, tokens))

@@ -479,6 +479,8 @@ pub(crate) fn probe_file(ffprobe: &str, path: &str) -> Result<MediaMetadata, Mus
             .map(|value| value.round() as i64),
         has_video: video.is_some(),
         has_audio: audio.is_some(),
+        prepare_ms: None,
+        loudness_ms: None,
         mix_ms: None,
         aac_encode_ms: None,
         probe_ms: None,

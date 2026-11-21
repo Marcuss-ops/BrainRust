@@ -136,7 +136,7 @@ fn event_frames_are_projected_from_grounded_script_analysis() {
     );
     assert_eq!(
         value["analyzers"]["events"],
-        "event_frames.v2.cross_scene_facts"
+        "event_frames.v3.udpipe_lemma_grounding"
     );
     let events = value["events"].as_array().unwrap();
     assert_eq!(events.len(), 1);

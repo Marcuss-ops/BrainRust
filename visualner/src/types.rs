@@ -5,6 +5,23 @@
 
 use serde::{Deserialize, Serialize};
 
+/// One tokenizer/UDPipe result retained for downstream semantic grounding.
+/// Offsets refer to the original UTF-8 source; lemma and UPOS are absent when
+/// no model is installed for the requested language.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnalyzedToken {
+    pub text: String,
+    pub lemma: Option<String>,
+    pub upos: Option<String>,
+    pub features: Option<String>,
+    pub dependency: Option<String>,
+    pub id: Option<i32>,
+    pub head: Option<i32>,
+    pub sentence_id: Option<i32>,
+    pub start: usize,
+    pub end: usize,
+}
+
 /// A single source-grounded visual entity extracted from a scene's
 /// source text. V1 is deterministic: NO EVIDENCE → NO ENTITY — if the
 /// entity text cannot be demonstrated as a verbatim substring of the

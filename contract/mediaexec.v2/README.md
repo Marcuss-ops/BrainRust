@@ -13,7 +13,9 @@ checks out the monorepo without submodules.
 | `request.schema.json` | BrainRust | Golden-certified request envelope. |
 | `response.schema.json` | BrainRust | Golden-certified success response envelope. |
 | `goldens/*.json` | BrainRust | Canonical NDJSON request/response pairs. |
-| `validate.py` | BrainRust | Schema validation of every golden. |
+| `metadata-full.json` | BrainRust | Fully populated metadata: exercises every declared field. |
+| `metadata-audio-only.json` | BrainRust | Nullable metadata shape of an audio-only probe. |
+| `validate.py` | BrainRust | Schema validation of every golden and metadata fixture. |
 | `check_consumer_copy.sh` | BrainRust | Byte-parity gate for a consumer copy. |
 | `testdata/mediaexec/v2/` | PipelineGen | Consumer copy, kept in lockstep. |
 
@@ -21,6 +23,14 @@ The golden set covers the operations both sides certify end-to-end: `probe`,
 `cut_batch`, `normalize` and `preflight`. `render_stock` is intentionally
 absent: production sends a sealed `render_plan`, whose shape is owned by the
 typed consumers and their e2e suites, not by this envelope contract.
+
+The metadata fixtures are not goldens: they exist because the golden set only
+carries the fields the four certified operations needed, so it cannot notice a
+metadata field that the Rust struct emits but the schema does not declare —
+with `additionalProperties: false` that is a contract break, not a doc gap.
+`metadata-full.json` is pinned to the Rust struct by
+`protocol::tests::metadata_covers_every_declared_schema_field`, which asserts
+that the emitted keys, the declared keys and the fixture keys are the same set.
 
 `preflight` is read-only and carries a structured report. The envelope `ok` is
 true whenever the check ran; Go derives the blocking decision from the

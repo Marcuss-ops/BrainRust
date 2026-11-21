@@ -1,6 +1,6 @@
 use super::names::candidate_from_tokens;
 use super::tokenizer::Token;
-use super::values::Candidate;
+use super::values::{classify_value_type, Candidate};
 
 use semantic_core::lexicon::lexicon;
 
@@ -31,6 +31,7 @@ pub(super) fn mark_contextual_locations(
     };
     for index in 0..tokens.len() {
         if !name_evidence(&tokens[index].text)
+            || is_attributive_modifier(tokens, index)
             || is_month_name(&tokens[index].text)
             || is_acronym(&tokens[index].text)
             || !has_location_context(tokens, bytes, index)
@@ -48,7 +49,8 @@ pub(super) fn mark_contextual_locations(
             end += 1;
         }
         let mut place = candidate_from_tokens(tokens, source_text, index, end);
-        if is_generic_location_noun(&place.text)
+        if classify_value_type(&place.text, true, true, true, language) == "ORG"
+            || is_generic_location_noun(&place.text)
             || !is_place_name(&tokens[index], &place.text, language, cased)
             || ambiguous_location_cue(tokens, index) && !lexicon().is_place(&place.text, language)
         {
@@ -62,6 +64,7 @@ pub(super) fn mark_contextual_locations(
         if candidate.entity_type.is_some()
             || !name_evidence(&candidate.text)
             || is_acronym(&candidate.text)
+            || classify_value_type(&candidate.text, true, true, true, language) == "ORG"
         {
             continue;
         }
@@ -71,6 +74,9 @@ pub(super) fn mark_contextual_locations(
         else {
             continue;
         };
+        if is_attributive_modifier(tokens, token_index) {
+            continue;
+        }
         if !is_place_name(&tokens[token_index], &candidate.text, language, cased) {
             continue;
         }
@@ -108,6 +114,24 @@ pub(super) fn mark_contextual_locations(
             candidates.push(place);
         }
     }
+}
+
+/// An adjective attached to a following noun is part of that noun phrase,
+/// even when capitalization and a nearby preposition resemble a place cue
+/// (for example, an ordinal adjective inside a historical period name).
+fn is_attributive_modifier(tokens: &[Token], index: usize) -> bool {
+    let token = &tokens[index];
+    if !matches!(token.dependency.as_deref(), Some("amod" | "det")) {
+        return false;
+    }
+    let Some(head) = token.head else {
+        return false;
+    };
+    tokens.iter().any(|candidate| {
+        candidate.id == Some(head)
+            && candidate.start > token.start
+            && matches!(candidate.upos.as_deref(), Some("NOUN" | "PROPN"))
+    })
 }
 
 /// Some prepositions mark either a location or a human recipient. When one
@@ -277,6 +301,11 @@ mod tests {
             end: text.len(),
             upos: upos.map(str::to_string),
             lemma: None,
+            features: None,
+            dependency: None,
+            id: None,
+            head: None,
+            sentence_id: None,
         }
     }
 

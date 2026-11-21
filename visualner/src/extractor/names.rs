@@ -112,9 +112,18 @@ pub(crate) fn proper_name_runs(
         // An elided article opens the name it precedes ("dell'Università di
         // Torino"): the capitalized segment inside the token is name evidence
         // even though the token itself starts lowercase.
-        let opens_elided_name = elided_name_prefix_len(&tokens[i].text) > 0;
+        let opens_elided_name = elided_name_prefix_len(&tokens[i].text) > 0
+            || is_attached_name_particle(&tokens[i].text, language);
         let opens_curated_person_name =
             semantic_core::lexicon::is_curated_given_name(language, &tokens[i].text);
+        // Sentence-initial verbs are capitalized by grammar, not proper-name
+        // evidence ("Leggere Augias significa ..."). Keep the known-person
+        // exception so a model tagging a genuine given name as a verb does
+        // not erase a curated identity.
+        if tokens[i].upos.as_deref() == Some("VERB") && !opens_curated_person_name {
+            i += 1;
+            continue;
+        }
         if !opens_elided_name
             && ((is_stop_token(&tokens[i], language) && !opens_curated_person_name)
                 || !starts_uppercase(&tokens[i].text))
@@ -215,14 +224,32 @@ pub(crate) fn organization_name_runs(
             // or a comma starts a new name ("Museo Civico. Aurora Sport" is
             // two identities, "Museo Civico" and "Aurora Sport").
             let mut run_end = head + 1;
-            while run_end < tokens.len()
-                && starts_uppercase(&tokens[run_end].text)
-                && !is_stop_token(&tokens[run_end], language)
-                && !bytes[tokens[run_end - 1].end..tokens[run_end].start]
-                    .iter()
-                    .any(|byte| is_phrase_breaking_byte(*byte))
-            {
-                run_end += 1;
+            loop {
+                if run_end >= tokens.len()
+                    || bytes[tokens[run_end - 1].end..tokens[run_end].start]
+                        .iter()
+                        .any(|byte| is_phrase_breaking_byte(*byte))
+                {
+                    break;
+                }
+                if starts_uppercase(&tokens[run_end].text)
+                    && !is_stop_token(&tokens[run_end], language)
+                {
+                    run_end += 1;
+                    continue;
+                }
+                // Multiword articulated particles can sit inside institution
+                // names: "Orchestra Sinfonica Nazionale della Rai". Keep the
+                // particle only when a proper-name component follows it.
+                if is_name_particle(&tokens[run_end].text, language)
+                    && tokens.get(run_end + 1).is_some_and(|next| {
+                        starts_uppercase(&next.text) && !is_stop_token(next, language)
+                    })
+                {
+                    run_end += 1;
+                    continue;
+                }
+                break;
             }
             runs.push((start, run_end));
         }
@@ -262,7 +289,7 @@ fn name_run_continues(tokens: &[Token], bytes: &[u8], index: usize, language: &s
     {
         return true;
     }
-    if starts_uppercase(&token.text)
+    if (starts_uppercase(&token.text) || is_attached_name_particle(&token.text, language))
         && !is_stop_token(token, language)
         && !(token.text.len() == 1 && token.text.as_bytes()[0].is_ascii_uppercase())
         && !gap_breaks(index - 1, index)
@@ -275,6 +302,27 @@ fn name_run_continues(tokens: &[Token], bytes: &[u8], index: usize, language: &s
         && !is_stop_token(&tokens[index + 1], language)
         && !gap_breaks(index - 1, index)
         && !gap_breaks(index, index + 1)
+}
+
+/// Lowercase particles fused to a hyphenated surname remain part of a name
+/// token (al-Sisi, el-Sisi, ibn-X). ICU keeps these compounds whole, so the
+/// standalone-particle rule cannot see the prefix as a separate token.
+fn is_attached_name_particle(text: &str, language: &str) -> bool {
+    let Some((prefix, suffix)) = text.split_once(['-', '\'', '\u{2019}']) else {
+        return false;
+    };
+    let lexicon = &semantic_core::lexicon::lexicon().gazetteer.name_particles;
+    let particle = prefix.to_lowercase();
+    let base_language = language.split(['-', '_']).next().unwrap_or(language);
+    let listed = lexicon
+        .get("global")
+        .into_iter()
+        .chain(lexicon.get(base_language))
+        .flatten()
+        .any(|known| known.eq_ignore_ascii_case(&particle));
+    listed
+        && suffix.chars().next().is_some_and(char::is_uppercase)
+        && suffix.chars().any(char::is_alphabetic)
 }
 
 /// True when `text` is a curated organization head for the language
@@ -520,6 +568,11 @@ mod tests {
                     end: start + text.len(),
                     upos: upos.map(str::to_string),
                     lemma: None,
+                    features: None,
+                    dependency: None,
+                    id: None,
+                    head: None,
+                    sentence_id: None,
                 }
             })
             .collect()
@@ -565,6 +618,24 @@ mod tests {
         assert_eq!(
             organization_name_runs(&words, source.as_bytes(), "it"),
             vec![(0, 2)]
+        );
+        let words = tokens(&[
+            ("Orchestra", Some("PROPN")),
+            ("Sinfonica", Some("PROPN")),
+            ("Nazionale", Some("PROPN")),
+            ("della", Some("ADP")),
+            ("Rai", Some("PROPN")),
+        ]);
+        let source = source_of(&[
+            ("Orchestra", Some("PROPN")),
+            ("Sinfonica", Some("PROPN")),
+            ("Nazionale", Some("PROPN")),
+            ("della", Some("ADP")),
+            ("Rai", Some("PROPN")),
+        ]);
+        assert_eq!(
+            organization_name_runs(&words, source.as_bytes(), "it"),
+            vec![(0, 5)]
         );
     }
 

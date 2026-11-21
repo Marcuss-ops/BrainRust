@@ -4,11 +4,14 @@ mod envelopes;
 mod event_filter;
 #[path = "render_audio_execution/loudness.rs"]
 mod loudness;
+#[path = "render_audio_execution/loudness_cache.rs"]
+mod loudness_cache;
 #[path = "render_audio_execution/sources.rs"]
 mod sources;
 use envelopes::*;
 use event_filter::*;
 use loudness::*;
+use loudness_cache::LoudnessCache;
 use sources::SourceCaches;
 
 use crate::render_audio_plan::{track_events, validate_plan};
@@ -301,6 +304,15 @@ struct EncodeRun {
     mix_started: std::time::Instant,
 }
 
+/// The pre-mix wall, split so the BGM loudness measurement is not folded into
+/// the source probes and plan setup. Both are reported to the caller: before
+/// them, a render of a 14 s timeline could report 24 s of wall with only the
+/// 1-2 s mix accounted, and the remainder had no owner.
+struct PrepareTiming {
+    prepare_ms: i64,
+    loudness_ms: i64,
+}
+
 /// Per-stage timings plus the two failure modes that only exist once the
 /// children are reaped: the encoder's own exit and the first writer failure.
 struct EncodeTiming {
@@ -320,11 +332,20 @@ fn kill_children(encode: &mut std::process::Child, writers: &mut [std::process::
 impl<'a> RenderContext<'a> {
     /// Read the request, validate it and run one audio render.
     fn render(&self) -> Result<Response, RenderError> {
+        let prepare_started = std::time::Instant::now();
         let mut scratch = Scratch::default();
         let mut sources = SourceCaches::prefetch(self.plan, self.by_id, self.ffmpeg);
+        let loudness_ms = sources.loudness_ms();
         let chains = self.chains(&mut sources)?;
         let part = self.prepare_output()?;
         let (jobs, stem_inputs) = self.stem_jobs(chains, &part, &mut scratch);
+        // Everything before this instant is source preparation. The loudness
+        // measurement is reported separately, so prepare_ms never counts it
+        // twice and the two together close the pre-mix block.
+        let prepare = PrepareTiming {
+            prepare_ms: (prepare_started.elapsed().as_millis() as i64 - loudness_ms).max(0),
+            loudness_ms,
+        };
         // mix_ms measures the producer wall, which overlaps the encode by
         // construction; total_ms (measured by the caller) remains the wall.
         let mix_started = std::time::Instant::now();
@@ -357,7 +378,7 @@ impl<'a> RenderContext<'a> {
             let _ = fs::remove_file(&part);
             return Err(RenderError::new(None, error));
         }
-        self.publish(&part, timing)
+        self.publish(&part, timing, prepare)
     }
 
     /// Resolve every compiled event and legacy layer into one chain spec.
@@ -576,13 +597,20 @@ impl<'a> RenderContext<'a> {
     /// Probe the encoded master, attach the stage timings, publish atomically
     /// and hash what was actually published. Success is reported only after
     /// all four steps; nothing here can claim `ok` for a missing file.
-    fn publish(&self, part: &str, timing: EncodeTiming) -> Result<Response, RenderError> {
+    fn publish(
+        &self,
+        part: &str,
+        timing: EncodeTiming,
+        prepare: PrepareTiming,
+    ) -> Result<Response, RenderError> {
         let probe_started = std::time::Instant::now();
         let mut metadata = probe_audio(self.ffmpeg, part, self.master_secs).map_err(|error| {
             let _ = fs::remove_file(part);
             RenderError::new(None, error)
         })?;
         let probe_ms = probe_started.elapsed().as_millis() as i64;
+        metadata.prepare_ms = Some(prepare.prepare_ms);
+        metadata.loudness_ms = Some(prepare.loudness_ms);
         metadata.mix_ms = Some(timing.mix_ms);
         metadata.aac_encode_ms = Some(timing.aac_encode_ms);
         metadata.probe_ms = Some(probe_ms);

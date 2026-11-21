@@ -1,6 +1,21 @@
 {
   "schema": "lexicon.v1",
   "name_particles": {
+    "global": [
+      "al",
+      "el",
+      "ibn",
+      "bin",
+      "ben",
+      "abu",
+      "van",
+      "von",
+      "de",
+      "da",
+      "dos",
+      "d",
+      "o"
+    ],
     "nl": [
       "de",
       "van",
@@ -220,6 +235,7 @@
     "томск"
   ],
   "works": [
+    "torre di babele",
     "jolene",
     "9 to 5",
     "i will always love you",
@@ -932476,7 +932492,20 @@
       "associazione",
       "istituto",
       "centro",
-      "consorzio"
+      "consorzio",
+      "aeronautica",
+      "repubblica",
+      "marina",
+      "esercito",
+      "parlamento",
+      "senato",
+      "ministero",
+      "orchestra",
+      "teatro",
+      "partito",
+      "movimento",
+      "regione",
+      "comune"
     ],
     "nl": [
       "stichting",
@@ -932537,6 +932566,20 @@
       "кооператив",
       "центр",
       "консорциум"
+    ]
+  },
+  "organization_context_verbs": {
+    "it": [
+      "aderire",
+      "collaborare",
+      "dirigere",
+      "eleggere",
+      "entrare",
+      "fondare",
+      "lavorare",
+      "lasciare",
+      "nominare",
+      "uscire"
     ]
   },
   "typed_entities": {

@@ -8,7 +8,8 @@ use crate::types::{ExtractOptions, VisualEntity};
 use super::location::{is_phrase_breaking_byte, mark_contextual_locations, starts_uppercase};
 use super::names::{is_heading_surface, is_known_place, is_name_particle, opens_organization_name};
 use super::phrases::{
-    keeps_as_visual_candidate, noun_phrase_candidates, object_lexicon_candidates,
+    delimited_work_candidates, keeps_as_visual_candidate, noun_phrase_candidates,
+    object_lexicon_candidates, type_relation_introduced_people,
 };
 use super::pos::is_stop_token;
 use super::ranking::{entity_identity_key, named_entity_rank, score_entity};
@@ -55,7 +56,14 @@ pub(crate) fn extract_with_context_and_spellout(
     source_text: &str,
     options: &ExtractOptions,
     context: &ScriptContext,
-) -> Result<(Vec<VisualEntity>, Vec<crate::spellout::WordNumberCandidate>), String> {
+) -> Result<
+    (
+        Vec<VisualEntity>,
+        Vec<crate::spellout::WordNumberCandidate>,
+        Vec<crate::types::AnalyzedToken>,
+    ),
+    String,
+> {
     extract_with_context_and_spellout_mode(source_text, options, context, false)
 }
 
@@ -63,7 +71,14 @@ pub(crate) fn extract_with_context_and_spellout_preserving_mentions(
     source_text: &str,
     options: &ExtractOptions,
     context: &ScriptContext,
-) -> Result<(Vec<VisualEntity>, Vec<crate::spellout::WordNumberCandidate>), String> {
+) -> Result<
+    (
+        Vec<VisualEntity>,
+        Vec<crate::spellout::WordNumberCandidate>,
+        Vec<crate::types::AnalyzedToken>,
+    ),
+    String,
+> {
     extract_with_context_and_spellout_mode(source_text, options, context, true)
 }
 
@@ -72,12 +87,34 @@ fn extract_with_context_and_spellout_mode(
     options: &ExtractOptions,
     context: &ScriptContext,
     preserve_mentions: bool,
-) -> Result<(Vec<VisualEntity>, Vec<crate::spellout::WordNumberCandidate>), String> {
+) -> Result<
+    (
+        Vec<VisualEntity>,
+        Vec<crate::spellout::WordNumberCandidate>,
+        Vec<crate::types::AnalyzedToken>,
+    ),
+    String,
+> {
     let language = options.language.trim();
     if language.is_empty() {
         return Err("VisualNER language is required".to_string());
     }
     let tokens = tokenize(source_text, language)?;
+    let analyzed_tokens = tokens
+        .iter()
+        .map(|token| crate::types::AnalyzedToken {
+            text: token.text.clone(),
+            lemma: token.lemma.clone(),
+            upos: token.upos.clone(),
+            features: token.features.clone(),
+            dependency: token.dependency.clone(),
+            id: token.id,
+            head: token.head,
+            sentence_id: token.sentence_id,
+            start: token.start,
+            end: token.end,
+        })
+        .collect();
     // One case-folded copy per token, shared by the curated-name matcher and
     // the object lexicon instead of re-folding every token per probe.
     let token_lower: Vec<String> = tokens
@@ -85,6 +122,54 @@ fn extract_with_context_and_spellout_mode(
         .map(|token| token.text.to_lowercase())
         .collect();
     let mut candidates = noun_phrase_candidates(&tokens, &token_lower, source_text, language);
+    let (model_active, model_candidates) = super::ner::candidates(source_text, language)?;
+    for model_candidate in &model_candidates {
+        candidates.retain(|candidate| {
+            let nested =
+                candidate.start >= model_candidate.start && candidate.end <= model_candidate.end;
+            let conflicting_type =
+                candidate.entity_type.as_deref() != model_candidate.entity_type.as_deref();
+            !(nested && conflicting_type)
+        });
+    }
+    let work_candidates: Vec<_> = delimited_work_candidates(source_text)
+        .into_iter()
+        .filter(|work| {
+            !model_candidates.iter().any(|model| {
+                model.start == work.start
+                    && model.end == work.end
+                    && model.entity_type.as_deref() != Some("WORK")
+            })
+        })
+        .collect();
+    candidates.extend(model_candidates.iter().cloned());
+    let mut work_spans: Vec<(usize, usize)> = work_candidates
+        .iter()
+        .map(|work| (work.start, work.end))
+        .collect();
+    candidates.extend(work_candidates.iter().cloned());
+    if model_active {
+        candidates.retain(|candidate| {
+            let Some(kind) = candidate.entity_type.as_deref() else {
+                return true;
+            };
+            if !is_ner_entity_type(kind) {
+                return true;
+            }
+            model_candidates.iter().any(|model| {
+                model.start == candidate.start
+                    && model.end == candidate.end
+                    && model.entity_type.as_deref() == Some(kind)
+            }) || (kind == "WORK"
+                && work_candidates
+                    .iter()
+                    .any(|work| work.start == candidate.start && work.end == candidate.end))
+        });
+    }
+    work_spans.extend(candidates.iter().filter_map(|candidate| {
+        (candidate.entity_type.as_deref() == Some("WORK"))
+            .then_some((candidate.start, candidate.end))
+    }));
     for object in object_lexicon_candidates(&tokens, &token_lower, source_text, language) {
         if let Some(existing) = candidates
             .iter_mut()
@@ -96,15 +181,90 @@ fn extract_with_context_and_spellout_mode(
         }
     }
     candidates.extend(value_candidates(source_text));
-    mark_contextual_locations(&mut candidates, &tokens, source_text, language);
+    if !model_active {
+        type_relation_introduced_people(&mut candidates, &tokens, source_text, language);
+        mark_contextual_locations(&mut candidates, &tokens, source_text, language);
+        mark_contextual_organizations(&mut candidates, &tokens, language);
+        split_organization_person_appositions(&mut candidates, &tokens, source_text, language);
+    }
+    let organization_spans: Vec<(usize, usize)> = candidates
+        .iter()
+        .filter(|candidate| {
+            matches!(
+                candidate.entity_type.as_deref(),
+                Some("ORG" | "ORGANIZATION")
+            ) || matches!(
+                values::classify_value_type(&candidate.text, true, true, true, language).as_str(),
+                "ORG" | "ORGANIZATION"
+            )
+        })
+        .map(|candidate| (candidate.start, candidate.end))
+        .collect();
+    candidates.retain(|candidate| {
+        let nested_in_work = work_spans.iter().any(|(start, end)| {
+            candidate.start >= *start
+                && candidate.end <= *end
+                && (candidate.start, candidate.end) != (*start, *end)
+        });
+        let nested_in_organization = candidate.entity_type.as_deref() == Some("LOCATION")
+            && organization_spans.iter().any(|(org_start, org_end)| {
+                let linked_word = source_text[..candidate.start]
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or("")
+                    .to_lowercase();
+                let base_language = language.split(['-', '_']).next().unwrap_or(language);
+                let articulated_link = semantic_core::lexicon::lexicon()
+                    .gazetteer
+                    .name_particles
+                    .get(base_language)
+                    .is_some_and(|particles| particles.contains(&linked_word));
+                *org_start < candidate.start && *org_end >= candidate.end && articulated_link
+            });
+        !nested_in_work && !nested_in_organization
+    });
     // Explicitly typed names outrank contextual guesses on the same surface.
     // This prevents one mention from registering once as a facility and again
     // as a nearby location just because a relation cue appeared in its sentence.
-    for candidate in &mut candidates {
-        if let Some(kind) = values::curated_typed_entity(&candidate.text) {
-            candidate.entity_type = Some(kind);
+    if !model_active {
+        for candidate in &mut candidates {
+            if candidate.entity_type.is_some() {
+                continue;
+            }
+            if let Some(kind) = values::curated_typed_entity(&candidate.text) {
+                let organization =
+                    values::classify_value_type(&candidate.text, true, true, true, language)
+                        == "ORG";
+                candidate.entity_type = Some(if kind == "LOCATION" && organization {
+                    "ORG".to_string()
+                } else {
+                    kind
+                });
+            }
         }
     }
+    let appositional_location_fragments: std::collections::HashSet<(usize, usize)> = candidates
+        .iter()
+        .filter(|location| location.entity_type.as_deref() == Some("LOCATION"))
+        .filter(|location| {
+            candidates.iter().any(|organization| {
+                matches!(
+                    organization.entity_type.as_deref(),
+                    Some("ORG" | "ORGANIZATION")
+                ) && organization.start == location.start
+                    && organization.end < location.end
+                    && candidates.iter().any(|person| {
+                        person.entity_type.as_deref() == Some("PERSON")
+                            && person.start >= organization.end
+                            && person.end == location.end
+                    })
+            })
+        })
+        .map(|location| (location.start, location.end))
+        .collect();
+    candidates.retain(|candidate| {
+        !appositional_location_fragments.contains(&(candidate.start, candidate.end))
+    });
     let spelled_candidates = crate::spellout::candidates(source_text, language)?;
     let spelled_ranges: Vec<(usize, usize, String)> = spelled_candidates
         .iter()
@@ -144,10 +304,44 @@ fn extract_with_context_and_spellout_mode(
         .filter(|candidate| !is_heading_surface(&candidate.text))
         .filter(|candidate| keeps_as_visual_candidate(candidate, &tokens, language))
         .filter_map(|c| validate_evidence(c, source_text, &tokens, language))
+        .filter(|entity| {
+            if !model_active || !is_ner_entity_type(&entity.r#type) {
+                return true;
+            }
+            model_candidates.iter().any(|model| {
+                model.start == entity.start
+                    && model.end == entity.end
+                    && model.entity_type.as_deref() == Some(entity.r#type.as_str())
+            }) || (entity.r#type == "WORK"
+                && work_spans
+                    .iter()
+                    .any(|span| *span == (entity.start, entity.end)))
+        })
         .filter(|entity| structurally_specific_visual_concept(entity, &tokens))
         .map(score_entity)
         .collect();
-    let mut scored = drop_name_fragments(scored, context, source_text);
+    let appositional_location_fusions: std::collections::HashSet<(usize, usize)> = scored
+        .iter()
+        .filter(|location| location.r#type == "LOCATION")
+        .filter(|location| {
+            scored.iter().any(|organization| {
+                matches!(organization.r#type.as_str(), "ORG" | "ORGANIZATION")
+                    && organization.start == location.start
+                    && organization.end < location.end
+                    && scored.iter().any(|person| {
+                        person.r#type == "PERSON"
+                            && person.start >= organization.end
+                            && person.end == location.end
+                    })
+            })
+        })
+        .map(|location| (location.start, location.end))
+        .collect();
+    let mut scored: Vec<VisualEntity> = scored
+        .into_iter()
+        .filter(|entity| !appositional_location_fusions.contains(&(entity.start, entity.end)))
+        .collect();
+    scored = drop_name_fragments(scored, context, source_text);
     // Rank: highest score first; ties broken by earliest start offset so
     // the order is deterministic across 100/100 runs.
     scored.sort_by(|a, b| {
@@ -211,7 +405,7 @@ fn extract_with_context_and_spellout_mode(
     }
     let selected = reserve_numeric_slots(unique, options.top_n());
     if !preserve_mentions {
-        return Ok((selected, spelled_candidates));
+        return Ok((selected, spelled_candidates, analyzed_tokens));
     }
     let selected_keys: BTreeSet<String> = selected
         .iter()
@@ -233,7 +427,98 @@ fn extract_with_context_and_spellout_mode(
             .then(a.start.cmp(&b.start))
             .then(a.text.cmp(&b.text))
     });
-    Ok((mentions, spelled_candidates))
+    Ok((mentions, spelled_candidates, analyzed_tokens))
+}
+
+fn is_ner_entity_type(kind: &str) -> bool {
+    matches!(
+        kind,
+        "PERSON"
+            | "ORG"
+            | "ORGANIZATION"
+            | "LOCATION"
+            | "WORK"
+            | "AWARD"
+            | "EVENT"
+            | "FACILITY"
+            | "PRODUCT"
+            | "BRAND"
+    )
+}
+
+/// A civic or institutional head followed by an appositional personal name is
+/// two entities, even when capitalization made the tokenizer emit one run.
+/// Both sides still need independent type evidence from the shared lexicon.
+fn split_organization_person_appositions(
+    candidates: &mut Vec<Candidate>,
+    tokens: &[Token],
+    source: &str,
+    language: &str,
+) {
+    let mut remove = std::collections::HashSet::new();
+    let mut additions = Vec::new();
+    for (candidate_index, candidate) in candidates.iter().enumerate() {
+        if candidate.text.split_whitespace().count() < 2 {
+            continue;
+        }
+        let span_tokens: Vec<&Token> = tokens
+            .iter()
+            .filter(|token| token.start >= candidate.start && token.end <= candidate.end)
+            .collect();
+        for split in 1..span_tokens.len() {
+            let prefix_end = span_tokens[split - 1].end;
+            let suffix_start = span_tokens[split].start;
+            let Some(prefix) = source.get(candidate.start..prefix_end) else {
+                continue;
+            };
+            let Some(suffix) = source.get(suffix_start..candidate.end) else {
+                continue;
+            };
+            let has_internal_name_particle =
+                span_tokens[split..span_tokens.len() - 1]
+                    .iter()
+                    .any(|token| {
+                        let base_language = language.split(['-', '_']).next().unwrap_or(language);
+                        semantic_core::lexicon::lexicon()
+                            .gazetteer
+                            .name_particles
+                            .get(base_language)
+                            .is_some_and(|particles| {
+                                particles
+                                    .iter()
+                                    .any(|particle| particle.eq_ignore_ascii_case(&token.text))
+                            })
+                    });
+            if has_internal_name_particle {
+                continue;
+            }
+            if values::classify_value_type(prefix, true, true, true, language) == "ORG"
+                && values::classify_value_type(suffix, true, true, true, language) == "PERSON"
+            {
+                additions.push(Candidate {
+                    text: prefix.to_string(),
+                    start: candidate.start,
+                    end: prefix_end,
+                    entity_type: Some("ORG".to_string()),
+                });
+                additions.push(Candidate {
+                    text: suffix.to_string(),
+                    start: suffix_start,
+                    end: candidate.end,
+                    entity_type: Some("PERSON".to_string()),
+                });
+                remove.insert(candidate_index);
+                break;
+            }
+        }
+    }
+    let mut index = 0;
+    candidates.retain(|_| {
+        let keep = !remove.contains(&index);
+        index += 1;
+        keep
+    });
+    candidates.extend(additions);
 }
 
 fn extraction_identity_key(entity: &VisualEntity, context: &ScriptContext) -> String {
@@ -250,6 +535,45 @@ fn is_canonical_person_surface(entity: &VisualEntity, context: &ScriptContext) -
         && !context
             .person_surnames
             .contains_key(&entity.text.to_lowercase())
+}
+
+/// Resolve an ambiguous proper-noun complement as an organization when a
+/// language lexicon supplies a work/affiliation verb and UDPipe links the
+/// name to that verb as an object or oblique argument.
+fn mark_contextual_organizations(candidates: &mut [Candidate], tokens: &[Token], language: &str) {
+    let base = language.split(['-', '_']).next().unwrap_or(language);
+    let lexicon = &semantic_core::lexicon::lexicon().gazetteer;
+    let Some(verbs) = lexicon.organization_context_verbs.get(base) else {
+        return;
+    };
+    for candidate in candidates {
+        let proper_tokens: Vec<&Token> = tokens
+            .iter()
+            .filter(|token| {
+                token.start >= candidate.start
+                    && token.end <= candidate.end
+                    && token.upos.as_deref() == Some("PROPN")
+            })
+            .collect();
+        let supported = proper_tokens.iter().any(|name| {
+            let Some(head) = name.head else {
+                return false;
+            };
+            matches!(
+                name.dependency.as_deref(),
+                Some("obj" | "iobj" | "obl" | "nmod")
+            ) && tokens.iter().any(|verb| {
+                verb.id == Some(head)
+                    && verb.sentence_id == name.sentence_id
+                    && verb.lemma.as_deref().is_some_and(|lemma| {
+                        verbs.iter().any(|known| known.eq_ignore_ascii_case(lemma))
+                    })
+            })
+        });
+        if supported {
+            candidate.entity_type = Some("ORG".to_string());
+        }
+    }
 }
 
 /// Generic visual concepts are useful phrase inventory only when they form a
@@ -550,6 +874,15 @@ fn drop_name_fragments(
             }
             if entity.r#type == "PERSON"
                 && curated_structure_spans.iter().any(|(start, end)| {
+                    (*start, *end) != (entity.start, entity.end)
+                        && entity.start >= *start
+                        && entity.end <= *end
+                })
+            {
+                return false;
+            }
+            if entity.r#type == "PERSON"
+                && organization_spans.iter().any(|(start, end)| {
                     (*start, *end) != (entity.start, entity.end)
                         && entity.start >= *start
                         && entity.end <= *end

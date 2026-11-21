@@ -1,7 +1,7 @@
 # TICKET-35 — entity linking is not explainable and under-uses context
 
 - Priority: P1
-- Status: PARTIAL (verified 2026-11-20)
+- Status: PARTIAL (verified 2026-11-21)
 - Depends on: TICKET-40 (confusable index coverage)
 - Files: `semantic-core/src/entity_linker.rs`, `lexicon/entity_index_v1.json`,
   `semantic-engine/src/identity_lookup.rs`, `LinkedEntity`

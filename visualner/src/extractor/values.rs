@@ -36,6 +36,9 @@ pub(super) fn classify_value_type(
     if text.is_empty() {
         return "VISUAL_CONCEPT".to_string();
     }
+    if has_organization_marker(text, proper_noun, language) {
+        return "ORG".to_string();
+    }
     let currency_words = [
         "dollar", "dollars", "dollaro", "dollari", "dólar", "dólares", "dolares", "euro", "euros",
         "pound", "pounds", "libra", "libras", "yen", "yenes", "iene", "usd", "eur", "gbp", "jpy",
@@ -125,6 +128,41 @@ fn contains(list: &[String], value: &str) -> bool {
     list.iter().any(|item| item == value)
 }
 
+fn has_organization_marker(text: &str, proper_noun: bool, language: &str) -> bool {
+    let key = language.split(['-', '_']).next().unwrap_or("");
+    let Some(markers) = semantic_core::lexicon::lexicon()
+        .gazetteer
+        .organization_markers
+        .get(key)
+    else {
+        return false;
+    };
+    let head = &text[super::names::elided_name_prefix_len(text).min(text.len())..];
+    let words: Vec<String> = head
+        .to_lowercase()
+        .split(|ch: char| !ch.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_string)
+        .collect();
+    let capitalized_name = head
+        .split(|ch: char| ch.is_whitespace() || ch == '-')
+        .filter(|word| word.chars().next().is_some_and(char::is_uppercase))
+        .count()
+        >= 2;
+    !words.is_empty()
+        && (proper_noun || capitalized_name)
+        && markers.iter().any(|marker| {
+            let marker_words: Vec<String> = marker
+                .to_lowercase()
+                .split(|ch: char| !ch.is_alphanumeric())
+                .filter(|word| !word.is_empty())
+                .map(str::to_string)
+                .collect();
+            !marker_words.is_empty()
+                && (words.starts_with(&marker_words) || words.ends_with(&marker_words))
+        })
+}
+
 /// Types a single surface from the curated micro-gazetteer (`entity_gazetteer.json`):
 /// brands, cities, works, known people and object words. This table is the
 /// seam of a real gazetteer (Wikidata/GeoNames): when that index lands, only
@@ -139,6 +177,17 @@ fn classify_type(
     let lower = text.to_lowercase();
     let lexicon = semantic_core::lexicon::lexicon();
     let gazetteer = &lexicon.gazetteer;
+    if let Some(kind) = curated_typed_entity(text) {
+        // GeoNames contains homographic multiword strings. An explicit
+        // institutional head in the same span is stronger evidence than a
+        // place alias (for example an orchestra name ending in a Rai acronym).
+        if kind != "LOCATION" || !has_organization_marker(text, proper_noun, language) {
+            return kind;
+        }
+    }
+    if has_organization_marker(text, proper_noun, language) {
+        return "ORG".to_string();
+    }
     // A concrete noun followed by a known brand is one visual product
     // surface, not a two-token person name. Preserve the exact source span
     // while typing the full compound before the generic proper-name fallback.
@@ -171,47 +220,24 @@ fn classify_type(
     if contains(&gazetteer.company_suffixes, last_token) {
         return "ORGANIZATION".to_string();
     }
-    let language_key = language.split(['-', '_']).next().unwrap_or("");
-    if let Some(markers) = gazetteer.organization_markers.get(language_key) {
-        // An elided article is not part of the head: "l'Istituto di Ricerca"
-        // is the institution "Istituto", so the marker reads the surface
-        // after the clitic.
-        let head = &text[super::names::elided_name_prefix_len(text).min(text.len())..];
-        let head_lower = head.to_lowercase();
-        let words: Vec<String> = head_lower
-            .split(|ch: char| !ch.is_alphanumeric())
-            .map(str::to_string)
-            .filter(|word| !word.is_empty())
-            .collect();
-        // A hyphenated compound counts its name segments: "Prisma-Labor" is
-        // one surface word but a two-segment modifier+head name, and the
-        // marker check below reads the institutional head either way.
-        let capitalized_name = head
-            .split(|ch: char| ch.is_whitespace() || ch == '-')
-            .filter(|word| word.chars().next().is_some_and(char::is_uppercase))
-            .count()
-            >= 2;
-        if words.len() >= 2
-            && (proper_noun || capitalized_name)
-            && markers.iter().any(|marker| {
-                let marker_words: Vec<String> = marker
-                    .to_lowercase()
-                    .split(|ch: char| !ch.is_alphanumeric())
-                    .map(str::to_string)
-                    .filter(|word| !word.is_empty())
-                    .collect();
-                !marker_words.is_empty()
-                    && (words.starts_with(&marker_words) || words.ends_with(&marker_words))
-            })
-        {
-            return "ORG".to_string();
-        }
+    if has_organization_marker(text, proper_noun, language) {
+        return "ORG".to_string();
     }
     if contains(&gazetteer.generic_visual_nouns, &lower) {
         return "VISUAL_CONCEPT".to_string();
     }
     if contains(&gazetteer.brands, &lower) {
         return "BRAND".to_string();
+    }
+    if contains(&gazetteer.works, &lower) {
+        return "WORK".to_string();
+    }
+    if contains(&gazetteer.persons, &lower)
+        || ((proper_noun || name_evidence)
+            && text.split_whitespace().count() == 1
+            && semantic_core::lexicon::is_curated_given_name(language, text))
+    {
+        return "PERSON".to_string();
     }
     // The hand-curated seed is explicit and always wins, even when a tagger
     // mislabels the city ("Cagliari" as NOUN): it is high-precision data.
@@ -222,13 +248,6 @@ fn classify_type(
     {
         return "LOCATION".to_string();
     }
-    // Exact, curated multiword names outrank title-case person guessing. This
-    // covers buildings and institutions whose names look like people, while
-    // keeping the knowledge in the versioned lexicon rather than growing a
-    // chain of code exceptions.
-    if let Some(kind) = curated_typed_entity(text) {
-        return kind;
-    }
     let facility_head = lexicon
         .facility
         .facility_nouns
@@ -236,30 +255,6 @@ fn classify_type(
         .any(|noun| lower.split_whitespace().next() == Some(noun.as_str()));
     if facility_head && name_evidence && text.split_whitespace().count() >= 2 {
         return "FACILITY".to_string();
-    }
-    // The real GeoNames index is consulted only for place names: "Come"
-    // (ADV) and "Corte" (PROPN with a lowercase lemma) also exist as place
-    // aliases, but they are not places in this text. Without a POS model (no
-    // tag) the capitalization guard inside `is_place` still applies.
-    // An acronym is not a place just because a GeoNames alias matches it
-    // case-insensitively ("DNA" is a biological trace, not a town). Place
-    // lookup stays available for ordinary title-case names.
-    let acronym_letters: Vec<char> = text.chars().filter(|ch| ch.is_alphabetic()).collect();
-    let acronym = (2..=5).contains(&acronym_letters.len())
-        && acronym_letters.iter().all(|ch| ch.is_uppercase());
-    if gazetteer_eligible && !acronym && lexicon.is_place(text, language) {
-        return "LOCATION".to_string();
-    }
-    // Deterministic work/title exceptions prevent song and programme names
-    // from satisfying the generic multi-token person rule.
-    if contains(&gazetteer.works, &lower) {
-        return "WORK".to_string();
-    }
-    // Recognize single-token people explicitly. Without contextual NER, a
-    // generic capitalization rule would mistake sentence-initial nouns for
-    // people, so the curated gazetteer decides instead.
-    if contains(&gazetteer.persons, &lower) {
-        return "PERSON".to_string();
     }
     if contains(&gazetteer.product_names, &lower)
         || gazetteer
@@ -285,6 +280,15 @@ fn classify_type(
             return "ORG".to_string();
         }
         return "VISUAL_CONCEPT".to_string();
+    }
+    // Consult the broad GeoNames index only after exact entity and institutional
+    // cues. Single-token aliases such as "Sinistra" can otherwise steal a
+    // token from a known organization name.
+    let acronym_letters: Vec<char> = text.chars().filter(|ch| ch.is_alphabetic()).collect();
+    let acronym = (2..=5).contains(&acronym_letters.len())
+        && acronym_letters.iter().all(|ch| ch.is_uppercase());
+    if gazetteer_eligible && !acronym && lexicon.is_place(text, language) {
+        return "LOCATION".to_string();
     }
     // An acronym-led compound is evidence or an office, not a person: "DNA
     // di Chiara" is a biological trace and "GUP di Pavia" is a court
@@ -398,17 +402,19 @@ pub(super) fn curated_typed_entity(text: &str) -> Option<String> {
                     | "WORK"
                     | "EVENT"
             ) && names.iter().any(|name| {
-                let name_lower = name.to_lowercase();
-                if name_lower != lower {
-                    return false;
+                // All-capital lexicon entries represent acronyms (NATO, WHO).
+                // Matching those case-insensitively turns sentence-initial
+                // participles such as “Nato a Roma” into organizations.
+                let acronym = name.chars().any(char::is_alphabetic)
+                    && name
+                        .chars()
+                        .filter(|ch| ch.is_alphabetic())
+                        .all(char::is_uppercase);
+                if acronym {
+                    text == name
+                } else {
+                    name.eq_ignore_ascii_case(&lower)
                 }
-                // A deliberately curated acronym (NASA, CERN, ANSA) carries
-                // stronger type evidence than the generic acronym guard.
-                // Unlisted acronyms such as DNA never enter this table.
-                true || text
-                    .chars()
-                    .filter(|ch| ch.is_alphabetic())
-                    .all(|ch| ch.is_uppercase())
             })
         })
         .map(|(kind, _)| kind.clone())
@@ -673,6 +679,36 @@ fn month_after_day(source: &str, number_end: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn italian_institutions_and_curated_given_names_beat_place_guessing() {
+        assert_eq!(
+            classify_value_type("Parlamento europeo", true, true, true, "it"),
+            "ORG"
+        );
+        assert_eq!(
+            classify_value_type("Regia Aeronautica", true, true, true, "it"),
+            "ORG"
+        );
+        assert_eq!(
+            classify_value_type("Teatro del 101", true, true, true, "it"),
+            "ORG"
+        );
+        assert_eq!(
+            classify_value_type(
+                "Orchestra Sinfonica Nazionale della Rai",
+                true,
+                true,
+                true,
+                "it"
+            ),
+            "ORG"
+        );
+        assert_eq!(
+            classify_value_type("Repubblica", true, true, true, "it"),
+            "ORG"
+        );
+    }
 
     #[test]
     fn rejects_fused_subtitle_number_artifacts_without_blocking_common_codes() {

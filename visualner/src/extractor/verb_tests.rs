@@ -7,6 +7,11 @@ fn token(text: &str, upos: Option<&str>, lemma: Option<&str>) -> Token {
         end: text.len(),
         upos: upos.map(str::to_string),
         lemma: lemma.map(str::to_string),
+        features: None,
+        dependency: None,
+        id: None,
+        head: None,
+        sentence_id: None,
     }
 }
 

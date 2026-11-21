@@ -28,6 +28,7 @@
 mod location;
 mod model;
 mod names;
+mod ner;
 mod numeric;
 mod phrases;
 mod pipeline;

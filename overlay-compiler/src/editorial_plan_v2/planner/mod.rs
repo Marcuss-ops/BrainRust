@@ -77,7 +77,9 @@ pub fn compile_plan(
     // The first admission pass runs on the editorial/annotation candidates.
     // Entity cards are merged after it and then pass the same final admission,
     // exactly as the Go planner resolved cards after BuildPlan and before the
-    // final budget. This keeps base items from losing slots to a later card.
+    // final budget. Base items keep priority except at the per-scene ceiling,
+    // where a text entity card may displace a number of the same scene: a
+    // scene full of dates must not erase the named person card.
     let intake = new_intake(request, &candidates);
     let (mut items, mut intake) = admit(request, candidates, intake);
     let cards = build_entity_card_candidates(request)?;

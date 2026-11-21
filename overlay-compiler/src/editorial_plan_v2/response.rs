@@ -96,8 +96,6 @@ pub struct PlanItemV2 {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub motion_id: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub camera_motion_id: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub entity_style_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub motion_params: Option<Value>,

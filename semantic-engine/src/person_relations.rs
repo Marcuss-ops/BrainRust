@@ -18,6 +18,8 @@ struct RelationEntry {
     surface: String,
     kind: String,
     direction: String,
+    #[serde(default)]
+    anchor_previous_sentence: bool,
 }
 
 pub fn extract(
@@ -46,7 +48,17 @@ pub fn extract(
             for (local_start, local_end) in spans(text, &marker.surface) {
                 let left_end = sentence.start_byte + local_start;
                 let right_start = sentence.start_byte + local_end;
-                let left = nearest_person(entities, entity_ids, sentence, left_end, true);
+                let left = if marker.anchor_previous_sentence {
+                    previous_sentence_person(
+                        source,
+                        entities,
+                        entity_ids,
+                        sentence.start_byte,
+                        language,
+                    )
+                } else {
+                    nearest_person(entities, entity_ids, sentence, left_end, true)
+                };
                 let right = nearest_person(entities, entity_ids, sentence, right_start, false);
                 let (Some(left), Some(right)) = (left, right) else {
                     continue;
@@ -104,6 +116,45 @@ pub fn extract(
             && a.to_id == b.to_id
     });
     output
+}
+
+/// A relation phrase can grammatically omit its subject ("era sposato con X",
+/// "ebbe una figlia, X"). Resolve it from the nearest preceding sentence in
+/// a bounded local window; its first explicit person is the local discourse
+/// subject when that sentence also names secondary people.
+fn previous_sentence_person(
+    source: &str,
+    entities: &[VisualEntity],
+    ids: &[String],
+    sentence_start: usize,
+    language: &str,
+) -> Option<(usize, usize)> {
+    let mut context_start = sentence_start.saturating_sub(800);
+    while !source.is_char_boundary(context_start) {
+        context_start += 1;
+    }
+    let context = source.get(context_start..sentence_start)?;
+    for span in semantic_core::split_sentences(context, language, None)
+        .iter()
+        .rev()
+    {
+        let start = context_start + span.start_byte;
+        let end = context_start + span.end_byte;
+        if let Some((index, _)) = entities
+            .iter()
+            .enumerate()
+            .filter(|(index, entity)| {
+                entity.r#type == "PERSON"
+                    && entity.start >= start
+                    && entity.end <= end
+                    && ids.get(*index).is_some()
+            })
+            .min_by_key(|(_, entity)| entity.start)
+        {
+            return Some((index, 0));
+        }
+    }
+    None
 }
 
 fn nearest_person(
@@ -200,6 +251,25 @@ mod tests {
         );
         assert_eq!(facts[0].status, "asserted");
         assert_eq!(facts[0].evidence, source);
+    }
+
+    #[test]
+    fn resolves_possessive_family_relations_to_the_previous_sentence_subject() {
+        let source = "Corrado Augias nacque a Roma. Suo padre, Carlo Augias, era ufficiale.";
+        let people = vec![
+            person(source, "Corrado Augias"),
+            person(source, "Carlo Augias"),
+        ];
+        let facts = extract(
+            source,
+            "it",
+            &semantic_core::split_sentences(source, "it", None),
+            &people,
+            &["corrado".into(), "carlo".into()],
+        );
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].kind, "parent_of");
+        assert_eq!((&*facts[0].from_id, &*facts[0].to_id), ("carlo", "corrado"));
     }
 
     #[test]

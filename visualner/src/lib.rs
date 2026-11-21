@@ -56,4 +56,4 @@ pub use spellout::supported_spellout_language_count;
 pub use temporal::temporal_facts;
 pub use temporal::TemporalFact;
 pub use temporal::{PRECISION_DAY, PRECISION_MONTH, PRECISION_UNRESOLVED, PRECISION_YEAR};
-pub use types::{ExtractOptions, VisualEntity};
+pub use types::{AnalyzedToken, ExtractOptions, VisualEntity};

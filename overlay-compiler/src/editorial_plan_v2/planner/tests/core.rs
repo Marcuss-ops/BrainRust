@@ -423,3 +423,41 @@ fn chart_placements_reject_word_values() {
         );
     assert_eq!(0, super::count_chart_placements(&request));
 }
+
+#[test]
+fn text_entity_card_displaces_a_number_at_the_per_scene_ceiling() {
+    // r18: scene-01 carried 12 admitted number/phrase items, so the three
+    // text entity cards appended afterwards all failed the per-scene budget
+    // and the named person disappeared from the plan. One card must survive
+    // by displacing the last number of its own scene.
+    let mut request = request();
+    request.budgets.as_mut().expect("budgets").max_per_scene = 2;
+    request
+        .media
+        .as_mut()
+        .expect("media")
+        .verified_entity_assets
+        .clear();
+    let intake = super::new_intake(&request, &[]);
+    let base = vec![
+        overlay_item("number-1", "number", "DATE", 100_000, 400_000),
+        overlay_item("number-2", "number", "DATE", 600_000, 400_000),
+    ];
+    let (items, intake) = super::admit(&request, base, intake);
+    assert_eq!(2, items.len());
+
+    let cards = super::build_entity_card_candidates(&request).expect("cards");
+    assert_eq!(1, cards.len());
+    let mut candidates = items;
+    candidates.extend(cards);
+    let (items, intake) = super::admit(&request, candidates, intake);
+
+    let kinds: Vec<&str> = items.iter().map(|item| item.kind.as_str()).collect();
+    assert_eq!(2, items.len(), "{kinds:?}");
+    assert!(kinds.contains(&"entity_card"), "{kinds:?}");
+    assert_eq!(1, kinds.iter().filter(|kind| **kind == "number").count());
+    assert_eq!(
+        Some(&1),
+        intake.dropped_by_reason.get("number_replaced_by_entity")
+    );
+}

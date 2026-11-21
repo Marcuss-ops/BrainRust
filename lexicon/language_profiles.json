@@ -18,6 +18,7 @@
       "treebank": "italian-isdt",
       "script": "latin",
       "verb_filter": true,
+      "pro_drop_subjects": true,
       "infinitive_suffixes": ["re"]
     },
     "pl": { "treebank": "polish-pdb", "script": "latin" },

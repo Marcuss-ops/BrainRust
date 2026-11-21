@@ -138,6 +138,48 @@ fn institutions_are_orgs_and_never_places_or_people() {
 }
 
 #[test]
+fn geo_name_alias_inside_a_curated_organization_is_not_a_place() {
+    let entities = extract(
+        "Nel 1994 fu eletto nelle liste del Partito Democratico della Sinistra.",
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 40,
+        },
+    )
+    .unwrap();
+    assert!(entities.iter().any(|entity| {
+        entity.text == "Partito Democratico della Sinistra" && entity.r#type == "ORG"
+    }));
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| entity.text == "Sinistra" && entity.r#type == "LOCATION"),
+        "{entities:?}"
+    );
+}
+
+#[test]
+fn italian_organization_complements_use_verb_dependencies_not_name_allowlists() {
+    let source = "Corrado Augias entrò in Rai e collaborò con la Repubblica.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 40,
+        },
+    )
+    .expect("italian extraction");
+    for name in ["Rai", "Repubblica"] {
+        assert!(
+            entities
+                .iter()
+                .any(|entity| entity.text == name && entity.r#type == "ORG"),
+            "organization complement {name} missing or mistyped: {entities:?}"
+        );
+    }
+}
+
+#[test]
 fn acronym_compounds_are_not_people() {
     // "DNA di Chiara" is a trace mentioned in the text, not a person: the
     // acronym opens the surface and carries no name evidence.

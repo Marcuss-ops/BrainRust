@@ -1,7 +1,7 @@
 # TICKET-30 — numeric facts have no unit, scale, year or comparison
 
 - Priority: P1
-- Status: PARTIAL (verified 2026-11-20)
+- Status: PARTIAL (verified 2026-11-21)
 - Depends on: TICKET-29
 - Files: `semantic-core/src/{numbers.rs,quantity.rs (new)}`,
   `lexicon/units.json`, `semantic-engine` (new `quantities.rs`),
@@ -321,3 +321,9 @@ in questo repository.
   `047d7c70ae33056a87ffb28ae9b37fff06bf33b666a3c201ccc85d25b1455cd1`.
   Quantity totals remain unchanged at 1,784 cases, 1,643/1,643 expected
   quantities and zero false positives.
+- Final recheck 2026-11-21 (HEAD `b541f1d`): the release worker on disk
+  (`3e9bb942…`, built from that tree) was used to regenerate `report.json` with
+  identical totals — 1,784 cases, 1,643/1,643 quantities, 33 positive
+  comparisons, 33 incompatible pairs rejected, zero false positives. The
+  report now carries the current worker hash. This confirms the draft matrix;
+  it does not replace the independent review required by 30b.

@@ -144,7 +144,8 @@ pub(super) fn apply_presentation(
     bullet_styles: &[EditorialBulletStyleV2],
 ) -> Vec<PlanItemV2> {
     let mut out = Vec::with_capacity(items.len());
-    for item in items {
+    for mut item in items {
+        split_long_chain_text(&mut item);
         if let Some(parts) = split_long_overlay_text(&item) {
             out.extend(parts);
             continue;
@@ -614,6 +615,94 @@ fn split_long_overlay_text(item: &PlanItemV2) -> Option<Vec<PlanItemV2>> {
     (!out.is_empty()).then_some(out)
 }
 
+/// Chain items bypass `split_long_overlay_text` because the visible copy is
+/// stored under `params.chain_segments`, not in a standalone `text_phrase`.
+/// Keep the same 180-rune presentation limit inside chains as well: very long
+/// full-screen text layers can make native GPU rendering fail, and they are
+/// difficult to read as a single overlay. Each clone preserves its source
+/// style/motion and receives a proportional, adjacent window within the
+/// original segment interval.
+fn split_long_chain_text(item: &mut PlanItemV2) {
+    if !is_chain_kind(&item.kind) {
+        return;
+    }
+    let Some(params) = item.params.as_mut().and_then(Value::as_object_mut) else {
+        return;
+    };
+    let Some(segments) = params
+        .get_mut("chain_segments")
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    let mut split = Vec::with_capacity(segments.len());
+    let mut changed = false;
+    for segment in segments.iter() {
+        let Some(object) = segment.as_object() else {
+            split.push(segment.clone());
+            continue;
+        };
+        let is_text = object.get("kind").and_then(Value::as_str) == Some("text_phrase");
+        let Some(text) = object.get("text").and_then(Value::as_str) else {
+            split.push(segment.clone());
+            continue;
+        };
+        let chunks = if is_text && text.chars().count() > 180 {
+            split_phrase_text(text, 180)
+        } else {
+            Vec::new()
+        };
+        if chunks.len() <= 1 {
+            split.push(segment.clone());
+            continue;
+        }
+
+        let start_us = object.get("start_us").and_then(Value::as_i64).unwrap_or(0);
+        let duration_us = object
+            .get("duration_us")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        let total_chars: usize = chunks.iter().map(|chunk| chunk.chars().count()).sum();
+        if duration_us <= 0 || total_chars == 0 {
+            split.push(segment.clone());
+            continue;
+        }
+
+        let mut cursor_us = start_us;
+        for (index, chunk) in chunks.iter().enumerate() {
+            let remaining_us = start_us + duration_us - cursor_us;
+            if remaining_us <= 0 {
+                break;
+            }
+            let chunk_us = if index + 1 == chunks.len() {
+                remaining_us
+            } else {
+                (duration_us * chunk.chars().count() as i64 / total_chars as i64)
+                    .max(1)
+                    .min(remaining_us)
+            };
+            let mut part = object.clone();
+            part.insert("text".to_string(), Value::String(chunk.clone()));
+            part.insert("start_us".to_string(), Value::from(cursor_us));
+            part.insert("duration_us".to_string(), Value::from(chunk_us));
+            split.push(Value::Object(part));
+            cursor_us += chunk_us;
+        }
+        changed = true;
+    }
+    if changed {
+        let segment_count = split.len();
+        let motions = split
+            .iter()
+            .filter_map(|segment| segment.get("motion_id").and_then(Value::as_str))
+            .map(|motion| Value::String(motion.to_string()))
+            .collect::<Vec<_>>();
+        *segments = split;
+        params.insert("chain_count".to_string(), Value::from(segment_count));
+        params.insert("chain_motions".to_string(), Value::Array(motions));
+    }
+}
+
 fn split_phrase_text(text: &str, max_runes: usize) -> Vec<String> {
     let mut runes: Vec<char> = text.trim().chars().collect();
     let mut out = Vec::new();
@@ -818,6 +907,54 @@ mod bullet_pin_tests {
             assert_eq!(Some(96.0), params["font_size_px"].as_f64());
             assert_eq!("air_rise_type_on", item.motion_id);
         }
+    }
+
+    #[test]
+    fn long_text_inside_a_chain_splits_and_keeps_the_original_window() {
+        let text = "parole di prova ".repeat(20);
+        let item = PlanItemV2 {
+            id: "chain".to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "mixed_chain".to_string(),
+            template_id: "MIXED_CHAIN".to_string(),
+            text: text.clone(),
+            params: Some(json!({"chain_segments": [
+                {
+                    "kind": "text_phrase", "text": text,
+                    "motion_id": "air_rise_type_on", "start_us": 1_000_000,
+                    "duration_us": 8_000_000
+                },
+                {
+                    "kind": "entity_card", "text": "Corrado Augias",
+                    "start_us": 9_400_000, "duration_us": 2_000_000
+                }
+            ]})),
+            ..Default::default()
+        };
+
+        let items = apply_presentation(vec![item], "plan", &[]);
+        assert_eq!(1, items.len(), "the chain remains one overlay item");
+        let params = items[0].params.as_ref().expect("chain params");
+        let segments = params["chain_segments"].as_array().expect("segments");
+        assert!(segments.len() > 2, "long text is split into chain segments");
+        let text_segments = segments
+            .iter()
+            .filter(|segment| segment["kind"] == "text_phrase")
+            .collect::<Vec<_>>();
+        assert!(text_segments.len() > 1);
+        assert!(text_segments
+            .iter()
+            .all(|segment| { segment["text"].as_str().unwrap().chars().count() <= 180 }));
+        assert_eq!(1_000_000, text_segments[0]["start_us"].as_i64().unwrap());
+        let last_text = text_segments.last().unwrap();
+        assert_eq!(
+            9_000_000,
+            last_text["start_us"].as_i64().unwrap() + last_text["duration_us"].as_i64().unwrap()
+        );
+        assert_eq!(
+            segments.len(),
+            params["chain_count"].as_u64().unwrap() as usize
+        );
     }
 
     #[test]

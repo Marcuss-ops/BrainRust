@@ -19,6 +19,10 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Analysis {
     pub entities: Vec<VisualEntity>,
+    /// Tagged source tokens shared with semantic event extraction. This is an
+    /// internal analysis aid and is intentionally omitted from the wire JSON.
+    #[serde(skip)]
+    pub tokens: Vec<crate::types::AnalyzedToken>,
     /// Pairs of entities that occur in the same sentence.
     pub relations: Vec<EntityRelation>,
     /// One lower-third spec per entity.
@@ -149,7 +153,7 @@ fn analyze_with_context_mode(
     } else {
         crate::extractor::extract_with_context_and_spellout
     };
-    let (entities, spelled_candidates) = extract(source_text, options, context)?;
+    let (entities, spelled_candidates, tokens) = extract(source_text, options, context)?;
     // One canonical segmenter for every extractor (semantic-core).
     let sentences = split_sentences(source_text, &options.language, None);
     let entity_sentence: Vec<Option<usize>> = entities
@@ -225,6 +229,7 @@ fn analyze_with_context_mode(
 
     Ok(Analysis {
         entities,
+        tokens,
         relations,
         lower_thirds,
         bullets,

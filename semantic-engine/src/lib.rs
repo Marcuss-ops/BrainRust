@@ -92,7 +92,7 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
         person_relations: "person_relations.seed11.v2".to_string(),
         places: "place_index.v3.multilingual_labels".to_string(),
         routes: "place_routes.v3.cross_scene_hops".to_string(),
-        events: "event_frames.v2.cross_scene_facts".to_string(),
+        events: "event_frames.v3.udpipe_lemma_grounding".to_string(),
         discourse: "discourse.v7.role_nominal_basis".to_string(),
     }
 }
@@ -155,6 +155,7 @@ fn rejected_scene(
     SceneManifest,
     Vec<SearchFeedbackEntry>,
     Vec<ContextualImageQuery>,
+    Vec<visualner::AnalyzedToken>,
 ) {
     (
         SceneManifest {
@@ -187,6 +188,7 @@ fn rejected_scene(
             micro_summaries: Vec::new(),
             rejected_items: 0,
         },
+        Vec::new(),
         Vec::new(),
         Vec::new(),
     )
@@ -340,6 +342,7 @@ fn analyze_scene_with_search(
     SceneManifest,
     Vec<SearchFeedbackEntry>,
     Vec<semantic_core::ContextualImageQuery>,
+    Vec<visualner::AnalyzedToken>,
 ) {
     let options = ExtractOptions {
         language: language.to_string(),
@@ -535,7 +538,16 @@ fn analyze_scene_with_search(
         }
     }
 
-    let entity_candidate_list = entity_candidates(source, &sentence_spans, &entities, &identities);
+    // Keep the semantic identity graph limited to typed entities. Generic
+    // visual concepts have already fed visual-query planning above; carrying
+    // them into this list mixes B-roll vocabulary with named entities.
+    let semantic_entities: Vec<VisualEntity> = entities
+        .iter()
+        .filter(|entity| entity.r#type != "VISUAL_CONCEPT")
+        .cloned()
+        .collect();
+    let entity_candidate_list =
+        entity_candidates(source, &sentence_spans, &semantic_entities, &identities);
     let important_words = important_word_candidates(&entity_candidate_list);
     let important_segments = segment_candidates(source, &sentence_spans, &entities, &entity_facts);
 
@@ -545,7 +557,12 @@ fn analyze_scene_with_search(
             status: "valid".to_string(),
             reason: None,
             entities: entity_candidate_list,
-            identities: registry.identities().to_vec(),
+            identities: registry
+                .identities()
+                .iter()
+                .filter(|identity| identity.kind != "VISUAL_CONCEPT")
+                .cloned()
+                .collect(),
             person_roles,
             age_facts,
             person_relations,
@@ -572,6 +589,7 @@ fn analyze_scene_with_search(
         },
         search_feedback,
         contextual.production_seeds,
+        analysis.tokens,
     )
 }
 
@@ -615,7 +633,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         .collect();
     let context = visualner::script_person_tokens(&texts, language);
     for (scene_index, scene) in request.scenes.iter().enumerate() {
-        let (manifest, entries, seeds) = analyze_scene_with_search(
+        let (manifest, entries, seeds, analysis_tokens_for_events) = analyze_scene_with_search(
             scene,
             language,
             safety_cap,
@@ -624,7 +642,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
             request.reference_date.as_deref(),
         );
         let remaining_event_capacity = events::MAX_EVENT_FRAMES.saturating_sub(event_frames.len());
-        event_frames.extend(events::extract_bounded(
+        event_frames.extend(events::extract_bounded_with_tokens(
             events::SceneEventInput {
                 scene_index,
                 scene_id: &scene.scene_id,
@@ -634,6 +652,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
                 temporal_facts: &manifest.temporal_facts,
                 places: &manifest.places,
             },
+            &analysis_tokens_for_events,
             remaining_event_capacity,
         ));
         scene_query_seeds.push((manifest.scene_id.clone(), seeds));
@@ -687,7 +706,12 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
     let entities = semantic_core::entity_linker::link_all_with_threads(
         language,
         &scene_texts,
-        registry.identities(),
+        &registry
+            .identities()
+            .iter()
+            .filter(|identity| identity.kind != "VISUAL_CONCEPT")
+            .cloned()
+            .collect::<Vec<_>>(),
         &discourse.threads,
     );
 

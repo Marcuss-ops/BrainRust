@@ -140,13 +140,22 @@ fn append_editorial(
     let title = phrases
         .iter()
         .find(|phrase| phrase.presentation_role == "scene_title");
-    let bullet = phrases
+    // The editorial projection can return several grounded scene bullets.
+    // Selecting only the first one per scene discarded the rest before
+    // admission, so raising phrase/image budgets could not create the
+    // requested overlay density. Keep the candidates and let the canonical
+    // run and per-scene budgets make the selection.
+    let bullets = phrases
         .iter()
-        .find(|phrase| phrase.presentation_role == "scene_bullet");
+        .filter(|phrase| phrase.presentation_role == "scene_bullet");
     let chapter = phrases
         .iter()
         .find(|phrase| phrase.presentation_role == "chapter_bullet");
-    for (ordinal, phrase) in [title, bullet, chapter].into_iter().flatten().enumerate() {
+    let mut selected = Vec::new();
+    selected.extend(title);
+    selected.extend(bullets);
+    selected.extend(chapter);
+    for (ordinal, phrase) in selected.into_iter().enumerate() {
         if !scene.short_phrase_overlay && word_count(&phrase.text) < 3 {
             // Go filters every phrase lane through `phrasesAtLeastThreeWords`
             // after the editorial projection. A two-word title is not a
@@ -412,8 +421,15 @@ pub(super) struct PresetSeed<'a> {
 /// back to the preset's single motion and every phrase looked identical. The
 /// pin is authoritative; with no pin the item rotates the certified bucket for
 /// its own word count, seeded by (plan, scene, item) so a replay picks the same
-/// motion. Scene and chapter bullets keep their own pin contract and are left
-/// alone, and a phrase longer than five words belongs to the long lane.
+/// motion.
+///
+/// Editorial titles and bullets are part of the lane. They were left to a
+/// separate pin contract, but production plans usually ship them WITHOUT a
+/// motion pin, so the renderer fell back to the preset's single entrance and a
+/// run of short editorial cards looked identical. Only a bullet pin that
+/// actually names a motion keeps the item out of the rotation; a font-only pin
+/// still receives its entrance here. A phrase longer than five words belongs
+/// to the long lane.
 pub(super) fn assign_short_phrase_motions(
     items: &mut [PlanItemV2],
     request: &EditorialPlanV2Request,
@@ -431,7 +447,7 @@ pub(super) fn assign_short_phrase_motions(
         if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
             continue;
         }
-        if !item.motion_id.trim().is_empty() || is_editorial_bullet(item.params.as_ref()) {
+        if !item.motion_id.trim().is_empty() || has_pinned_bullet_motion(request, item) {
             continue;
         }
         let words = word_count(&item.text);
@@ -511,7 +527,9 @@ fn ordered_short_phrase_pool<'a>(pool: &[&'a str], plan_id: &str, words: usize) 
 /// Rotates the long-phrase entrance pool for every 6+ word phrase. The long
 /// lane has no pin and no per-length buckets: the only requirement is that two
 /// long phrases in the same plan do not share the presentation default, which
-/// is what made every long phrase look identical.
+/// is what made every long phrase look identical. Editorial titles and bullets
+/// over five words belong to this lane for the same reason as the short one: a
+/// production plan normally pins only their font, not their entrance.
 pub(super) fn assign_long_phrase_motions(
     items: &mut [PlanItemV2],
     request: &EditorialPlanV2Request,
@@ -529,7 +547,7 @@ pub(super) fn assign_long_phrase_motions(
         if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
             continue;
         }
-        if !item.motion_id.trim().is_empty() || is_editorial_bullet(item.params.as_ref()) {
+        if !item.motion_id.trim().is_empty() || has_pinned_bullet_motion(request, item) {
             continue;
         }
         if word_count(&item.text) < 6 {
@@ -547,12 +565,24 @@ pub(super) fn assign_long_phrase_motions(
     }
 }
 
-fn is_editorial_bullet(params: Option<&Value>) -> bool {
-    params
+/// A bullet pin that names a motion is authoritative; `apply_editorial_bullet_pins`
+/// writes it after this phase. A pin that only carries font/size does not
+/// choose an entrance, so the item still rotates the certified pool.
+fn has_pinned_bullet_motion(request: &EditorialPlanV2Request, item: &PlanItemV2) -> bool {
+    let role = item
+        .params
+        .as_ref()
         .and_then(Value::as_object)
         .and_then(|object| object.get("editorial_role"))
-        .and_then(Value::as_str)
-        .is_some_and(|role| matches!(role, "scene_bullet" | "chapter_bullet"))
+        .and_then(Value::as_str);
+    if !matches!(role, Some("scene_bullet" | "chapter_bullet")) {
+        return false;
+    }
+    request
+        .canvas
+        .editorial_bullet_styles
+        .iter()
+        .any(|pin| pin.scene_id.trim() == item.scene_id.trim() && !pin.motion_id.trim().is_empty())
 }
 
 /// Seed index shared by every deterministic presentation sampler. It mirrors

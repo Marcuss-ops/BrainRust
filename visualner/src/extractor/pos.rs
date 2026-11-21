@@ -165,10 +165,12 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
     for token in tokens.iter_mut() {
         let surface = token.text.to_lowercase();
         let mut chosen: Option<(String, String)> = None;
+        let mut chosen_index: Option<usize> = None;
         // A contraction can hide a finite verb after its clitic ("C'è" is
         // "ci" + "è"): the verb decides that the surface is a clause, and
         // the clitic's PRON tag would otherwise hide it.
         let mut verb_part: Option<(String, String)> = None;
+        let mut verb_part_index: Option<usize> = None;
         let mut consumed = word_index;
         // A hyphenated compound is one ICU token but several model words
         // ("water-level" -> "water" + "-" + "level"): the single-word rules
@@ -198,6 +200,7 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
         let joined_matched = joined.is_some();
         if let Some((span, tag)) = joined {
             chosen = Some(tag);
+            chosen_index = Some(word_index);
             consumed = word_index + span;
         }
         let mut unmatched_content = 0;
@@ -211,9 +214,11 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
                 // "L'Aquila") while "dell'arte" keeps the function reading.
                 if chosen.is_none() || word.upostag == "PROPN" {
                     chosen = Some((word.upostag.clone(), word.lemma.clone()));
+                    chosen_index = Some(scan);
                 }
                 if matches!(word.upostag.as_str(), "VERB" | "AUX") {
                     verb_part = Some((word.upostag.clone(), word.lemma.clone()));
+                    verb_part_index = Some(scan);
                 }
                 consumed = scan + 1;
             } else if word.upostag == "PUNCT" {
@@ -257,14 +262,23 @@ pub(super) fn tag_tokens(source_text: &str, language: &str, tokens: &mut [Token]
                     .any(|preposition| preposition == &surface);
                 if contraction && matches!(word.upostag.as_str(), "ADP" | "DET") {
                     chosen = Some((word.upostag.clone(), word.lemma.clone()));
+                    chosen_index = Some(word_index);
                     consumed = word_index + 1;
                 }
             }
         }
         word_index = consumed;
+        let metadata_index = verb_part_index.or(chosen_index);
         if let Some((upos, lemma)) = verb_part.or(chosen) {
             token.upos = Some(upos);
             token.lemma = Some(lemma);
+            if let Some(word) = metadata_index.and_then(|index| words.get(index)) {
+                token.features = Some(word.feats.clone());
+                token.dependency = Some(word.deprel.clone());
+                token.id = Some(word.id);
+                token.head = Some(word.head);
+                token.sentence_id = Some(word.sentence_id);
+            }
         }
     }
 }
@@ -378,6 +392,11 @@ mod tests {
             end: text.len(),
             upos: upos.map(str::to_string),
             lemma: None,
+            features: None,
+            dependency: None,
+            id: None,
+            head: None,
+            sentence_id: None,
         }
     }
 

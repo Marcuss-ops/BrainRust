@@ -196,7 +196,7 @@ mod tests {
             person_relations: "person_relations.seed11.v2".to_string(),
             places: "place_index.v3.multilingual_labels".to_string(),
             routes: "place_routes.v2.subject_hops".to_string(),
-            events: "event_frames.v2.cross_scene_facts".to_string(),
+            events: "event_frames.v3.udpipe_lemma_grounding".to_string(),
             discourse: "discourse.v7.role_nominal_basis".to_string(),
         }
     }
@@ -244,7 +244,7 @@ mod tests {
             person_relations: "person_relations.seed11.v2".to_string(),
             places: "place_index.v3.multilingual_labels".to_string(),
             routes: "place_routes.v2.subject_hops".to_string(),
-            events: "event_frames.v2.cross_scene_facts".to_string(),
+            events: "event_frames.v3.udpipe_lemma_grounding".to_string(),
             discourse: "discourse.v7.role_nominal_basis".to_string(),
         };
         let v2 = AnalyzerVersions {

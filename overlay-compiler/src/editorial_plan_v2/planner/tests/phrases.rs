@@ -52,7 +52,7 @@ fn short_phrase_motion_follows_the_word_count_bucket() {
     let mut items = vec![
         phrase_item("two", "Nike corre", None),
         phrase_item("four", "Nike corre al museo", None),
-        phrase_item("bullet", "Nike corre al museo oggi", Some("scene_bullet")),
+        phrase_item("bullet", "Nike corre", Some("scene_bullet")),
         phrase_item(
             "long",
             "una frase decisamente troppo lunga per la corsia breve",
@@ -63,12 +63,78 @@ fn short_phrase_motion_follows_the_word_count_bucket() {
     assert_eq!(items[0].motion_id, "typewriter_slow_type_short");
     assert_eq!(items[1].motion_id, "typewriter_word_burst_short");
     assert_eq!(
-        items[2].motion_id, "",
-        "the bullet lane keeps its own pin contract"
+        items[2].motion_id, "typewriter_slow_type_short",
+        "an unpinned editorial bullet rotates the bucket like a plain phrase"
     );
     assert_eq!(
         items[3].motion_id, "",
         "six words and up belong to the long lane"
+    );
+}
+
+#[test]
+fn editorial_bullets_and_titles_rotate_without_a_motion_pin() {
+    let mut request = request();
+    request.canvas.short_phrase_motions_by_word = std::collections::BTreeMap::from([(
+        "3".to_string(),
+        vec![
+            "typewriter_glyph_drift_short".to_string(),
+            "typewriter_rapid_fire_short".to_string(),
+            "typewriter_word_lift_short".to_string(),
+        ],
+    )]);
+    let mut items = vec![
+        phrase_item("title", "Tre parole qui", Some("scene_title")),
+        phrase_item("bullet-a", "Tre parole qui", Some("scene_bullet")),
+        phrase_item("bullet-b", "Tre parole qui", Some("chapter_bullet")),
+    ];
+    assign_short_phrase_motions(&mut items, &request);
+    let motions = items
+        .iter()
+        .map(|item| item.motion_id.as_str())
+        .collect::<Vec<_>>();
+    let expected = [
+        "typewriter_glyph_drift_short",
+        "typewriter_rapid_fire_short",
+        "typewriter_word_lift_short",
+    ];
+    let unique: std::collections::BTreeSet<&str> = motions.iter().copied().collect();
+    assert_eq!(
+        unique.len(),
+        expected.len(),
+        "editorial titles and bullets must rotate distinct entries, got {motions:?}"
+    );
+    assert!(
+        motions.iter().all(|motion| expected.contains(motion)),
+        "editorial titles and bullets must not fall back to the preset default, got {motions:?}"
+    );
+}
+
+#[test]
+fn bullet_pin_motion_wins_but_font_only_pin_still_rotates() {
+    let mut request = request();
+    request.canvas.short_phrase_motions_by_word = std::collections::BTreeMap::from([(
+        "3".to_string(),
+        vec!["typewriter_staccato_short".to_string()],
+    )]);
+    request.canvas.editorial_bullet_styles = serde_json::from_value(serde_json::json!([
+        {"scene_id": "scene-1", "font_family": "oswald", "motion_id": "air_rise_type_on"},
+        {"scene_id": "scene-2", "font_family": "abril_fatface"}
+    ]))
+    .expect("bullet pins");
+    let mut pinned = phrase_item("pinned", "Tre parole qui", Some("scene_bullet"));
+    pinned.scene_id = "scene-1".to_string();
+    let mut font_only = phrase_item("font-only", "Tre parole qui", Some("scene_bullet"));
+    font_only.scene_id = "scene-2".to_string();
+    let mut items = vec![pinned, font_only];
+    assign_short_phrase_motions(&mut items, &request);
+    assert_eq!(
+        items[0].motion_id, "",
+        "a motion pin is written later by apply_editorial_bullet_pins"
+    );
+    assert_eq!(
+        items[1].motion_id, "typewriter_staccato_short",
+        "a font-only pin does not select an entrance"
     );
 }
 

@@ -55,6 +55,21 @@ fn second_identical_request_is_served_from_cache() {
 }
 
 #[test]
+fn generic_visual_concepts_do_not_enter_the_semantic_entity_graph() {
+    let response: serde_json::Value = serde_json::from_str(
+        &Worker::default().handle_line(&request("Corrado Augias visitò un museo storico.")),
+    )
+    .unwrap();
+    assert_eq!(response["ok"], true);
+    let entities = response["manifest"]["scenes"][0]["entities"]
+        .as_array()
+        .unwrap();
+    assert!(entities
+        .iter()
+        .all(|entity| entity["type"] != "VISUAL_CONCEPT"));
+}
+
+#[test]
 fn shared_worker_splits_editorial_embedding_passages_with_utf8_offsets() {
     let response: serde_json::Value = serde_json::from_str(&Worker::default().handle_line(
             r#"{"operation":"split_sentences","language":"it","transcript":"L’analisi è pronta. Prosegue il lavoro."}"#,

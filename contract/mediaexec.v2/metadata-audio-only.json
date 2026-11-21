@@ -1,0 +1,36 @@
+{
+  "request": {
+    "version": "mediaexec.v2",
+    "operation": "probe",
+    "ffmpeg_path": "/usr/bin/ffmpeg",
+    "source_path": "/fixtures/voice.m4a"
+  },
+  "response": {
+    "ok": true,
+    "operation": "probe",
+    "source_path": "/fixtures/voice.m4a",
+    "items": [],
+    "metadata": {
+      "duration_sec": 3.04,
+      "bitrate": null,
+      "width": 0,
+      "height": 0,
+      "fps": 0,
+      "video_codec": null,
+      "pixel_format": null,
+      "stream_count": 1,
+      "video_stream_count": 0,
+      "audio_stream_count": 1,
+      "fps_num": 0,
+      "fps_den": 0,
+      "audio_codec": "aac",
+      "audio_profile": null,
+      "sample_rate": 48000,
+      "channels": 2,
+      "start_pts": null,
+      "has_video": false,
+      "has_audio": true
+    },
+    "error": null
+  }
+}

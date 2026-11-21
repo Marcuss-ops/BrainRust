@@ -1,7 +1,7 @@
 # TICKET-32 — places have no kind, coordinates, hierarchy or routes
 
 - Priority: P1
-- Status: PARTIAL (verified 2026-11-20)
+- Status: PARTIAL (verified 2026-11-21)
 - Depends on: TICKET-35 (a wrong link gives wrong coordinates)
 - Files: `lexicon/place_index_v1.json` (+ `lexicon/tools/build_place_index.py`),
   `semantic-core/src/{place.rs (new),entity_linker.rs}`,

@@ -9,6 +9,84 @@ use super::pos::is_stop_token;
 use super::stopwords::{is_generic_phrase, is_stop_phrase};
 use super::tokenizer::Token;
 use super::values::{classify_value_type, Candidate};
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
+
+const FAMILY_RELATIONS: &str = include_str!("../../../lexicon/family_relations.json");
+static FAMILY_CUE_HEADS: OnceLock<BTreeMap<String, BTreeSet<String>>> = OnceLock::new();
+
+#[derive(serde::Deserialize)]
+struct FamilyLexicon {
+    languages: BTreeMap<String, Vec<FamilyCue>>,
+}
+
+#[derive(serde::Deserialize)]
+struct FamilyCue {
+    surface: String,
+}
+
+fn family_cue_heads() -> &'static BTreeMap<String, BTreeSet<String>> {
+    FAMILY_CUE_HEADS.get_or_init(|| {
+        let parsed: FamilyLexicon = serde_json::from_str(FAMILY_RELATIONS)
+            .expect("family relation lexicon must be valid JSON");
+        parsed
+            .languages
+            .into_iter()
+            .map(|(language, cues)| {
+                let heads = cues
+                    .into_iter()
+                    .filter_map(|cue| cue.surface.split_whitespace().next().map(str::to_lowercase))
+                    .collect();
+                (language, heads)
+            })
+            .collect()
+    })
+}
+
+/// Type a single proper name as PERSON when a family-relation cue introduces
+/// it. This relies on the relation lexicon rather than a list of given names.
+pub(crate) fn type_relation_introduced_people(
+    candidates: &mut [Candidate],
+    tokens: &[Token],
+    source: &str,
+    language: &str,
+) {
+    let base = language.split(['-', '_']).next().unwrap_or(language);
+    let Some(cues) = family_cue_heads().get(base) else {
+        return;
+    };
+    for candidate in candidates.iter_mut().filter(|candidate| {
+        candidate.entity_type.is_none() && candidate.text.split_whitespace().count() == 1
+    }) {
+        let Some(index) = tokens
+            .iter()
+            .position(|token| token.start == candidate.start && token.end == candidate.end)
+        else {
+            continue;
+        };
+        if tokens[index].upos.as_deref() != Some("PROPN") || index == 0 {
+            continue;
+        }
+        let sentence_id = tokens[index].sentence_id;
+        let from = index.saturating_sub(4);
+        let introduced = (from..index).rev().any(|cue_index| {
+            if tokens[cue_index].sentence_id != sentence_id {
+                return false;
+            }
+            let gap = &source[tokens[cue_index].end..tokens[index].start];
+            if gap
+                .chars()
+                .any(|ch| matches!(ch, '.' | ';' | ':' | '!' | '?'))
+            {
+                return false;
+            }
+            cues.contains(&tokens[cue_index].text.to_lowercase())
+        });
+        if introduced {
+            candidate.entity_type = Some("PERSON".to_string());
+        }
+    }
+}
 use super::verb;
 
 /// Keeps a generic phrase only when the POS model still sees a noun phrase:
@@ -251,12 +329,40 @@ pub(crate) fn noun_phrase_candidates(
     // city as a common noun and the surrounding clause would otherwise make
     // the maximal noun phrase fail the POS gate (notably in Turkish).
     for (index, token) in tokens.iter().enumerate() {
-        if starts_uppercase(&token.text)
-            && semantic_core::lexicon::lexicon().is_place(&token.text, language)
-            && !super::location::is_month_name(&token.text)
+        if !starts_uppercase(&token.text) || super::location::is_month_name(&token.text) {
+            continue;
+        }
+        // Do not let a gazetteer homograph steal the head of a common-noun
+        // phrase (for example the ordinal in "Seconda guerra mondiale").
+        if matches!(token.upos.as_deref(), Some("ADJ" | "NUM"))
+            && tokens.get(index + 1).is_some_and(|next| {
+                !starts_uppercase(&next.text)
+                    && matches!(next.upos.as_deref(), Some("NOUN" | "PROPN"))
+            })
+            || token
+                .dependency
+                .as_deref()
+                .is_some_and(|relation| relation == "amod")
+                && token.head.is_some_and(|head| {
+                    tokens.iter().any(|head_token| {
+                        head_token.id == Some(head)
+                            && head_token.start > token.end
+                            && head_token.upos.as_deref() == Some("NOUN")
+                    })
+                })
         {
-            let mut candidate = candidate_from_tokens(tokens, source_text, index, index + 1);
-            candidate.entity_type = Some("LOCATION".to_string());
+            continue;
+        }
+        let mut candidate = candidate_from_tokens(tokens, source_text, index, index + 1);
+        let kind = super::values::classify_value_type(
+            &candidate.text,
+            true,
+            token.upos.as_deref() == Some("PROPN"),
+            true,
+            language,
+        );
+        if kind != "VISUAL_CONCEPT" {
+            candidate.entity_type = Some(kind);
             out.push(candidate);
         }
     }
@@ -284,6 +390,25 @@ pub(crate) fn noun_phrase_candidates(
             }
             while j < tokens.len() && starts_uppercase(&tokens[j].text) {
                 if j > phrase_start {
+                    let prefix = &source_text[tokens[phrase_start].start..tokens[j - 1].end];
+                    let suffix_end = (j..tokens.len())
+                        .take_while(|index| starts_uppercase(&tokens[*index].text))
+                        .last()
+                        .map_or(j, |index| index + 1);
+                    let suffix = &source_text[tokens[j].start..tokens[suffix_end - 1].end];
+                    let prefix_kind = classify_value_type(prefix, true, true, true, language);
+                    let suffix_kind = classify_value_type(suffix, true, true, true, language);
+                    if prefix_kind == "ORG" && suffix_kind == "PERSON" {
+                        break;
+                    }
+                    // A common noun that closes an institution/place phrase
+                    // cannot absorb the following proper name in apposition:
+                    // "Repubblica Sergio Mattarella" is two spans.
+                    if tokens[phrase_start].upos.as_deref() != Some("PROPN")
+                        && tokens[j].upos.as_deref() == Some("PROPN")
+                    {
+                        break;
+                    }
                     let gap = &bytes[tokens[j - 1].end..tokens[j].start];
                     if gap.iter().any(|b| is_phrase_breaking_byte(*b)) {
                         break;
@@ -335,6 +460,29 @@ pub(crate) fn noun_phrase_candidates(
         }
         let start = tokens[phrase_start].start;
         let end = tokens[phrase_end - 1].end;
+        // A title-cased ordinal/adjective followed by a lowercase noun is a
+        // phrase fragment, not a place mention ("Seconda guerra mondiale").
+        if phrase_end == phrase_start + 1
+            && starts_uppercase(&tokens[phrase_start].text)
+            && matches!(tokens[phrase_start].upos.as_deref(), Some("ADJ" | "NUM"))
+            && tokens.get(phrase_end).is_some_and(|next| {
+                !starts_uppercase(&next.text)
+                    && matches!(next.upos.as_deref(), Some("NOUN" | "PROPN"))
+            })
+        {
+            i = phrase_end;
+            while i < tokens.len()
+                && !starts_uppercase(&tokens[i].text)
+                && !is_stop_token(&tokens[i], language)
+                && !verb::is_verbal_continuation(tokens, i, language)
+            {
+                i += 1;
+            }
+            if i == phrase_end && i < tokens.len() {
+                i += 1;
+            }
+            continue;
+        }
         let text = source_text[start..end].to_string();
         let normalized = text.to_lowercase();
         // The run decomposition depends only on the phrase, so it is computed
@@ -373,6 +521,49 @@ pub(crate) fn noun_phrase_candidates(
         }
     }
     out
+}
+
+/// Delimited editorial titles are strong WORK evidence. Extract the text
+/// inside italics/guillemets before ordinary noun phrases can split title
+/// words into people, places, or visual concepts.
+pub(crate) fn delimited_work_candidates(source: &str) -> Vec<Candidate> {
+    let mut spans = Vec::new();
+    for (open, close) in [('*', '*'), ('«', '»'), ('“', '”')] {
+        let mut opening = None;
+        for (offset, ch) in source.char_indices() {
+            if ch == open {
+                if opening.is_none() {
+                    opening = Some(offset + ch.len_utf8());
+                } else if open == close {
+                    let start = opening.take().unwrap();
+                    spans.push((start, offset));
+                }
+            } else if ch == close && open != close {
+                if let Some(start) = opening.take() {
+                    spans.push((start, offset));
+                }
+            }
+        }
+    }
+    spans
+        .into_iter()
+        .filter_map(|(start, end)| {
+            let delimited = source.get(start..end)?;
+            let leading_bytes = delimited.len() - delimited.trim_start().len();
+            let raw = delimited.trim();
+            let text_start = start + leading_bytes;
+            let text_end = text_start + raw.len();
+            if raw.is_empty() || !raw.chars().next().is_some_and(char::is_uppercase) {
+                return None;
+            }
+            Some(Candidate {
+                text: raw.to_string(),
+                start: text_start,
+                end: text_end,
+                entity_type: Some("WORK".to_string()),
+            })
+        })
+        .collect()
 }
 
 fn coordinated_person_list_candidates(
@@ -454,4 +645,25 @@ fn coordinated_person_list_candidates(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod editorial_title_tests {
+    use super::delimited_work_candidates;
+
+    #[test]
+    fn italic_and_guillemet_delimiters_protect_work_titles() {
+        let source = "*Quel treno da Vienna* e «La torre di Babele».";
+        let works = delimited_work_candidates(source);
+        assert_eq!(works.len(), 2, "{works:?}");
+        for title in ["Quel treno da Vienna", "La torre di Babele"] {
+            let start = source.find(title).unwrap();
+            assert!(works.iter().any(|work| {
+                work.text == title
+                    && work.entity_type.as_deref() == Some("WORK")
+                    && work.start == start
+                    && work.end == start + title.len()
+            }));
+        }
+    }
 }

@@ -52,6 +52,11 @@ pub struct EntityGazetteer {
     /// multiword name as an organization (e.g. "Prism Laboratory").
     #[serde(default)]
     pub organization_markers: BTreeMap<String, Vec<String>>,
+    /// Verb lemmas whose syntactic complements commonly denote organizations
+    /// (join, leave, work with, or be elected to one). This is contextual type
+    /// evidence for ambiguous proper nouns, not a list of organization names.
+    #[serde(default)]
+    pub organization_context_verbs: BTreeMap<String, Vec<String>>,
     pub brands: Vec<String>,
     pub locations: Vec<String>,
     /// Explicit multiword names with a known semantic type. This outranks the

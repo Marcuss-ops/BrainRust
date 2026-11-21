@@ -65,6 +65,30 @@
     ],
     "it": [
       {
+        "surface": "suo padre",
+        "kind": "parent_of",
+        "direction": "right_to_left",
+        "anchor_previous_sentence": true
+      },
+      {
+        "surface": "sua madre",
+        "kind": "parent_of",
+        "direction": "right_to_left",
+        "anchor_previous_sentence": true
+      },
+      {
+        "surface": "un figlio",
+        "kind": "child_of",
+        "direction": "right_to_left",
+        "anchor_previous_sentence": true
+      },
+      {
+        "surface": "una figlia",
+        "kind": "child_of",
+        "direction": "right_to_left",
+        "anchor_previous_sentence": true
+      },
+      {
         "surface": "padre di",
         "kind": "parent_of",
         "direction": "left_to_right"
@@ -107,12 +131,14 @@
       {
         "surface": "sposato con",
         "kind": "spouse_of",
-        "direction": "left_to_right"
+        "direction": "right_to_left",
+        "anchor_previous_sentence": true
       },
       {
         "surface": "sposata con",
         "kind": "spouse_of",
-        "direction": "left_to_right"
+        "direction": "right_to_left",
+        "anchor_previous_sentence": true
       },
       {
         "surface": "collega di",

@@ -48,7 +48,7 @@ pub(super) fn admit(
     let mut images = 0;
     let mut maps = 0;
     let mut bullets = 0;
-    let mut selected = Vec::new();
+    let mut selected: Vec<PlanItemV2> = Vec::new();
     for item in candidates {
         if request.canvas.maps_only && !is_map(&item) {
             drop_reason(&mut intake, "maps_only");
@@ -90,8 +90,30 @@ pub(super) fn admit(
                 .unwrap_or(0)
                 >= max_per_scene
         {
-            drop_reason(&mut intake, "per_scene");
-            continue;
+            // Text entity cards are appended after the base candidates, so a
+            // scene full of numbers used to consume every slot and erase the
+            // person card. The ticket requires the named card, so at the
+            // ceiling one entity card may displace the last number of the same
+            // scene. Numbers still win over any other late candidate.
+            if !is_text_entity(&item) {
+                drop_reason(&mut intake, "per_scene");
+                continue;
+            }
+            let Some(position) = selected
+                .iter()
+                .rposition(|prior| prior.scene_id == item.scene_id && prior.kind == "number")
+            else {
+                drop_reason(&mut intake, "per_scene");
+                continue;
+            };
+            let evicted = selected.remove(position);
+            if let Some(count) = scene_counts.get_mut(evicted.scene_id.as_str()) {
+                *count -= 1;
+            }
+            if let Some(count) = group_counts.get_mut(group_for(&evicted)) {
+                *count -= 1;
+            }
+            drop_reason(&mut intake, "number_replaced_by_entity");
         }
         *group_counts.entry(group).or_default() += 1;
         *scene_counts.entry(item.scene_id.clone()).or_default() += 1;
@@ -164,6 +186,13 @@ fn category_disabled(request: &EditorialPlanV2Request, item: &PlanItemV2) -> boo
         .get(category)
         .map(|toggle| toggle == "disabled")
         .unwrap_or(false)
+}
+
+fn is_text_entity(item: &PlanItemV2) -> bool {
+    matches!(
+        item.kind.as_str(),
+        "entity_card" | "organization" | "location" | "concept"
+    )
 }
 
 fn group_for(item: &PlanItemV2) -> &'static str {

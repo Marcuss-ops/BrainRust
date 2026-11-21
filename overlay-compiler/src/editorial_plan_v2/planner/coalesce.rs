@@ -472,8 +472,6 @@ struct ChainSegment {
     caption_color: String,
     #[serde(skip_serializing_if = "is_blank")]
     entity_style_id: String,
-    #[serde(skip_serializing_if = "is_blank")]
-    camera_motion_id: String,
     start_us: i64,
     duration_us: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -573,7 +571,6 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64, handoff_us: i64) -> PlanIt
             caption_layout: item.caption_layout.clone(),
             caption_color: item.caption_color.clone(),
             entity_style_id: item.entity_style_id.clone(),
-            camera_motion_id: item.camera_motion_id.clone(),
             start_us: segment_start_us,
             duration_us,
             motion_params: item.motion_params.clone(),
@@ -651,10 +648,9 @@ mod segment_contract_tests {
     /// (`capmodel.ChainSegment`) and RenderingGen (`chainSegment`) decode these
     /// exact names, so adding or renaming a key here is a port-wide contract
     /// change, not a local refactor.
-    const CANONICAL_KEYS: [&str; 27] = [
+    const CANONICAL_KEYS: [&str; 26] = [
         "asset_id",
         "assets",
-        "camera_motion_id",
         "caption_color",
         "caption_font_family",
         "caption_layout",
@@ -697,7 +693,6 @@ mod segment_contract_tests {
             preset_id: "card_default".to_string(),
             image_preset_id: "image_scale_in".to_string(),
             motion_id: "card_reveal".to_string(),
-            camera_motion_id: "camera_push".to_string(),
             entity_style_id: "premium_below_random_v1".to_string(),
             motion_params: Some(json!({"enter_frames": 17})),
             text: "Ada Lovelace".to_string(),

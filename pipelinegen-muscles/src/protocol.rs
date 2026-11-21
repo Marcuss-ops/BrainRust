@@ -655,6 +655,16 @@ pub struct MediaMetadata {
     pub has_audio: bool,
     // Stage timings populated only by the combined-audio render path
     // (render_audio_plan). None everywhere else, and omitted on the wire.
+    //
+    // prepare_ms and loudness_ms cover the work that happens BEFORE the mix:
+    // source probing, plan-to-chain resolution and output preparation
+    // (prepare_ms), of which the one-per-path BGM mean-volume measurement is
+    // reported separately (loudness_ms) because it decodes the whole music
+    // asset. Without them the caller's render wall had a block no stage owned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepare_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loudness_ms: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mix_ms: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

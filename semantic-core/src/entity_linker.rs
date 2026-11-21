@@ -612,7 +612,7 @@ fn context_score(language: &str, entry: &EntityIndexEntry, kind: &str, context: 
         score += link_weights().type_prior_weight;
     }
     score += link_weights().type_cue_weight
-        * matching_type_cues(language, &entry.entity_type, &context).len() as i32;
+        * matching_type_cues(language, &entry.entity_type, context).len() as i32;
     score
 }
 

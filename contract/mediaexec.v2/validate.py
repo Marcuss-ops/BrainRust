@@ -26,6 +26,16 @@ except ImportError:  # pragma: no cover - exercised by the CI setup path
 ROOT = Path(__file__).resolve().parent
 EXPECTED = {"probe", "cut_batch", "normalize", "preflight"}
 
+# Metadata fixtures, outside the golden set. The goldens carry only the fields
+# the legacy probe/cut/normalize envelope needed, so they cannot notice that a
+# metadata field emitted by the Rust struct is undeclared: `additionalProperties`
+# is false, which turns such a field into a silent contract break the day a
+# response actually carries it. These two documents exercise every declared
+# property (a fully populated render metadata) and the nullable shape of an
+# audio-only probe. The Rust side pins the same property set in
+# `protocol::tests::metadata_covers_every_declared_schema_field`.
+METADATA_FIXTURES = ("metadata-full", "metadata-audio-only")
+
 
 def load(path: Path) -> dict:
     with path.open(encoding="utf-8") as handle:
@@ -63,6 +73,13 @@ def main() -> None:
             f"golden set drift: found {sorted(found)}, expected {sorted(EXPECTED)}"
         )
 
+    for name in METADATA_FIXTURES:
+        path = ROOT / f"{name}.json"
+        if not path.is_file():
+            fail(f"missing metadata fixture {path.name}")
+        document = load(path)
+        validate(response_validator, document["response"], name, "response")
+
     for path in goldens:
         document = load(path)
         if "request" not in document or "response" not in document:
@@ -81,7 +98,10 @@ def main() -> None:
         if response.get("ok") is not True:
             fail(f"{path.name}: the shared golden set only carries success responses")
 
-    print(f"✅ mediaexec.v2 contract: {len(goldens)} shared goldens validated")
+    print(
+        f"✅ mediaexec.v2 contract: {len(goldens)} shared goldens and "
+        f"{len(METADATA_FIXTURES)} metadata fixtures validated"
+    )
 
 
 if __name__ == "__main__":

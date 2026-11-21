@@ -1,7 +1,7 @@
 # TICKET-33 — people have no role, affiliation, family tie or age
 
 - Priority: P2
-- Status: PARTIAL (verified 2026-11-20)
+- Status: PARTIAL (verified 2026-11-21)
 - Depends on: TICKET-31 (validity dates), TICKET-35 (correct person link)
 - Files: `lexicon/roles/<lang>.json`, `lexicon/family_relations.json`,
   `semantic-core/src/{roles.rs (new),relations.rs}`,

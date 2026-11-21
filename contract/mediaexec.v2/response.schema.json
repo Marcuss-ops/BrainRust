@@ -87,6 +87,22 @@
         "error": { "type": ["string", "null"] }
       }
     },
+    "audio_edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_start_us",
+        "source_end_us",
+        "output_start_us",
+        "output_end_us"
+      ],
+      "properties": {
+        "source_start_us": { "type": "integer" },
+        "source_end_us": { "type": "integer" },
+        "output_start_us": { "type": "integer" },
+        "output_end_us": { "type": "integer" }
+      }
+    },
     "metadata": {
       "type": "object",
       "additionalProperties": false,
@@ -104,15 +120,61 @@
       ],
       "properties": {
         "duration_sec": { "type": "number", "minimum": 0 },
+        "bitrate": { "type": ["integer", "null"] },
         "width": { "type": "integer", "minimum": 0 },
         "height": { "type": "integer", "minimum": 0 },
         "fps": { "type": "number", "minimum": 0 },
-        "video_codec": { "type": "string" },
-        "audio_codec": { "type": "string" },
-        "sample_rate": { "type": "integer", "minimum": 0 },
-        "channels": { "type": "integer", "minimum": 0 },
+        "video_codec": { "type": ["string", "null"] },
+        "video_profile": { "type": "string" },
+        "video_level": { "type": "string" },
+        "pixel_format": { "type": ["string", "null"] },
+        "video_time_base_num": { "type": "integer" },
+        "video_time_base_den": { "type": "integer" },
+        "sar_num": { "type": "integer" },
+        "sar_den": { "type": "integer" },
+        "color_range": { "type": "string" },
+        "color_space": { "type": "string" },
+        "color_transfer": { "type": "string" },
+        "color_primaries": { "type": "string" },
+        "field_order": { "type": "string" },
+        "keyframe_interval": { "type": "integer", "minimum": 0 },
+        "b_frames": { "type": "integer", "minimum": 0 },
+        "closed_gop": { "type": "boolean" },
+        "video_extradata_sha256": { "type": "string" },
+        "format_name": { "type": "string" },
+        "stream_count": { "type": "integer", "minimum": 0 },
+        "video_stream_count": { "type": "integer", "minimum": 0 },
+        "audio_stream_count": { "type": "integer", "minimum": 0 },
+        "audio_edits": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/audio_edit" }
+        },
+        "fps_num": { "type": "integer", "minimum": 0 },
+        "fps_den": { "type": "integer", "minimum": 0 },
+        "audio_codec": { "type": ["string", "null"] },
+        "audio_profile": { "type": ["string", "null"] },
+        "audio_time_base_num": { "type": "integer" },
+        "audio_time_base_den": { "type": "integer" },
+        "sample_rate": { "type": ["integer", "null"], "minimum": 0 },
+        "channels": { "type": ["integer", "null"], "minimum": 0 },
+        "channel_layout": { "type": "string" },
+        "audio_bitrate": { "type": "integer" },
+        "audio_extradata_sha256": { "type": "string" },
+        "start_pts": { "type": ["integer", "null"] },
         "has_video": { "type": "boolean" },
-        "has_audio": { "type": "boolean" }
+        "has_audio": { "type": "boolean" },
+        "prepare_ms": { "type": "integer", "minimum": 0 },
+        "loudness_ms": { "type": "integer", "minimum": 0 },
+        "mix_ms": { "type": "integer", "minimum": 0 },
+        "aac_encode_ms": { "type": "integer", "minimum": 0 },
+        "probe_ms": { "type": "integer", "minimum": 0 },
+        "hash_ms": { "type": "integer", "minimum": 0 },
+        "ffmpeg_ms": { "type": "integer", "minimum": 0 },
+        "final_audio_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "audio_copy_eligible": { "type": "boolean" },
+        "audio_encode_passes": { "type": "integer", "minimum": 0 },
+        "decode_ms": { "type": "integer", "minimum": 0 },
+        "encode_ms": { "type": "integer", "minimum": 0 }
       }
     }
   }

@@ -28,6 +28,10 @@ ndjson-stdio = { workspace = true }
 semantic-core = { workspace = true }
 udpipe-rs = "0.1"
 rust_icu_ubrk = { version = "5.8.0", default-features = false, features = ["icu_version_in_env", "renaming"] }
+gliner25-rs = "=0.5.6"
+# gliner25-rs currently targets the rc.13 API; pin it so a newer semver
+# prerelease of ort cannot silently change the ONNX session API.
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "load-dynamic"] }
 
 [lints]
 workspace = true

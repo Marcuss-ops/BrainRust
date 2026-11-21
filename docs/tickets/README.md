@@ -5,6 +5,11 @@ Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
 Last verified: 2026-11-21, snapshot ongoing local implementation pass. **31 DONE/CLOSED, 6 PARTIAL (30, 32–36), 0 OPEN, 3 BLOCKED (08, 10, 26).**
+The final recheck rebuilt the release worker (`3e9bb942…`): `semantic-engine`
+passes **345 tests in 28 suites**, the quantity draft scores **1,784 cases
+(1,643/1,643)** and the coref draft **440/440**, both with zero false
+positives; details in [Verification — 2026-11-21 (final status
+recheck)](#verification--2026-11-21-final-status-recheck).
 TICKET-27 is CLOSED (`v0.3.8` published on 2026-11-19) and was still counted
 among the blocked entries in the previous line; TICKET-40 is CLOSED too.
 TICKET-37 adds the persistent manifest cache, TICKET-38 the preflight engine
@@ -204,7 +209,7 @@ bullets below are the current state. No non-closed ticket is closable today.
   evidence; discourse prior, natural 10-language gold and calibration remain.
 - **BONIFICA-05 hotspot split complete in the working tree.** All 20 measured Rust hotspots are now below 1,000 lines, including `semantic-engine/candidates.rs` and `overlay-compiler/editorial_plan_v2/request.rs`; the latter retains the pre-existing animation/style pool fields. Its request tests pass 107/107. `cargo fmt`, workspace Clippy, `git diff --check`, and `cargo test --workspace --tests --locked` pass on the final tree.
 - **GitHub issue #1 chart gate rechecked and expanded.** Added eleven-language annual-series and scaled-currency gates with year/category binding, exact source spans and EUR/USD rejection; Turkish cases now cover assertion denial, suffix-attached years, count units and euro/dollar mismatch. Chart item text retains rate periods such as `20 euro al mese`. The 36-case gold also asserts those unit/period surfaces. Added inflected Polish dollar/pound surfaces to the generated unit pack after the mixed-currency gate exposed a missing USD match. `chart_acceptance_36`, `chart_bare_cue`, `chart_multilingual`, `charts_numeric`, and the complete `semantic-engine` test suite pass. One historical query regression test still exists and passes; the other was superseded by the identity-only query contract plus separate grounded-context tests, so its old name/expectation is no longer present. Draft fixtures still need native-language review; the issue remains open for independent annotation and broader natural context/unit coverage. Workspace configuration links ICU 72; overriding it to 70 causes linker ABI errors.
-- Recheck 2026-11-21: Turkish annual-series support handles years with apostrophe suffixes; `avro` is an EUR alias, and Turkish `yanlış`/`doğru değil` are explicit chart vetoes. All three `chart_multilingual` tests pass across eleven languages. The chart gates `chart_acceptance_36`, `chart_bare_cue`, `chart_multilingual`, and `charts_numeric` pass. TICKET-30’s latest release draft scorer covers **1,784 cases**, **1,643/1,643** positive quantities and 33/33 localized ratio/difference/change comparisons; 33 incompatible comparisons produce no false outputs. The coref and quantity reports share the current worker hash. `semantic-engine` passes **331 tests in 29 suites**, Clippy, formatter and `git diff --check` pass.
+- Recheck 2026-11-21: Turkish annual-series support handles years with apostrophe suffixes; `avro` is an EUR alias, and Turkish `yanlış`/`doğru değil` are explicit chart vetoes. All three `chart_multilingual` tests pass across eleven languages. The chart gates `chart_acceptance_36`, `chart_bare_cue`, `chart_multilingual`, and `charts_numeric` pass. TICKET-30’s latest release draft scorer covers **1,784 cases**, **1,643/1,643** positive quantities and 33/33 localized ratio/difference/change comparisons; 33 incompatible comparisons produce no false outputs. The coref and quantity reports share the current worker hash. `semantic-engine` passes **345 tests in 28 suites**, Clippy, formatter and `git diff --check` pass.
 - **36a draft, 36b complete; initial 36c slices complete.** The 440-case
   coref gold and baseline remain an assistant draft pending human review.
   Recheck 2026-11-21 added Turkish `Selin` after the gold exposed a missing
@@ -236,26 +241,36 @@ the files to touch, the measurable gate and the ordered sub-tickets.
 | 34 | 34a types/triggers (**11 languages done**), 34b single-sentence frames, 34c conservative merge/thread and fact references (**initial slice done**), 34d natural gold + metrics | 34d gold and confusable merge set | independent event reviewer |
 | 36 | 36a technical gold/baseline (**draft pending human review**), 36b structured pronouns (**done**), 36c gender compatibility and given-name seed (**initial slices done**)/agreement features, 36d salience, 36e role nominals (**dedicated basis done**), 36f gold | remaining 36c, 36d and human-reviewed gold | 36d after 35 |
 
-## Verification — 2026-11-21 (current Rust issue follow-up)
+## Verification — 2026-11-21 (final status recheck)
 
-- `cargo test --workspace --locked` — PASS, complete Rust workspace. Chart tests
-  include acceptance **36/36**, multilingual **11/11**, and numeric **18/18**;
-  Spanish role protocol and query regressions pass. Ignored manual perf probes
-  remain opt-in.
-- `cargo clippy -p semantic-engine --all-targets --locked -- -D warnings`,
-  `cargo fmt --all -- --check`, `git diff --check`, role lexicon checker and
-  `build_language_packs.py --check` — PASS.
-- Release quantity report refreshed against worker SHA-256
-  `047d7c70ae33056a87ffb28ae9b37fff06bf33b666a3c201ccc85d25b1455cd1`:
-  **1,784 cases**, **1,643/1,643** quantities, 33 positive comparisons,
-  33 incompatible pairs rejected, and zero quantity/comparison false
-  positives. Coreference draft scorer on the same binary: **440/440** status
-  and target matches, zero false resolutions. Both datasets remain explicitly
-  assistant drafts and cannot satisfy independent review gates.
+Re-run on HEAD `b541f1d`. The release worker on disk (`3e9bb942…`) was built
+from that tree; the one-line lint fix below changes no behavior and does not
+alter the scored output.
+
+- `cargo test -p semantic-engine --locked --tests` — **PASS**: **28 suites,
+  345 passed, 0 failed, 4 ignored** (the ignored tests are manual probes).
+- `cargo fmt --all -- --check` — rc 0. `cargo clippy -p semantic-engine
+  --all-targets --locked -- -D warnings` — rc 0 after fixing one real
+  `needless_borrow` at `semantic-core/src/entity_linker.rs:615`.
+- Quantity draft scorer on `target/release/semantic-engine` (SHA-256
+  `3e9bb9425e82f699761b8a8a124d16d00d5669060fbd825c2251d2f101e6bd79`):
+  **1,784 cases**, **1,643/1,643** positive quantities, 33 positive
+  ratio/difference/change comparisons, 33 incompatible comparisons rejected,
+  **0** quantity or comparison false positives.
+- Coreference draft scorer on the same worker: **440/440** status and target
+  matches, **0** false resolutions, draft precision/recall 1.0.
+- **Limitation:** this checkout has no `.tmp/udpipe-models`, so the run is
+  model-free. Per the measurement precondition these are contract/regression
+  results, not certified semantic-quality numbers.
+- Both reports remain `assistant_draft_pending_human_review`; this recheck
+  moves no ticket to CLOSED. The remaining gates per ticket are in
+  “Closure plans and splits” below and in the 2026-11-21 table of
+  [`docs/stato/brainrust.md`](../../../docs/stato/brainrust.md).
 - `VELOX_RUST_SEMANTIC_ENGINE_PATH=../BrainRust/target/release/semantic-engine
-  go test ./internal/platform/media/rustexec -count=1` — PASS (**82.869 s**).
-- GitHub issue #1 was updated with these results and remains open for the
-  independent gold and annotation review required by its acceptance criteria.
+  go test ./internal/platform/media/rustexec -count=1` — PASS on the previous
+  release worker (**82.869 s**); unchanged by this documentation recheck.
+- GitHub issue #1 remains open for the independent gold and annotation review
+  required by its acceptance criteria.
 
 ## Verifica — 2026-11-21 (TICKET-32 label luoghi multilingue)
 
@@ -268,7 +283,7 @@ the files to touch, the measurable gate and the ordered sub-tickets.
   fingerprint — PASS. `places::tests` — **12/12**; protocollo place — PASS;
   suite completa `semantic-engine` — PASS e Clippy con `-D warnings` — PASS.
 - Release scorer aggiornati sul worker SHA-256
-  `fe2c2ab967939b94c7fca1ef3b4658a7cd2c2f578973abedd3d8f34512415d1c`:
+  `3e9bb9425e82f699761b8a8a124d16d00d5669060fbd825c2251d2f101e6bd79`:
   quantity **1,784 casi**, **1,643/1,643** match, zero falsi positivi;
   coreference draft **440/440** match e zero falsi positivi.
 - Verifica Go `rustexec` con il worker release aggiornato — **PASS** (85 s),

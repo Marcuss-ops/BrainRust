@@ -1,7 +1,7 @@
 {
   "schema": "brainrust.quantity_gold_report.v1",
   "annotation_authority": "assistant_draft_pending_human_review",
-  "worker_sha256": "fe2c2ab967939b94c7fca1ef3b4658a7cd2c2f578973abedd3d8f34512415d1c",
+  "worker_sha256": "3e9bb9425e82f699761b8a8a124d16d00d5669060fbd825c2251d2f101e6bd79",
   "languages": {
     "de": {
       "cases": 162,

@@ -107,6 +107,10 @@ pub struct LanguageProfile {
     /// says nothing about the surface, so PROPN alone is name evidence.
     #[serde(default)]
     pub lowercase_propn_lemmas: bool,
+    /// Allows a uniquely salient person to supply an omitted grammatical
+    /// subject in event frames when the language routinely drops pronouns.
+    #[serde(default)]
+    pub pro_drop_subjects: bool,
 }
 
 /// One writing system's case behavior. Scripts without letter case (Han,
@@ -179,6 +183,13 @@ impl LanguageProfiles {
     pub fn lowercase_propn_lemmas(&self, language: &str) -> bool {
         self.entry(language)
             .is_some_and(|profile| profile.lowercase_propn_lemmas)
+    }
+
+    /// Whether an omitted subject may be resolved from a unique discourse
+    /// focus, rather than being treated as an extraction error.
+    pub fn pro_drop_subjects(&self, language: &str) -> bool {
+        self.entry(language)
+            .is_some_and(|profile| profile.pro_drop_subjects)
     }
 
     /// The pivot: does an uppercase initial prove a proper name? Only in a

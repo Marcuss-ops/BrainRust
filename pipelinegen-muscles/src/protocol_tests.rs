@@ -1,7 +1,8 @@
 use super::CopyCertification;
 use super::{Operation, Response, PROTOCOL_VERSION};
 use crate::error::ErrorCode;
-use crate::protocol::MediaMetadata;
+use crate::protocol::{AudioEditMetadata, MediaMetadata};
+use std::collections::BTreeSet;
 
 #[test]
 fn implemented_operations_are_declared_in_the_contract_schema() {
@@ -26,6 +27,31 @@ fn implemented_operations_are_declared_in_the_contract_schema() {
             operation.as_str()
         );
     }
+}
+
+// The pre-mix block (source prep + BGM loudness) used to have no wire field,
+// so a render could report 24 s of wall with only the 1-2 s mix accounted.
+#[test]
+fn audio_pre_mix_timings_are_serialized_only_when_measured() {
+    let mut measured = metadata();
+    measured.prepare_ms = Some(640);
+    measured.loudness_ms = Some(420);
+    let value = serde_json::to_value(&measured).expect("serialize metadata");
+    assert_eq!(value["prepare_ms"], 640);
+    assert_eq!(value["loudness_ms"], 420);
+
+    let mut unmeasured = metadata();
+    unmeasured.prepare_ms = None;
+    unmeasured.loudness_ms = None;
+    let value = serde_json::to_value(&unmeasured).expect("serialize metadata");
+    assert!(
+        value.get("prepare_ms").is_none(),
+        "an unmeasured prepare must not be reported as 0"
+    );
+    assert!(
+        value.get("loudness_ms").is_none(),
+        "an unmeasured loudness must not be reported as 0"
+    );
 }
 
 #[test]
@@ -71,6 +97,141 @@ fn certified() -> CopyCertification {
         video_extradata_sha256: Some(TEST_EXTRADATA.to_string()),
         audio_extradata_sha256: None,
     }
+}
+
+/// Every field populated, including the stage timings a real
+/// `render_audio_plan` publishes. Used to prove that the wire contract and the
+/// struct cannot drift: `additionalProperties: false` turns any undeclared
+/// field into a schema violation the day a response carries it.
+fn fully_populated_metadata() -> MediaMetadata {
+    MediaMetadata {
+        duration_sec: 991.32,
+        bitrate: Some(6_400_000),
+        width: 1920,
+        height: 1080,
+        fps: 24.0,
+        video_codec: Some("h264".to_string()),
+        video_profile: Some("high".to_string()),
+        video_level: Some("4.1".to_string()),
+        pixel_format: Some("yuv420p".to_string()),
+        video_time_base_num: Some(1),
+        video_time_base_den: Some(12288),
+        sar_num: Some(1),
+        sar_den: Some(1),
+        color_range: Some("tv".to_string()),
+        color_space: Some("bt709".to_string()),
+        color_transfer: Some("bt709".to_string()),
+        color_primaries: Some("bt709".to_string()),
+        field_order: Some("progressive".to_string()),
+        keyframe_interval: Some(48),
+        b_frames: Some(3),
+        closed_gop: Some(true),
+        video_extradata_sha256: Some(TEST_EXTRADATA.to_string()),
+        format_name: Some("mov,mp4,m4a,3gp,3g2,mj2".to_string()),
+        stream_count: 2,
+        video_stream_count: 1,
+        audio_stream_count: 1,
+        audio_edits: vec![AudioEditMetadata {
+            source_start_us: 0,
+            source_end_us: 2_000_000,
+            output_start_us: 0,
+            output_end_us: 2_000_000,
+        }],
+        fps_num: 24,
+        fps_den: 1,
+        audio_codec: Some("aac".to_string()),
+        audio_profile: Some("LC".to_string()),
+        audio_time_base_num: Some(1),
+        audio_time_base_den: Some(48_000),
+        sample_rate: Some(48_000),
+        channels: Some(2),
+        channel_layout: Some("stereo".to_string()),
+        audio_bitrate: Some(192_000),
+        audio_extradata_sha256: Some(TEST_EXTRADATA.to_string()),
+        start_pts: Some(0),
+        has_video: true,
+        has_audio: true,
+        prepare_ms: Some(640),
+        loudness_ms: Some(420),
+        mix_ms: Some(3120),
+        aac_encode_ms: Some(3100),
+        probe_ms: Some(190),
+        hash_ms: Some(60),
+        ffmpeg_ms: Some(4100),
+        final_audio_sha256: Some(TEST_EXTRADATA.to_string()),
+        audio_copy_eligible: Some(false),
+        audio_encode_passes: Some(1),
+        decode_ms: Some(900),
+        encode_ms: Some(2400),
+    }
+}
+
+/// The schema is strict (`additionalProperties: false`), so a field the struct
+/// emits but the schema does not declare is a contract break rather than a
+/// documentation gap. This pins both directions and keeps the validator
+/// fixture in lockstep with the struct.
+#[test]
+fn metadata_covers_every_declared_schema_field() {
+    let schema: serde_json::Value = serde_json::from_str(include_str!(
+        "../../contract/mediaexec.v2/response.schema.json"
+    ))
+    .expect("response schema");
+    let declared: BTreeSet<&str> = schema["definitions"]["metadata"]["properties"]
+        .as_object()
+        .expect("metadata properties")
+        .keys()
+        .map(String::as_str)
+        .collect();
+
+    let metadata = serde_json::to_value(fully_populated_metadata()).expect("serialize metadata");
+    let emitted: BTreeSet<&str> = metadata
+        .as_object()
+        .expect("metadata object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    let undeclared: Vec<&&str> = emitted.difference(&declared).collect();
+    assert!(
+        undeclared.is_empty(),
+        "metadata emits fields response.schema.json does not declare: {undeclared:?}"
+    );
+    let unexercised: Vec<&&str> = declared.difference(&emitted).collect();
+    assert!(
+        unexercised.is_empty(),
+        "response.schema.json declares metadata fields a full render never emits: {unexercised:?}"
+    );
+
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../contract/mediaexec.v2/metadata-full.json"
+    ))
+    .expect("metadata fixture");
+    let fixture_keys: BTreeSet<&str> = fixture["response"]["metadata"]
+        .as_object()
+        .expect("fixture metadata")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        fixture_keys, emitted,
+        "metadata-full.json drifted from MediaMetadata; regenerate the fixture"
+    );
+
+    let edit_keys: BTreeSet<&str> = metadata["audio_edits"][0]
+        .as_object()
+        .expect("audio edit")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    let declared_edit: BTreeSet<&str> = schema["definitions"]["audio_edit"]["properties"]
+        .as_object()
+        .expect("audio_edit properties")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        edit_keys, declared_edit,
+        "audio_edits items drifted from response.schema.json"
+    );
 }
 
 fn metadata() -> MediaMetadata {
