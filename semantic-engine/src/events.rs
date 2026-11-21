@@ -309,6 +309,38 @@ fn preceding_sentence_person(
     None
 }
 
+/// The one participant already credited as the agent of the same event type
+/// earlier in the scene, if the scene has exactly one such person.
+///
+/// An omitted subject is normally resolved from the immediately preceding
+/// sentence, but that sentence is often about the subject's family ("Era
+/// sposato con Daniela Pasti e aveva una figlia, Natalia") and names two
+/// people. Publication history still identifies the author: a scene that has
+/// already attributed one publication to exactly one person attributes the
+/// next omitted-subject publication to that same person. Two distinct agents
+/// in the scene stay ambiguous and resolve to nothing.
+fn established_event_agent(
+    frames: &[EventFrame],
+    event_type: &str,
+    scene_id: &str,
+) -> Option<String> {
+    let mut agents: Vec<&str> = frames
+        .iter()
+        .filter(|frame| {
+            frame.event_type == event_type && frame.scene_ids.iter().any(|id| id == scene_id)
+        })
+        .flat_map(|frame| frame.participants.iter())
+        .filter(|participant| participant.role == "agent")
+        .map(|participant| participant.entity_id.as_str())
+        .collect();
+    agents.sort_unstable();
+    agents.dedup();
+    match agents.as_slice() {
+        [only] => Some((*only).to_string()),
+        _ => None,
+    }
+}
+
 fn has_possessive_cue(sentence: &str, language: &str) -> bool {
     let Some(possessives) = semantic_core::language_profiles::get(language)
         .and_then(|profile| profile.word_sets.get("possessives"))
@@ -524,21 +556,27 @@ pub(crate) fn extract_bounded_with_tokens(
                                         || relation.starts_with("acl:")
                                 }))
                     });
-                    let attributive_work = tokens.iter().any(|trigger_token| {
-                        trigger_token.start == trigger_start
-                            && trigger_token.head.is_some_and(|head_id| {
-                                tokens.iter().any(|head| {
-                                    head.id == Some(head_id)
-                                        && head.start >= sentence.start_byte
-                                        && head.end <= sentence.end_byte
-                                        && candidates.iter().any(|candidate| {
-                                            candidate.kind == "WORK"
-                                                && candidate.start_byte <= head.start
-                                                && candidate.end_byte >= head.end
-                                        })
+                    // Only a participle can modify a work attributively. The
+                    // dependency parser also attaches finite verbs to the noun
+                    // they follow ("Nel 2024 pubblicò La vita s'impara" can come
+                    // back as an advcl of the title), and treating that as a
+                    // passive participle hides the real active agent.
+                    let attributive_work = participial_predicate
+                        && tokens.iter().any(|trigger_token| {
+                            trigger_token.start == trigger_start
+                                && trigger_token.head.is_some_and(|head_id| {
+                                    tokens.iter().any(|head| {
+                                        head.id == Some(head_id)
+                                            && head.start >= sentence.start_byte
+                                            && head.end <= sentence.end_byte
+                                            && candidates.iter().any(|candidate| {
+                                                candidate.kind == "WORK"
+                                                    && candidate.start_byte <= head.start
+                                                    && candidate.end_byte >= head.end
+                                            })
+                                    })
                                 })
-                            })
-                    });
+                        });
                     if attributive_participle && !attributive_work {
                         continue;
                     }
@@ -588,6 +626,7 @@ pub(crate) fn extract_bounded_with_tokens(
                     }
                     let mut participants = Vec::new();
                     let mut pro_drop_resolved = false;
+                    let mut discourse_agent_resolved = false;
                     for (role, position) in &trigger.roles {
                         let candidate = nearest_candidate(
                             candidates,
@@ -616,17 +655,26 @@ pub(crate) fn extract_bounded_with_tokens(
                             // mention in the immediately preceding sentence of
                             // the same paragraph. A document-wide frequency
                             // winner silently misattributes multi-person texts.
-                            if let Some(person_id) = preceding_sentence_person(
+                            let local = preceding_sentence_person(
                                 source,
                                 candidates,
                                 sentence.start_byte,
                                 language,
-                            ) {
+                            );
+                            if let Some(person_id) = local {
                                 participants.push(EventParticipant {
                                     role: role.clone(),
                                     entity_id: person_id,
                                 });
                                 pro_drop_resolved = true;
+                            } else if let Some(person_id) =
+                                established_event_agent(&frames, &event_type, scene_id)
+                            {
+                                participants.push(EventParticipant {
+                                    role: role.clone(),
+                                    entity_id: person_id,
+                                });
+                                discourse_agent_resolved = true;
                             }
                         }
                     }
@@ -669,6 +717,9 @@ pub(crate) fn extract_bounded_with_tokens(
                     }
                     if pro_drop_resolved {
                         confidence_basis.push("pro_drop_coref".to_string());
+                    }
+                    if discourse_agent_resolved {
+                        confidence_basis.push("discourse_agent_coref".to_string());
                     }
                     if temporal.is_some() {
                         confidence_basis.push("date".to_string());
@@ -1384,6 +1435,39 @@ mod tests {
             .participants
             .iter()
             .any(|participant| participant.role == "agent"));
+    }
+
+    // A biography often describes the family between two publications, so the
+    // sentence before the omitted subject names two people. The publication
+    // history of the scene still identifies the author.
+    #[test]
+    fn ambiguous_omitted_subject_reuses_the_scene_established_publication_agent() {
+        let source = "Corrado Augias nacque a Roma. Nel 2006 pubblicò Inchiesta su Gesù. Era sposato con Daniela Pasti e aveva una figlia, Natalia. Nel 2024 pubblicò La vita s'impara.";
+        let candidates = vec![
+            candidate(source, "Corrado Augias", "person_corrado", "PERSON"),
+            candidate(source, "Daniela Pasti", "person_daniela", "PERSON"),
+            candidate(source, "Natalia", "person_natalia", "PERSON"),
+            candidate(source, "Inchiesta su Gesù", "work_gesu", "WORK"),
+            candidate(source, "La vita s'impara", "work_vita", "WORK"),
+        ];
+        let frames = extract_with_model(0, "s1", source, "it", &candidates);
+        let publication = frames
+            .iter()
+            .find(|frame| {
+                frame.event_type == "launch_release"
+                    && frame
+                        .evidence
+                        .iter()
+                        .any(|evidence| evidence.text.contains("2024"))
+            })
+            .expect("2024 publication frame");
+        assert!(publication.participants.iter().any(|participant| {
+            participant.role == "agent" && participant.entity_id == "person_corrado"
+        }));
+        assert!(publication
+            .confidence_basis
+            .iter()
+            .any(|basis| basis == "discourse_agent_coref"));
     }
 
     #[test]

@@ -31,6 +31,28 @@ pub(crate) fn entity_candidates(
         .collect()
 }
 
+/// Entity candidates for the manifest's identity graph: generic visual
+/// concepts are dropped by KIND after each candidate has resolved its own
+/// identity id.
+///
+/// The identity lookup is indexed by the scene's entity list, so filtering the
+/// entities BEFORE the lookup renumbers it: every candidate after the first
+/// dropped concept would carry the identity of the entity that used to sit in
+/// its slot — including concepts the manifest deliberately omits, which the Go
+/// side then rejects as an unborn reference. Dropping the finished candidates
+/// keeps index and identity aligned.
+pub(crate) fn typed_entity_candidates(
+    source: &str,
+    sentences: &[semantic_core::SentenceSpan],
+    entities: &[VisualEntity],
+    identities: &IdentityLookup,
+) -> Vec<Candidate> {
+    entity_candidates(source, sentences, entities, identities)
+        .into_iter()
+        .filter(|candidate| candidate.kind != "VISUAL_CONCEPT")
+        .collect()
+}
+
 /// Generates the manifest's bullet candidates with the shared algorithm over
 /// the FINAL grounded entity list, so facility mentions added by this engine
 /// participate in the same scoring as tokenizer-extracted entities.
@@ -551,5 +573,60 @@ mod contextual_image_query_tests {
                 component.text
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod typed_entity_candidate_tests {
+    use super::*;
+
+    fn entity(text: &str, kind: &str, source: &str) -> VisualEntity {
+        let start = source.find(text).unwrap();
+        VisualEntity {
+            text: text.into(),
+            r#type: kind.into(),
+            score: 0.9,
+            start,
+            end: start + text.len(),
+            evidence: text.into(),
+        }
+    }
+
+    // A dropped visual concept must not shift the identity of the entities that
+    // follow it: the manifest has to reference identities it also publishes.
+    #[test]
+    fn dropping_visual_concepts_keeps_every_identity_reference_aligned() {
+        let source = "The crowd roared as Mike Tyson entered the arena.";
+        let entities = vec![
+            entity("crowd", "VISUAL_CONCEPT", source),
+            entity("Mike Tyson", "PERSON", source),
+            entity("arena", "VISUAL_CONCEPT", source),
+        ];
+        let mut registry = semantic_core::IdentityRegistry::new();
+        let context = visualner::ScriptContext::default();
+        let identities = IdentityLookup::build(&mut registry, "scene", &entities, &context);
+        let sentences = semantic_core::split_sentences(source, "en", None);
+
+        let candidates = typed_entity_candidates(source, &sentences, &entities, &identities);
+
+        assert_eq!(
+            candidates.len(),
+            1,
+            "only the typed entity survives: {candidates:?}"
+        );
+        assert_eq!(candidates[0].text, "Mike Tyson");
+        assert_eq!(candidates[0].id, identities.id_of(1));
+        assert_ne!(candidates[0].id, identities.id_of(0));
+        let published: Vec<&str> = registry
+            .identities()
+            .iter()
+            .filter(|identity| identity.kind != "VISUAL_CONCEPT")
+            .map(|identity| identity.id.as_str())
+            .collect();
+        assert!(
+            published.contains(&candidates[0].id.as_str()),
+            "candidate {} references an identity the manifest omits ({published:?})",
+            candidates[0].id
+        );
     }
 }

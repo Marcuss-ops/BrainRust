@@ -538,16 +538,15 @@ fn analyze_scene_with_search(
         }
     }
 
-    // Keep the semantic identity graph limited to typed entities. Generic
-    // visual concepts have already fed visual-query planning above; carrying
-    // them into this list mixes B-roll vocabulary with named entities.
-    let semantic_entities: Vec<VisualEntity> = entities
-        .iter()
-        .filter(|entity| entity.r#type != "VISUAL_CONCEPT")
-        .cloned()
-        .collect();
+    // The scene entity list keeps only typed entities, but the identity graph
+    // must publish visual concepts too: entity-search proposals reference
+    // their ids and the Go planner resolves every proposal entity id against
+    // this registry. Dropping them here left validated B-roll proposals with
+    // unborn identities. The entity list handed to the lookup stays unfiltered
+    // on purpose: the lookup is indexed by it, so filtering first would shift
+    // every id.
     let entity_candidate_list =
-        entity_candidates(source, &sentence_spans, &semantic_entities, &identities);
+        typed_entity_candidates(source, &sentence_spans, &entities, &identities);
     let important_words = important_word_candidates(&entity_candidate_list);
     let important_segments = segment_candidates(source, &sentence_spans, &entities, &entity_facts);
 
@@ -557,12 +556,7 @@ fn analyze_scene_with_search(
             status: "valid".to_string(),
             reason: None,
             entities: entity_candidate_list,
-            identities: registry
-                .identities()
-                .iter()
-                .filter(|identity| identity.kind != "VISUAL_CONCEPT")
-                .cloned()
-                .collect(),
+            identities: registry.identities().to_vec(),
             person_roles,
             age_facts,
             person_relations,
@@ -706,12 +700,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
     let entities = semantic_core::entity_linker::link_all_with_threads(
         language,
         &scene_texts,
-        &registry
-            .identities()
-            .iter()
-            .filter(|identity| identity.kind != "VISUAL_CONCEPT")
-            .cloned()
-            .collect::<Vec<_>>(),
+        &registry.identities().to_vec(),
         &discourse.threads,
     );
 

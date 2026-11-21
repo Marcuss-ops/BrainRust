@@ -45,6 +45,33 @@ fn r02_two_persons_in_one_sentence_are_a_co_mention_not_a_relation() {
 }
 
 #[test]
+fn every_proposal_entity_id_is_published_in_the_identity_graph() {
+    // B-roll proposals include generic visual concepts. Their ids must exist in
+    // the scene identity graph, because the Go planner resolves every proposal
+    // entity id against the published identities.
+    let text =
+        "Il 42% dei tecnici ha segnalato il problema, contro il 18% del gruppo di controllo.";
+    let value = manifest_value(vec![scene("graph", text)]);
+    let scene = &value["scenes"][0];
+    let published: std::collections::HashSet<&str> = scene["identities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|identity| identity["id"].as_str())
+        .collect();
+    for proposal in scene["visual_proposals"].as_array().unwrap() {
+        for id in proposal["entity_ids"].as_array().unwrap() {
+            let id = id.as_str().unwrap();
+            assert!(
+                published.contains(id),
+                "proposal {} references unpublished identity {id}: {published:?}",
+                proposal["id"]
+            );
+        }
+    }
+}
+
+#[test]
 fn same_person_in_two_scenes_keeps_one_canonical_id() {
     let scenes = vec![
         scene("a", "Alberto Stasi è il primo nome."),
