@@ -84,6 +84,13 @@ const FIXTURES: &[Fixture] = &[
         ),
         plan: include_str!("fixtures/overlay_plan/plans/entity_cards_promotable_media.plan.json"),
     },
+    Fixture {
+        name: "chain_segments_conformance",
+        request: include_str!(
+            "fixtures/overlay_plan/requests/chain_segments_conformance.request.json"
+        ),
+        plan: include_str!("fixtures/overlay_plan/plans/chain_segments_conformance.plan.json"),
+    },
 ];
 
 const UNKNOWN_SCHEMA: &str = include_str!("fixtures/overlay_plan/malformed/unknown_schema.json");

@@ -1,0 +1,281 @@
+{
+  "ok": true,
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "schema_version": "editorial_plan.v2",
+    "plan_id": "chain-segments-conformance",
+    "video_id": "conformance-video",
+    "project_id": "project-fixture",
+    "language": "it",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_ms": 15000,
+    "items": [
+      {
+        "id": "static__s1-chain-image-0__image-chain__01",
+        "scene_id": "s1",
+        "kind": "image_chain",
+        "start_ms": 500,
+        "end_ms": 14600,
+        "start_us": 500000,
+        "duration_us": 14100000,
+        "template_id": "IMAGE_CHAIN",
+        "caption_font_family": "playfair_display_italic",
+        "caption_layout": "below",
+        "asset_refs": [
+          {
+            "asset_id": "asset-ada",
+            "url": "https://cdn.example/ada.jpg",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "media_type": "image/jpeg"
+          },
+          {
+            "asset_id": "asset-grace",
+            "url": "https://cdn.example/grace.jpg",
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+            "media_type": "image/jpeg"
+          },
+          {
+            "asset_id": "asset-alan",
+            "url": "https://cdn.example/alan.jpg",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+            "media_type": "image/jpeg"
+          },
+          {
+            "asset_id": "asset-marie",
+            "url": "https://cdn.example/marie.jpg",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+            "media_type": "image/jpeg"
+          },
+          {
+            "asset_id": "asset-nikola",
+            "url": "https://cdn.example/nikola.jpg",
+            "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "media_type": "image/jpeg"
+          }
+        ],
+        "params": {
+          "chain_camera": "fly_under_fade",
+          "chain_count": 5,
+          "chain_gap_us": 400000,
+          "chain_motions": [
+            "image_scale_reveal",
+            "image_slide_left_reveal",
+            "image_slide_right_reveal",
+            "image_card_push",
+            "image_focus_reveal"
+          ],
+          "chain_segments": [
+            {
+              "asset_id": "asset-ada",
+              "assets": [
+                {
+                  "asset_id": "asset-ada",
+                  "media_type": "image/jpeg",
+                  "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                  "url": "https://cdn.example/ada.jpg"
+                }
+              ],
+              "caption_color": "#000000",
+              "caption_font_family": "playfair_display_italic",
+              "caption_layout": "below",
+              "caption_motion_id": "caption_fade",
+              "duration_us": 2500000,
+              "entity_caption": "Ada Lovelace",
+              "entity_id": "person-ada",
+              "entity_style_id": "premium_below_random_v1",
+              "image_preset_id": "image_scale_in",
+              "kind": "entity_image",
+              "motion_id": "image_scale_reveal",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "canonical_entity_id": "person:ada-lovelace",
+                "entity_type": "PERSON",
+                "height": 820.0,
+                "position_x": 0.0,
+                "position_y": 0.0,
+                "priority": 0.95,
+                "width": 820.0
+              },
+              "start_us": 500000,
+              "template_id": "image_popup"
+            },
+            {
+              "asset_id": "asset-grace",
+              "assets": [
+                {
+                  "asset_id": "asset-grace",
+                  "media_type": "image/jpeg",
+                  "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                  "url": "https://cdn.example/grace.jpg"
+                }
+              ],
+              "caption_color": "#000000",
+              "caption_font_family": "playfair_display_italic",
+              "caption_layout": "below",
+              "caption_motion_id": "caption_rise",
+              "duration_us": 2500000,
+              "entity_caption": "Grace Hopper",
+              "entity_id": "person-grace",
+              "entity_style_id": "premium_below_random_v1",
+              "image_preset_id": "image_scale_in",
+              "kind": "entity_image",
+              "motion_id": "image_slide_left_reveal",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "canonical_entity_id": "person:grace-hopper",
+                "entity_type": "PERSON",
+                "height": 820.0,
+                "position_x": 0.0,
+                "position_y": 0.0,
+                "priority": 0.95,
+                "width": 820.0
+              },
+              "start_us": 3400000,
+              "template_id": "image_popup"
+            },
+            {
+              "asset_id": "asset-alan",
+              "assets": [
+                {
+                  "asset_id": "asset-alan",
+                  "media_type": "image/jpeg",
+                  "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                  "url": "https://cdn.example/alan.jpg"
+                }
+              ],
+              "caption_color": "#000000",
+              "caption_font_family": "playfair_display_italic",
+              "caption_layout": "below",
+              "caption_motion_id": "caption_fade",
+              "duration_us": 2500000,
+              "entity_caption": "Alan Turing",
+              "entity_id": "person-alan",
+              "entity_style_id": "premium_below_random_v1",
+              "image_preset_id": "image_scale_in",
+              "kind": "entity_image",
+              "motion_id": "image_slide_right_reveal",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "canonical_entity_id": "person:alan-turing",
+                "entity_type": "PERSON",
+                "height": 820.0,
+                "position_x": 0.0,
+                "position_y": 0.0,
+                "priority": 0.95,
+                "width": 820.0
+              },
+              "start_us": 6300000,
+              "template_id": "image_popup"
+            },
+            {
+              "asset_id": "asset-marie",
+              "assets": [
+                {
+                  "asset_id": "asset-marie",
+                  "media_type": "image/jpeg",
+                  "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                  "url": "https://cdn.example/marie.jpg"
+                }
+              ],
+              "caption_color": "#000000",
+              "caption_font_family": "playfair_display_italic",
+              "caption_layout": "below",
+              "caption_motion_id": "caption_rise",
+              "duration_us": 2500000,
+              "entity_caption": "Marie Curie",
+              "entity_id": "person-marie",
+              "entity_style_id": "premium_below_random_v1",
+              "image_preset_id": "image_scale_in",
+              "kind": "entity_image",
+              "motion_id": "image_card_push",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "canonical_entity_id": "person:marie-curie",
+                "entity_type": "PERSON",
+                "height": 820.0,
+                "position_x": 0.0,
+                "position_y": 0.0,
+                "priority": 0.95,
+                "width": 820.0
+              },
+              "start_us": 9200000,
+              "template_id": "image_popup"
+            },
+            {
+              "asset_id": "asset-nikola",
+              "assets": [
+                {
+                  "asset_id": "asset-nikola",
+                  "media_type": "image/jpeg",
+                  "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                  "url": "https://cdn.example/nikola.jpg"
+                }
+              ],
+              "caption_color": "#000000",
+              "caption_font_family": "playfair_display_italic",
+              "caption_layout": "below",
+              "caption_motion_id": "caption_fade",
+              "duration_us": 2500000,
+              "entity_caption": "Nikola Tesla",
+              "entity_id": "person-nikola",
+              "entity_style_id": "premium_below_random_v1",
+              "image_preset_id": "image_scale_in",
+              "kind": "entity_image",
+              "motion_id": "image_focus_reveal",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "canonical_entity_id": "person:nikola-tesla",
+                "entity_type": "PERSON",
+                "height": 820.0,
+                "position_x": 0.0,
+                "position_y": 0.0,
+                "priority": 0.95,
+                "width": 820.0
+              },
+              "start_us": 12100000,
+              "template_id": "image_popup"
+            }
+          ]
+        }
+      }
+    ],
+    "recap_placements": 0,
+    "recap_cards": 0,
+    "chart_placements": 0,
+    "chart_cards": 0,
+    "timed_scenes": 1,
+    "intake": {
+      "scenes": 1,
+      "timed_scenes": 1,
+      "untimed_scenes": 0,
+      "budget": {
+        "phrase_overlays": 0,
+        "image_overlays": 5,
+        "map_overlays": 0,
+        "max_overlays_per_scene": 5
+      },
+      "candidates": 5,
+      "candidates_by_kind": {
+        "entity_image": 5
+      },
+      "planned": 1,
+      "planned_by_kind": {
+        "image_chain": 1
+      }
+    },
+    "output_profile_id": "assemblyready.alpha.v1"
+  }
+}
