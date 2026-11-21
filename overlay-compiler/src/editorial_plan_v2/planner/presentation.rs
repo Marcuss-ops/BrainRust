@@ -1063,4 +1063,40 @@ mod bullet_pin_tests {
             items[0].params.as_ref().expect("params")["font_family"].as_str()
         );
     }
+
+    #[test]
+    fn chain_segment_text_is_capped_before_render() {
+        let long = "parola ".repeat(120); // 840 runes
+        let mut item = PlanItemV2 {
+            id: "chain".to_string(),
+            kind: "mixed_chain".to_string(),
+            start_us: 0,
+            duration_us: 12_000_000,
+            params: Some(json!({
+                "chain_segments": [{
+                    "kind": "text_phrase",
+                    "text": long,
+                    "start_us": 0,
+                    "duration_us": 12_000_000
+                }]
+            })),
+            ..Default::default()
+        };
+        split_long_chain_text(&mut item);
+        let segments = item.params.as_ref().expect("params")["chain_segments"]
+            .as_array()
+            .expect("segments");
+        assert!(segments.len() > 1, "a 840-rune segment must be split");
+        assert!(
+            segments.iter().all(|segment| {
+                segment["text"].as_str().unwrap().chars().count() <= 180
+            }),
+            "every emitted chain segment must respect the 180-rune cap"
+        );
+        let total: i64 = segments
+            .iter()
+            .map(|segment| segment["duration_us"].as_i64().unwrap())
+            .sum();
+        assert_eq!(total, 12_000_000, "splitting must conserve the window");
+    }
 }

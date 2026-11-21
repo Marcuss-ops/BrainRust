@@ -1166,6 +1166,46 @@ mod tests {
     }
 
     #[test]
+    fn contextual_intents_are_anchored_to_the_owner_identity() {
+        let owner = CanonicalIdentity {
+            id: "person_augias".into(),
+            canonical_id: "person:augias".into(),
+            canonical_surface: "Corrado Augias".into(),
+            kind: "PERSON".into(),
+            mentions: vec![Mention {
+                scene_id: "s1".into(),
+                surface: "Corrado Augias".into(),
+                start_byte: 0,
+                end_byte: 14,
+            }],
+        };
+        let place = CanonicalIdentity {
+            id: "loc_paris".into(),
+            canonical_id: "location:paris".into(),
+            canonical_surface: "Paris".into(),
+            kind: "LOCATION".into(),
+            mentions: vec![Mention {
+                scene_id: "s1".into(),
+                surface: "Paris".into(),
+                start_byte: 20,
+                end_byte: 25,
+            }],
+        };
+        let intents = build_intents(
+            "it",
+            &owner,
+            LinkStatus::Linked,
+            "Corrado Augias",
+            &[owner.clone(), place],
+        );
+        assert!(intents.iter().any(|intent| intent.kind == "contextual"));
+        assert!(intents
+            .iter()
+            .filter(|intent| intent.kind == "contextual")
+            .all(|intent| intent.query.contains("Corrado Augias")));
+    }
+
+    #[test]
     fn a_visual_concept_never_gets_an_identity_intent() {
         let concept = link_one(
             "le scarpe da running",
