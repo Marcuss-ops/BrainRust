@@ -274,6 +274,54 @@ fn long_phrase_without_a_pool_keeps_the_presentation_default() {
 }
 
 #[test]
+fn long_text_is_split_into_candidates_before_chain_coalescing() {
+    let long = "parole di prova ".repeat(40); // 640 runes
+    let mut first = phrase_item("long-a", &long, None);
+    first.start_us = 0;
+    first.duration_us = 8_000_000;
+    first.start_ms = 0;
+    first.end_ms = 8_000;
+    let mut second = phrase_item("long-b", &long, None);
+    second.start_us = 8_000_000;
+    second.duration_us = 8_000_000;
+    second.start_ms = 8_000;
+    second.end_ms = 16_000;
+
+    let budgeted = super::split_long_text_candidates(vec![first, second]);
+    assert!(
+        budgeted.len() > 2,
+        "long candidates must be split before they enter a chain"
+    );
+    assert!(
+        budgeted
+            .iter()
+            .filter(|item| item.kind == "text_phrase")
+            .all(|item| item.text.chars().count() <= super::MAX_TEXT_RUNES),
+        "every candidate must respect the copy budget"
+    );
+
+    let fused = super::coalesce_chained_overlays(
+        budgeted,
+        &chain_request(&[("chain_enabled", 1)]),
+        &chain_ends(20_000_000),
+    );
+    let chain = fused
+        .iter()
+        .find(|item| item.kind == "phrase_chain")
+        .expect("the budgeted phrases must still fuse into a chain");
+    let segments = chain.params.as_ref().expect("chain params")["chain_segments"]
+        .as_array()
+        .expect("chain segments");
+    assert!(segments.len() > 2);
+    assert!(
+        segments.iter().all(|segment| {
+            segment["text"].as_str().unwrap().chars().count() <= super::MAX_TEXT_RUNES
+        }),
+        "a fused chain must never contain an over-budget segment"
+    );
+}
+
+#[test]
 fn long_phrase_split_is_counted_in_intake() {
     let mut request = request();
     let editorial = request.editorial.as_mut().expect("editorial");

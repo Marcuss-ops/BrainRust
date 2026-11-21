@@ -1,3 +1,8 @@
+use super::super::request::{
+    BudgetsV2, EditorialBulletV2, EditorialManifestV2, EditorialSceneV2, EntityTimelineV2, MediaV2,
+    SceneEntityTimelineV2, TimingV2, VoiceoverV2, WordTimingV2,
+};
+
 #[test]
 fn compiles_title_bullet_and_verified_entity_image() {
     let request = request();
@@ -460,4 +465,202 @@ fn text_entity_card_displaces_a_number_at_the_per_scene_ceiling() {
         Some(&1),
         intake.dropped_by_reason.get("number_replaced_by_entity")
     );
+}
+
+const DENSE_SCENE_COUNT: usize = 6;
+const DENSE_BULLETS_PER_SCENE: usize = 8;
+const DENSE_SCENE_US: i64 = 20_000_000;
+
+/// Six timed scenes with eight grounded editorial bullets each. It is the
+/// smallest request that exercises the full candidate → admission → chain
+/// pipeline at the Augias density target, without shipping a live payload in
+/// the unit suite.
+fn dense_request() -> EditorialPlanV2Request {
+    let mut request = request();
+    let mut scenes = Vec::new();
+    let mut editorial_scenes = Vec::new();
+    let mut entity_scenes = Vec::new();
+    let mut windows = std::collections::BTreeMap::new();
+
+    for scene_index in 0..DENSE_SCENE_COUNT {
+        let scene_id = format!("scene-{}", scene_index + 1);
+        let start_us = scene_index as i64 * DENSE_SCENE_US;
+        let mut words = Vec::new();
+        let mut bullets = Vec::new();
+        let mut clauses = Vec::new();
+        let mut word_index = 0_i64;
+
+        for bullet_index in 0..DENSE_BULLETS_PER_SCENE {
+            let clause = format!("clausola numero {} del testo", bullet_index + 1);
+            let mut word_start = 200_000 + bullet_index as i64 * 1_800_000;
+            for token in clause.split_whitespace() {
+                words.push(WordTimingV2 {
+                    index: word_index,
+                    text: token.to_string(),
+                    start_us: word_start,
+                    end_us: word_start + 250_000,
+                });
+                word_index += 1;
+                word_start += 250_000;
+            }
+            bullets.push(EditorialBulletV2 {
+                sentence_start: bullet_index as i64,
+                sentence_end: bullet_index as i64 + 1,
+                text: clause.clone(),
+            });
+            clauses.push(clause);
+        }
+
+        let mut scene = request.scenes[0].clone();
+        scene.id = scene_id.clone();
+        scene.text = format!("{}. ", clauses.join(". ")).trim_end().to_string();
+        scene.duration_ms = DENSE_SCENE_US / 1_000;
+        scene.duration_us = DENSE_SCENE_US;
+        scene.timeline_start_us = start_us;
+        scene.index = scene_index as i64;
+        scene.voiceover = Some(VoiceoverV2 {
+            timing: Some(TimingV2 {
+                duration_us: DENSE_SCENE_US,
+                words,
+            }),
+        });
+        scene.annotations = None;
+        scene.raw = None;
+        scenes.push(scene);
+
+        editorial_scenes.push(EditorialSceneV2 {
+            scene_id: scene_id.clone(),
+            title: None,
+            title_status: "missing".to_string(),
+            title_source: String::new(),
+            globally_indexed: true,
+            bullets,
+        });
+        entity_scenes.push(SceneEntityTimelineV2 {
+            scene_id: scene_id.clone(),
+            scene_index: scene_index as i64,
+            timeline_start_us: start_us,
+            voiceover_asset_id: String::new(),
+            entities: Vec::new(),
+        });
+        windows.insert(scene_id, [start_us, start_us + DENSE_SCENE_US]);
+    }
+
+    request.scenes = scenes;
+    request.editorial = Some(EditorialManifestV2 {
+        schema_version: "editorial.v1".to_string(),
+        source_language: "it".to_string(),
+        profile_version: "highlights.v1".to_string(),
+        scenes: editorial_scenes,
+        certified: true,
+        fingerprint: "a".repeat(64),
+    });
+    request.entity_timeline = Some(EntityTimelineV2 {
+        version: 1,
+        project_id: "project-1".to_string(),
+        language: "it".to_string(),
+        duration_us: DENSE_SCENE_COUNT as i64 * DENSE_SCENE_US,
+        scenes: entity_scenes,
+    });
+    request.media = Some(MediaV2::default());
+    request.budgets = Some(BudgetsV2 {
+        phrase_overlays: 60,
+        image_overlays: 0,
+        map_overlays: 0,
+        max_per_scene: DENSE_BULLETS_PER_SCENE as i64,
+        short_phrase: 0,
+        long_phrase: 0,
+        bullet: 60,
+    });
+    request.scene_windows = windows;
+    if let Some(seal) = request.seal.as_mut() {
+        seal.audio_duration_us = DENSE_SCENE_COUNT as i64 * DENSE_SCENE_US;
+    }
+    request.canvas.animation_counts = std::collections::BTreeMap::from([
+        ("chain_enabled".to_string(), 1),
+        ("chain_gap_ms".to_string(), 600),
+    ]);
+    request
+}
+
+/// A chain is one render container but several visual moments. Count each
+/// segment, and count a standalone overlay as one; backgrounds are not
+/// editorial moments.
+fn effective_visual_moments(items: &[PlanItemV2]) -> usize {
+    items
+        .iter()
+        .map(|item| {
+            if matches!(
+                item.kind.as_str(),
+                "phrase_chain" | "image_chain" | "mixed_chain" | "map_chain"
+            ) {
+                item.params
+                    .as_ref()
+                    .and_then(|params| params.get("chain_segments"))
+                    .and_then(|segments| segments.as_array())
+                    .map(Vec::len)
+                    .unwrap_or(0)
+            } else if item.template_id.eq_ignore_ascii_case("background") {
+                0
+            } else {
+                1
+            }
+        })
+        .sum()
+}
+
+#[test]
+fn dense_six_scene_plan_reaches_forty_effective_moments() {
+    let request = dense_request();
+    let compiled = compile_plan(&request).expect("dense plan");
+    assert_eq!(DENSE_SCENE_COUNT as i64, compiled.plan.timed_scenes);
+
+    let moments = effective_visual_moments(&compiled.plan.items);
+    assert!(
+        moments >= 40,
+        "expected >= 40 effective visual moments, got {moments} from {} render items: {:?}",
+        compiled.plan.items.len(),
+        compiled.plan.intake
+    );
+    assert_eq!(
+        48, moments,
+        "six scenes with eight bullets each must yield 48 effective moments"
+    );
+    assert!(
+        compiled.plan.intake.candidates >= 40,
+        "the dense candidate set must survive into intake: {:?}",
+        compiled.plan.intake
+    );
+    assert!(
+        compiled
+            .plan
+            .items
+            .iter()
+            .any(|item| item.kind == "phrase_chain"),
+        "the density proof must exercise effective moments inside a chain"
+    );
+
+    for item in &compiled.plan.items {
+        if let Some(segments) = item
+            .params
+            .as_ref()
+            .and_then(|params| params.get("chain_segments"))
+            .and_then(|segments| segments.as_array())
+        {
+            for segment in segments {
+                if let Some(text) = segment.get("text").and_then(|text| text.as_str()) {
+                    assert!(
+                        text.chars().count() <= super::MAX_TEXT_RUNES,
+                        "over-budget chain segment: {text:?}"
+                    );
+                }
+            }
+        } else if item.kind == "text_phrase" {
+            assert!(
+                item.text.chars().count() <= super::MAX_TEXT_RUNES,
+                "over-budget standalone phrase: {:?}",
+                item.text
+            );
+        }
+    }
 }

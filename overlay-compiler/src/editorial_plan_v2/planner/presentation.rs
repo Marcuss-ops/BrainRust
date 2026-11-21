@@ -145,6 +145,9 @@ pub(super) fn apply_presentation(
 ) -> Vec<PlanItemV2> {
     let mut out = Vec::with_capacity(items.len());
     for mut item in items {
+        // Candidate budgeting already split every text_phrase before
+        // admission. Keep this call as the last-resort invariant for authored
+        // or externally constructed chain items.
         split_long_chain_text(&mut item);
         if let Some(parts) = split_long_overlay_text(&item) {
             out.extend(parts);
@@ -161,6 +164,21 @@ pub(super) fn apply_presentation(
     out
 }
 
+/// Splits every over-budget text candidate before admission. Doing this here
+/// means the fragments are counted by the phrase budget and can never enter a
+/// fused chain as one oversized segment.
+pub(super) fn split_long_text_candidates(items: Vec<PlanItemV2>) -> Vec<PlanItemV2> {
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        if let Some(parts) = split_long_overlay_text(&item) {
+            out.extend(parts);
+        } else {
+            out.push(item);
+        }
+    }
+    out
+}
+
 const PLAYFAIR_RUNTIME_FAMILY: &str = "playfair_display_italic";
 
 const PRESENTATION_TEXT_FILL: &str = "#000000";
@@ -173,6 +191,11 @@ const PRESENTATION_GLOW_PX: f64 = 10.0;
 /// contained retired ids (`text_phrase_reveal`/`text_phrase_focus`) that the
 /// Go seal rejects, so do not reintroduce an unsynced motion list here.
 const SPLIT_TEXT_MOTION: &str = "air_rise_type_on";
+
+/// Maximum certified copy length for one text surface. The budget is applied
+/// to candidates *before* admission and chain coalescing; the later split is
+/// only a defensive invariant for directly constructed items.
+pub(super) const MAX_TEXT_RUNES: usize = 180;
 
 const PRESENTATION_TEXT_STYLE_KEYS: &[&str] = &[
     "font_family",
@@ -543,10 +566,13 @@ fn apply_editorial_bullet_pins(items: &mut [PlanItemV2], pins: &[EditorialBullet
 
 fn split_long_overlay_text(item: &PlanItemV2) -> Option<Vec<PlanItemV2>> {
     let text = item.text.trim();
-    if text.chars().count() <= 180 || item.kind != "text_phrase" || !item.asset_refs.is_empty() {
+    if text.chars().count() <= MAX_TEXT_RUNES
+        || item.kind != "text_phrase"
+        || !item.asset_refs.is_empty()
+    {
         return None;
     }
-    let chunks = split_phrase_text(text, 180);
+    let chunks = split_phrase_text(text, MAX_TEXT_RUNES);
     if chunks.len() <= 1 {
         return None;
     }
@@ -647,8 +673,8 @@ fn split_long_chain_text(item: &mut PlanItemV2) {
             split.push(segment.clone());
             continue;
         };
-        let chunks = if is_text && text.chars().count() > 180 {
-            split_phrase_text(text, 180)
+        let chunks = if is_text && text.chars().count() > MAX_TEXT_RUNES {
+            split_phrase_text(text, MAX_TEXT_RUNES)
         } else {
             Vec::new()
         };
@@ -942,9 +968,9 @@ mod bullet_pin_tests {
             .filter(|segment| segment["kind"] == "text_phrase")
             .collect::<Vec<_>>();
         assert!(text_segments.len() > 1);
-        assert!(text_segments
-            .iter()
-            .all(|segment| { segment["text"].as_str().unwrap().chars().count() <= 180 }));
+        assert!(text_segments.iter().all(|segment| {
+            segment["text"].as_str().unwrap().chars().count() <= MAX_TEXT_RUNES
+        }));
         assert_eq!(1_000_000, text_segments[0]["start_us"].as_i64().unwrap());
         let last_text = text_segments.last().unwrap();
         assert_eq!(
@@ -1089,7 +1115,7 @@ mod bullet_pin_tests {
         assert!(segments.len() > 1, "a 840-rune segment must be split");
         assert!(
             segments.iter().all(|segment| {
-                segment["text"].as_str().unwrap().chars().count() <= 180
+                segment["text"].as_str().unwrap().chars().count() <= MAX_TEXT_RUNES
             }),
             "every emitted chain segment must respect the 180-rune cap"
         );

@@ -20,7 +20,10 @@ pub(super) fn build_base_candidates(
             append_annotations(&mut items, scene, annotations, request);
         }
     }
-    Ok(items)
+    // Budget text while the candidates are still a flat list: each fragment
+    // then passes admission and can never enter a fused chain as one oversized
+    // segment. The presentation split remains only a defensive invariant.
+    Ok(super::split_long_text_candidates(items))
 }
 
 pub(super) struct RecapCandidates {
