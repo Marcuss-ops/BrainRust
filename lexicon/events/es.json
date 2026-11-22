@@ -338,6 +338,150 @@
         "voice": "nominal",
         "roles": {}
       }
+    ],
+    "protest_strike": [
+      {
+        "surface": "protestó",
+        "lemma": "protestar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "protesta",
+        "lemma": "protesta",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "bankruptcy_layoff_ipo": [
+      {
+        "surface": "quebró",
+        "lemma": "quebrar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "bancarrota",
+        "lemma": "bancarrota",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "sanction_embargo": [
+      {
+        "surface": "sancionó",
+        "lemma": "sancionar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "sanción",
+        "lemma": "sanción",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "scientific_discovery": [
+      {
+        "surface": "descubrió",
+        "lemma": "descubrir",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "descubrimiento",
+        "lemma": "descubrimiento",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "outbreak_epidemic": [
+      {
+        "surface": "estalló",
+        "lemma": "estallar",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "brote",
+        "lemma": "brote",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "natural_disaster": [
+      {
+        "surface": "azotó",
+        "lemma": "azotar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "terremoto",
+        "lemma": "terremoto",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "crime_incident": [
+      {
+        "surface": "robó",
+        "lemma": "robar",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "robo",
+        "lemma": "robo",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "ceasefire_truce": [
+      {
+        "surface": "firmó una tregua",
+        "lemma": "firmar una tregua",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject"
+        }
+      },
+      {
+        "surface": "tregua",
+        "lemma": "tregua",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "record_milestone": [
+      {
+        "surface": "estableció un récord",
+        "lemma": "establecer un récord",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "récord",
+        "lemma": "récord",
+        "voice": "nominal",
+        "roles": {}
+      }
     ]
   }
 }

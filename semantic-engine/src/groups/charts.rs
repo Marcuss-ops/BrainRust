@@ -126,6 +126,10 @@ pub(super) fn build(
             .collect();
         indices.sort_unstable();
         indices.dedup();
+        let chart_meta = chart_metadata(&items, &measures, quantities, &points);
+        let evidence = chart_claim_evidence(source, bullet, &points);
+        let suggested_layout = select_layout(&items, &evidence, language);
+        let (start, end) = chart_claim_bounds(bullet, &points);
         out.push(VisualCandidate {
             kind: "chart",
             sentence_index: sentence,
@@ -133,14 +137,16 @@ pub(super) fn build(
             entity_texts: texts_of(entities, &indices),
             entity_indices: indices,
             chart_items: items,
+            chart_meta,
             temporal_surfaces: Vec::new(),
-            suggested_layout: Some("bar_comparison"),
+            suggested_layout: Some(suggested_layout),
             requires_verified_images: false,
-            evidence: chart_claim_evidence(source, bullet, &points),
-            start: chart_claim_bounds(bullet, &points).0,
-            end: chart_claim_bounds(bullet, &points).1,
+            evidence,
+            start,
+            end,
         });
     }
+    comparison_deltas(source, quantities, chart_input.comparisons, out);
     cross_sentence_series(
         source,
         entities,
@@ -148,8 +154,117 @@ pub(super) fn build(
         chart_points,
         quantities,
         identities,
+        language,
         out,
     );
+}
+
+/// Bridges grounded `QuantityComparison` records into delta/before-after
+/// proposals. A comparison is emitted only when both linked quantities carry
+/// values, dimensions and units that already agree; the evidence span is the
+/// verbatim source slice covering both values and the comparison cue.
+fn comparison_deltas(
+    source: &str,
+    quantities: &[Quantity],
+    comparisons: &[semantic_core::QuantityComparison],
+    out: &mut Vec<VisualCandidate>,
+) {
+    let mut seen = std::collections::BTreeSet::new();
+    for comparison in comparisons {
+        let Some(left) = quantities
+            .iter()
+            .find(|quantity| quantity.id == comparison.left)
+        else {
+            continue;
+        };
+        let Some(right) = quantities
+            .iter()
+            .find(|quantity| quantity.id == comparison.right)
+        else {
+            continue;
+        };
+        let (Some(left_value), Some(right_value)) = (left.value, right.value) else {
+            continue;
+        };
+        if left.dimension != right.dimension || left.unit != right.unit {
+            continue;
+        }
+        let start = left.start_byte.min(comparison.evidence_start_byte);
+        let end = right
+            .end_byte
+            .max(comparison.evidence_end_byte)
+            .max(left.end_byte);
+        if start >= end || end > source.len() {
+            continue;
+        }
+        let key = format!("{}:{}:{}:{}", comparison.kind, start, end, left.id);
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let Some(evidence) = source.get(start..end) else {
+            continue;
+        };
+        let item = |quantity: &Quantity, value: f64| ChartItem {
+            label: quantity
+                .predicate
+                .clone()
+                .unwrap_or_else(|| quantity.evidence.clone()),
+            text: quantity.evidence.clone(),
+            kind: match quantity.dimension.as_str() {
+                "percent" | "growth_rate" => "PERCENT",
+                "currency" => "MONEY",
+                _ => "NUMBER",
+            }
+            .to_string(),
+            value,
+            start_byte: quantity.start_byte,
+            end_byte: quantity.end_byte,
+        };
+        let mut entity_ids: Vec<String> = [&left.subject_entity_id, &right.subject_entity_id]
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect();
+        entity_ids.sort();
+        entity_ids.dedup();
+        let mut chart_meta = semantic_core::ChartMetadata {
+            metric: left.predicate.clone().filter(|metric| {
+                right
+                    .predicate
+                    .as_deref()
+                    .is_some_and(|right_metric| right_metric == metric)
+            }),
+            unit: Some(left.unit.clone()).filter(|unit| !unit.is_empty()),
+            dimension: Some(left.dimension.clone()),
+            period: None,
+            series_type: Some("category".to_string()),
+        };
+        if comparison.kind == "change" {
+            if let (Some(left_period), Some(right_period)) = (&left.period, &right.period) {
+                chart_meta.period =
+                    Some(format!("{}→{}", left_period.year, right_period.year));
+            }
+        }
+        out.push(VisualCandidate {
+            kind: "delta_comparison",
+            sentence_index: left.sentence_index.min(right.sentence_index),
+            entity_indices: Vec::new(),
+            entity_ids,
+            entity_texts: Vec::new(),
+            chart_items: vec![item(left, left_value), item(right, right_value)],
+            chart_meta: Some(chart_meta),
+            temporal_surfaces: Vec::new(),
+            suggested_layout: Some(if comparison.kind == "change" {
+                "before_after"
+            } else {
+                "delta_comparison"
+            }),
+            requires_verified_images: false,
+            evidence: evidence.to_string(),
+            start,
+            end,
+        });
+    }
 }
 
 /// Uses the semantic quantity attached to this exact numeric span when one is
@@ -197,8 +312,11 @@ fn chart_measure(
 }
 
 /// Joins adjacent source-grounded measures when the script repeats a metric
-/// across sentences (for example, annual revenue or output). The emitted
-/// evidence is one exact source slice spanning all included sentences.
+/// across sentences (for example, annual revenue or output). Consecutive
+/// points with the same metric and unit form ONE ordered series of 2..=6
+/// items; the emitted evidence is one exact source slice spanning all included
+/// sentences. A grounded `Quantity` predicate and unit take precedence over the
+/// lexical stem fallback.
 fn cross_sentence_series(
     source: &str,
     entities: &[VisualEntity],
@@ -206,175 +324,456 @@ fn cross_sentence_series(
     chart_points: &[ChartPoint],
     quantities: &[Quantity],
     identities: &IdentityLookup,
+    language: &str,
     out: &mut Vec<VisualCandidate>,
 ) {
     let mut ordered: Vec<&ChartPoint> = chart_points.iter().collect();
     ordered.sort_by_key(|point| (point.start, point.end));
-    for (left_index, left) in ordered.iter().enumerate() {
-        for right in ordered.iter().skip(left_index + 1) {
-            if left.sentence_index == right.sentence_index {
-                continue;
-            }
-            let Some(left_bullet) = bullets
-                .iter()
-                .find(|b| b.sentence_index == left.sentence_index)
+    let mut used = vec![false; ordered.len()];
+    for start_index in 0..ordered.len() {
+        if used[start_index] {
+            continue;
+        }
+        let mut chain = vec![start_index];
+        let mut cursor = start_index;
+        while chain.len() < 6 {
+            let Some(next) =
+                next_series_point(&ordered, &used, cursor, bullets, quantities, language)
             else {
-                continue;
+                break;
             };
-            let Some(right_bullet) = bullets
-                .iter()
-                .find(|b| b.sentence_index == right.sentence_index)
-            else {
-                continue;
-            };
-            if right.sentence_index.saturating_sub(left.sentence_index) > 3
-                || !crate::chart_rules::chart_point_is_eligible(
-                    &left_bullet.text,
-                    left.start.saturating_sub(left_bullet.start),
-                    left.end.saturating_sub(left_bullet.start),
-                )
-                || !crate::chart_rules::chart_point_is_eligible(
-                    &right_bullet.text,
-                    right.start.saturating_sub(right_bullet.start),
-                    right.end.saturating_sub(right_bullet.start),
-                )
-                || !same_series_metric(&left_bullet.text, &right_bullet.text)
-            {
-                continue;
-            }
-            let has_time_anchor = has_four_digit_year(&left_bullet.text)
-                && (has_four_digit_year(&right_bullet.text)
-                    || right_bullet.text.to_lowercase().contains("seguente")
-                    || right_bullet.text.to_lowercase().contains("following year"));
-            if !has_time_anchor {
-                continue;
-            }
-            let (left_claim_start, _) = chart_claim_bounds(left_bullet, &[*left]);
-            let (right_claim_start, right_claim_end) = chart_claim_bounds(right_bullet, &[*right]);
-            let evidence_start = left_claim_start.min(right_claim_start);
-            let evidence_end = right_claim_end;
-            let Some(evidence) = source.get(evidence_start..evidence_end) else {
-                continue;
-            };
-            let Some(left_start) = left.start.checked_sub(left_bullet.start) else {
-                continue;
-            };
-            let Some(left_end) = left.end.checked_sub(left_bullet.start) else {
-                continue;
-            };
-            let Some(right_start) = right.start.checked_sub(right_bullet.start) else {
-                continue;
-            };
-            let Some(right_end) = right.end.checked_sub(right_bullet.start) else {
-                continue;
-            };
-            let mut measures = [
-                chart_measure(&left_bullet.text, left_start, left_end, left, quantities),
-                chart_measure(
-                    &right_bullet.text,
-                    right_start,
-                    right_end,
-                    right,
-                    quantities,
-                ),
-            ];
-            if measures[0].signature == measures[0].kind
-                && measures[1].signature != measures[1].kind
-            {
-                measures[0].signature = measures[1].signature.clone();
-                measures[0].kind = measures[1].kind.clone();
-            } else if measures[1].signature == measures[1].kind
-                && measures[0].signature != measures[0].kind
-            {
-                measures[1].signature = measures[0].signature.clone();
-                measures[1].kind = measures[0].kind.clone();
-            }
-            if measures[0].signature != measures[1].signature
-                || measures[0].kind != measures[1].kind
-            {
-                continue;
-            }
-            let (left_display_start, left_display_end) =
-                crate::chart_rules::qualified_numeric_span(&left_bullet.text, left_start, left_end);
-            let (right_display_start, right_display_end) =
-                crate::chart_rules::qualified_numeric_span(
-                    &right_bullet.text,
-                    right_start,
-                    right_end,
-                );
-            let (Some(left_text), Some(right_text)) = (
-                left_bullet.text.get(left_display_start..left_display_end),
-                right_bullet
-                    .text
-                    .get(right_display_start..right_display_end),
-            ) else {
-                continue;
-            };
-            let items = vec![
-                ChartItem {
-                    label: chart_subject_label(
-                        source,
-                        entities,
-                        left,
-                        left_bullet,
-                        left_bullet.start,
-                        left_bullet.end,
-                    ),
-                    text: left_text.to_string(),
-                    kind: measures[0].kind.clone(),
-                    value: measures[0].value,
-                    start_byte: left_bullet.start + left_display_start,
-                    end_byte: left_bullet.start + left_display_end,
-                },
-                ChartItem {
-                    label: chart_subject_label(
-                        source,
-                        entities,
-                        right,
-                        right_bullet,
-                        right_bullet.start,
-                        right_bullet.end,
-                    ),
-                    text: right_text.to_string(),
-                    kind: measures[1].kind.clone(),
-                    value: measures[1].value,
-                    start_byte: right_bullet.start + right_display_start,
-                    end_byte: right_bullet.start + right_display_end,
-                },
-            ];
-            if out.iter().any(|candidate| {
-                candidate.kind == "chart"
-                    && candidate
+            chain.push(next);
+            cursor = next;
+        }
+        if chain.len() < 2 {
+            continue;
+        }
+        let Some(candidate) = build_series_candidate(
+            source,
+            entities,
+            bullets,
+            &ordered,
+            &chain,
+            quantities,
+            identities,
+            language,
+        ) else {
+            continue;
+        };
+        // A single sentence-local chart already covering these exact values
+        // wins; do not emit a duplicate scenario-spanning copy.
+        if out.iter().any(|existing| {
+            existing.kind == "chart"
+                && chain.iter().all(|index| {
+                    let point = ordered[*index];
+                    existing
                         .chart_items
                         .iter()
-                        .any(|item| item.start_byte == left.start)
-                    && candidate
-                        .chart_items
-                        .iter()
-                        .any(|item| item.start_byte == right.start)
-            }) {
-                continue;
+                        .any(|item| item.start_byte == point.start && item.end_byte == point.end)
+                })
+        }) {
+            continue;
+        }
+        for index in &chain {
+            used[*index] = true;
+        }
+        out.push(candidate);
+    }
+}
+
+/// Finds the next ordered point that extends the current series. Gap, metric,
+/// unit and time-anchor checks are identical to the historical pair rule; the
+/// difference is that the chain is kept together instead of fragmenting into
+/// overlapping pairs.
+fn next_series_point(
+    ordered: &[&ChartPoint],
+    used: &[bool],
+    from: usize,
+    bullets: &[Bullet],
+    quantities: &[Quantity],
+    language: &str,
+) -> Option<usize> {
+    let left = ordered[from];
+    let left_bullet = bullets
+        .iter()
+        .find(|bullet| bullet.sentence_index == left.sentence_index)?;
+    for index in from + 1..ordered.len() {
+        if used[index] {
+            continue;
+        }
+        let right = ordered[index];
+        if right.sentence_index <= left.sentence_index {
+            continue;
+        }
+        if right.sentence_index.saturating_sub(left.sentence_index) > 3 {
+            break;
+        }
+        let Some(right_bullet) = bullets
+            .iter()
+            .find(|bullet| bullet.sentence_index == right.sentence_index)
+        else {
+            continue;
+        };
+        if !crate::chart_rules::chart_point_is_eligible(
+            &left_bullet.text,
+            left.start.saturating_sub(left_bullet.start),
+            left.end.saturating_sub(left_bullet.start),
+        ) || !crate::chart_rules::chart_point_is_eligible(
+            &right_bullet.text,
+            right.start.saturating_sub(right_bullet.start),
+            right.end.saturating_sub(right_bullet.start),
+        ) {
+            continue;
+        }
+        if !series_time_anchor(&left_bullet.text, &right_bullet.text) {
+            continue;
+        }
+        let (Some(left_start), Some(left_end), Some(right_start), Some(right_end)) = (
+            left.start.checked_sub(left_bullet.start),
+            left.end.checked_sub(left_bullet.start),
+            right.start.checked_sub(right_bullet.start),
+            right.end.checked_sub(right_bullet.start),
+        ) else {
+            continue;
+        };
+        let left_measure = chart_measure(&left_bullet.text, left_start, left_end, left, quantities);
+        let right_measure =
+            chart_measure(&right_bullet.text, right_start, right_end, right, quantities);
+        if !compatible_measures(&left_measure, &right_measure) {
+            continue;
+        }
+        if series_metric_match(
+            &left_bullet.text,
+            &right_bullet.text,
+            quantities,
+            left,
+            right,
+            language,
+        )
+        .is_none()
+        {
+            continue;
+        }
+        return Some(index);
+    }
+    None
+}
+
+fn compatible_measures(
+    left: &crate::chart_rules::ChartUnit,
+    right: &crate::chart_rules::ChartUnit,
+) -> bool {
+    if left.signature == right.signature && left.kind == right.kind {
+        return true;
+    }
+    let fallback = |bare: &crate::chart_rules::ChartUnit, explicit: &crate::chart_rules::ChartUnit| {
+        bare.signature == bare.kind && explicit.signature != explicit.kind
+    };
+    (fallback(left, right) || fallback(right, left))
+        && (left.kind == right.kind
+            || left.signature == right.signature
+            || right.signature == right.kind
+            || left.signature == left.kind)
+}
+
+fn series_time_anchor(left: &str, right: &str) -> bool {
+    if !has_four_digit_year(left) {
+        return false;
+    }
+    let lower = right.to_lowercase();
+    has_four_digit_year(right)
+        || lower.contains("seguente")
+        || lower.contains("following year")
+}
+
+/// Resolves the repeated metric for a series. Exact grounded quantities win:
+/// two values with the same dimension/unit and the same explicit predicate are
+/// the same metric even when the surface wording differs. When the predicate is
+/// missing, the language stem table is the conservative fallback.
+fn series_metric_match(
+    left_text: &str,
+    right_text: &str,
+    quantities: &[Quantity],
+    left: &ChartPoint,
+    right: &ChartPoint,
+    language: &str,
+) -> Option<String> {
+    let exact = |point: &ChartPoint| {
+        quantities
+            .iter()
+            .find(|quantity| quantity.start_byte == point.start && quantity.end_byte == point.end)
+    };
+    if let (Some(left_quantity), Some(right_quantity)) = (exact(left), exact(right)) {
+        if left_quantity.dimension == right_quantity.dimension
+            && left_quantity.unit == right_quantity.unit
+        {
+            match (&left_quantity.predicate, &right_quantity.predicate) {
+                (Some(a), Some(b)) if a == b => return Some(a.clone()),
+                (Some(_), Some(_)) => return None,
+                _ => {}
             }
-            let mut indices: Vec<usize> =
-                [left.entity, right.entity].into_iter().flatten().collect();
-            indices.sort_unstable();
-            indices.dedup();
-            out.push(VisualCandidate {
-                kind: "chart",
-                sentence_index: left.sentence_index.min(right.sentence_index),
-                entity_ids: ids_of(identities, &indices),
-                entity_texts: texts_of(entities, &indices),
-                entity_indices: indices,
-                chart_items: items,
-                temporal_surfaces: Vec::new(),
-                suggested_layout: Some("bar_comparison"),
-                requires_verified_images: false,
-                evidence: evidence.to_string(),
-                start: evidence_start,
-                end: evidence_end,
-            });
         }
     }
+    let left_lower = left_text.to_lowercase();
+    let right_lower = right_text.to_lowercase();
+    semantic_core::chart_cues::language_cues(language)
+        .series_metric_stems
+        .iter()
+        .find(|stem| left_lower.contains(stem.as_str()) && right_lower.contains(stem.as_str()))
+        .cloned()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_series_candidate(
+    source: &str,
+    entities: &[VisualEntity],
+    bullets: &[Bullet],
+    ordered: &[&ChartPoint],
+    chain: &[usize],
+    quantities: &[Quantity],
+    identities: &IdentityLookup,
+    language: &str,
+) -> Option<VisualCandidate> {
+    let points: Vec<&ChartPoint> = chain.iter().map(|index| ordered[*index]).collect();
+    let first = *points.first()?;
+    let last = *points.last()?;
+    let first_bullet = bullets
+        .iter()
+        .find(|bullet| bullet.sentence_index == first.sentence_index)?;
+    let last_bullet = bullets
+        .iter()
+        .find(|bullet| bullet.sentence_index == last.sentence_index)?;
+    let (evidence_start, _) = chart_claim_bounds(first_bullet, &[first]);
+    let (_, evidence_end) = chart_claim_bounds(last_bullet, &[last]);
+    let evidence = source.get(evidence_start..evidence_end)?;
+
+    let mut measures: Vec<crate::chart_rules::ChartUnit> = Vec::with_capacity(points.len());
+    for point in &points {
+        let bullet = bullets
+            .iter()
+            .find(|bullet| bullet.sentence_index == point.sentence_index)?;
+        let start = point.start.checked_sub(bullet.start)?;
+        let end = point.end.checked_sub(bullet.start)?;
+        measures.push(chart_measure(&bullet.text, start, end, point, quantities));
+    }
+    // A bare number beside an explicit unit ("120 cars" then "180") inherits
+    // the explicit unit, exactly like the sentence-local chart path.
+    let explicit_units: std::collections::BTreeSet<(String, String)> = measures
+        .iter()
+        .filter(|measure| measure.signature != measure.kind)
+        .map(|measure| (measure.signature.clone(), measure.kind.clone()))
+        .collect();
+    if explicit_units.len() == 1 {
+        let (signature, kind) = explicit_units.iter().next().unwrap();
+        for measure in &mut measures {
+            if measure.signature == measure.kind {
+                measure.signature = signature.clone();
+                measure.kind = kind.clone();
+            }
+        }
+    }
+    if measures
+        .windows(2)
+        .any(|pair| !compatible_measures(&pair[0], &pair[1]))
+    {
+        return None;
+    }
+    let mut items = Vec::with_capacity(points.len());
+    for (index, point) in points.iter().enumerate() {
+        let bullet = bullets
+            .iter()
+            .find(|bullet| bullet.sentence_index == point.sentence_index)?;
+        let start = point.start.checked_sub(bullet.start)?;
+        let end = point.end.checked_sub(bullet.start)?;
+        let measure = &measures[index];
+        let (display_start, display_end) =
+            crate::chart_rules::qualified_numeric_span(&bullet.text, start, end);
+        let text = bullet.text.get(display_start..display_end)?;
+        // A cross-sentence annual series names each year once, so the single
+        // year in the sentence is the correct category for that point.
+        let label = single_year_label(&bullet.text)
+            .unwrap_or_else(|| chart_subject_label(source, entities, point, bullet, bullet.start, bullet.end));
+        items.push(ChartItem {
+            label,
+            text: text.to_string(),
+            kind: measure.kind.clone(),
+            value: measure.value,
+            start_byte: bullet.start + display_start,
+            end_byte: bullet.start + display_end,
+        });
+    }
+    if items.len() < 2 {
+        return None;
+    }
+    let mut indices: Vec<usize> = points.iter().filter_map(|point| point.entity).collect();
+    indices.sort_unstable();
+    indices.dedup();
+    let chart_meta = chart_metadata(&items, &measures, quantities, &points);
+    let suggested_layout = select_layout(&items, evidence, language);
+    Some(VisualCandidate {
+        kind: "chart",
+        sentence_index: first.sentence_index.min(last.sentence_index),
+        entity_ids: ids_of(identities, &indices),
+        entity_texts: texts_of(entities, &indices),
+        entity_indices: indices,
+        chart_items: items,
+        chart_meta,
+        temporal_surfaces: Vec::new(),
+        suggested_layout: Some(suggested_layout),
+        requires_verified_images: false,
+        evidence: evidence.to_string(),
+        start: evidence_start,
+        end: evidence_end,
+    })
+}
+
+/// Picks the layout the grounded values support. The default stays
+/// `bar_comparison`; `line_series` needs ordered year labels; `donut_share`
+/// needs percentage parts whose sum is a complete share (or an explicit share
+/// cue in the evidence).
+fn select_layout(items: &[ChartItem], evidence: &str, language: &str) -> &'static str {
+    if labels_are_ordered_years(items) {
+        return "line_series";
+    }
+    if (2..=6).contains(&items.len()) && items.iter().all(|item| item.kind == "PERCENT") {
+        let sum: f64 = items.iter().map(|item| item.value).sum();
+        let share_cue = {
+            let lower = evidence.to_lowercase();
+            semantic_core::chart_cues::language_cues(language)
+                .share_context_cues
+                .iter()
+                .any(|cue| lower.contains(&cue.to_lowercase()))
+        };
+        if (95.0..=100.5).contains(&sum) || (sum > 0.0 && sum <= 100.0 && share_cue) {
+            return "donut_share";
+        }
+    }
+    "bar_comparison"
+}
+
+fn labels_are_ordered_years(items: &[ChartItem]) -> bool {
+    if items.len() < 2 {
+        return false;
+    }
+    let years: Option<Vec<i32>> = items
+        .iter()
+        .map(|item| {
+            let label = item.label.trim();
+            (label.len() == 4)
+                .then(|| label.parse::<i32>().ok())
+                .flatten()
+                .filter(|year| (1900..=2099).contains(year))
+        })
+        .collect();
+    let Some(years) = years else {
+        return false;
+    };
+    years.windows(2).all(|pair| pair[1] > pair[0])
+        || years.windows(2).all(|pair| pair[1] < pair[0])
+}
+
+fn chart_metadata(
+    items: &[ChartItem],
+    measures: &[crate::chart_rules::ChartUnit],
+    quantities: &[Quantity],
+    points: &[&ChartPoint],
+) -> Option<semantic_core::ChartMetadata> {
+    if items.len() < 2 {
+        return None;
+    }
+    let matched: Vec<&Quantity> = points
+        .iter()
+        .filter_map(|point| {
+            quantities
+                .iter()
+                .find(|quantity| {
+                    quantity.start_byte == point.start && quantity.end_byte == point.end
+                })
+        })
+        .collect();
+    let shared = |values: Vec<Option<String>>| {
+        let mut iterator = values.into_iter();
+        let first = iterator.next().flatten()?;
+        iterator
+            .all(|value| value.as_deref() == Some(first.as_str()))
+            .then_some(first)
+    };
+    let metric = shared(
+        points
+            .iter()
+            .map(|point| {
+                quantities
+                    .iter()
+                    .find(|quantity| {
+                        quantity.start_byte == point.start && quantity.end_byte == point.end
+                    })
+                    .and_then(|quantity| quantity.predicate.clone())
+            })
+            .collect(),
+    );
+    let unit = shared(
+        matched
+            .iter()
+            .map(|quantity| Some(quantity.unit.clone()))
+            .chain(std::iter::repeat(None))
+            .take(points.len())
+            .collect(),
+    )
+    .or_else(|| {
+        let signatures: Vec<String> = measures
+            .iter()
+            .map(|measure| measure.signature.clone())
+            .collect();
+        let first = signatures.first()?;
+        (signatures.iter().all(|signature| signature == first)
+            && measures.iter().all(|measure| measure.signature != measure.kind))
+        .then(|| first.clone())
+    });
+    let dimension = shared(
+        matched
+            .iter()
+            .map(|quantity| Some(quantity.dimension.clone()))
+            .chain(std::iter::repeat(None))
+            .take(points.len())
+            .collect(),
+    )
+    .or_else(|| {
+        let kind = &items[0].kind;
+        if !items.iter().all(|item| &item.kind == kind) {
+            return None;
+        }
+        match kind.as_str() {
+            "PERCENT" => Some("percent".to_string()),
+            "MONEY" => Some("currency".to_string()),
+            _ => None,
+        }
+    });
+    let period = shared(
+        points
+            .iter()
+            .map(|point| {
+                quantities
+                    .iter()
+                    .find(|quantity| {
+                        quantity.start_byte == point.start && quantity.end_byte == point.end
+                    })
+                    .and_then(|quantity| quantity.period.as_ref())
+                    .map(|period| period.year.to_string())
+            })
+            .collect(),
+    );
+    let series_type = if labels_are_ordered_years(items) {
+        Some("time".to_string())
+    } else {
+        Some("category".to_string())
+    };
+    Some(semantic_core::ChartMetadata {
+        metric,
+        unit,
+        dimension,
+        period,
+        series_type,
+    })
 }
 
 fn has_four_digit_year(text: &str) -> bool {
@@ -384,6 +783,20 @@ fn has_four_digit_year(text: &str) -> bool {
                 .parse::<u16>()
                 .is_ok_and(|year| (1900..=2099).contains(&year))
     })
+}
+
+fn single_year_label(text: &str) -> Option<String> {
+    let years: Vec<String> = text
+        .split(|ch: char| !ch.is_ascii_digit())
+        .filter(|token| {
+            token.len() == 4
+                && token
+                    .parse::<u16>()
+                    .is_ok_and(|year| (1900..=2099).contains(&year))
+        })
+        .map(str::to_string)
+        .collect();
+    (years.len() == 1).then(|| years[0].clone())
 }
 
 fn chart_claim_bounds(bullet: &Bullet, points: &[&ChartPoint]) -> (usize, usize) {
@@ -509,15 +922,13 @@ fn chart_subject_label(
             let end = bullet.start + word.end;
             let surface = source.get(start..end)?;
             let first = surface.chars().next()?;
-            let stopwords = [
-                "nel", "nella", "il", "la", "lo", "un", "una", "the", "a", "in", "on", "der",
-                "die", "das", "el", "los", "las", "le", "les", "no", "en", "em", "im", "w", "в",
-                "pada", "dans", "sur", "du", "au", "auf", "am", "zum",
-            ];
             if end > scope_end
                 || !first.is_uppercase()
                 || end > point_start
-                || stopwords.contains(&word.lowered.as_str())
+                || semantic_core::chart_cues::global()
+                    .subject_stopwords
+                    .iter()
+                    .any(|stopword| stopword == &word.lowered)
             {
                 return None;
             }
@@ -554,40 +965,10 @@ fn chart_subject_label(
                 let word = word
                     .trim_matches(|ch: char| !ch.is_alphanumeric())
                     .to_lowercase();
-                ![
-                    "ha",
-                    "hanno",
-                    "è",
-                    "sono",
-                    "era",
-                    "erano",
-                    "was",
-                    "were",
-                    "is",
-                    "are",
-                    "has",
-                    "have",
-                    "had",
-                    "sold",
-                    "recorded",
-                    "reported",
-                    "reached",
-                    "produced",
-                    "venduto",
-                    "venduta",
-                    "registrato",
-                    "registrata",
-                    "raggiunto",
-                    "raggiunta",
-                    "prodotto",
-                    "prodotta",
-                    "aumentate",
-                    "aumentato",
-                    "passed",
-                    "rose",
-                    "increased",
-                ]
-                .contains(&word.as_str())
+                !semantic_core::chart_cues::global()
+                    .subject_verb_cutoffs
+                    .iter()
+                    .any(|cutoff| cutoff == &word)
             })
             .take(6)
             .collect();
@@ -640,28 +1021,6 @@ fn span_distance(start: usize, end: usize, point_start: usize, point_end: usize)
     }
 }
 
-fn same_series_metric(left: &str, right: &str) -> bool {
-    const METRICS: &[&str] = &[
-        "ricav",
-        "fatturat",
-        "vendu",
-        "vendit",
-        "prodott",
-        "produzion",
-        "incident",
-        "sales",
-        "revenue",
-        "produced",
-        "production",
-        "accident",
-        "export",
-    ];
-    let left = left.to_lowercase();
-    let right = right.to_lowercase();
-    METRICS
-        .iter()
-        .any(|metric| left.contains(metric) && right.contains(metric))
-}
 
 /// A comparison word elsewhere in a long enumerated bullet must not turn the
 /// list's rank numbers into chart values. Bind the cue to at least two

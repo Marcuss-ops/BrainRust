@@ -13,7 +13,10 @@
     "count",
     "population",
     "energy",
-    "data"
+    "data",
+    "ratio",
+    "growth_rate",
+    "rank"
   ],
   "languages": {
     "en": {
@@ -233,6 +236,36 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "times",
+            "out of"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "year-on-year",
+            "year over year"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "place",
+            "position",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -256,6 +289,16 @@
         "range": [
           "between",
           "from"
+        ],
+        "frequency_periods": [
+          "a day",
+          "per day",
+          "a week",
+          "per week",
+          "a month",
+          "per month",
+          "a year",
+          "per year"
         ]
       },
       "predicates": {
@@ -494,6 +537,37 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "volte",
+            "su"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "annuo",
+            "annuale",
+            "su base annua"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "posto",
+            "posizione",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -516,6 +590,14 @@
         "range": [
           "tra",
           "fra"
+        ],
+        "frequency_periods": [
+          "al giorno",
+          "alla settimana",
+          "al mese",
+          "all'anno",
+          "all’anno",
+          "al minuto"
         ]
       },
       "predicates": {
@@ -728,6 +810,35 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "mal",
+            "von"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "jährlich",
+            "jahresvergleich"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "platz",
+            "rang",
+            "stelle"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -749,6 +860,16 @@
         "range": [
           "zwischen",
           "von"
+        ],
+        "frequency_periods": [
+          "pro tag",
+          "pro woche",
+          "pro monat",
+          "im jahr",
+          "täglich",
+          "wöchentlich",
+          "monatlich",
+          "jährlich"
         ]
       },
       "predicates": {
@@ -975,6 +1096,37 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "veces",
+            "de cada"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "interanual",
+            "anual"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "puesto",
+            "lugar",
+            "posición",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -996,6 +1148,16 @@
         "range": [
           "entre",
           "de"
+        ],
+        "frequency_periods": [
+          "al día",
+          "por día",
+          "a la semana",
+          "por semana",
+          "al mes",
+          "por mes",
+          "al año",
+          "por año"
         ]
       },
       "predicates": {
@@ -1225,6 +1387,37 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "fois",
+            "sur"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "annuel",
+            "annuelle",
+            "glissement annuel"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "place",
+            "position",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -1247,6 +1440,13 @@
         "range": [
           "entre",
           "de"
+        ],
+        "frequency_periods": [
+          "par jour",
+          "par semaine",
+          "par mois",
+          "par an",
+          "par année"
         ]
       },
       "predicates": {
@@ -1465,6 +1665,35 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "keer",
+            "van"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "jaarlijks"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "plaats",
+            "rang",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -1486,6 +1715,12 @@
         "range": [
           "tussen",
           "van"
+        ],
+        "frequency_periods": [
+          "per dag",
+          "per week",
+          "per maand",
+          "per jaar"
         ]
       },
       "predicates": {
@@ -1714,6 +1949,36 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "razy",
+            "na"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "rocznie",
+            "roczny"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "miejsce",
+            "pozycja",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -1735,6 +2000,16 @@
         "range": [
           "między",
           "od"
+        ],
+        "frequency_periods": [
+          "dziennie",
+          "tygodniowo",
+          "miesięcznie",
+          "rocznie",
+          "na dzień",
+          "na tydzień",
+          "na miesiąc",
+          "na rok"
         ]
       },
       "predicates": {
@@ -1960,6 +2235,36 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "vezes",
+            "em cada"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "anual",
+            "homólogo"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "lugar",
+            "posição",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -1981,6 +2286,15 @@
         "range": [
           "entre",
           "de"
+        ],
+        "frequency_periods": [
+          "por dia",
+          "ao dia",
+          "por semana",
+          "por mês",
+          "ao mês",
+          "por ano",
+          "ao ano"
         ]
       },
       "predicates": {
@@ -2206,6 +2520,36 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "раз",
+            "из"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "ежегодно",
+            "год к году"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "место",
+            "позиция",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -2226,6 +2570,16 @@
         "range": [
           "между",
           "от"
+        ],
+        "frequency_periods": [
+          "в день",
+          "в неделю",
+          "в месяц",
+          "в год",
+          "ежедневно",
+          "еженедельно",
+          "ежемесячно",
+          "ежегодно"
         ]
       },
       "predicates": {
@@ -2442,6 +2796,36 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "kat",
+            "kez",
+            "misli"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "yıllık"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "sıra",
+            "derece",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -2462,6 +2846,16 @@
         "range": [
           "arasında",
           "ile"
+        ],
+        "frequency_periods": [
+          "günde",
+          "haftada",
+          "ayda",
+          "yılda",
+          "her gün",
+          "her hafta",
+          "her ay",
+          "her yıl"
         ]
       },
       "predicates": {
@@ -2670,6 +3064,35 @@
           "dimension": "data",
           "code": "TB",
           "factor_to_base": 1000000000000.0
+        },
+        {
+          "surfaces": [
+            "kali",
+            "dari"
+          ],
+          "dimension": "ratio",
+          "code": "ratio",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "yoy",
+            "tahunan"
+          ],
+          "dimension": "growth_rate",
+          "code": "PCT_YOY",
+          "factor_to_base": 1.0
+        },
+        {
+          "surfaces": [
+            "peringkat",
+            "tempat",
+            "°",
+            "º"
+          ],
+          "dimension": "rank",
+          "code": "rank",
+          "factor_to_base": 1.0
         }
       ],
       "qualifiers": {
@@ -2691,6 +3114,13 @@
         "range": [
           "antara",
           "dari"
+        ],
+        "frequency_periods": [
+          "per hari",
+          "per minggu",
+          "per bulan",
+          "per tahun",
+          "setiap hari"
         ]
       },
       "predicates": {

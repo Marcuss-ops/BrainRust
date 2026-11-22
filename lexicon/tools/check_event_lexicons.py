@@ -10,8 +10,12 @@ REQUIRED_TYPES = {
     "appointment_resignation", "founding", "acquisition_merger",
     "launch_release", "accident_disaster", "attack_battle",
     "match_competition_result",
+    # TICKET-44 documentary/economic/science taxonomy.
+    "protest_strike", "bankruptcy_layoff_ipo", "sanction_embargo",
+    "scientific_discovery", "outbreak_epidemic", "natural_disaster",
+    "crime_incident", "ceasefire_truce", "record_milestone",
 }
-OPTIONAL_TYPES = {"agreement"}
+OPTIONAL_TYPES = {"agreement", "award_return"}
 ALLOWED_VOICES = {"active", "passive", "nominal"}
 ALLOWED_ROLES = {"agent", "patient", "winner", "signatory", "counterparty", "vehicle"}
 
@@ -23,7 +27,7 @@ def validate(path: Path, language: str) -> list[str]:
         errors.append(f"{path}: invalid schema or language")
     events = data.get("event_types", {})
     if not REQUIRED_TYPES <= set(events) or not set(events) <= REQUIRED_TYPES | OPTIONAL_TYPES:
-        errors.append(f"{path}: expected the 12 core event types and optional agreement")
+        errors.append(f"{path}: expected the 21 event types and optional agreement/award_return")
     for event_type, triggers in events.items():
         if not isinstance(triggers, list) or not triggers:
             errors.append(f"{path}: {event_type} has no triggers")
@@ -49,7 +53,7 @@ def main() -> int:
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print(f"event trigger lexicons: {len(languages)} languages; 12 core event types each; valid")
+    print(f"event trigger lexicons: {len(languages)} languages; 21 event types each; valid")
     return 0
 
 

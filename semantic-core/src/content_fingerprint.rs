@@ -81,6 +81,10 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
             include_str!("../../lexicon/object_vocabulary.json"),
         ),
         (
+            "lexicon/entity_type_terms.json".to_string(),
+            include_str!("../../lexicon/entity_type_terms.json"),
+        ),
+        (
             "lexicon/orthography.json".to_string(),
             include_str!("../../lexicon/orthography.json"),
         ),
@@ -103,6 +107,10 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
         (
             "lexicon/units.json".to_string(),
             include_str!("../../lexicon/units.json"),
+        ),
+        (
+            "lexicon/chart_cues.json".to_string(),
+            include_str!("../../lexicon/chart_cues.json"),
         ),
         (
             "lexicon/relative_time.json".to_string(),

@@ -346,6 +346,7 @@ pub(super) fn push_contextual_search_candidates(
                 end_byte: contextual.evidence_end_byte,
                 suggested_visual: "search_asset".to_string(),
                 chart_items: Vec::new(),
+                chart_meta: None,
                 temporal_surfaces: Vec::new(),
                 asset_key: dedup_key.clone(),
                 queries,

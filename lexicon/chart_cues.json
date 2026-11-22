@@ -1,0 +1,1120 @@
+{
+  "schema": "chart_cues.v1",
+  "languages": [
+    "de",
+    "en",
+    "es",
+    "fr",
+    "id",
+    "it",
+    "nl",
+    "pl",
+    "pt",
+    "ru",
+    "tr"
+  ],
+  "global": {
+    "hard_vetoes": [
+      [
+        "not",
+        "true"
+      ],
+      [
+        "not",
+        "the",
+        "case"
+      ],
+      [
+        "nicht",
+        "wahr"
+      ],
+      [
+        "pas",
+        "vrai"
+      ],
+      [
+        "pas",
+        "vraie"
+      ],
+      [
+        "niet",
+        "waar"
+      ],
+      [
+        "nie",
+        "prawda"
+      ],
+      [
+        "не",
+        "правда"
+      ],
+      [
+        "tidak",
+        "benar"
+      ],
+      [
+        "false"
+      ],
+      [
+        "falsch"
+      ],
+      [
+        "faux"
+      ],
+      [
+        "fausse"
+      ],
+      [
+        "onjuist"
+      ],
+      [
+        "vals"
+      ],
+      [
+        "fałszywy"
+      ],
+      [
+        "fałszywa"
+      ],
+      [
+        "fałszywe"
+      ],
+      [
+        "неверно"
+      ],
+      [
+        "ложно"
+      ],
+      [
+        "ложный"
+      ],
+      [
+        "ложная"
+      ],
+      [
+        "ложное"
+      ],
+      [
+        "palsu"
+      ],
+      [
+        "yanlış"
+      ],
+      [
+        "doğru",
+        "değil"
+      ],
+      [
+        "falsa"
+      ],
+      [
+        "falso"
+      ],
+      [
+        "fake"
+      ],
+      [
+        "debunked"
+      ],
+      [
+        "smentito"
+      ],
+      [
+        "smentita"
+      ],
+      [
+        "smentiti"
+      ],
+      [
+        "smentite"
+      ],
+      [
+        "unverified"
+      ],
+      [
+        "non",
+        "verificato"
+      ],
+      [
+        "non",
+        "verificata"
+      ],
+      [
+        "non",
+        "verificati"
+      ],
+      [
+        "non",
+        "verificate"
+      ],
+      [
+        "não",
+        "verificado"
+      ],
+      [
+        "não",
+        "verificada"
+      ],
+      [
+        "nicht",
+        "verifiziert"
+      ],
+      [
+        "niet",
+        "geverifieerd"
+      ],
+      [
+        "non",
+        "vérifié"
+      ],
+      [
+        "non",
+        "vérifiée"
+      ],
+      [
+        "nie",
+        "zweryfikowano"
+      ],
+      [
+        "не",
+        "подтверждено"
+      ],
+      [
+        "tidak",
+        "terverifikasi"
+      ],
+      [
+        "non",
+        "sono",
+        "verificati"
+      ],
+      [
+        "non",
+        "sono",
+        "verificate"
+      ],
+      [
+        "non",
+        "è",
+        "vero"
+      ],
+      [
+        "non",
+        "e",
+        "vero"
+      ],
+      [
+        "non",
+        "è",
+        "corretto"
+      ],
+      [
+        "non",
+        "e",
+        "corretto"
+      ],
+      [
+        "not",
+        "sold"
+      ],
+      [
+        "non",
+        "ha",
+        "venduto"
+      ],
+      [
+        "non",
+        "hanno",
+        "venduto"
+      ],
+      [
+        "non",
+        "ha",
+        "prodotto"
+      ],
+      [
+        "non",
+        "hanno",
+        "prodotto"
+      ],
+      [
+        "non",
+        "ha",
+        "registrato"
+      ],
+      [
+        "non",
+        "ha",
+        "raggiunto"
+      ]
+    ],
+    "approximators": [
+      "circa",
+      "about",
+      "approximately",
+      "approx",
+      "around",
+      "roughly",
+      "nearly",
+      "almost",
+      "oltre",
+      "over",
+      "above",
+      "quasi",
+      "etwa",
+      "ungefähr",
+      "aproximadamente",
+      "cerca",
+      "almeno"
+    ],
+    "approximator_pairs": [
+      [
+        "more",
+        "than"
+      ],
+      [
+        "più",
+        "di"
+      ],
+      [
+        "piu",
+        "di"
+      ],
+      [
+        "at",
+        "least"
+      ],
+      [
+        "al",
+        "menos"
+      ],
+      [
+        "más",
+        "de"
+      ],
+      [
+        "mas",
+        "de"
+      ]
+    ],
+    "rate_cues": [
+      "al mese",
+      "al anno",
+      "all'anno",
+      "all’anno",
+      "per month",
+      "per year",
+      "a month",
+      "a year",
+      "im monat",
+      "pro monat",
+      "im jahr",
+      "pro jahr",
+      "por mes",
+      "al mes",
+      "por año",
+      "al año",
+      "par mois",
+      "par an",
+      "par année",
+      "per maand",
+      "per jaar",
+      "na miesiąc",
+      "na rok",
+      "miesięcznie",
+      "rocznie",
+      "в месяц",
+      "в год",
+      "por mês",
+      "ao mês",
+      "por ano",
+      "per bulan",
+      "per tahun"
+    ],
+    "rank_veto_cues": [
+      "top ",
+      "top-",
+      "rank",
+      "classifica",
+      "ranking",
+      "flight",
+      "volo az"
+    ],
+    "subject_stopwords": [
+      "nel",
+      "nella",
+      "il",
+      "la",
+      "lo",
+      "un",
+      "una",
+      "the",
+      "a",
+      "in",
+      "on",
+      "der",
+      "die",
+      "das",
+      "el",
+      "los",
+      "las",
+      "le",
+      "les",
+      "no",
+      "en",
+      "em",
+      "im",
+      "w",
+      "в",
+      "pada",
+      "dans",
+      "sur",
+      "du",
+      "au",
+      "auf",
+      "am",
+      "zum"
+    ],
+    "subject_verb_cutoffs": [
+      "ha",
+      "hanno",
+      "è",
+      "sono",
+      "era",
+      "erano",
+      "was",
+      "were",
+      "is",
+      "are",
+      "has",
+      "have",
+      "had",
+      "sold",
+      "recorded",
+      "reported",
+      "reached",
+      "produced",
+      "venduto",
+      "venduta",
+      "registrato",
+      "registrata",
+      "raggiunto",
+      "raggiunta",
+      "prodotto",
+      "prodotta",
+      "aumentate",
+      "aumentato",
+      "passed",
+      "rose",
+      "increased"
+    ],
+    "currency_cues": {
+      "EUR": [
+        "euro",
+        "euros",
+        "€",
+        "eur",
+        "avro"
+      ],
+      "USD": [
+        "dollaro",
+        "dollari",
+        "dollar",
+        "dollars",
+        "$",
+        "usd"
+      ],
+      "GBP": [
+        "sterlina",
+        "sterline",
+        "pound",
+        "pounds",
+        "£",
+        "gbp"
+      ]
+    },
+    "length_cues": {
+      "km": [
+        "km",
+        "kilometro",
+        "kilometri",
+        "chilometro",
+        "chilometri",
+        "kilometer",
+        "kilometers"
+      ],
+      "m": [
+        "metro",
+        "metri",
+        "meter",
+        "meters"
+      ],
+      "mile": [
+        "mile",
+        "miles"
+      ]
+    },
+    "count_unit_cues": [
+      "veicolo",
+      "veicoli",
+      "auto",
+      "dipendente",
+      "dipendenti",
+      "employee",
+      "employees",
+      "unità",
+      "unita",
+      "unit",
+      "units",
+      "pezzo",
+      "pezzi",
+      "piece",
+      "pieces",
+      "gwh",
+      "mwh",
+      "kwh",
+      "incidente",
+      "incidenti",
+      "incident",
+      "incidents",
+      "richiesta",
+      "richieste",
+      "request",
+      "requests",
+      "persona",
+      "persone",
+      "people"
+    ],
+    "display_unit_cues": [
+      "km",
+      "kms",
+      "kilometro",
+      "kilometri",
+      "kilometer",
+      "kilometers",
+      "m",
+      "metro",
+      "metri",
+      "meter",
+      "meters",
+      "mile",
+      "miles",
+      "veicolo",
+      "veicoli",
+      "auto",
+      "car",
+      "cars",
+      "dipendente",
+      "dipendenti",
+      "employee",
+      "employees",
+      "unità",
+      "unita",
+      "unit",
+      "units",
+      "pezzo",
+      "pezzi",
+      "piece",
+      "pieces",
+      "gwh",
+      "mwh",
+      "kwh",
+      "incidente",
+      "incidenti",
+      "incident",
+      "incidents",
+      "richiesta",
+      "richieste",
+      "request",
+      "requests",
+      "euro",
+      "euros",
+      "dollaro",
+      "dollari",
+      "dollar",
+      "dollars",
+      "eur",
+      "usd",
+      "gbp",
+      "€",
+      "$",
+      "£",
+      "mese",
+      "mesi",
+      "month",
+      "months",
+      "anno",
+      "anni",
+      "year",
+      "years"
+    ],
+    "monthly_pairs": [
+      [
+        "al",
+        "mese"
+      ],
+      [
+        "per",
+        "month"
+      ]
+    ],
+    "yearly_cues": [
+      "annuo",
+      "annua",
+      "annui",
+      "annue",
+      "all'anno",
+      "all’anno",
+      "year",
+      "yearly",
+      "annually"
+    ],
+    "range_openers": [
+      "tra",
+      "between"
+    ],
+    "range_connectors": [
+      " and ",
+      " e ",
+      " a ",
+      " to ",
+      " y ",
+      " et ",
+      " und ",
+      " i ",
+      " sampai ",
+      " en ",
+      " и ",
+      " ile "
+    ],
+    "paired_series_rules": [
+      {
+        "any_in_each": [
+          [
+            "richieste",
+            "richiesta",
+            "request",
+            "requests"
+          ],
+          [
+            "approvat",
+            "approved",
+            "approvati"
+          ],
+          [
+            "respint",
+            "rejected",
+            "respinti"
+          ]
+        ],
+        "repeated_units": [],
+        "min_repeats": 2
+      },
+      {
+        "any_in_each": [
+          [
+            "compreso tra",
+            "between "
+          ]
+        ],
+        "repeated_units": [],
+        "min_repeats": 2
+      },
+      {
+        "any_in_each": [
+          [
+            "al mese",
+            "per month"
+          ],
+          [
+            "all’anno",
+            "all'anno",
+            "per year"
+          ],
+          [
+            "costo",
+            "cost"
+          ]
+        ],
+        "repeated_units": [],
+        "min_repeats": 2
+      },
+      {
+        "any_in_each": [
+          [
+            "stesso mercato",
+            "same market"
+          ]
+        ],
+        "repeated_units": [
+          "veicoli",
+          "vehicles",
+          "auto",
+          "cars",
+          "pezzi",
+          "units"
+        ],
+        "min_repeats": 2
+      }
+    ]
+  },
+  "by_language": {
+    "de": {
+      "series_context_cues": [
+        "szenario ",
+        "export",
+        "umsatz",
+        "marktanteil",
+        "quote"
+      ],
+      "series_metric_stems": [
+        "verkauf",
+        "umsatz",
+        "export",
+        "produ",
+        "unfall",
+        "absatz",
+        "gewinn"
+      ],
+      "semicolon_metric_stems": [
+        "verkauf",
+        "umsatz",
+        "export",
+        "produ",
+        "unfall",
+        "absatz"
+      ],
+      "share_context_cues": [
+        "anteil",
+        "quote",
+        "marktanteil",
+        "prozent"
+      ],
+      "growth_cues": [
+        "yoy",
+        "jahr",
+        "jahresvergleich",
+        "jährlich",
+        "annuo"
+      ],
+      "survey_cues": [
+        "umfrage"
+      ]
+    },
+    "en": {
+      "series_context_cues": [
+        "scenario ",
+        "export",
+        "revenue",
+        "sales",
+        "market share",
+        "quota"
+      ],
+      "series_metric_stems": [
+        "sell",
+        "sold",
+        "sale",
+        "sales",
+        "revenue",
+        "export",
+        "produced",
+        "production",
+        "output",
+        "accident",
+        "profit"
+      ],
+      "semicolon_metric_stems": [
+        "sell",
+        "sold",
+        "sale",
+        "revenue",
+        "export",
+        "output",
+        "incident",
+        "profit"
+      ],
+      "share_context_cues": [
+        "share",
+        "quota",
+        "percentage",
+        "percent",
+        "survey"
+      ],
+      "growth_cues": [
+        "yoy",
+        "year-on-year",
+        "year over year",
+        "annual",
+        "annually"
+      ],
+      "survey_cues": [
+        "survey"
+      ]
+    },
+    "es": {
+      "series_context_cues": [
+        "escenario ",
+        "exportaci",
+        "ingresos",
+        "facturaci",
+        "cuota"
+      ],
+      "series_metric_stems": [
+        "vend",
+        "ingres",
+        "factur",
+        "export",
+        "produ",
+        "accident",
+        "beneficio"
+      ],
+      "semicolon_metric_stems": [
+        "vend",
+        "ingres",
+        "factur",
+        "export",
+        "produ",
+        "accident"
+      ],
+      "share_context_cues": [
+        "cuota",
+        "porcentaje",
+        "encuesta",
+        "participación"
+      ],
+      "growth_cues": [
+        "yoy",
+        "interanual",
+        "anual",
+        "cada año"
+      ],
+      "survey_cues": [
+        "encuesta"
+      ]
+    },
+    "fr": {
+      "series_context_cues": [
+        "scénario ",
+        "export",
+        "revenu",
+        "chiffre",
+        "part de marché"
+      ],
+      "series_metric_stems": [
+        "vend",
+        "revenu",
+        "chiffre",
+        "export",
+        "produ",
+        "accident",
+        "bénéfice"
+      ],
+      "semicolon_metric_stems": [
+        "vend",
+        "revenu",
+        "chiffre",
+        "export",
+        "produ",
+        "accident"
+      ],
+      "share_context_cues": [
+        "part",
+        "pourcentage",
+        "sondage",
+        "quota"
+      ],
+      "growth_cues": [
+        "yoy",
+        "annuel",
+        "annuelle",
+        "glissement annuel"
+      ],
+      "survey_cues": [
+        "sondage"
+      ]
+    },
+    "id": {
+      "series_context_cues": [
+        "skenario ",
+        "ekspor",
+        "pendapatan",
+        "penjualan",
+        "pangsa"
+      ],
+      "series_metric_stems": [
+        "jual",
+        "penjualan",
+        "pendapatan",
+        "ekspor",
+        "produksi",
+        "kecelakaan",
+        "laba"
+      ],
+      "semicolon_metric_stems": [
+        "jual",
+        "penjualan",
+        "pendapatan",
+        "ekspor",
+        "produksi",
+        "kecelakaan"
+      ],
+      "share_context_cues": [
+        "pangsa",
+        "persentase",
+        "survei",
+        "kuota"
+      ],
+      "growth_cues": [
+        "yoy",
+        "tahunan",
+        "per tahun"
+      ],
+      "survey_cues": [
+        "survei"
+      ]
+    },
+    "it": {
+      "series_context_cues": [
+        "scenario ",
+        "esportazion",
+        "fatturato",
+        "ricavi",
+        "quota"
+      ],
+      "series_metric_stems": [
+        "ricav",
+        "fatturat",
+        "vendu",
+        "vendit",
+        "prodott",
+        "produzion",
+        "incident",
+        "utile"
+      ],
+      "semicolon_metric_stems": [
+        "vendu",
+        "ricav",
+        "esport",
+        "produ",
+        "incident",
+        "utile"
+      ],
+      "share_context_cues": [
+        "quota",
+        "percentuale",
+        "sondaggio",
+        "ripartizione"
+      ],
+      "growth_cues": [
+        "yoy",
+        "annuo",
+        "annuale",
+        "su base annua"
+      ],
+      "survey_cues": [
+        "sondaggio",
+        "sondaggi"
+      ]
+    },
+    "nl": {
+      "series_context_cues": [
+        "scenario ",
+        "export",
+        "omzet",
+        "verkoop",
+        "marktaandeel"
+      ],
+      "series_metric_stems": [
+        "verkoop",
+        "verkocht",
+        "omzet",
+        "export",
+        "produ",
+        "incident",
+        "winst"
+      ],
+      "semicolon_metric_stems": [
+        "verkoop",
+        "verkocht",
+        "omzet",
+        "export",
+        "produ",
+        "incident"
+      ],
+      "share_context_cues": [
+        "aandeel",
+        "percentage",
+        "enquête",
+        "quotum"
+      ],
+      "growth_cues": [
+        "yoy",
+        "jaarlijks",
+        "op jaarbasis"
+      ],
+      "survey_cues": [
+        "enquête"
+      ]
+    },
+    "pl": {
+      "series_context_cues": [
+        "scenariusz ",
+        "eksport",
+        "przychód",
+        "sprzedaż",
+        "udział"
+      ],
+      "series_metric_stems": [
+        "sprzeda",
+        "przychod",
+        "eksport",
+        "produ",
+        "wypad",
+        "zysk"
+      ],
+      "semicolon_metric_stems": [
+        "sprzeda",
+        "przychod",
+        "eksport",
+        "produ",
+        "wypad"
+      ],
+      "share_context_cues": [
+        "udział",
+        "procent",
+        "ankieta",
+        "kwota"
+      ],
+      "growth_cues": [
+        "yoy",
+        "rocznie",
+        "roczny",
+        "rok do roku"
+      ],
+      "survey_cues": [
+        "ankieta"
+      ]
+    },
+    "pt": {
+      "series_context_cues": [
+        "cenário ",
+        "exporta",
+        "receita",
+        "faturamento",
+        "quota"
+      ],
+      "series_metric_stems": [
+        "vend",
+        "receit",
+        "fatur",
+        "export",
+        "produ",
+        "acident",
+        "lucro"
+      ],
+      "semicolon_metric_stems": [
+        "vend",
+        "receit",
+        "fatur",
+        "export",
+        "produ",
+        "acident"
+      ],
+      "share_context_cues": [
+        "quota",
+        "percentagem",
+        "sondagem",
+        "participação"
+      ],
+      "growth_cues": [
+        "yoy",
+        "anual",
+        "homólogo",
+        "ano a ano"
+      ],
+      "survey_cues": [
+        "sondagem"
+      ]
+    },
+    "ru": {
+      "series_context_cues": [
+        "сценарий ",
+        "экспорт",
+        "выручк",
+        "продаж",
+        "доля"
+      ],
+      "series_metric_stems": [
+        "прода",
+        "выруч",
+        "экспорт",
+        "произвед",
+        "выпуск",
+        "авари",
+        "прибыл"
+      ],
+      "semicolon_metric_stems": [
+        "прода",
+        "выруч",
+        "экспорт",
+        "произвед",
+        "выпуск",
+        "авари"
+      ],
+      "share_context_cues": [
+        "доля",
+        "процент",
+        "опрос",
+        "квота"
+      ],
+      "growth_cues": [
+        "yoy",
+        "год к году",
+        "ежегодно",
+        "годовой"
+      ],
+      "survey_cues": [
+        "опрос"
+      ]
+    },
+    "tr": {
+      "series_context_cues": [
+        "senaryo ",
+        "ihracat",
+        "gelir",
+        "satış",
+        "pazar payı"
+      ],
+      "series_metric_stems": [
+        "sat",
+        "gelir",
+        "ihracat",
+        "üret",
+        "kaza",
+        "kâr",
+        "kar"
+      ],
+      "semicolon_metric_stems": [
+        "sat",
+        "gelir",
+        "ihracat",
+        "üret",
+        "kaza"
+      ],
+      "share_context_cues": [
+        "pay",
+        "yüzde",
+        "anket",
+        "oran"
+      ],
+      "growth_cues": [
+        "yoy",
+        "yıllık",
+        "yıl bazında"
+      ],
+      "survey_cues": [
+        "anket"
+      ]
+    }
+  }
+}

@@ -12,74 +12,11 @@
 pub(crate) fn chart_claim_is_eligible(sentence: &str) -> bool {
     let normalized = normalize_words(sentence);
 
-    const HARD_VETOES: &[&[&str]] = &[
-        &["not", "true"],
-        &["not", "the", "case"],
-        &["nicht", "wahr"],
-        &["pas", "vrai"],
-        &["pas", "vraie"],
-        &["niet", "waar"],
-        &["nie", "prawda"],
-        &["не", "правда"],
-        &["tidak", "benar"],
-        &["false"],
-        &["falsch"],
-        &["faux"],
-        &["fausse"],
-        &["onjuist"],
-        &["vals"],
-        &["fałszywy"],
-        &["fałszywa"],
-        &["fałszywe"],
-        &["неверно"],
-        &["ложно"],
-        &["ложный"],
-        &["ложная"],
-        &["ложное"],
-        &["palsu"],
-        &["yanlış"],
-        &["doğru", "değil"],
-        &["falsa"],
-        &["falso"],
-        &["fake"],
-        &["debunked"],
-        &["smentito"],
-        &["smentita"],
-        &["smentiti"],
-        &["smentite"],
-        &["unverified"],
-        &["non", "verificato"],
-        &["non", "verificata"],
-        &["non", "verificati"],
-        &["non", "verificate"],
-        &["não", "verificado"],
-        &["não", "verificada"],
-        &["nicht", "verifiziert"],
-        &["niet", "geverifieerd"],
-        &["non", "vérifié"],
-        &["non", "vérifiée"],
-        &["nie", "zweryfikowano"],
-        &["не", "подтверждено"],
-        &["tidak", "terverifikasi"],
-        &["non", "sono", "verificati"],
-        &["non", "sono", "verificate"],
-        &["non", "è", "vero"],
-        &["non", "e", "vero"],
-        &["non", "è", "corretto"],
-        &["non", "e", "corretto"],
-        &["not", "sold"],
-        &["non", "ha", "venduto"],
-        &["non", "hanno", "venduto"],
-        &["non", "ha", "prodotto"],
-        &["non", "hanno", "prodotto"],
-        &["non", "ha", "registrato"],
-        &["non", "ha", "raggiunto"],
-    ];
-
     // The lexical matches are word based, not substring based. Keep this
     // intentionally small: false negatives must be reviewed, but a hard veto
     // must not accidentally suppress unrelated words such as "nonetheless".
-    !HARD_VETOES
+    !semantic_core::chart_cues::global()
+        .hard_vetoes
         .iter()
         .any(|cue| contains_word_sequence(&normalized, cue))
 }
@@ -122,41 +59,18 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
     let words = semantic_core::discourse::word_spans(prefix);
     if let Some(last) = words.last() {
         let last_word = last.lowered.as_str();
+        let cues = semantic_core::chart_cues::global();
         if words.len() >= 2 {
             let previous = words[words.len() - 2].lowered.as_str();
-            if matches!(
-                (previous, last_word),
-                ("more", "than")
-                    | ("più", "di")
-                    | ("piu", "di")
-                    | ("at", "least")
-                    | ("al", "menos")
-                    | ("más", "de")
-                    | ("mas", "de")
-            ) {
+            if cues
+                .approximator_pairs
+                .iter()
+                .any(|pair| pair.len() == 2 && pair[0] == previous && pair[1] == last_word)
+            {
                 return (words[words.len() - 2].start, end);
             }
         }
-        let one_word = [
-            "circa",
-            "about",
-            "approximately",
-            "approx",
-            "around",
-            "roughly",
-            "nearly",
-            "almost",
-            "oltre",
-            "over",
-            "above",
-            "quasi",
-            "etwa",
-            "ungefähr",
-            "aproximadamente",
-            "cerca",
-            "almeno",
-        ];
-        if one_word.contains(&last_word) {
+        if cues.approximators.iter().any(|cue| cue == last_word) {
             return (last.start, end);
         }
     }
@@ -170,94 +84,21 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
         .is_some_and(|ch| matches!(ch, '€' | '$' | '£'));
     if let Some(first) = suffix_words.first() {
         let suffix = first.lowered.as_str();
-        if [
-            "km",
-            "kms",
-            "kilometro",
-            "kilometri",
-            "kilometer",
-            "kilometers",
-            "m",
-            "metro",
-            "metri",
-            "meter",
-            "meters",
-            "mile",
-            "miles",
-            "veicolo",
-            "veicoli",
-            "auto",
-            "car",
-            "cars",
-            "dipendente",
-            "dipendenti",
-            "employee",
-            "employees",
-            "unità",
-            "unita",
-            "unit",
-            "units",
-            "pezzo",
-            "pezzi",
-            "piece",
-            "pieces",
-            "gwh",
-            "mwh",
-            "kwh",
-            "incidente",
-            "incidenti",
-            "incident",
-            "incidents",
-            "richiesta",
-            "richieste",
-            "request",
-            "requests",
-            "euro",
-            "euros",
-            "dollaro",
-            "dollari",
-            "dollar",
-            "dollars",
-            "eur",
-            "usd",
-            "gbp",
-            "€",
-            "$",
-            "£",
-            "mese",
-            "mesi",
-            "month",
-            "months",
-            "anno",
-            "anni",
-            "year",
-            "years",
-        ]
-        .contains(&suffix)
+        if semantic_core::chart_cues::global()
+            .display_unit_cues
+            .iter()
+            .any(|cue| cue == suffix)
+        
         {
             display_end = end + first.end;
         }
     }
     let suffix_currency = suffix_words.first().is_some_and(|word| {
-        matches!(
-            word.lowered.as_str(),
-            "euro"
-                | "euros"
-                | "eur"
-                | "dollaro"
-                | "dollari"
-                | "dollar"
-                | "dollars"
-                | "usd"
-                | "sterlina"
-                | "sterline"
-                | "pound"
-                | "pounds"
-                | "gbp"
-                | "€"
-                | "$"
-                | "£"
-        )
+        semantic_core::chart_cues::global()
+            .currency_cues
+            .values()
+            .flatten()
+            .any(|cue| cue == &word.lowered)
     });
     if prefix_currency || suffix_currency {
         if prefix_currency {
@@ -270,41 +111,8 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
         let remainder = sentence[display_end..].trim_start();
         let leading_space = sentence[display_end..].len() - remainder.len();
         let lower = remainder.to_lowercase();
-        let rate_cues = [
-            "al mese",
-            "al anno",
-            "all'anno",
-            "all’anno",
-            "per month",
-            "per year",
-            "a month",
-            "a year",
-            "im monat",
-            "pro monat",
-            "im jahr",
-            "pro jahr",
-            "por mes",
-            "al mes",
-            "por año",
-            "al año",
-            "par mois",
-            "par an",
-            "par année",
-            "per maand",
-            "per jaar",
-            "na miesiąc",
-            "na rok",
-            "miesięcznie",
-            "rocznie",
-            "в месяц",
-            "в год",
-            "por mês",
-            "ao mês",
-            "por ano",
-            "per bulan",
-            "per tahun",
-        ];
-        if let Some(cue) = rate_cues.iter().find(|cue| lower.starts_with(**cue)) {
+        let rate_cues = &semantic_core::chart_cues::global().rate_cues;
+        if let Some(cue) = rate_cues.iter().find(|cue| lower.starts_with(cue.as_str())) {
             display_end += leading_space + cue.len();
         }
     }
@@ -319,17 +127,12 @@ pub(crate) fn has_series_context(sentence: &str, point_count: usize, language: &
         return false;
     }
     let lower = sentence.to_lowercase();
-    if [
-        "top ",
-        "top-",
-        "rank",
-        "classifica",
-        "ranking",
-        "flight",
-        "volo az",
-    ]
-    .iter()
-    .any(|cue| lower.contains(cue))
+    let cues = semantic_core::chart_cues::global();
+    let language_cues = semantic_core::chart_cues::language_cues(language);
+    if cues
+        .rank_veto_cues
+        .iter()
+        .any(|cue| lower.contains(cue.as_str()))
     {
         return false;
     }
@@ -339,24 +142,23 @@ pub(crate) fn has_series_context(sentence: &str, point_count: usize, language: &
         if !sentence.contains(';') {
             return true;
         }
-        return same_metric_across_semicolon(sentence);
+        return same_metric_across_semicolon(sentence, language);
     }
 
-    if lower.contains("scenario ") || lower.contains("survey") {
-        return true;
-    }
-    if ["sondaggio", "sondaggi"]
+    if language_cues
+        .survey_cues
         .iter()
-        .any(|cue| lower.contains(cue))
+        .any(|cue| lower.contains(cue.as_str()))
     {
         if let Some((same_scope, _rest)) = lower.split_once(';') {
             return same_scope.matches('%').count() >= 2;
         }
         return true;
     }
-    if ["esportazion", "export", "fatturato", "ricavi", "quota"]
+    if language_cues
+        .series_context_cues
         .iter()
-        .any(|cue| lower.contains(cue))
+        .any(|cue| lower.contains(cue.as_str()))
     {
         return true;
     }
@@ -370,27 +172,18 @@ pub(crate) fn has_series_context(sentence: &str, point_count: usize, language: &
     }) {
         return true;
     }
-    if lower.contains("richieste")
-        && (lower.contains("approvat") || lower.contains("approved"))
-        && (lower.contains("respint") || lower.contains("rejected"))
-    {
+    if cues.paired_series_rules.iter().any(|rule| {
+        !rule.any_in_each.is_empty()
+            && rule
+                .any_in_each
+                .iter()
+                .all(|group| group.iter().any(|cue| lower.contains(&cue.to_lowercase())))
+            && (rule.repeated_units.is_empty()
+                || rule.repeated_units.iter().any(|unit| {
+                    lower.matches(&unit.to_lowercase()).count() >= rule.min_repeats.max(2)
+                }))
+    }) {
         return true;
-    }
-    if lower.contains("compreso tra") || lower.contains("between ") {
-        return true;
-    }
-    if (lower.contains("al mese") || lower.contains("per month"))
-        && (lower.contains("all’anno") || lower.contains("all'anno") || lower.contains("per year"))
-        && (lower.contains("costo") || lower.contains("cost"))
-    {
-        return true;
-    }
-    // Repeated measurement nouns plus an explicitly shared market make the
-    // subject/value pairing local and testable without a generated label.
-    if lower.contains("stesso mercato") || lower.contains("same market") {
-        return ["veicoli", "vehicles", "auto", "cars", "pezzi", "units"]
-            .iter()
-            .any(|unit| lower.matches(unit).count() >= 2);
     }
     false
 }
@@ -456,39 +249,23 @@ pub(crate) fn chart_unit(
         };
     }
 
-    let currency = if ["euro", "euros", "€", "eur"]
-        .iter()
-        .any(|cue| context.contains(cue))
-    {
-        Some("EUR")
-    } else if ["dollaro", "dollari", "dollar", "dollars", "$", "usd"]
-        .iter()
-        .any(|cue| context.contains(cue))
-    {
-        Some("USD")
-    } else if ["sterlina", "sterline", "pound", "pounds", "£", "gbp"]
-        .iter()
-        .any(|cue| context.contains(cue))
-    {
-        Some("GBP")
-    } else {
-        None
-    };
+    let global = semantic_core::chart_cues::global();
+    let currency = global.currency_cues.iter().find_map(|(code, cues)| {
+        cues.iter()
+            .any(|cue| context.contains(cue.as_str()))
+            .then_some(code.as_str())
+    });
     if let Some(currency) = currency {
-        let monthly = words.windows(2).any(|pair| matches!(pair, [a, b] if (a == "al" && b == "mese") || (a == "per" && b == "month")));
-        let yearly = [
-            "annuo",
-            "annua",
-            "annui",
-            "annue",
-            "all'anno",
-            "all’anno",
-            "year",
-            "yearly",
-            "annually",
-        ]
-        .iter()
-        .any(|cue| context.contains(cue));
+        let monthly = words.windows(2).any(|pair| {
+            global
+                .monthly_pairs
+                .iter()
+                .any(|expected| expected.len() == 2 && expected[0] == pair[0] && expected[1] == pair[1])
+        });
+        let yearly = global
+            .yearly_cues
+            .iter()
+            .any(|cue| context.contains(cue.as_str()));
         let (period, normalized) = if monthly && !yearly {
             ("year", resolved_value * 12.0)
         } else if yearly {
@@ -505,29 +282,25 @@ pub(crate) fn chart_unit(
 
     let after_words = normalize_words(&local_after);
     let length_factor = if after_words.iter().take(2).any(|word| {
-        [
-            "km",
-            "kilometro",
-            "kilometri",
-            "chilometro",
-            "chilometri",
-            "kilometer",
-            "kilometers",
-        ]
-        .contains(&word.as_str())
+        global
+            .length_cues
+            .get("km")
+            .is_some_and(|cues| cues.contains(word))
     }) {
         Some(("length:m", 1000.0))
-    } else if after_words
-        .iter()
-        .take(2)
-        .any(|word| ["metro", "metri", "meter", "meters"].contains(&word.as_str()))
-    {
+    } else if after_words.iter().take(2).any(|word| {
+        global
+            .length_cues
+            .get("m")
+            .is_some_and(|cues| cues.contains(word))
+    }) {
         Some(("length:m", 1.0))
-    } else if after_words
-        .iter()
-        .take(2)
-        .any(|word| ["mile", "miles"].contains(&word.as_str()))
-    {
+    } else if after_words.iter().take(2).any(|word| {
+        global
+            .length_cues
+            .get("mile")
+            .is_some_and(|cues| cues.contains(word))
+    }) {
         Some(("length:m", 1609.344))
     } else {
         None
@@ -540,41 +313,11 @@ pub(crate) fn chart_unit(
         };
     }
 
-    let known_units = [
-        "veicolo",
-        "veicoli",
-        "auto",
-        "dipendente",
-        "dipendenti",
-        "employee",
-        "employees",
-        "unità",
-        "unita",
-        "unit",
-        "units",
-        "pezzo",
-        "pezzi",
-        "piece",
-        "pieces",
-        "gwh",
-        "mwh",
-        "kwh",
-        "incidente",
-        "incidenti",
-        "incident",
-        "incidents",
-        "richiesta",
-        "richieste",
-        "request",
-        "requests",
-        "persona",
-        "persone",
-        "people",
-    ];
+    let known_units = &global.count_unit_cues;
     if let Some(unit) = after_words
         .iter()
         .take(3)
-        .find(|word| known_units.contains(&word.as_str()))
+        .find(|word| known_units.contains(word))
     {
         return ChartUnit {
             kind: kind.to_string(),
@@ -609,7 +352,7 @@ fn safe_head(text: &str, max_bytes: usize) -> &str {
     &text[..end]
 }
 
-fn same_metric_across_semicolon(sentence: &str) -> bool {
+fn same_metric_across_semicolon(sentence: &str, language: &str) -> bool {
     let parts: Vec<String> = sentence
         .split(';')
         .map(|part| part.to_lowercase())
@@ -619,85 +362,8 @@ fn same_metric_across_semicolon(sentence: &str) -> bool {
     }
     // Repeated metric predicates make a temporal comparison explicit even
     // when the sentence uses neither a comparison operator nor a shared noun
-    // (for example, "Aurora sold 120 cars; in 2023 it sold 180"). Keep the
-    // stems localized to supported languages instead of treating any pair of
-    // values and years as a series.
-    let stems = [
-        // Italian
-        "vendu",
-        "ricav",
-        "esport",
-        "produ",
-        "incident",
-        // English
-        "sell",
-        "sold",
-        "sale",
-        "revenue",
-        "export",
-        "output",
-        "incident",
-        // German
-        "verkauf",
-        "umsatz",
-        "export",
-        "produ",
-        "unfall",
-        // Spanish
-        "vend",
-        "ingres",
-        "factur",
-        "export",
-        "produ",
-        "accident",
-        // French
-        "vend",
-        "revenu",
-        "chiffre",
-        "export",
-        "produ",
-        "accident",
-        // Dutch
-        "verkoop",
-        "verkocht",
-        "omzet",
-        "export",
-        "produ",
-        "incident",
-        // Polish
-        "sprzeda",
-        "przychod",
-        "eksport",
-        "produ",
-        "wypad",
-        // Russian
-        "прода",
-        "выруч",
-        "экспорт",
-        "произвед",
-        "выпуск",
-        "авари",
-        // Portuguese
-        "vend",
-        "receit",
-        "fatur",
-        "export",
-        "produ",
-        "acident",
-        // Indonesian
-        "jual",
-        "penjualan",
-        "pendapatan",
-        "ekspor",
-        "produksi",
-        "kecelakaan",
-        // Turkish
-        "sat",
-        "gelir",
-        "ihracat",
-        "üret",
-        "kaza",
-    ];
+    // (for example, "Aurora sold 120 cars; in 2023 it sold 180").
+    let stems = &semantic_core::chart_cues::language_cues(language).semicolon_metric_stems;
     stems
         .iter()
         .any(|stem| parts.iter().filter(|part| part.contains(stem)).count() >= 2)
@@ -710,11 +376,11 @@ fn normalize_words(text: &str) -> Vec<String> {
         .collect()
 }
 
-fn contains_word_sequence(haystack: &[String], needle: &[&str]) -> bool {
+fn contains_word_sequence(haystack: &[String], needle: &[String]) -> bool {
     !needle.is_empty()
         && haystack
             .windows(needle.len())
-            .any(|window| window.iter().map(String::as_str).eq(needle.iter().copied()))
+            .any(|window| window == needle)
 }
 
 #[cfg(test)]

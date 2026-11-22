@@ -8,8 +8,9 @@
         "voice": "passive",
         "roles": {
           "patient": "subject",
-          "agent": "agent"
-        }
+          "agent": "object"
+        },
+        "surface": "arrestato"
       },
       {
         "lemma": "arrestare",
@@ -17,14 +18,8 @@
         "roles": {
           "agent": "subject",
           "patient": "object"
-        }
-      },
-      {
-        "lemma": "arrestare",
-        "voice": "passive",
-        "roles": {
-          "patient": "subject"
-        }
+        },
+        "surface": "arrestò"
       }
     ],
     "election": [
@@ -36,14 +31,16 @@
         },
         "pro_drop_roles": [
           "patient"
-        ]
+        ],
+        "surface": "eletto"
       },
       {
         "lemma": "vincere",
         "voice": "active",
         "roles": {
           "winner": "subject"
-        }
+        },
+        "surface": "vinse"
       }
     ],
     "agreement": [
@@ -53,7 +50,8 @@
         "roles": {
           "signatory": "subject",
           "counterparty": "object"
-        }
+        },
+        "surface": "firmò"
       },
       {
         "surface": "accordo",
@@ -68,7 +66,8 @@
         "voice": "active",
         "roles": {
           "vehicle": "subject"
-        }
+        },
+        "surface": "si schiantò"
       },
       {
         "surface": "incidente",
@@ -83,7 +82,8 @@
         "voice": "active",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "nacque"
       },
       {
         "surface": "nascita",
@@ -98,7 +98,8 @@
         "voice": "active",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "morì"
       },
       {
         "surface": "morte",
@@ -113,14 +114,16 @@
         "voice": "passive",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "condannato"
       },
       {
         "lemma": "assolvere",
         "voice": "passive",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "assolto"
       }
     ],
     "appointment_resignation": [
@@ -129,14 +132,16 @@
         "voice": "passive",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "nominato"
       },
       {
         "lemma": "dimettersi",
         "voice": "active",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "si dimise"
       }
     ],
     "founding": [
@@ -145,8 +150,9 @@
         "voice": "passive",
         "roles": {
           "patient": "subject",
-          "agent": "agent"
-        }
+          "agent": "object"
+        },
+        "surface": "fondata"
       },
       {
         "lemma": "fondare",
@@ -154,7 +160,8 @@
         "roles": {
           "agent": "subject",
           "patient": "object"
-        }
+        },
+        "surface": "fondò"
       }
     ],
     "acquisition_merger": [
@@ -163,7 +170,8 @@
         "voice": "passive",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "acquisita"
       },
       {
         "lemma": "acquisire",
@@ -171,7 +179,8 @@
         "roles": {
           "agent": "subject",
           "patient": "object"
-        }
+        },
+        "surface": "acquisì"
       },
       {
         "lemma": "fondersi",
@@ -179,7 +188,8 @@
         "roles": {
           "agent": "subject",
           "counterparty": "object"
-        }
+        },
+        "surface": "si fuse"
       }
     ],
     "launch_release": [
@@ -192,7 +202,8 @@
         },
         "pro_drop_roles": [
           "agent"
-        ]
+        ],
+        "surface": "lanciato"
       },
       {
         "lemma": "lanciare",
@@ -203,7 +214,8 @@
         },
         "pro_drop_roles": [
           "agent"
-        ]
+        ],
+        "surface": "lanciò"
       },
       {
         "lemma": "pubblicare",
@@ -214,7 +226,8 @@
         },
         "pro_drop_roles": [
           "agent"
-        ]
+        ],
+        "surface": "pubblicato"
       },
       {
         "lemma": "pubblicare",
@@ -225,7 +238,8 @@
         },
         "pro_drop_roles": [
           "agent"
-        ]
+        ],
+        "surface": "pubblicò"
       }
     ],
     "award_return": [
@@ -234,18 +248,20 @@
         "voice": "active",
         "roles": {
           "agent": "subject",
-          "object": "object"
+          "patient": "object"
         },
         "pro_drop_roles": [
           "agent"
-        ]
+        ],
+        "surface": "restituì"
       },
       {
         "lemma": "restituire",
         "voice": "passive",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "restituito"
       }
     ],
     "attack_battle": [
@@ -254,7 +270,8 @@
         "voice": "passive",
         "roles": {
           "patient": "subject"
-        }
+        },
+        "surface": "attaccato"
       },
       {
         "lemma": "attaccare",
@@ -262,7 +279,8 @@
         "roles": {
           "agent": "subject",
           "patient": "object"
-        }
+        },
+        "surface": "attaccò"
       },
       {
         "surface": "attacco",
@@ -278,14 +296,160 @@
         "roles": {
           "winner": "subject",
           "patient": "object"
-        }
+        },
+        "surface": "sconfiggere"
       },
       {
         "lemma": "vincere",
         "voice": "active",
         "roles": {
           "winner": "subject"
+        },
+        "surface": "vincere"
+      }
+    ],
+    "protest_strike": [
+      {
+        "surface": "ha protestato",
+        "lemma": "protestare",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
         }
+      },
+      {
+        "surface": "protesta",
+        "lemma": "protesta",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "bankruptcy_layoff_ipo": [
+      {
+        "surface": "è fallita",
+        "lemma": "fallire",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "fallimento",
+        "lemma": "fallimento",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "sanction_embargo": [
+      {
+        "surface": "ha sanzionato",
+        "lemma": "sanzionare",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "sanzione",
+        "lemma": "sanzione",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "scientific_discovery": [
+      {
+        "surface": "ha scoperto",
+        "lemma": "scoprire",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "scoperta",
+        "lemma": "scoperta",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "outbreak_epidemic": [
+      {
+        "surface": "è scoppiata",
+        "lemma": "scoppiare",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "epidemia",
+        "lemma": "epidemia",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "natural_disaster": [
+      {
+        "surface": "ha colpito",
+        "lemma": "colpire",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "terremoto",
+        "lemma": "terremoto",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "crime_incident": [
+      {
+        "surface": "ha rapinato",
+        "lemma": "rapinare",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "rapina",
+        "lemma": "rapina",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "ceasefire_truce": [
+      {
+        "surface": "ha firmato una tregua",
+        "lemma": "firmare una tregua",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject"
+        }
+      },
+      {
+        "surface": "tregua",
+        "lemma": "tregua",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "record_milestone": [
+      {
+        "surface": "ha stabilito un record",
+        "lemma": "stabilire un record",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "record",
+        "lemma": "record",
+        "voice": "nominal",
+        "roles": {}
       }
     ]
   }

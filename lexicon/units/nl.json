@@ -196,6 +196,35 @@
       "dimension": "data",
       "code": "TB",
       "factor_to_base": 1000000000000.0
+    },
+    {
+      "surfaces": [
+        "keer",
+        "van"
+      ],
+      "dimension": "ratio",
+      "code": "ratio",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "yoy",
+        "jaarlijks"
+      ],
+      "dimension": "growth_rate",
+      "code": "PCT_YOY",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "plaats",
+        "rang",
+        "°",
+        "º"
+      ],
+      "dimension": "rank",
+      "code": "rank",
+      "factor_to_base": 1.0
     }
   ],
   "qualifiers": {
@@ -217,6 +246,12 @@
     "range": [
       "tussen",
       "van"
+    ],
+    "frequency_periods": [
+      "per dag",
+      "per week",
+      "per maand",
+      "per jaar"
     ]
   },
   "predicates": {

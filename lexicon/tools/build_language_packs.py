@@ -70,6 +70,13 @@ PRONOUN_FIELDS = {"surface", "person", "gender", "number", "animacy", "case", "k
 REFERENCE_TERM_LANGUAGES = ("de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr")
 REFERENCE_TERM_SCHEMA = "discourse_reference_terms.v1"
 REFERENCE_TERM_FILE = ROOT / "lexicon" / "discourse_reference_terms_v1.json"
+CHART_CUES = ROOT / "lexicon" / "chart_cues.json"
+CHART_CUE_LANGUAGES = ("de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr")
+ENTITY_TYPE_TERMS = ROOT / "lexicon" / "entity_type_terms.json"
+ADDITIVE_ENTITY_TYPES = (
+    "ANIMAL", "FOOD", "VEHICLE", "LAW", "COURT_CASE",
+    "NORP", "DISEASE", "TECHNOLOGY", "ARTWORK", "CELESTIAL",
+)
 LEGAL_INDEX = LEGAL / "index.json"
 GENERATED_LEGAL = ROOT / "semantic-core" / "src" / "generated_legal_packs.rs"
 
@@ -453,6 +460,136 @@ def validate_auxiliary_lexicons() -> list[str]:
         spec.loader.exec_module(module)
         errors.extend(validate(module))
     errors.extend(validate_discourse_reference_terms())
+    errors.extend(validate_chart_cues())
+    errors.extend(validate_entity_type_terms())
+    return errors
+
+
+def validate_entity_type_terms() -> list[str]:
+    """Validate the additive entity-type vocabulary for all 11 languages."""
+    try:
+        data = json.loads(ENTITY_TYPE_TERMS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"{ENTITY_TYPE_TERMS.relative_to(ROOT)}: {error}"]
+    errors: list[str] = []
+    if data.get("schema") != "entity_type_terms.v1":
+        errors.append(f"{ENTITY_TYPE_TERMS.relative_to(ROOT)}: expected entity_type_terms.v1")
+    if set(data.get("types", [])) != set(ADDITIVE_ENTITY_TYPES):
+        errors.append(
+            f"{ENTITY_TYPE_TERMS.relative_to(ROOT)}: types must be "
+            + ", ".join(ADDITIVE_ENTITY_TYPES)
+        )
+    languages = data.get("languages")
+    if not isinstance(languages, dict) or set(languages) != set(CHART_CUE_LANGUAGES):
+        errors.append(
+            f"{ENTITY_TYPE_TERMS.relative_to(ROOT)}: languages must be "
+            + ", ".join(CHART_CUE_LANGUAGES)
+        )
+        return errors
+    for language, inventory in languages.items():
+        if not isinstance(inventory, dict) or set(inventory) != set(ADDITIVE_ENTITY_TYPES):
+            errors.append(f"{language}: expected every additive entity type")
+            continue
+        for kind, terms in inventory.items():
+            if not isinstance(terms, list) or not terms:
+                errors.append(f"{language}.{kind}: expected a non-empty array")
+                continue
+            if any(not isinstance(term, str) or not term.strip() for term in terms):
+                errors.append(f"{language}.{kind}: terms must be non-empty strings")
+    return errors
+
+
+def validate_chart_cues() -> list[str]:
+    """Validate the chart-specific word tables consumed by chart_rules."""
+    try:
+        data = json.loads(CHART_CUES.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"{CHART_CUES.relative_to(ROOT)}: {error}"]
+
+    errors: list[str] = []
+    if data.get("schema") != "chart_cues.v1":
+        errors.append(f"{CHART_CUES.relative_to(ROOT)}: expected chart_cues.v1")
+    if sorted(data.get("languages", [])) != sorted(CHART_CUE_LANGUAGES):
+        errors.append(
+            f"{CHART_CUES.relative_to(ROOT)}: languages must be "
+            + ", ".join(CHART_CUE_LANGUAGES)
+        )
+
+    global_cues = data.get("global")
+    if not isinstance(global_cues, dict):
+        return errors + [f"{CHART_CUES.relative_to(ROOT)}: global must be an object"]
+    for key in (
+        "hard_vetoes",
+        "approximators",
+        "approximator_pairs",
+        "rate_cues",
+        "rank_veto_cues",
+        "subject_stopwords",
+        "subject_verb_cutoffs",
+        "count_unit_cues",
+        "display_unit_cues",
+        "monthly_pairs",
+        "yearly_cues",
+        "paired_series_rules",
+    ):
+        value = global_cues.get(key)
+        if not isinstance(value, list) or not value:
+            errors.append(f"global.{key}: expected a non-empty array")
+    for key in ("currency_cues", "length_cues"):
+        value = global_cues.get(key)
+        if not isinstance(value, dict) or not value:
+            errors.append(f"global.{key}: expected a non-empty object")
+    paired_rules = global_cues.get("paired_series_rules")
+    if isinstance(paired_rules, list):
+        for index, rule in enumerate(paired_rules):
+            if not isinstance(rule, dict):
+                errors.append(f"global.paired_series_rules[{index}]: expected an object")
+                continue
+            groups = rule.get("any_in_each")
+            if not isinstance(groups, list) or not groups or any(
+                not isinstance(group, list) or not group for group in groups
+            ):
+                errors.append(
+                    f"global.paired_series_rules[{index}].any_in_each: expected non-empty cue groups"
+                )
+            repeated = rule.get("repeated_units", [])
+            if not isinstance(repeated, list):
+                errors.append(f"global.paired_series_rules[{index}].repeated_units: expected an array")
+    for key, rows in global_cues.items():
+        if key in ("currency_cues", "length_cues", "paired_series_rules"):
+            continue
+        if not isinstance(rows, list):
+            continue
+        for index, row in enumerate(rows):
+            values = row if isinstance(row, list) else [row]
+            if not values or any(not isinstance(item, str) or not item.strip() for item in values):
+                errors.append(f"global.{key}[{index}]: cues must be non-empty strings")
+
+    by_language = data.get("by_language")
+    if not isinstance(by_language, dict) or set(by_language) != set(CHART_CUE_LANGUAGES):
+        errors.append(
+            f"{CHART_CUES.relative_to(ROOT)}: by_language must exactly cover "
+            + ", ".join(CHART_CUE_LANGUAGES)
+        )
+        return errors
+    for language, cues in by_language.items():
+        if not isinstance(cues, dict):
+            errors.append(f"by_language.{language}: expected an object")
+            continue
+        for key in (
+            "series_context_cues",
+            "survey_cues",
+            "series_metric_stems",
+            "semicolon_metric_stems",
+            "share_context_cues",
+            "growth_cues",
+        ):
+            rows = cues.get(key)
+            if not isinstance(rows, list) or not rows:
+                errors.append(f"by_language.{language}.{key}: expected a non-empty array")
+                continue
+            if any(not isinstance(row, str) or not row.strip() for row in rows):
+                errors.append(f"by_language.{language}.{key}: cues must be non-empty strings")
     return errors
 
 

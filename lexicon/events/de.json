@@ -183,6 +183,150 @@
           "winner": "subject"
         }
       }
+    ],
+    "protest_strike": [
+      {
+        "surface": "protestierte",
+        "lemma": "protestieren",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "Protest",
+        "lemma": "protest",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "bankruptcy_layoff_ipo": [
+      {
+        "surface": "ging bankrott",
+        "lemma": "bankrottgehen",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "Insolvenz",
+        "lemma": "insolvenz",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "sanction_embargo": [
+      {
+        "surface": "sanktionierte",
+        "lemma": "sanktionieren",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "Sanktion",
+        "lemma": "sanktion",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "scientific_discovery": [
+      {
+        "surface": "entdeckte",
+        "lemma": "entdecken",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "Entdeckung",
+        "lemma": "entdeckung",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "outbreak_epidemic": [
+      {
+        "surface": "brach aus",
+        "lemma": "ausbrechen",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "Ausbruch",
+        "lemma": "ausbruch",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "natural_disaster": [
+      {
+        "surface": "traf",
+        "lemma": "treffen",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "Erdbeben",
+        "lemma": "erdbeben",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "crime_incident": [
+      {
+        "surface": "überfiel",
+        "lemma": "überfallen",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "Überfall",
+        "lemma": "überfall",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "ceasefire_truce": [
+      {
+        "surface": "schloss einen Waffenstillstand",
+        "lemma": "Waffenstillstand schließen",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject"
+        }
+      },
+      {
+        "surface": "Waffenstillstand",
+        "lemma": "waffenstillstand",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "record_milestone": [
+      {
+        "surface": "stellte einen Rekord auf",
+        "lemma": "einen Rekord aufstellen",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "Rekord",
+        "lemma": "rekord",
+        "voice": "nominal",
+        "roles": {}
+      }
     ]
   }
 }

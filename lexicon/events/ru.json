@@ -182,6 +182,150 @@
           "winner": "subject"
         }
       }
+    ],
+    "protest_strike": [
+      {
+        "surface": "протестовал",
+        "lemma": "протестовать",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "протест",
+        "lemma": "протест",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "bankruptcy_layoff_ipo": [
+      {
+        "surface": "обанкротился",
+        "lemma": "обанкротиться",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "банкротство",
+        "lemma": "банкротство",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "sanction_embargo": [
+      {
+        "surface": "ввёл санкции",
+        "lemma": "ввести санкции",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "санкция",
+        "lemma": "санкция",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "scientific_discovery": [
+      {
+        "surface": "открыл",
+        "lemma": "открыть",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "открытие",
+        "lemma": "открытие",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "outbreak_epidemic": [
+      {
+        "surface": "вспыхнула",
+        "lemma": "вспыхнуть",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "вспышка",
+        "lemma": "вспышка",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "natural_disaster": [
+      {
+        "surface": "обрушился",
+        "lemma": "обрушиться",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "землетрясение",
+        "lemma": "землетрясение",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "crime_incident": [
+      {
+        "surface": "ограбил",
+        "lemma": "ограбить",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "ограбление",
+        "lemma": "ограбление",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "ceasefire_truce": [
+      {
+        "surface": "подписал перемирие",
+        "lemma": "подписать перемирие",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject"
+        }
+      },
+      {
+        "surface": "перемирие",
+        "lemma": "перемирие",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "record_milestone": [
+      {
+        "surface": "установил рекорд",
+        "lemma": "установить рекорд",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "рекорд",
+        "lemma": "рекорд",
+        "voice": "nominal",
+        "roles": {}
+      }
     ]
   }
 }

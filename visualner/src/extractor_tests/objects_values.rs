@@ -382,3 +382,50 @@ fn spelled_italian_date_reaches_temporal_facts() {
         analysis.temporal_facts
     );
 }
+
+#[test]
+fn additive_entity_types_are_classified_from_the_shared_lexicon() {
+    let cases = [
+        ("en", "tiger", "ANIMAL"),
+        ("en", "sushi", "FOOD"),
+        ("en", "helicopter", "VEHICLE"),
+        ("en", "treaty", "LAW"),
+        ("en", "court case", "COURT_CASE"),
+        ("en", "democrats", "NORP"),
+        ("en", "influenza", "DISEASE"),
+        ("en", "software", "TECHNOLOGY"),
+        ("en", "painting", "ARTWORK"),
+        ("en", "planet", "CELESTIAL"),
+        ("it", "tigre", "ANIMAL"),
+        ("it", "sushi", "FOOD"),
+        ("de", "helikopter", "VEHICLE"),
+        ("es", "tratado", "LAW"),
+        ("fr", "procès", "COURT_CASE"),
+        ("pt", "socialistas", "NORP"),
+        ("pl", "Grypa", "DISEASE"),
+        ("ru", "Алгоритм", "TECHNOLOGY"),
+        ("tr", "Heykel", "ARTWORK"),
+        ("id", "planet", "CELESTIAL"),
+    ];
+    for (language, term, expected) in cases {
+        let source = if language == "id" {
+            format!("Bola, {term}, laporan.")
+        } else {
+            format!("The {term} appeared in the report.")
+        };
+        let entities = extract(
+            &source,
+            &ExtractOptions {
+                language: language.to_string(),
+                entity_count: 20,
+            },
+        )
+        .unwrap_or_else(|error| panic!("{language}: {error}"));
+        let entity = entities
+            .iter()
+            .find(|entity| entity.text.to_lowercase() == term.to_lowercase())
+            .unwrap_or_else(|| panic!("{language}: {term} missing: {entities:?}"));
+        assert_eq!(entity.r#type, expected, "{language}: {entity:?}");
+        assert_eq!(&source[entity.start..entity.end], entity.text);
+    }
+}

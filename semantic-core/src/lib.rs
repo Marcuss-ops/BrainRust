@@ -25,11 +25,13 @@
 #![deny(unsafe_code)]
 
 pub mod bullets;
+pub mod chart_cues;
 pub mod content_fingerprint;
 pub mod cue_timing;
 pub mod dates;
 pub mod discourse;
 pub mod entity_linker;
+pub mod entity_type_terms;
 pub mod event;
 mod generated_language_packs;
 mod generated_language_profiles;
@@ -63,7 +65,7 @@ pub use identity::{
     role_of, stable_surface_key, CanonicalIdentity, EntityRole, IdentityRegistry, LinkCandidate,
     LinkEvidenceSpan, LinkFeature, LinkStatus, LinkedEntity, Mention, SearchIntent,
 };
-pub use manifest::ChartItem;
+pub use manifest::{ChartItem, ChartMetadata};
 pub use manifest::{
     AnalyzerVersions, Candidate, ComposedImageQuery, ConsolidatedDate, ConsolidatedDateSpan,
     ConsolidatedEventLink, ConsolidatedFact, ConsolidationInventory, ConsolidationMetrics,

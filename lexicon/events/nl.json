@@ -191,6 +191,150 @@
           "winner": "subject"
         }
       }
+    ],
+    "protest_strike": [
+      {
+        "surface": "protesteerde",
+        "lemma": "protesteren",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "protest",
+        "lemma": "protest",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "bankruptcy_layoff_ipo": [
+      {
+        "surface": "ging failliet",
+        "lemma": "failliet gaan",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "faillissement",
+        "lemma": "faillissement",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "sanction_embargo": [
+      {
+        "surface": "sanktioneerde",
+        "lemma": "sanctioneren",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "sanctie",
+        "lemma": "sanctie",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "scientific_discovery": [
+      {
+        "surface": "ontdekte",
+        "lemma": "ontdekken",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "ontdekking",
+        "lemma": "ontdekking",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "outbreak_epidemic": [
+      {
+        "surface": "brak uit",
+        "lemma": "uitbreken",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "uitbraak",
+        "lemma": "uitbraak",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "natural_disaster": [
+      {
+        "surface": "trof",
+        "lemma": "treffen",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "aardbeving",
+        "lemma": "aardbeving",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "crime_incident": [
+      {
+        "surface": "overviel",
+        "lemma": "overvallen",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "overval",
+        "lemma": "overval",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "ceasefire_truce": [
+      {
+        "surface": "sloot een wapenstilstand",
+        "lemma": "wapenstilstand sluiten",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject"
+        }
+      },
+      {
+        "surface": "wapenstilstand",
+        "lemma": "wapenstilstand",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "record_milestone": [
+      {
+        "surface": "vestigde een record",
+        "lemma": "een record vestigen",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "record",
+        "lemma": "record",
+        "voice": "nominal",
+        "roles": {}
+      }
     ]
   }
 }

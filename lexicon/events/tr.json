@@ -174,6 +174,150 @@
           "winner": "subject"
         }
       }
+    ],
+    "protest_strike": [
+      {
+        "surface": "protesto etti",
+        "lemma": "protesto etmek",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "protesto",
+        "lemma": "protesto",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "bankruptcy_layoff_ipo": [
+      {
+        "surface": "iflas etti",
+        "lemma": "iflas etmek",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "iflas",
+        "lemma": "iflas",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "sanction_embargo": [
+      {
+        "surface": "yaptırım uyguladı",
+        "lemma": "yaptırım uygulamak",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "yaptırım",
+        "lemma": "yaptırım",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "scientific_discovery": [
+      {
+        "surface": "keşfetti",
+        "lemma": "keşfetmek",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "keşif",
+        "lemma": "keşif",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "outbreak_epidemic": [
+      {
+        "surface": "patlak verdi",
+        "lemma": "patlak vermek",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "salgın",
+        "lemma": "salgın",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "natural_disaster": [
+      {
+        "surface": "vurdu",
+        "lemma": "vurmak",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "deprem",
+        "lemma": "deprem",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "crime_incident": [
+      {
+        "surface": "soydu",
+        "lemma": "soymak",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "soygun",
+        "lemma": "soygun",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "ceasefire_truce": [
+      {
+        "surface": "ateşkes imzaladı",
+        "lemma": "ateşkes imzalamak",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject"
+        }
+      },
+      {
+        "surface": "ateşkes",
+        "lemma": "ateşkes",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "record_milestone": [
+      {
+        "surface": "rekor kırdı",
+        "lemma": "rekor kırmak",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "rekor",
+        "lemma": "rekor",
+        "voice": "nominal",
+        "roles": {}
+      }
     ]
   }
 }

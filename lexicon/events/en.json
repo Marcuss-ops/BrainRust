@@ -277,6 +277,150 @@
           "winner": "subject"
         }
       }
+    ],
+    "protest_strike": [
+      {
+        "surface": "protested",
+        "lemma": "protest",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "protest",
+        "lemma": "protest",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "bankruptcy_layoff_ipo": [
+      {
+        "surface": "went bankrupt",
+        "lemma": "go bankrupt",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "bankruptcy",
+        "lemma": "bankruptcy",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "sanction_embargo": [
+      {
+        "surface": "sanctioned",
+        "lemma": "sanction",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "sanction",
+        "lemma": "sanction",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "scientific_discovery": [
+      {
+        "surface": "discovered",
+        "lemma": "discover",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "discovery",
+        "lemma": "discovery",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "outbreak_epidemic": [
+      {
+        "surface": "broke out",
+        "lemma": "break out",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "outbreak",
+        "lemma": "outbreak",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "natural_disaster": [
+      {
+        "surface": "devastated",
+        "lemma": "devastate",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "earthquake",
+        "lemma": "earthquake",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "crime_incident": [
+      {
+        "surface": "robbed",
+        "lemma": "rob",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "robbery",
+        "lemma": "robbery",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "ceasefire_truce": [
+      {
+        "surface": "signed a truce",
+        "lemma": "sign a truce",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject"
+        }
+      },
+      {
+        "surface": "truce",
+        "lemma": "truce",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "record_milestone": [
+      {
+        "surface": "set a record",
+        "lemma": "set a record",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "record",
+        "lemma": "record",
+        "voice": "nominal",
+        "roles": {}
+      }
     ]
   }
 }

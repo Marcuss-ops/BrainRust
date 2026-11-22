@@ -1,0 +1,678 @@
+{
+  "schema": "entity_type_terms.v1",
+  "types": [
+    "ANIMAL",
+    "FOOD",
+    "VEHICLE",
+    "LAW",
+    "COURT_CASE",
+    "NORP",
+    "DISEASE",
+    "TECHNOLOGY",
+    "ARTWORK",
+    "CELESTIAL"
+  ],
+  "languages": {
+    "de": {
+      "ANIMAL": [
+        "tiger",
+        "elefant",
+        "wal",
+        "adler"
+      ],
+      "FOOD": [
+        "sushi",
+        "brot",
+        "käse",
+        "suppe"
+      ],
+      "VEHICLE": [
+        "hubschrauber",
+        "helikopter",
+        "u-boot",
+        "panzer",
+        "raumschiff"
+      ],
+      "LAW": [
+        "vertrag",
+        "statut",
+        "verfassung",
+        "gesetz"
+      ],
+      "COURT_CASE": [
+        "prozess",
+        "verfahren",
+        "berufung"
+      ],
+      "NORP": [
+        "demokraten",
+        "republikaner",
+        "sozialisten"
+      ],
+      "DISEASE": [
+        "grippe",
+        "masern",
+        "cholera",
+        "pest"
+      ],
+      "TECHNOLOGY": [
+        "software",
+        "algorithmus",
+        "protokoll",
+        "plattform"
+      ],
+      "ARTWORK": [
+        "gemälde",
+        "skulptur",
+        "wandgemälde",
+        "fresko"
+      ],
+      "CELESTIAL": [
+        "planet",
+        "asteroid",
+        "komet",
+        "galaxie"
+      ]
+    },
+    "en": {
+      "ANIMAL": [
+        "tiger",
+        "elephant",
+        "whale",
+        "eagle"
+      ],
+      "FOOD": [
+        "sushi",
+        "bread",
+        "cheese",
+        "soup"
+      ],
+      "VEHICLE": [
+        "helicopter",
+        "submarine",
+        "tank",
+        "spaceship"
+      ],
+      "LAW": [
+        "treaty",
+        "statute",
+        "constitution",
+        "law"
+      ],
+      "COURT_CASE": [
+        "court case",
+        "lawsuit",
+        "appeal"
+      ],
+      "NORP": [
+        "democrats",
+        "republicans",
+        "socialists"
+      ],
+      "DISEASE": [
+        "influenza",
+        "measles",
+        "cholera",
+        "plague"
+      ],
+      "TECHNOLOGY": [
+        "software",
+        "algorithm",
+        "protocol",
+        "platform"
+      ],
+      "ARTWORK": [
+        "painting",
+        "sculpture",
+        "mural",
+        "fresco"
+      ],
+      "CELESTIAL": [
+        "planet",
+        "asteroid",
+        "comet",
+        "galaxy"
+      ]
+    },
+    "es": {
+      "ANIMAL": [
+        "tigre",
+        "elefante",
+        "ballena",
+        "águila"
+      ],
+      "FOOD": [
+        "sushi",
+        "pan",
+        "queso",
+        "sopa"
+      ],
+      "VEHICLE": [
+        "helicóptero",
+        "submarino",
+        "tanque",
+        "nave espacial"
+      ],
+      "LAW": [
+        "tratado",
+        "estatuto",
+        "constitución",
+        "ley"
+      ],
+      "COURT_CASE": [
+        "caso judicial",
+        "demanda",
+        "apelación"
+      ],
+      "NORP": [
+        "demócratas",
+        "republicanos",
+        "socialistas"
+      ],
+      "DISEASE": [
+        "gripe",
+        "sarampión",
+        "cólera",
+        "peste"
+      ],
+      "TECHNOLOGY": [
+        "software",
+        "algoritmo",
+        "protocolo",
+        "plataforma"
+      ],
+      "ARTWORK": [
+        "pintura",
+        "escultura",
+        "mural",
+        "fresco"
+      ],
+      "CELESTIAL": [
+        "planeta",
+        "asteroide",
+        "cometa",
+        "galaxia"
+      ]
+    },
+    "fr": {
+      "ANIMAL": [
+        "tigre",
+        "éléphant",
+        "baleine",
+        "aigle"
+      ],
+      "FOOD": [
+        "sushi",
+        "pain",
+        "fromage",
+        "soupe"
+      ],
+      "VEHICLE": [
+        "hélicoptère",
+        "sous-marin",
+        "char",
+        "vaisseau spatial"
+      ],
+      "LAW": [
+        "traité",
+        "statut",
+        "constitution",
+        "loi"
+      ],
+      "COURT_CASE": [
+        "affaire judiciaire",
+        "procès",
+        "appel"
+      ],
+      "NORP": [
+        "démocrates",
+        "républicains",
+        "socialistes"
+      ],
+      "DISEASE": [
+        "grippe",
+        "rougeole",
+        "choléra",
+        "peste"
+      ],
+      "TECHNOLOGY": [
+        "logiciel",
+        "algorithme",
+        "protocole",
+        "plateforme"
+      ],
+      "ARTWORK": [
+        "peinture",
+        "sculpture",
+        "murale",
+        "fresque"
+      ],
+      "CELESTIAL": [
+        "planète",
+        "astéroïde",
+        "comète",
+        "galaxie"
+      ]
+    },
+    "id": {
+      "ANIMAL": [
+        "harimau",
+        "gajah",
+        "paus",
+        "elang"
+      ],
+      "FOOD": [
+        "sushi",
+        "roti",
+        "keju",
+        "sup"
+      ],
+      "VEHICLE": [
+        "helikopter",
+        "kapal selam",
+        "tank",
+        "pesawat antariksa"
+      ],
+      "LAW": [
+        "perjanjian",
+        "statuta",
+        "konstitusi",
+        "undang-undang"
+      ],
+      "COURT_CASE": [
+        "kasus pengadilan",
+        "gugatan",
+        "banding"
+      ],
+      "NORP": [
+        "demokrat",
+        "republikan",
+        "sosialis"
+      ],
+      "DISEASE": [
+        "flu",
+        "campak",
+        "kolera",
+        "wabah"
+      ],
+      "TECHNOLOGY": [
+        "perangkat lunak",
+        "algoritma",
+        "protokol",
+        "platform"
+      ],
+      "ARTWORK": [
+        "lukisan",
+        "patung",
+        "mural",
+        "fresko"
+      ],
+      "CELESTIAL": [
+        "planet",
+        "asteroid",
+        "komet",
+        "galaksi"
+      ]
+    },
+    "it": {
+      "ANIMAL": [
+        "tigre",
+        "elefante",
+        "balena",
+        "aquila"
+      ],
+      "FOOD": [
+        "sushi",
+        "pane",
+        "formaggio",
+        "zuppa"
+      ],
+      "VEHICLE": [
+        "elicottero",
+        "sottomarino",
+        "carro armato",
+        "astronave"
+      ],
+      "LAW": [
+        "trattato",
+        "statuto",
+        "costituzione",
+        "legge"
+      ],
+      "COURT_CASE": [
+        "caso giudiziario",
+        "causa",
+        "appello"
+      ],
+      "NORP": [
+        "democratici",
+        "repubblicani",
+        "socialisti"
+      ],
+      "DISEASE": [
+        "influenza",
+        "morbillo",
+        "colera",
+        "peste"
+      ],
+      "TECHNOLOGY": [
+        "software",
+        "algoritmo",
+        "protocollo",
+        "piattaforma"
+      ],
+      "ARTWORK": [
+        "dipinto",
+        "scultura",
+        "murale",
+        "affresco"
+      ],
+      "CELESTIAL": [
+        "pianeta",
+        "asteroide",
+        "cometa",
+        "galassia"
+      ]
+    },
+    "nl": {
+      "ANIMAL": [
+        "tijger",
+        "olifant",
+        "walvis",
+        "adelaar"
+      ],
+      "FOOD": [
+        "sushi",
+        "brood",
+        "kaas",
+        "soep"
+      ],
+      "VEHICLE": [
+        "helikopter",
+        "onderzeeër",
+        "tank",
+        "ruimteschip"
+      ],
+      "LAW": [
+        "verdrag",
+        "statuut",
+        "grondwet",
+        "wet"
+      ],
+      "COURT_CASE": [
+        "rechtszaak",
+        "geding",
+        "beroep"
+      ],
+      "NORP": [
+        "democraten",
+        "republikeinen",
+        "socialisten"
+      ],
+      "DISEASE": [
+        "griep",
+        "mazelen",
+        "cholera",
+        "pest"
+      ],
+      "TECHNOLOGY": [
+        "software",
+        "algoritme",
+        "protocol",
+        "platform"
+      ],
+      "ARTWORK": [
+        "schilderij",
+        "sculptuur",
+        "muurschildering",
+        "fresco"
+      ],
+      "CELESTIAL": [
+        "planeet",
+        "asteroïde",
+        "komeet",
+        "melkweg"
+      ]
+    },
+    "pl": {
+      "ANIMAL": [
+        "tygrys",
+        "słoń",
+        "wieloryb",
+        "orzeł"
+      ],
+      "FOOD": [
+        "sushi",
+        "chleb",
+        "ser",
+        "zupa"
+      ],
+      "VEHICLE": [
+        "helikopter",
+        "okręt podwodny",
+        "czołg",
+        "statek kosmiczny"
+      ],
+      "LAW": [
+        "traktat",
+        "statut",
+        "konstytucja",
+        "ustawa"
+      ],
+      "COURT_CASE": [
+        "sprawa sądowa",
+        "pozew",
+        "apelacja"
+      ],
+      "NORP": [
+        "demokraci",
+        "republikanie",
+        "socjaliści"
+      ],
+      "DISEASE": [
+        "grypa",
+        "odra",
+        "cholera",
+        "dżuma"
+      ],
+      "TECHNOLOGY": [
+        "oprogramowanie",
+        "algorytm",
+        "protokół",
+        "platforma"
+      ],
+      "ARTWORK": [
+        "obraz",
+        "rzeźba",
+        "mural",
+        "fresk"
+      ],
+      "CELESTIAL": [
+        "planeta",
+        "asteroida",
+        "kometa",
+        "galaktyka"
+      ]
+    },
+    "pt": {
+      "ANIMAL": [
+        "tigre",
+        "elefante",
+        "baleia",
+        "águia"
+      ],
+      "FOOD": [
+        "sushi",
+        "pão",
+        "queijo",
+        "sopa"
+      ],
+      "VEHICLE": [
+        "helicóptero",
+        "submarino",
+        "tanque",
+        "nave espacial"
+      ],
+      "LAW": [
+        "tratado",
+        "estatuto",
+        "constituição",
+        "lei"
+      ],
+      "COURT_CASE": [
+        "caso judicial",
+        "ação",
+        "recurso"
+      ],
+      "NORP": [
+        "democratas",
+        "republicanos",
+        "socialistas"
+      ],
+      "DISEASE": [
+        "gripe",
+        "sarampo",
+        "cólera",
+        "peste"
+      ],
+      "TECHNOLOGY": [
+        "software",
+        "algoritmo",
+        "protocolo",
+        "plataforma"
+      ],
+      "ARTWORK": [
+        "pintura",
+        "escultura",
+        "mural",
+        "afresco"
+      ],
+      "CELESTIAL": [
+        "planeta",
+        "asteroide",
+        "cometa",
+        "galáxia"
+      ]
+    },
+    "ru": {
+      "ANIMAL": [
+        "тигр",
+        "слон",
+        "кит",
+        "орёл"
+      ],
+      "FOOD": [
+        "суши",
+        "хлеб",
+        "сыр",
+        "суп"
+      ],
+      "VEHICLE": [
+        "вертолёт",
+        "подводная лодка",
+        "танк",
+        "космический корабль"
+      ],
+      "LAW": [
+        "договор",
+        "статут",
+        "конституция",
+        "закон"
+      ],
+      "COURT_CASE": [
+        "судебное дело",
+        "иск",
+        "апелляция"
+      ],
+      "NORP": [
+        "демократы",
+        "республиканцы",
+        "социалисты"
+      ],
+      "DISEASE": [
+        "грипп",
+        "корь",
+        "холера",
+        "чума"
+      ],
+      "TECHNOLOGY": [
+        "программное обеспечение",
+        "алгоритм",
+        "протокол",
+        "платформа"
+      ],
+      "ARTWORK": [
+        "картина",
+        "скульптура",
+        "мурал",
+        "фреска"
+      ],
+      "CELESTIAL": [
+        "планета",
+        "астероид",
+        "комета",
+        "галактика"
+      ]
+    },
+    "tr": {
+      "ANIMAL": [
+        "kaplan",
+        "fil",
+        "balina",
+        "kartal"
+      ],
+      "FOOD": [
+        "suşi",
+        "ekmek",
+        "peynir",
+        "çorba"
+      ],
+      "VEHICLE": [
+        "helikopter",
+        "denizaltı",
+        "tank",
+        "uzay gemisi"
+      ],
+      "LAW": [
+        "antlaşma",
+        "statü",
+        "anayasa",
+        "kanun"
+      ],
+      "COURT_CASE": [
+        "dava",
+        "hukuk davası",
+        "temyiz"
+      ],
+      "NORP": [
+        "demokratlar",
+        "cumhuriyetçiler",
+        "sosyalistler"
+      ],
+      "DISEASE": [
+        "grip",
+        "kızamık",
+        "kolera",
+        "veba"
+      ],
+      "TECHNOLOGY": [
+        "yazılım",
+        "algoritma",
+        "protokol",
+        "platform"
+      ],
+      "ARTWORK": [
+        "tablo",
+        "heykel",
+        "duvar resmi",
+        "fresk"
+      ],
+      "CELESTIAL": [
+        "gezegen",
+        "asteroit",
+        "kuyruklu yıldız",
+        "galaksi"
+      ]
+    }
+  }
+}

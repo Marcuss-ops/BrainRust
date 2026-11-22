@@ -39,7 +39,10 @@ pub enum SignalKind {
 pub fn signal_kind_for_entity_type(entity_type: &str) -> Option<SignalKind> {
     match entity_type {
         "PERSON" | "ORGANIZATION" | "ORG" | "LOCATION" | "FACILITY" | "BRAND" | "PRODUCT"
-        | "WORK" | "OBJECT" | "STRUCTURE" | "EVENT" => Some(SignalKind::Visual),
+        | "WORK" | "OBJECT" | "STRUCTURE" | "EVENT" | "ANIMAL" | "FOOD" | "VEHICLE" | "LAW"
+        | "COURT_CASE" | "NORP" | "DISEASE" | "TECHNOLOGY" | "ARTWORK" | "CELESTIAL" => {
+            Some(SignalKind::Visual)
+        }
         "NUMBER" | "PERCENT" | "MONEY" | "MEASUREMENT" | "DATE" => Some(SignalKind::Measurement),
         _ => None,
     }

@@ -149,6 +149,7 @@ pub(crate) fn sequence_timeline_candidates(
             entity_indices: Vec::new(),
             entity_texts: Vec::new(),
             chart_items: Vec::new(),
+            chart_meta: None,
             temporal_surfaces: surfaces,
             suggested_layout: Some("timeline"),
             requires_verified_images: false,
@@ -222,6 +223,7 @@ pub(crate) fn isolated_event_candidates(
             entity_indices: Vec::new(),
             entity_texts: Vec::new(),
             chart_items: Vec::new(),
+            chart_meta: None,
             // A date card shows the surface the script uses, verbatim.
             temporal_surfaces: vec![fact.surface.clone()],
             suggested_layout: Some("date_card"),

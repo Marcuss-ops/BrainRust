@@ -502,6 +502,16 @@ fn is_co_mention_subject(entity: &VisualEntity) -> bool {
             | "WORK"
             | "OBJECT"
             | "EVENT"
+            | "ANIMAL"
+            | "FOOD"
+            | "VEHICLE"
+            | "LAW"
+            | "COURT_CASE"
+            | "NORP"
+            | "DISEASE"
+            | "TECHNOLOGY"
+            | "ARTWORK"
+            | "CELESTIAL"
     )
 }
 

@@ -347,6 +347,11 @@ pub struct SceneAnnotationsV2 {
     pub numbers: Vec<TimedAnnotationV2>,
     #[serde(default)]
     pub chart_numbers: Vec<TimedAnnotationV2>,
+    /// Grounded chart layout hint (`line_series`, `donut_share`,
+    /// `bar_comparison`, `ranking_bar`, `before_after`). Empty when absent so
+    /// frozen requests stay byte-identical.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub chart_layout: String,
     #[serde(default)]
     pub brand_texts: Vec<TimedAnnotationV2>,
     #[serde(default)]
@@ -378,6 +383,8 @@ pub struct RawSceneV2 {
     pub secondary_entities: Vec<RawEntityV2>,
     #[serde(default)]
     pub chart_values: Vec<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub chart_layout: String,
     #[serde(default)]
     pub charts_certified: bool,
     #[serde(default)]

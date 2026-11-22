@@ -222,6 +222,7 @@ pub(super) fn push_fact_cards(
             end_byte: fact.evidence_end_byte,
             suggested_visual: "info_card".to_string(),
             chart_items: Vec::new(),
+            chart_meta: None,
             temporal_surfaces: Vec::new(),
             asset_key: key.clone(),
             queries: Vec::new(),

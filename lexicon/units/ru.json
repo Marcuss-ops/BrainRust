@@ -204,6 +204,36 @@
       "dimension": "data",
       "code": "TB",
       "factor_to_base": 1000000000000.0
+    },
+    {
+      "surfaces": [
+        "раз",
+        "из"
+      ],
+      "dimension": "ratio",
+      "code": "ratio",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "yoy",
+        "ежегодно",
+        "год к году"
+      ],
+      "dimension": "growth_rate",
+      "code": "PCT_YOY",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "место",
+        "позиция",
+        "°",
+        "º"
+      ],
+      "dimension": "rank",
+      "code": "rank",
+      "factor_to_base": 1.0
     }
   ],
   "qualifiers": {
@@ -224,6 +254,16 @@
     "range": [
       "между",
       "от"
+    ],
+    "frequency_periods": [
+      "в день",
+      "в неделю",
+      "в месяц",
+      "в год",
+      "ежедневно",
+      "еженедельно",
+      "ежемесячно",
+      "ежегодно"
     ]
   },
   "predicates": {

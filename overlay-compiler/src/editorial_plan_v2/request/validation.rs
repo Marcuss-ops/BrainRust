@@ -651,6 +651,18 @@ fn validate_annotations(
             }
         }
     }
+    if !annotations.chart_layout.is_empty()
+        && !matches!(
+            annotations.chart_layout.as_str(),
+            "line_series" | "donut_share" | "bar_comparison" | "ranking_bar" | "before_after"
+                | "delta_comparison"
+        )
+    {
+        return Err(EditorialPlanError::invalid(
+            format!("{label}.chart_layout"),
+            "unsupported grounded chart layout",
+        ));
+    }
     for (name, candidates) in [
         ("images", &annotations.images),
         ("products", &annotations.products),

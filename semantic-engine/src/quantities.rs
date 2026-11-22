@@ -73,6 +73,19 @@ pub(crate) fn extract(
         let Some((unit, unit_surface)) = unit_match else {
             continue;
         };
+        // "3 volte al giorno" is a frequency idiom, not a ratio. The period
+        // cue table is language data; its presence demotes the ratio.
+        if unit.dimension == "ratio"
+            && is_frequency_ratio(
+                source,
+                sentence.start_byte,
+                fact.end_byte,
+                sentence.end_byte,
+                language_data,
+            )
+        {
+            continue;
+        }
         let scale_in_surface = word_spans(number_text)
             .iter()
             .find_map(|word| scale_word_factor(&word.lowered));
@@ -355,6 +368,14 @@ fn find_unit<'a>(
 ) -> Option<(&'a UnitDefinition, String)> {
     let surface = source.get(fact.start_byte..fact.end_byte)?;
     if fact.kind == "PERCENT" {
+        // A signed/period-bound percentage change ("+12% YoY", "-4,5% annuo")
+        // is a growth rate, not a level percentage. The growth cue table is
+        // chart data shared with the chart lane.
+        if growth_cue_present(source, fact.start_byte, unit_search_end, language) {
+            if let Some(unit) = units.iter().find(|unit| unit.dimension == "growth_rate") {
+                return Some((unit, surface.to_string()));
+            }
+        }
         return semantic_core::units::find_unit(language, "%")
             .or_else(|| semantic_core::units::find_unit(language, "percent"))
             .map(|unit| (unit, surface.to_string()));
@@ -439,6 +460,49 @@ fn find_unit<'a>(
         }
     }
     None
+}
+
+fn is_frequency_ratio(
+    source: &str,
+    sentence_start: usize,
+    number_end: usize,
+    sentence_end: usize,
+    data: &semantic_core::units::LanguageUnits,
+) -> bool {
+    // The period cue can precede the number (Turkish "günde 3 kez") or follow
+    // it ("3 volte al giorno"), so the whole sentence is the frequency scope.
+    let Some(scope) = source.get(sentence_start..sentence_end.min(source.len())) else {
+        return false;
+    };
+    let tail = scope.to_lowercase();
+    data.qualifiers
+        .get("frequency_periods")
+        .is_some_and(|cues| {
+            cues.iter()
+                .any(|cue| tail.contains(&cue.to_lowercase()))
+        })
+}
+
+fn growth_cue_present(
+    source: &str,
+    number_start: usize,
+    search_end: usize,
+    language: &str,
+) -> bool {
+    let start = number_start.saturating_sub(24);
+    let start = source
+        .char_indices()
+        .find(|(index, _)| *index >= start)
+        .map_or(0, |(index, _)| index);
+    let end = search_end.min(source.len());
+    let Some(window) = source.get(start..end) else {
+        return false;
+    };
+    let window = window.to_lowercase();
+    semantic_core::chart_cues::language_cues(language)
+        .growth_cues
+        .iter()
+        .any(|cue| window.contains(&cue.to_lowercase()))
 }
 
 fn adjacent_symbol(source: &str, fact: &NumericFact, symbol: &str) -> Option<(usize, usize)> {
@@ -819,9 +883,16 @@ mod tests {
         let year_fact = fact(year, "2019", "NUMBER", Some(2019.0));
         assert!(extract(year, "it", &[year_fact], &[]).is_empty());
 
-        let frequency = "La squadra ha vinto 3 volte.";
+        // TICKET-43 promotes the bare multiplier ("3 volte") to a ratio, but
+        // the frequency idiom with a period cue stays untyped.
+        let frequency = "La squadra si allena 3 volte al giorno.";
         let count = fact(frequency, "3", "NUMBER", Some(3.0));
         assert!(extract(frequency, "it", &[count], &[]).is_empty());
+        let multiplier = "La squadra ha vinto 3 volte.";
+        let count = fact(multiplier, "3", "NUMBER", Some(3.0));
+        let quantities = extract(multiplier, "it", &[count], &[]);
+        assert_eq!(quantities.len(), 1);
+        assert_eq!(quantities[0].dimension, "ratio");
     }
 
     #[test]
@@ -865,5 +936,155 @@ mod tests {
             "the first value must not steal the later unit"
         );
         assert_eq!(quantities[0].evidence, "5");
+    }
+
+    #[test]
+    fn ratio_dimension_is_grounded_across_eleven_languages() {
+        let cases = [
+            ("it", "Il rapporto è 3 su 4.", "3", "4"),
+            ("en", "The ratio is 3 out of 4.", "3", "4"),
+            ("de", "Das Verhältnis ist 3 von 4.", "3", "4"),
+            ("es", "La proporción es 3 de cada 4.", "3", "4"),
+            ("fr", "Le ratio est 3 sur 4.", "3", "4"),
+            ("nl", "De verhouding is 3 van 4.", "3", "4"),
+            ("pl", "Stosunek wynosi 3 na 4.", "3", "4"),
+            ("pt", "A proporção é 3 em cada 4.", "3", "4"),
+            ("ru", "Пропорция 3 из 4.", "3", "4"),
+            ("id", "Rasionya 3 dari 4.", "3", "4"),
+            ("tr", "Oran 3 kat 4.", "3", "4"),
+        ];
+        for (language, source, first, second) in cases {
+            let facts = [
+                fact(source, first, "NUMBER", Some(3.0)),
+                fact(source, second, "NUMBER", Some(4.0)),
+            ];
+            let quantities = extract(source, language, &facts, &[]);
+            assert!(
+                quantities
+                    .iter()
+                    .any(|quantity| quantity.dimension == "ratio"
+                        && quantity.start_byte == source.find(first).unwrap()),
+                "{language}: {source}: {quantities:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ratio_frequency_idioms_are_not_ratios() {
+        for (language, source, surface) in [
+            ("it", "Lo prende 3 volte al giorno.", "3"),
+            ("en", "He takes it 3 times a day.", "3"),
+            ("de", "Er nimmt es 3 mal pro Tag.", "3"),
+            ("es", "Lo toma 3 veces al día.", "3"),
+            ("fr", "Il le prend 3 fois par jour.", "3"),
+            ("nl", "Hij neemt het 3 keer per dag.", "3"),
+            ("pl", "Bierze to 3 razy dziennie.", "3"),
+            ("pt", "Ele toma 3 vezes por dia.", "3"),
+            ("ru", "Он принимает 3 раза в день.", "3"),
+            ("id", "Dia meminumnya 3 kali per hari.", "3"),
+            ("tr", "Günde 3 kez alıyor.", "3"),
+        ] {
+            let facts = [fact(source, surface, "NUMBER", Some(3.0))];
+            let quantities = extract(source, language, &facts, &[]);
+            assert!(
+                quantities
+                    .iter()
+                    .all(|quantity| quantity.dimension != "ratio"),
+                "{language}: {source}: {quantities:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn growth_rate_dimension_is_grounded_across_eleven_languages() {
+        let cases = [
+            ("en", "Revenue grew 12% YoY.", "12%"),
+            ("de", "Der Umsatz wuchs 12% jährlich.", "12%"),
+            ("it", "Il fatturato è cresciuto del 12% annuo.", "12%"),
+            ("es", "Los ingresos crecieron un 12% interanual.", "12%"),
+            ("fr", "Le chiffre a augmenté de 12% annuel.", "12%"),
+            ("nl", "De omzet groeide 12% jaarlijks.", "12%"),
+            ("pl", "Przychody wzrosły o 12% rocznie.", "12%"),
+            ("pt", "A receita cresceu 12% anual.", "12%"),
+            ("ru", "Выручка выросла на 12% ежегодно.", "12%"),
+            ("id", "Pendapatan tumbuh 12% tahunan.", "12%"),
+            ("tr", "Gelir 12% yıllık arttı.", "12%"),
+        ];
+        for (language, source, surface) in cases {
+            let facts = [fact(source, surface, "PERCENT", Some(12.0))];
+            let quantities = extract(source, language, &facts, &[]);
+            assert!(
+                quantities
+                    .iter()
+                    .any(|quantity| quantity.dimension == "growth_rate"),
+                "{language}: {source}: {quantities:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_plain_percentage_is_not_a_growth_rate() {
+        for (language, source) in [
+            ("en", "12% of the people agreed."),
+            ("it", "Il 12% delle persone è d'accordo."),
+            ("de", "12% der Menschen stimmten zu."),
+        ] {
+            let facts = [fact(source, "12%", "PERCENT", Some(12.0))];
+            let quantities = extract(source, language, &facts, &[]);
+            assert!(
+                quantities
+                    .iter()
+                    .all(|quantity| quantity.dimension != "growth_rate"),
+                "{language}: {source}: {quantities:#?}"
+            );
+            assert!(quantities
+                .iter()
+                .any(|quantity| quantity.dimension == "percent"));
+        }
+    }
+
+    #[test]
+    fn rank_dimension_is_grounded_across_eleven_languages() {
+        let cases = [
+            ("en", "She finished in 3rd place.", "3rd"),
+            ("it", "È arrivata al 3° posto.", "3"),
+            ("de", "Sie belegte den 3 Platz.", "3"),
+            ("es", "Quedó en el 3 puesto.", "3"),
+            ("fr", "Elle a fini à la 3 place.", "3"),
+            ("nl", "Zij eindigde op de 3 plaats.", "3"),
+            ("pl", "Zajęła 3 miejsce.", "3"),
+            ("pt", "Ela terminou em 3 lugar.", "3"),
+            ("ru", "Она заняла 3 место.", "3"),
+            ("id", "Dia finis di 3 tempat.", "3"),
+            ("tr", "Yarışı 3 sıra bitirdi.", "3"),
+        ];
+        for (language, source, surface) in cases {
+            let facts = [fact(source, surface, "NUMBER", Some(3.0))];
+            let quantities = extract(source, language, &facts, &[]);
+            assert!(
+                quantities
+                    .iter()
+                    .any(|quantity| quantity.dimension == "rank"),
+                "{language}: {source}: {quantities:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn plain_counts_are_not_ranks() {
+        for (language, source) in [
+            ("en", "She bought 3 apples."),
+            ("it", "Ha comprato 3 mele."),
+            ("de", "Sie kaufte 3 Äpfel."),
+        ] {
+            let facts = [fact(source, "3", "NUMBER", Some(3.0))];
+            let quantities = extract(source, language, &facts, &[]);
+            assert!(
+                quantities
+                    .iter()
+                    .all(|quantity| quantity.dimension != "rank"),
+                "{language}: {source}: {quantities:#?}"
+            );
+        }
     }
 }

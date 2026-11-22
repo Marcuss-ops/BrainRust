@@ -195,6 +195,36 @@
       "dimension": "data",
       "code": "TB",
       "factor_to_base": 1000000000000.0
+    },
+    {
+      "surfaces": [
+        "kat",
+        "kez",
+        "misli"
+      ],
+      "dimension": "ratio",
+      "code": "ratio",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "yoy",
+        "yıllık"
+      ],
+      "dimension": "growth_rate",
+      "code": "PCT_YOY",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "sıra",
+        "derece",
+        "°",
+        "º"
+      ],
+      "dimension": "rank",
+      "code": "rank",
+      "factor_to_base": 1.0
     }
   ],
   "qualifiers": {
@@ -215,6 +245,16 @@
     "range": [
       "arasında",
       "ile"
+    ],
+    "frequency_periods": [
+      "günde",
+      "haftada",
+      "ayda",
+      "yılda",
+      "her gün",
+      "her hafta",
+      "her ay",
+      "her yıl"
     ]
   },
   "predicates": {

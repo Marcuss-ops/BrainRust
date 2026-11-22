@@ -206,6 +206,16 @@ fn entity_kind(label: &str) -> Option<&'static str> {
         "facility" => Some("FACILITY"),
         "product" => Some("PRODUCT"),
         "brand" => Some("BRAND"),
+        "animal" | "species" => Some("ANIMAL"),
+        "food" | "dish" => Some("FOOD"),
+        "vehicle" => Some("VEHICLE"),
+        "law" => Some("LAW"),
+        "court case" => Some("COURT_CASE"),
+        "norp" | "political group" => Some("NORP"),
+        "disease" => Some("DISEASE"),
+        "technology" | "software" => Some("TECHNOLOGY"),
+        "artwork" => Some("ARTWORK"),
+        "celestial body" => Some("CELESTIAL"),
         _ => None,
     }
 }

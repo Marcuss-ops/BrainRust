@@ -73,7 +73,7 @@ pub const DEFAULT_ENTITY_SAFETY_CAP: usize = 10_000;
 /// cache keys on these so a version bump never serves a stale result.
 pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
     semantic_core::AnalyzerVersions {
-        visualner: "visualner".to_string(),
+        visualner: "visualner.v2.additive_types".to_string(),
         semantic_core: env!("CARGO_PKG_VERSION").to_string(),
         phrase_impact: "phrase_impact+editorial-selection-v3+image-query-fanout-v3+chart-gate-v1"
             .to_string(),
@@ -86,13 +86,13 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
         ),
         numbers: "number_words.v1".to_string(),
         dates: "relative_time.v1".to_string(),
-        quantities: "typed_quantities.v2.change_signals".to_string(),
+        quantities: "typed_quantities.v3.chart_meta_series".to_string(),
         roles: "person_roles.v4.all_11".to_string(),
         age_facts: "person_age_facts.v2.localized_dated_age".to_string(),
         person_relations: "person_relations.seed11.v2".to_string(),
         places: "place_index.v3.multilingual_labels".to_string(),
         routes: "place_routes.v3.cross_scene_hops".to_string(),
-        events: "event_frames.v3.udpipe_lemma_grounding".to_string(),
+        events: "event_frames.v4.documentary_taxonomy".to_string(),
         discourse: "discourse.v7.role_nominal_basis".to_string(),
     }
 }
@@ -473,6 +473,7 @@ fn analyze_scene_with_search(
         groups::ChartInput {
             points: &analysis.chart_points,
             quantities: &quantities,
+            comparisons: &quantity_comparisons,
         },
         &analysis.lower_thirds,
         &temporal_facts,

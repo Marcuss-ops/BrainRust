@@ -187,6 +187,35 @@
       "dimension": "data",
       "code": "TB",
       "factor_to_base": 1000000000000.0
+    },
+    {
+      "surfaces": [
+        "kali",
+        "dari"
+      ],
+      "dimension": "ratio",
+      "code": "ratio",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "yoy",
+        "tahunan"
+      ],
+      "dimension": "growth_rate",
+      "code": "PCT_YOY",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "peringkat",
+        "tempat",
+        "°",
+        "º"
+      ],
+      "dimension": "rank",
+      "code": "rank",
+      "factor_to_base": 1.0
     }
   ],
   "qualifiers": {
@@ -208,6 +237,13 @@
     "range": [
       "antara",
       "dari"
+    ],
+    "frequency_periods": [
+      "per hari",
+      "per minggu",
+      "per bulan",
+      "per tahun",
+      "setiap hari"
     ]
   },
   "predicates": {

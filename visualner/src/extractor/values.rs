@@ -212,6 +212,12 @@ fn classify_type(
     if contains(&gazetteer.object_words, &lower) {
         return "OBJECT".to_string();
     }
+    // Additive visual/documentary types are lexical data. They run after the
+    // existing OBJECT vocabulary so an older consumer keeps its original type
+    // for terms it already knew.
+    if let Some(kind) = semantic_core::entity_type_terms::classify(text, language) {
+        return kind.to_string();
+    }
     let last_token = lower
         .split_whitespace()
         .last()

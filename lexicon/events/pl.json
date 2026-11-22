@@ -182,6 +182,150 @@
           "winner": "subject"
         }
       }
+    ],
+    "protest_strike": [
+      {
+        "surface": "protestował",
+        "lemma": "protestować",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "protest",
+        "lemma": "protest",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "bankruptcy_layoff_ipo": [
+      {
+        "surface": "zbankrutował",
+        "lemma": "zbankrutować",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "bankructwo",
+        "lemma": "bankructwo",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "sanction_embargo": [
+      {
+        "surface": "nałożył sankcje",
+        "lemma": "nałożyć sankcje",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "sankcja",
+        "lemma": "sankcja",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "scientific_discovery": [
+      {
+        "surface": "odkrył",
+        "lemma": "odkryć",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "odkrycie",
+        "lemma": "odkrycie",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "outbreak_epidemic": [
+      {
+        "surface": "wybuchła",
+        "lemma": "wybuchnąć",
+        "voice": "active",
+        "roles": {
+          "patient": "subject"
+        }
+      },
+      {
+        "surface": "epidemia",
+        "lemma": "epidemia",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "natural_disaster": [
+      {
+        "surface": "nawiedził",
+        "lemma": "nawiedzić",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "trzęsienie ziemi",
+        "lemma": "trzęsienie ziemi",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "crime_incident": [
+      {
+        "surface": "okradł",
+        "lemma": "okraść",
+        "voice": "active",
+        "roles": {
+          "agent": "subject"
+        }
+      },
+      {
+        "surface": "kradzież",
+        "lemma": "kradzież",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "ceasefire_truce": [
+      {
+        "surface": "podpisał rozejm",
+        "lemma": "podpisać rozejm",
+        "voice": "active",
+        "roles": {
+          "signatory": "subject"
+        }
+      },
+      {
+        "surface": "rozejm",
+        "lemma": "rozejm",
+        "voice": "nominal",
+        "roles": {}
+      }
+    ],
+    "record_milestone": [
+      {
+        "surface": "ustanowił rekord",
+        "lemma": "ustanowić rekord",
+        "voice": "active",
+        "roles": {
+          "winner": "subject"
+        }
+      },
+      {
+        "surface": "rekord",
+        "lemma": "rekord",
+        "voice": "nominal",
+        "roles": {}
+      }
     ]
   }
 }

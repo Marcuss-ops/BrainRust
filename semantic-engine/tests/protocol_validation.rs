@@ -20,7 +20,7 @@ fn replay_of_the_same_script_gives_identical_manifest_and_fingerprint() {
     assert_eq!(first, second);
     assert_eq!(first["schema_version"], "semantic_manifest.v3");
     assert_eq!(first["fingerprint"].as_str().unwrap().len(), 16);
-    assert_eq!(first["analyzers"]["visualner"], "visualner");
+    assert_eq!(first["analyzers"]["visualner"], "visualner.v2.additive_types");
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn event_frames_are_projected_from_grounded_script_analysis() {
     );
     assert_eq!(
         value["analyzers"]["events"],
-        "event_frames.v3.udpipe_lemma_grounding"
+        "event_frames.v4.documentary_taxonomy"
     );
     let events = value["events"].as_array().unwrap();
     assert_eq!(events.len(), 1);

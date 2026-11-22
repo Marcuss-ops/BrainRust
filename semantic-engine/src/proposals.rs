@@ -68,6 +68,7 @@ pub(crate) fn to_visual_proposal(
         status: "requires_semantic_validation".to_string(),
         score,
         chart_items: candidate.chart_items,
+        chart_meta: candidate.chart_meta,
         temporal_surfaces: candidate.temporal_surfaces,
         evidence: candidate.evidence,
         start_byte: candidate.start,

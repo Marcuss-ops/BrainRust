@@ -207,6 +207,36 @@
       "dimension": "data",
       "code": "TB",
       "factor_to_base": 1000000000000.0
+    },
+    {
+      "surfaces": [
+        "razy",
+        "na"
+      ],
+      "dimension": "ratio",
+      "code": "ratio",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "yoy",
+        "rocznie",
+        "roczny"
+      ],
+      "dimension": "growth_rate",
+      "code": "PCT_YOY",
+      "factor_to_base": 1.0
+    },
+    {
+      "surfaces": [
+        "miejsce",
+        "pozycja",
+        "°",
+        "º"
+      ],
+      "dimension": "rank",
+      "code": "rank",
+      "factor_to_base": 1.0
     }
   ],
   "qualifiers": {
@@ -228,6 +258,16 @@
     "range": [
       "między",
       "od"
+    ],
+    "frequency_periods": [
+      "dziennie",
+      "tygodniowo",
+      "miesięcznie",
+      "rocznie",
+      "na dzień",
+      "na tydzień",
+      "na miesiąc",
+      "na rok"
     ]
   },
   "predicates": {

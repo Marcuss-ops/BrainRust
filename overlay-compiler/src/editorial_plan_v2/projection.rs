@@ -326,6 +326,7 @@ fn project_scene(
     }
 
     apply_chart_values(&mut out, raw);
+    out.chart_layout = raw.chart_layout.clone();
     apply_heavy_sentence_boost(&mut out, heavy);
     drop_disabled_categories(&mut out, scene, canvas, charts_enabled);
     out
@@ -870,6 +871,7 @@ fn drop_disabled_categories(
     }
     if !charts_enabled {
         out.chart_numbers.clear();
+        out.chart_layout.clear();
     }
 }
 

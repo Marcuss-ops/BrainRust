@@ -283,6 +283,27 @@ pub struct ChartItem {
     pub end_byte: usize,
 }
 
+/// Chart-level metadata for downstream renderers. Every field is derived from
+/// grounded facts; absent values stay `None` instead of being guessed.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct ChartMetadata {
+    /// Repeated metric predicate (`revenue`, `sales`, ...) when grounded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metric: Option<String>,
+    /// Unit code (`EUR`, `km`, `PCT`, ...) when grounded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+    /// Quantity dimension (`currency`, `percent`, `count`, ...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dimension: Option<String>,
+    /// Shared period (`2023`) when every point carries the same grounded year.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period: Option<String>,
+    /// `time` for ordered date labels, `category` for named categories.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub series_type: Option<String>,
+}
+
 /// A proposed visual composition for a scene, produced by the engine as a
 /// *proposal* (with its evidence) and left for the planner to validate.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -307,6 +328,9 @@ pub struct VisualProposal {
     /// Comparable values backing a chart proposal (empty otherwise).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub chart_items: Vec<ChartItem>,
+    /// Structured chart metadata when the values are unit/metric grounded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chart_meta: Option<ChartMetadata>,
     /// Date surfaces backing a timeline proposal (empty otherwise).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub temporal_surfaces: Vec<String>,
@@ -647,6 +671,9 @@ pub struct ProductionCandidate {
     /// Numeric values backing a chart candidate (empty otherwise).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub chart_items: Vec<ChartItem>,
+    /// Structured chart metadata when the values are unit/metric grounded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chart_meta: Option<ChartMetadata>,
     /// Date surfaces backing a timeline candidate (empty otherwise).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub temporal_surfaces: Vec<String>,

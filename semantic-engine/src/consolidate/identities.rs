@@ -190,6 +190,16 @@ pub(super) fn is_named_kind(kind: &str) -> bool {
             | "WORK"
             | "EVENT"
             | "ROLE"
+            | "ANIMAL"
+            | "FOOD"
+            | "VEHICLE"
+            | "LAW"
+            | "COURT_CASE"
+            | "NORP"
+            | "DISEASE"
+            | "TECHNOLOGY"
+            | "ARTWORK"
+            | "CELESTIAL"
     )
 }
 

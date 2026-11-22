@@ -15,7 +15,7 @@ use visualner::{TemporalFact, VisualEntity};
 
 use crate::identity_lookup::IdentityLookup;
 pub use semantic_core::ChartItem;
-use semantic_core::Quantity;
+use semantic_core::{ChartMetadata, Quantity};
 
 #[path = "groups/charts.rs"]
 mod charts;
@@ -31,6 +31,7 @@ pub struct VisualCandidate {
     pub entity_ids: Vec<String>,
     pub entity_texts: Vec<String>,
     pub chart_items: Vec<ChartItem>,
+    pub chart_meta: Option<ChartMetadata>,
     pub temporal_surfaces: Vec<String>,
     pub suggested_layout: Option<&'static str>,
     /// Images for these entities must be verified before admission.
@@ -51,6 +52,7 @@ pub struct SceneSource<'a> {
 pub struct ChartInput<'a> {
     pub points: &'a [ChartPoint],
     pub quantities: &'a [Quantity],
+    pub comparisons: &'a [semantic_core::QuantityComparison],
 }
 
 /// Builds every proposal of one scene, in deterministic source order.
@@ -117,6 +119,7 @@ fn entity_searches(
             entity_indices: vec![index],
             entity_texts: vec![entity.text.clone()],
             chart_items: Vec::new(),
+            chart_meta: None,
             temporal_surfaces: Vec::new(),
             suggested_layout: Some("search_asset"),
             requires_verified_images: true,
@@ -167,6 +170,7 @@ fn multiple_entities(
             entity_texts: texts_of(entities, &indices),
             entity_indices: indices,
             chart_items: Vec::new(),
+            chart_meta: None,
             temporal_surfaces: Vec::new(),
             suggested_layout: Some("side_by_side"),
             requires_verified_images: true,
@@ -201,6 +205,7 @@ fn timelines(bullets: &[Bullet], temporal_facts: &[TemporalFact], out: &mut Vec<
             entity_indices: Vec::new(),
             entity_texts: Vec::new(),
             chart_items: Vec::new(),
+            chart_meta: None,
             temporal_surfaces: inside.iter().map(|f| f.surface.clone()).collect(),
             suggested_layout: Some("timeline"),
             requires_verified_images: false,
@@ -236,6 +241,7 @@ fn entity_cards(
             entity_indices: vec![third.entity],
             entity_texts: vec![entity.text.clone()],
             chart_items: Vec::new(),
+            chart_meta: None,
             temporal_surfaces: Vec::new(),
             suggested_layout: None,
             requires_verified_images: true,

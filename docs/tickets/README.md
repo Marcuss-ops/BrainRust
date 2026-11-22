@@ -4,8 +4,8 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-21 (HEAD `06ea22c`), snapshot of an ongoing local
-implementation pass. **31 DONE/CLOSED, 6 PARTIAL (30, 32–36), 0 OPEN, 3 BLOCKED
+Last verified: 2026-11-22 (HEAD `8b70701`), snapshot of an ongoing local
+implementation pass. **31 DONE/CLOSED, 6 PARTIAL (30, 32–36), 5 OPEN (41–45), 3 BLOCKED
 (08, 10, 26).**
 `semantic-engine` passes **355 tests in 28 suites, 0 failed, 4 ignored** at
 HEAD `06ea22c` plus the Polish/noise fixes with the UDPipe 2.5 models loaded
@@ -91,6 +91,11 @@ Status vocabulary:
 | [38](TICKET-38-preflight-engine.md) | P2 | CLOSED (2026-11-19) | Pure pre-render checks for assets, subtitle timing and per-track overlays (including enclosed overlays), with stable codes and an advisory/blocking split. 14 unit + 4 real-ffprobe tests; no writes. |
 | [39](TICKET-39-cross-repo-wire.md) | P2 | CLOSED (2026-11-19) | `preflight` is a `mediaexec.v2` operation (schemas + golden + consumer copy) with a typed Go caller and a Go-owned `Blocked` decision; `NewSemanticEngineExecutor` forwards `SEMANTIC_CACHE_DIR`/`SEMANTIC_CACHE_MAX_BYTES`, and a `cached:true` hit is logged. Verified cold 3.64 s vs warm 1.56 s on a repeated batch; `v0.3.8` carries the operation and `refactored` pins it. |
 | [40](TICKET-40-entity-index-growth.md) | P1 | CLOSED (verified 2026-11-20) | 86 provenance-tracked rows cover 46 declared collisions; 276 positive and 276 counter-context lookups are frozen and checked in CI. |
+| [41](TICKET-41-chart-lexicon-and-series.md) | P1 | OPEN (2026-11-22) | Move hardcoded chart cue/unit/veto/stopword tables into `lexicon/`, generalize `cross_sentence_series` from 2-point pairs to N-point (`2..=6`) series, and add `chart_meta` + `ChartQualifier` aligned to `ChrononTemplate/ChartsPack.hpp`. |
+| [42](TICKET-42-chart-layouts-and-quantity-bridges.md) | P1 | OPEN (2026-11-22) | Dynamic `suggested_layout` aligned to the 9 `ChartsPack.hpp` styles (`timeline_growth`, `segmented_total_bar`, `scenario_split`, `bounded_range_comparison`, `qualified_growth`, `dual_comparison_bars`), bridge `QuantityComparison` to `before_after_metric`, and emit `ranked_bars` without breaking Top-10 rank vetoes. |
+| [43](TICKET-43-entity-and-quantity-taxonomy-expansion.md) | P2 | OPEN (2026-11-22) | Expand visual entity types (`ANIMAL`, `FOOD`, `VEHICLE`, `LAW`, `COURT_CASE`, `NORP`, `DISEASE`, `TECHNOLOGY`, `ARTWORK`, `CELESTIAL`) and add `ratio`, `growth_rate`, `rank` dimensions to `lexicon/units/`. |
+| [44](TICKET-44-event-taxonomy-expansion.md) | P2 | OPEN (2026-11-22) | Expand `lexicon/events/*.json` across 11 languages with `protest_strike`, `bankruptcy_layoff_ipo`, `sanction_embargo`, `scientific_discovery`, `outbreak_epidemic`, `natural_disaster`, `crime_incident`, `ceasefire_truce`, `record_milestone`. |
+| [45](TICKET-45-visual-recipes-for-extracted-facts.md) | P2 | OPEN (2026-11-22) | Emit grounded `ProductionCandidate` recipes & `editorial_plan.v2` lanes (`relationship_graph`, `role_lower_third`, `route_map`, `choropleth_value_map`, `lifespan_timeline`, `counter_odometer`) for already-extracted semantic facts. |
 
 ## Verification — 2026-11-20 (status audit, open and blocked tickets)
 
