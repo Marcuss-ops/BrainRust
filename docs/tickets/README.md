@@ -5,7 +5,7 @@ Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
 Last verified: 2026-11-22 (working tree), snapshot of an ongoing local
-implementation pass. **45 DONE/CLOSED, 0 PARTIAL, 0 OPEN, 3 BLOCKED (08, 10,
+implementation pass. **45 DONE/CLOSED, 0 PARTIAL, 1 OPEN, 3 BLOCKED (08, 10,
 26).** TICKET-30 and 32–36 are DONE (bound/Rust): the local contract is
 complete and each names its independent gold/review as the external gate.
 TICKET-46 is DONE: the five taxonomy copies now read one
@@ -129,6 +129,7 @@ Status vocabulary:
 | [46](TICKET-46-visual-recipes-wiring-and-cleanup.md) | P1 | DONE (2026-11-22) | One `EntityCapabilities` table replaces five taxonomy copies; `MEDIA_OUTLET` is exact-matched in 11 languages and folded to `Org` in Go; `quote_attribution` and `source_highlight` join existing manifest data; the planner lowers five recipes onto `METRIC_STAT_CARD`, `LOWER_THIRD`, `QUOTE`, `IMPORTANT_PHRASE` and `MAP` without new item kinds; Go forwards `visual_recipe`/`visual_payload` verbatim. 8 + 1 + 6 + 12 Rust tests, the 8-recipe protocol fixture and the targeted Go suites pass. |
 | [47](TICKET-47-multi-recipe-scenes-and-outlet-coverage.md) | P2 | DONE (2026-11-22) | Additive `visual_recipes` list (legacy field first, max 8, empty omitted) with planner dedupe; Go forwards every supported recipe in priority order. Measured 21 missed outlet surfaces in 1,173 archived scenes, so curated domains plus unambiguous article-dropped aliases were added (no suffix matching); `role_of` keeps the narrower policy, adds `MEDIA_OUTLET` and pins the difference from the SSOT. 16 planner + contract + Go wire tests pass. |
 | [48](TICKET-48-unrendered-recipe-layouts.md) | P3 | DONE (2026-11-22) | Measured `relationship_graph` 3, `lifespan_timeline` 1, `choropleth_value_map` 0 in 1,173 scenes. Option 2 chosen for all three: validated-but-inert, still not forwarded by Go; no new layout or `ItemKind` added. |
+| [49](TICKET-49-entity-intent-admission.md) | P1 | OPEN (2026-11-22) | Run R30: 36 `entity_not_planned` su 88 intenti. 23 dei 36 sono date/numeri (di cui 8 frammenti di uno slug+UUID), 8 sono persone/org reali. Decisione: una card per `entity_id` per scena con le occorrenze come span, non una card per occorrenza (budget 25 vs 54 intenti, stesso volto ripetuto); lineage deve risolvere per identità, non per testo. Criterio: 0 per PERSON e `image_status`/`reasons` concordi. |
 
 ## Verification — 2026-11-20 (status audit, open and blocked tickets)
 
