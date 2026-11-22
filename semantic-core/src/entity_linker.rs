@@ -254,6 +254,25 @@ pub fn link_all_with_threads(
             };
 
             let linked = status == LinkStatus::Linked;
+            // The manifest may only publish a canonical surface the script
+            // actually states. A surname promoted to the full name it was
+            // aliased to ("Augias" -> "Leggere Augias") can otherwise leave an
+            // identity whose canonical form never appears as its own mention;
+            // the Go projection fails closed on that. Fall back to the
+            // documented first-seen surface instead.
+            let canonical_surface = if identity
+                .mentions
+                .iter()
+                .any(|mention| mention.surface == identity.canonical_surface)
+            {
+                identity.canonical_surface.clone()
+            } else {
+                identity
+                    .mentions
+                    .first()
+                    .map(|mention| mention.surface.clone())
+                    .unwrap_or_else(|| identity.canonical_surface.clone())
+            };
             let entity_type = if linked {
                 entry
                     .map(|entry| entry.entity_type.clone())
@@ -261,22 +280,22 @@ pub fn link_all_with_threads(
             } else {
                 identity.kind.clone()
             };
-            let decision = editorial_decision(&identity.canonical_surface, &entity_type);
+            let decision = editorial_decision(&canonical_surface, &entity_type);
             let role = role_of(&decision.kind);
             let canonical_name = if linked {
                 entry
                     .map(|entry| entry.canonical_name.clone())
-                    .unwrap_or_else(|| identity.canonical_surface.clone())
+                    .unwrap_or_else(|| canonical_surface.clone())
             } else {
-                identity.canonical_surface.clone()
+                canonical_surface.clone()
             };
             let search_intents =
                 build_intents(language, identity, status, &canonical_name, identities);
 
             LinkedEntity {
                 local_id: identity.id.clone(),
-                surface_key: stable_surface_key(&identity.kind, &identity.canonical_surface),
-                canonical_surface: identity.canonical_surface.clone(),
+                surface_key: stable_surface_key(&identity.kind, &canonical_surface),
+                canonical_surface,
                 canonical_id: linked
                     .then(|| entry.map(|entry| entry.id.clone()))
                     .flatten(),
@@ -890,6 +909,32 @@ mod tests {
             "ORG",
         );
         assert_eq!(it.canonical_id.as_deref(), Some("wd:Q42262"));
+    }
+
+    #[test]
+    fn canonical_surface_falls_back_to_the_grounded_first_mention() {
+        // A surname alias can promote a one-token mention to a full name the
+        // script never states ("Leggere Augias" for a bare "Augias"). The
+        // manifest must publish a grounded surface, otherwise the Go handoff
+        // rejects the whole run for an ungrounded canonical mention.
+        let identities = vec![CanonicalIdentity {
+            id: "person_01".to_string(),
+            canonical_id: "person:leggere-augias".to_string(),
+            canonical_surface: "Leggere Augias".to_string(),
+            kind: "PERSON".to_string(),
+            mentions: vec![Mention {
+                scene_id: "s1".to_string(),
+                surface: "Augias".to_string(),
+                start_byte: 0,
+                end_byte: 6,
+            }],
+        }];
+        let linked = link_all("it", &[("s1", "Augias ha intrecciato una vita di cultura.")], &identities);
+        assert_eq!(linked[0].canonical_surface, "Augias");
+        assert_eq!(
+            linked[0].surface_key,
+            stable_surface_key("PERSON", "Augias")
+        );
     }
 
     #[test]

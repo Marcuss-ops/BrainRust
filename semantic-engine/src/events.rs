@@ -230,8 +230,13 @@ fn nearest_candidate<'a>(
             }
         }
         // A parsed sentence gives an explicit negative result; proximity
-        // must not silently attach the nearest unrelated name.
-        if tokens.iter().any(|token| token.id.is_some()) {
+        // must not silently attach the nearest unrelated name. Heuristic
+        // tokenizers may assign ids without dependencies, and those must not
+        // discard the model-free proximity fallback.
+        if tokens
+            .iter()
+            .any(|token| token.id.is_some() && token.dependency.is_some())
+        {
             return None;
         }
     }
