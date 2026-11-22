@@ -2,6 +2,48 @@
 
 use super::*;
 
+/// Finds the typed quantity backing one chart point. The point and the
+/// quantity normally share the exact numeric span; a qualified span can be
+/// wider, so the containing quantity is the fallback.
+fn chart_point_quantity(
+    quantities: &[Quantity],
+    sentence_index: usize,
+    start: usize,
+    end: usize,
+) -> Option<&Quantity> {
+    quantities
+        .iter()
+        .find(|quantity| quantity.start_byte == start && quantity.end_byte == end)
+        .or_else(|| {
+            quantities.iter().find(|quantity| {
+                quantity.sentence_index == sentence_index
+                    && quantity.start_byte <= start
+                    && quantity.end_byte >= end
+            })
+        })
+}
+
+/// A bare number beside one explicit unit ("120 cars" then "180") inherits
+/// that unit. The sentence-local builder and the cross-sentence series builder
+/// carried this block verbatim; one helper keeps the rule from drifting.
+fn inherit_explicit_units(measures: &mut [crate::chart_rules::ChartUnit]) {
+    let explicit: std::collections::BTreeSet<(String, String)> = measures
+        .iter()
+        .filter(|measure| measure.signature != measure.kind)
+        .map(|measure| (measure.signature.clone(), measure.kind.clone()))
+        .collect();
+    if explicit.len() != 1 {
+        return;
+    }
+    let (signature, kind) = explicit.into_iter().next().expect("length checked");
+    for measure in measures {
+        if measure.signature == measure.kind {
+            measure.signature = signature.clone();
+            measure.kind = kind.clone();
+        }
+    }
+}
+
 pub(super) fn build(
     source: &str,
     language: &str,
@@ -46,20 +88,7 @@ pub(super) fn build(
                 ))
             })
             .collect();
-        let explicit_units: std::collections::BTreeSet<(String, String)> = measures
-            .iter()
-            .filter(|measure| measure.signature != measure.kind)
-            .map(|measure| (measure.signature.clone(), measure.kind.clone()))
-            .collect();
-        if explicit_units.len() == 1 {
-            let (signature, kind) = explicit_units.iter().next().unwrap();
-            for measure in &mut measures {
-                if measure.signature == measure.kind {
-                    measure.signature = signature.clone();
-                    measure.kind = kind.clone();
-                }
-            }
-        }
+        inherit_explicit_units(&mut measures);
         if measures.len() != points.len()
             || measures
                 .windows(2)
@@ -80,6 +109,7 @@ pub(super) fn build(
                     relative_end,
                 );
                 let text = bullet.text.get(qualified_start..qualified_end)?;
+                let quantity = chart_point_quantity(quantities, p.sentence_index, p.start, p.end);
                 let subject_start = if index == 0 {
                     bullet.start
                 } else {
@@ -102,6 +132,15 @@ pub(super) fn build(
                     value: measure.value,
                     start_byte: bullet.start + qualified_start,
                     end_byte: bullet.start + qualified_end,
+                    qualifier: quantity
+                        .map(|quantity| quantity.qualifier.clone())
+                        .filter(|value| !value.is_empty()),
+                    period: quantity
+                        .and_then(|quantity| quantity.period.as_ref())
+                        .map(|period| period.year.to_string()),
+                    lower: None,
+                    upper: None,
+                    range_id: quantity.and_then(|quantity| quantity.range_id.clone()),
                 })
             })
             .collect();
@@ -219,6 +258,14 @@ fn comparison_deltas(
             value,
             start_byte: quantity.start_byte,
             end_byte: quantity.end_byte,
+            qualifier: Some(quantity.qualifier.clone()).filter(|value| !value.is_empty()),
+            period: quantity
+                .period
+                .as_ref()
+                .map(|period| period.year.to_string()),
+            lower: None,
+            upper: None,
+            range_id: quantity.range_id.clone(),
         };
         let mut entity_ids: Vec<String> = [&left.subject_entity_id, &right.subject_entity_id]
             .into_iter()
@@ -241,8 +288,7 @@ fn comparison_deltas(
         };
         if comparison.kind == "change" {
             if let (Some(left_period), Some(right_period)) = (&left.period, &right.period) {
-                chart_meta.period =
-                    Some(format!("{}→{}", left_period.year, right_period.year));
+                chart_meta.period = Some(format!("{}→{}", left_period.year, right_period.year));
             }
         }
         out.push(VisualCandidate {
@@ -254,11 +300,7 @@ fn comparison_deltas(
             chart_items: vec![item(left, left_value), item(right, right_value)],
             chart_meta: Some(chart_meta),
             temporal_surfaces: Vec::new(),
-            suggested_layout: Some(if comparison.kind == "change" {
-                "before_after"
-            } else {
-                "delta_comparison"
-            }),
+            suggested_layout: Some("before_after_metric"),
             requires_verified_images: false,
             evidence: evidence.to_string(),
             start,
@@ -267,373 +309,51 @@ fn comparison_deltas(
     }
 }
 
-/// Uses the semantic quantity attached to this exact numeric span when one is
-/// available. The legacy chart parser remains a compatibility fallback for
-/// chart points that have no recognized typed unit.
-fn chart_measure(
-    sentence: &str,
-    start: usize,
-    end: usize,
-    point: &ChartPoint,
-    quantities: &[Quantity],
-) -> crate::chart_rules::ChartUnit {
-    if let Some(quantity) = quantities
-        .iter()
-        .find(|quantity| quantity.start_byte == point.start && quantity.end_byte == point.end)
-    {
-        if let (Some(raw_value), Some(_)) = (quantity.raw_value, quantity.value) {
-            let scaled_value = raw_value * quantity.scale.unwrap_or(1.0);
-            let kind = match quantity.dimension.as_str() {
-                "percent" => "PERCENT",
-                "currency" => "MONEY",
-                _ => point.kind.as_str(),
-            };
-            let display_measure =
-                crate::chart_rules::chart_unit(sentence, start, end, scaled_value, kind);
-            let signature = match quantity.dimension.as_str() {
-                "length" => "length:m".to_string(),
-                "currency" => {
-                    let period = display_measure
-                        .signature
-                        .rsplit_once('/')
-                        .map_or("unit", |(_, period)| period);
-                    format!("currency:{}/{period}", quantity.unit)
-                }
-                _ => format!("{}:{}", quantity.dimension, quantity.unit),
-            };
-            return crate::chart_rules::ChartUnit {
-                kind: kind.to_string(),
-                signature,
-                value: display_measure.value,
-            };
-        }
-    }
-    crate::chart_rules::chart_unit(sentence, start, end, point.value, &point.kind)
-}
-
-/// Joins adjacent source-grounded measures when the script repeats a metric
-/// across sentences (for example, annual revenue or output). Consecutive
-/// points with the same metric and unit form ONE ordered series of 2..=6
-/// items; the emitted evidence is one exact source slice spanning all included
-/// sentences. A grounded `Quantity` predicate and unit take precedence over the
-/// lexical stem fallback.
-fn cross_sentence_series(
-    source: &str,
-    entities: &[VisualEntity],
-    bullets: &[Bullet],
-    chart_points: &[ChartPoint],
-    quantities: &[Quantity],
-    identities: &IdentityLookup,
-    language: &str,
-    out: &mut Vec<VisualCandidate>,
-) {
-    let mut ordered: Vec<&ChartPoint> = chart_points.iter().collect();
-    ordered.sort_by_key(|point| (point.start, point.end));
-    let mut used = vec![false; ordered.len()];
-    for start_index in 0..ordered.len() {
-        if used[start_index] {
-            continue;
-        }
-        let mut chain = vec![start_index];
-        let mut cursor = start_index;
-        while chain.len() < 6 {
-            let Some(next) =
-                next_series_point(&ordered, &used, cursor, bullets, quantities, language)
-            else {
-                break;
-            };
-            chain.push(next);
-            cursor = next;
-        }
-        if chain.len() < 2 {
-            continue;
-        }
-        let Some(candidate) = build_series_candidate(
-            source,
-            entities,
-            bullets,
-            &ordered,
-            &chain,
-            quantities,
-            identities,
-            language,
-        ) else {
-            continue;
-        };
-        // A single sentence-local chart already covering these exact values
-        // wins; do not emit a duplicate scenario-spanning copy.
-        if out.iter().any(|existing| {
-            existing.kind == "chart"
-                && chain.iter().all(|index| {
-                    let point = ordered[*index];
-                    existing
-                        .chart_items
-                        .iter()
-                        .any(|item| item.start_byte == point.start && item.end_byte == point.end)
-                })
-        }) {
-            continue;
-        }
-        for index in &chain {
-            used[*index] = true;
-        }
-        out.push(candidate);
-    }
-}
-
-/// Finds the next ordered point that extends the current series. Gap, metric,
-/// unit and time-anchor checks are identical to the historical pair rule; the
-/// difference is that the chain is kept together instead of fragmenting into
-/// overlapping pairs.
-fn next_series_point(
-    ordered: &[&ChartPoint],
-    used: &[bool],
-    from: usize,
-    bullets: &[Bullet],
-    quantities: &[Quantity],
-    language: &str,
-) -> Option<usize> {
-    let left = ordered[from];
-    let left_bullet = bullets
-        .iter()
-        .find(|bullet| bullet.sentence_index == left.sentence_index)?;
-    for index in from + 1..ordered.len() {
-        if used[index] {
-            continue;
-        }
-        let right = ordered[index];
-        if right.sentence_index <= left.sentence_index {
-            continue;
-        }
-        if right.sentence_index.saturating_sub(left.sentence_index) > 3 {
-            break;
-        }
-        let Some(right_bullet) = bullets
-            .iter()
-            .find(|bullet| bullet.sentence_index == right.sentence_index)
-        else {
-            continue;
-        };
-        if !crate::chart_rules::chart_point_is_eligible(
-            &left_bullet.text,
-            left.start.saturating_sub(left_bullet.start),
-            left.end.saturating_sub(left_bullet.start),
-        ) || !crate::chart_rules::chart_point_is_eligible(
-            &right_bullet.text,
-            right.start.saturating_sub(right_bullet.start),
-            right.end.saturating_sub(right_bullet.start),
-        ) {
-            continue;
-        }
-        if !series_time_anchor(&left_bullet.text, &right_bullet.text) {
-            continue;
-        }
-        let (Some(left_start), Some(left_end), Some(right_start), Some(right_end)) = (
-            left.start.checked_sub(left_bullet.start),
-            left.end.checked_sub(left_bullet.start),
-            right.start.checked_sub(right_bullet.start),
-            right.end.checked_sub(right_bullet.start),
-        ) else {
-            continue;
-        };
-        let left_measure = chart_measure(&left_bullet.text, left_start, left_end, left, quantities);
-        let right_measure =
-            chart_measure(&right_bullet.text, right_start, right_end, right, quantities);
-        if !compatible_measures(&left_measure, &right_measure) {
-            continue;
-        }
-        if series_metric_match(
-            &left_bullet.text,
-            &right_bullet.text,
-            quantities,
-            left,
-            right,
-            language,
-        )
-        .is_none()
-        {
-            continue;
-        }
-        return Some(index);
-    }
-    None
-}
-
-fn compatible_measures(
-    left: &crate::chart_rules::ChartUnit,
-    right: &crate::chart_rules::ChartUnit,
-) -> bool {
-    if left.signature == right.signature && left.kind == right.kind {
-        return true;
-    }
-    let fallback = |bare: &crate::chart_rules::ChartUnit, explicit: &crate::chart_rules::ChartUnit| {
-        bare.signature == bare.kind && explicit.signature != explicit.kind
-    };
-    (fallback(left, right) || fallback(right, left))
-        && (left.kind == right.kind
-            || left.signature == right.signature
-            || right.signature == right.kind
-            || left.signature == left.kind)
-}
-
-fn series_time_anchor(left: &str, right: &str) -> bool {
-    if !has_four_digit_year(left) {
-        return false;
-    }
-    let lower = right.to_lowercase();
-    has_four_digit_year(right)
-        || lower.contains("seguente")
-        || lower.contains("following year")
-}
-
-/// Resolves the repeated metric for a series. Exact grounded quantities win:
-/// two values with the same dimension/unit and the same explicit predicate are
-/// the same metric even when the surface wording differs. When the predicate is
-/// missing, the language stem table is the conservative fallback.
-fn series_metric_match(
-    left_text: &str,
-    right_text: &str,
-    quantities: &[Quantity],
-    left: &ChartPoint,
-    right: &ChartPoint,
-    language: &str,
-) -> Option<String> {
-    let exact = |point: &ChartPoint| {
-        quantities
-            .iter()
-            .find(|quantity| quantity.start_byte == point.start && quantity.end_byte == point.end)
-    };
-    if let (Some(left_quantity), Some(right_quantity)) = (exact(left), exact(right)) {
-        if left_quantity.dimension == right_quantity.dimension
-            && left_quantity.unit == right_quantity.unit
-        {
-            match (&left_quantity.predicate, &right_quantity.predicate) {
-                (Some(a), Some(b)) if a == b => return Some(a.clone()),
-                (Some(_), Some(_)) => return None,
-                _ => {}
-            }
-        }
-    }
-    let left_lower = left_text.to_lowercase();
-    let right_lower = right_text.to_lowercase();
-    semantic_core::chart_cues::language_cues(language)
-        .series_metric_stems
-        .iter()
-        .find(|stem| left_lower.contains(stem.as_str()) && right_lower.contains(stem.as_str()))
-        .cloned()
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_series_candidate(
-    source: &str,
-    entities: &[VisualEntity],
-    bullets: &[Bullet],
-    ordered: &[&ChartPoint],
-    chain: &[usize],
-    quantities: &[Quantity],
-    identities: &IdentityLookup,
-    language: &str,
-) -> Option<VisualCandidate> {
-    let points: Vec<&ChartPoint> = chain.iter().map(|index| ordered[*index]).collect();
-    let first = *points.first()?;
-    let last = *points.last()?;
-    let first_bullet = bullets
-        .iter()
-        .find(|bullet| bullet.sentence_index == first.sentence_index)?;
-    let last_bullet = bullets
-        .iter()
-        .find(|bullet| bullet.sentence_index == last.sentence_index)?;
-    let (evidence_start, _) = chart_claim_bounds(first_bullet, &[first]);
-    let (_, evidence_end) = chart_claim_bounds(last_bullet, &[last]);
-    let evidence = source.get(evidence_start..evidence_end)?;
-
-    let mut measures: Vec<crate::chart_rules::ChartUnit> = Vec::with_capacity(points.len());
-    for point in &points {
-        let bullet = bullets
-            .iter()
-            .find(|bullet| bullet.sentence_index == point.sentence_index)?;
-        let start = point.start.checked_sub(bullet.start)?;
-        let end = point.end.checked_sub(bullet.start)?;
-        measures.push(chart_measure(&bullet.text, start, end, point, quantities));
-    }
-    // A bare number beside an explicit unit ("120 cars" then "180") inherits
-    // the explicit unit, exactly like the sentence-local chart path.
-    let explicit_units: std::collections::BTreeSet<(String, String)> = measures
-        .iter()
-        .filter(|measure| measure.signature != measure.kind)
-        .map(|measure| (measure.signature.clone(), measure.kind.clone()))
-        .collect();
-    if explicit_units.len() == 1 {
-        let (signature, kind) = explicit_units.iter().next().unwrap();
-        for measure in &mut measures {
-            if measure.signature == measure.kind {
-                measure.signature = signature.clone();
-                measure.kind = kind.clone();
-            }
-        }
-    }
-    if measures
-        .windows(2)
-        .any(|pair| !compatible_measures(&pair[0], &pair[1]))
-    {
-        return None;
-    }
-    let mut items = Vec::with_capacity(points.len());
-    for (index, point) in points.iter().enumerate() {
-        let bullet = bullets
-            .iter()
-            .find(|bullet| bullet.sentence_index == point.sentence_index)?;
-        let start = point.start.checked_sub(bullet.start)?;
-        let end = point.end.checked_sub(bullet.start)?;
-        let measure = &measures[index];
-        let (display_start, display_end) =
-            crate::chart_rules::qualified_numeric_span(&bullet.text, start, end);
-        let text = bullet.text.get(display_start..display_end)?;
-        // A cross-sentence annual series names each year once, so the single
-        // year in the sentence is the correct category for that point.
-        let label = single_year_label(&bullet.text)
-            .unwrap_or_else(|| chart_subject_label(source, entities, point, bullet, bullet.start, bullet.end));
-        items.push(ChartItem {
-            label,
-            text: text.to_string(),
-            kind: measure.kind.clone(),
-            value: measure.value,
-            start_byte: bullet.start + display_start,
-            end_byte: bullet.start + display_end,
-        });
-    }
-    if items.len() < 2 {
-        return None;
-    }
-    let mut indices: Vec<usize> = points.iter().filter_map(|point| point.entity).collect();
-    indices.sort_unstable();
-    indices.dedup();
-    let chart_meta = chart_metadata(&items, &measures, quantities, &points);
-    let suggested_layout = select_layout(&items, evidence, language);
-    Some(VisualCandidate {
-        kind: "chart",
-        sentence_index: first.sentence_index.min(last.sentence_index),
-        entity_ids: ids_of(identities, &indices),
-        entity_texts: texts_of(entities, &indices),
-        entity_indices: indices,
-        chart_items: items,
-        chart_meta,
-        temporal_surfaces: Vec::new(),
-        suggested_layout: Some(suggested_layout),
-        requires_verified_images: false,
-        evidence: evidence.to_string(),
-        start: evidence_start,
-        end: evidence_end,
-    })
-}
+#[path = "charts/series.rs"]
+mod series;
+use series::*;
 
 /// Picks the layout the grounded values support. The default stays
-/// `bar_comparison`; `line_series` needs ordered year labels; `donut_share`
-/// needs percentage parts whose sum is a complete share (or an explicit share
-/// cue in the evidence).
+/// `bar_comparison`; `timeline_growth` needs ordered year labels;
+/// `segmented_total_bar` needs percentage parts whose sum is a complete share
+/// (or an explicit share cue in the evidence).
 fn select_layout(items: &[ChartItem], evidence: &str, language: &str) -> &'static str {
+    // An explicit range pair wins over the generic series reading: its two
+    // endpoints are one observation, not a growth timeline.
+    if let Some(range) = items.first().and_then(|item| item.range_id.as_deref()) {
+        if items
+            .iter()
+            .all(|item| item.range_id.as_deref() == Some(range))
+        {
+            return "bounded_range_comparison";
+        }
+    }
+    let scenario = {
+        let lower = evidence.to_lowercase();
+        semantic_core::chart_cues::language_cues(language)
+            .scenario_cues
+            .iter()
+            .any(|cue| lower.contains(&cue.to_lowercase()))
+    };
+    if scenario {
+        return "scenario_split";
+    }
     if labels_are_ordered_years(items) {
-        return "line_series";
+        if items.iter().any(|item| {
+            matches!(
+                item.qualifier.as_deref(),
+                Some("approximate" | "greater_than" | "range")
+            )
+        }) {
+            return "qualified_growth";
+        }
+        if items
+            .iter()
+            .any(|item| item.qualifier.as_deref() == Some("missing"))
+        {
+            return "missing_data_timeline";
+        }
+        return "timeline_growth";
     }
     if (2..=6).contains(&items.len()) && items.iter().all(|item| item.kind == "PERCENT") {
         let sum: f64 = items.iter().map(|item| item.value).sum();
@@ -645,7 +365,7 @@ fn select_layout(items: &[ChartItem], evidence: &str, language: &str) -> &'stati
                 .any(|cue| lower.contains(&cue.to_lowercase()))
         };
         if (95.0..=100.5).contains(&sum) || (sum > 0.0 && sum <= 100.0 && share_cue) {
-            return "donut_share";
+            return "segmented_total_bar";
         }
     }
     "bar_comparison"
@@ -668,8 +388,7 @@ fn labels_are_ordered_years(items: &[ChartItem]) -> bool {
     let Some(years) = years else {
         return false;
     };
-    years.windows(2).all(|pair| pair[1] > pair[0])
-        || years.windows(2).all(|pair| pair[1] < pair[0])
+    years.windows(2).all(|pair| pair[1] > pair[0]) || years.windows(2).all(|pair| pair[1] < pair[0])
 }
 
 fn chart_metadata(
@@ -684,11 +403,9 @@ fn chart_metadata(
     let matched: Vec<&Quantity> = points
         .iter()
         .filter_map(|point| {
-            quantities
-                .iter()
-                .find(|quantity| {
-                    quantity.start_byte == point.start && quantity.end_byte == point.end
-                })
+            quantities.iter().find(|quantity| {
+                quantity.start_byte == point.start && quantity.end_byte == point.end
+            })
         })
         .collect();
     let shared = |values: Vec<Option<String>>| {
@@ -726,7 +443,9 @@ fn chart_metadata(
             .collect();
         let first = signatures.first()?;
         (signatures.iter().all(|signature| signature == first)
-            && measures.iter().all(|measure| measure.signature != measure.kind))
+            && measures
+                .iter()
+                .all(|measure| measure.signature != measure.kind))
         .then(|| first.clone())
     });
     let dimension = shared(
@@ -1021,7 +740,6 @@ fn span_distance(start: usize, end: usize, point_start: usize, point_end: usize)
     }
 }
 
-
 /// A comparison word elsewhere in a long enumerated bullet must not turn the
 /// list's rank numbers into chart values. Bind the cue to at least two
 /// comparable values on the same source line. Ordinary prose comparisons
@@ -1119,3 +837,7 @@ fn bare_conjunction_cue(
     }
     Some(word.start)
 }
+
+#[cfg(test)]
+#[path = "charts/unit_inheritance_tests.rs"]
+mod unit_inheritance_tests;

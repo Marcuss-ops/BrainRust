@@ -1,7 +1,7 @@
 # TICKET-41 — Chart lexicons in `lexicon/`, N-point cross-sentence series & chart metadata
 
 - Priority: P1
-- Status: OPEN (created 2026-11-22)
+- Status: DONE (2026-11-22)
 - Depends on: TICKET-30
 - Files: `semantic-engine/src/chart_rules.rs`,
   `semantic-engine/src/groups/charts.rs`,
@@ -77,21 +77,28 @@
 
 ## Acceptance criteria
 
-- [ ] All chart-specific word lists (`HARD_VETOES`, rate cues, series cues,
+- [x] All chart-specific word lists (`HARD_VETOES`, rate cues, series cues,
       subject label stopwords/verbs, series metric stems) live in `lexicon/` and
       pass `build_language_packs.py --check`.
-- [ ] A 3–5 sentence annual series produces one N-point chart candidate
+- [x] A 3–5 sentence annual series produces one N-point chart candidate
       (`2..=6` items) in all 11 supported languages (`de`, `en`, `es`, `fr`,
       `id`, `it`, `nl`, `pl`, `pt`, `ru`, `tr`), with byte-exact verbatim item
       spans and scene-spanning evidence.
-- [ ] `chart_meta` is populated whenever `unit` / `dimension` / `predicate` /
+- [x] `chart_meta` is populated whenever `unit` / `dimension` / `predicate` /
       `series_type` are grounded; absent fields stay `None` (never guessed).
-- [ ] Existing chart regression suites (`chart_acceptance_36`,
+- [x] Existing chart regression suites (`chart_acceptance_36`,
       `chart_bare_cue`, `chart_multilingual`, `charts_numeric`) pass with 0
       regressions and 0 false positives on existing negative sets.
-- [ ] `AnalyzerVersions` bumped; Go consumer schema/golden updated in sync.
+- [x] `AnalyzerVersions` bumped; Go consumer schema/golden updated in sync.
 
 ## Non-goals
 
 - Currency conversion or inflation adjustment across periods.
 - Changing Chronon rendering templates or Go admission budgets.
+
+## Verification — 2026-11-22
+
+- `lexicon/chart_cues.json` owns every chart cue table and `build_language_packs.py --check` passes.
+- `semantic-engine/tests/chart_series_metadata.rs` proves one N-point candidate (4 points, 6-point cap) in all 11 languages with byte-exact item spans and scene-spanning evidence.
+- `ChartMetadata` is populated from grounded quantities; `ChartItem` now carries additive `qualifier`, `period`, `lower`, `upper` and `range_id`.
+- Chart regressions (`chart_acceptance_36`, `chart_bare_cue`, `chart_multilingual`, `charts_numeric`) pass; `AnalyzerVersions.quantities` is `typed_quantities.v3.chart_meta_series`.

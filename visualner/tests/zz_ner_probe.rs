@@ -21,8 +21,10 @@ fn labels() -> Vec<String> {
 
 fn hits(engine: &mut BoundaryEngine, source: &str, want: &str, offset: usize) -> Vec<String> {
     let tasks = [SchemaTask::Entities(labels())];
-    let mut params = BoundaryParams::default();
-    params.threshold = 0.05;
+    let params = BoundaryParams {
+        threshold: 0.05,
+        ..BoundaryParams::default()
+    };
     let out = engine
         .extract_long_with(source, &tasks, &params, Default::default())
         .expect("extract");

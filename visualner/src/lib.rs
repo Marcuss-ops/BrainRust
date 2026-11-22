@@ -52,6 +52,7 @@ pub use extractor::cached_model_slots;
 pub use extractor::canonical_surface;
 pub use extractor::is_heading_surface;
 pub use extractor::model_path;
+pub use extractor::{configure_ner_runtime, model_status, ner_status, ModelStatus, NerStatus};
 pub use extractor::{extract, extract_with_context, script_person_tokens, ScriptContext};
 pub use spellout::supported_spellout_language_count;
 pub use temporal::temporal_facts;

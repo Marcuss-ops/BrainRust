@@ -177,30 +177,7 @@ pub(super) fn identity_anchor(identity: &IdentityState) -> Option<&MentionRef> {
 }
 
 pub(super) fn is_named_kind(kind: &str) -> bool {
-    matches!(
-        kind,
-        "PERSON"
-            | "ORG"
-            | "ORGANIZATION"
-            | "LOCATION"
-            | "FACILITY"
-            | "OBJECT"
-            | "BRAND"
-            | "PRODUCT"
-            | "WORK"
-            | "EVENT"
-            | "ROLE"
-            | "ANIMAL"
-            | "FOOD"
-            | "VEHICLE"
-            | "LAW"
-            | "COURT_CASE"
-            | "NORP"
-            | "DISEASE"
-            | "TECHNOLOGY"
-            | "ARTWORK"
-            | "CELESTIAL"
-    )
+    semantic_core::entity_capabilities::entity_capabilities(kind).named_kind
 }
 
 #[cfg(test)]

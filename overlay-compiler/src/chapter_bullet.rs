@@ -13,6 +13,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use semantic_core::text::{fold_apostrophe, fragment_tokens, is_numeric_token, phrase_tokens};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::editorial_plan_v2::{
@@ -315,85 +316,17 @@ fn locate_all(timing: &TimingV2, phrase: &str) -> Vec<Located> {
     found
 }
 
-fn phrase_tokens(phrase: &str) -> Vec<String> {
-    phrase
-        .split_whitespace()
-        .flat_map(fragment_tokens)
-        .collect()
-}
-
-fn fragment_tokens(field: &str) -> Vec<String> {
-    field
-        .split(|character: char| character.is_whitespace() || is_dash(character))
-        .filter_map(|fragment| {
-            let token = normalize_token(fragment);
-            (!token.is_empty()).then_some(token)
-        })
-        .collect()
-}
-
-fn normalize_token(token: &str) -> String {
-    let folded: String = token
-        .nfc()
-        .flat_map(|character| character.to_lowercase())
-        .map(fold_apostrophe)
-        .collect();
-    let trimmed = folded.trim_matches(is_edge_punctuation);
-    trimmed.trim_end_matches('\'').to_string()
-}
-
-fn fold_apostrophe(character: char) -> char {
-    match character {
-        '\u{2018}' | '\u{2019}' | '\u{201B}' | '\u{02BC}' => '\'',
-        other => other,
-    }
-}
-
-fn is_dash(character: char) -> bool {
-    matches!(
-        character,
-        '-' | '\u{2010}'
-            | '\u{2011}'
-            | '\u{2012}'
-            | '\u{2013}'
-            | '\u{2014}'
-            | '\u{2015}'
-            | '\u{2212}'
-    )
-}
-
-fn is_edge_punctuation(character: char) -> bool {
-    character.is_ascii_punctuation()
-        || matches!(
-            character,
-            '«' | '»' | '“' | '”' | '‘' | '’' | '…' | '–' | '—' | '¡' | '¿'
-        )
-}
-
 fn token_match(query: &str, timing: &str) -> bool {
     if query == timing {
         return true;
     }
-    if query.is_empty() || timing.is_empty() || !is_numeric(query) {
+    if query.is_empty() || timing.is_empty() || !is_numeric_token(query) {
         return false;
     }
     let Some(tail) = timing.strip_suffix(query) else {
         return false;
     };
     !tail.is_empty() && tail.ends_with('\'')
-}
-
-fn is_numeric(token: &str) -> bool {
-    let mut seen_dot = false;
-    let mut seen_digit = false;
-    for character in token.chars() {
-        match character {
-            '0'..='9' => seen_digit = true,
-            '.' | ',' if !seen_dot => seen_dot = true,
-            _ => return false,
-        }
-    }
-    seen_digit
 }
 
 #[cfg(test)]
@@ -532,6 +465,34 @@ mod tests {
         let response = project_chapter_bullets(&request);
         assert!(!response.covered_scenes.contains(&"s1".to_string()));
         assert!(response.covered_scenes.contains(&"s2".to_string()));
+    }
+
+    #[test]
+    fn typographic_and_cjk_edges_use_the_shared_tokenizer() {
+        // `„` and the CJK brackets are outside the former local list: before
+        // the SSOT cutover these words never matched the source phrase, so a
+        // certified spoken span was silently replaced by the fixed beat.
+        let timing = TimingV2 {
+            duration_us: 900_000,
+            words: vec![
+                WordTimingV2 {
+                    index: 0,
+                    text: "„Garlasco“".to_string(),
+                    start_us: 100_000,
+                    end_us: 400_000,
+                },
+                WordTimingV2 {
+                    index: 1,
+                    text: "『2013』".to_string(),
+                    start_us: 400_000,
+                    end_us: 900_000,
+                },
+            ],
+        };
+        assert_eq!(
+            super::located_duration(&timing, "Garlasco 2013"),
+            Some(800_000)
+        );
     }
 
     #[test]

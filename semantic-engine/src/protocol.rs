@@ -187,6 +187,16 @@ impl Worker {
         match envelope.operation.as_str() {
             "health" => {
                 let lexicon = semantic_core::lexicon::provenance();
+                let models = visualner::model_status();
+                let ner = visualner::ner_status();
+                // The cache lock is only taken for this read: health never holds
+                // it across analysis work, so it cannot delay a request.
+                let cache = self
+                    .cache
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let (hits, misses) = cache.stats();
+                let (max_entries, max_bytes) = cache.capacity();
                 json!({
                     "ok": true,
                     "schema_version": SCHEMA_VERSION,
@@ -201,7 +211,30 @@ impl Worker {
                         "tables_from_override": lexicon.overrides_loaded,
                         "tables_failed": lexicon.overrides_failed,
                     },
-                    "udpipe_model_slots": visualner::cached_model_slots(),
+                    // Kept for older probes; `udpipe` is the diagnostic view.
+                    "udpipe_model_slots": models.cached_slots,
+                    "udpipe": {
+                        "cached_slots": models.cached_slots,
+                        "loaded_languages": models.loaded_languages,
+                        "failed_languages": models.failed_languages,
+                        "installed_languages": models.installed_languages,
+                        "missing_languages": models.missing_languages,
+                    },
+                    "ner": {
+                        "mode": ner.mode,
+                        "model_installed": ner.model_installed,
+                        "model_dir": ner.model_dir,
+                        "worker_started": ner.worker_started,
+                    },
+                    "cache": {
+                        "entries": cache.len(),
+                        "bytes": cache.bytes(),
+                        "hits": hits,
+                        "misses": misses,
+                        "max_entries": max_entries,
+                        "max_bytes": max_bytes,
+                        "disk_enabled": self.disk.is_some(),
+                    },
                 })
                 .to_string()
             }
@@ -261,11 +294,18 @@ impl Worker {
         match analyze_script(&request) {
             Ok(manifest) => {
                 let manifest = Arc::new(manifest);
-                if let (Some(disk), Some(disk_key)) = (self.disk.as_ref(), disk_key.as_deref()) {
-                    disk.store(disk_key, manifest.as_ref());
+                // One encoding serves both caches: the disk payload wraps
+                // these bytes and the memory budget uses their length. The
+                // previous flow serialized the manifest twice, then cloned it
+                // again inside `store`.
+                let encoded = serde_json::to_vec(manifest.as_ref()).ok();
+                if let (Some(disk), Some(disk_key), Some(encoded)) =
+                    (self.disk.as_ref(), disk_key.as_deref(), encoded.as_deref())
+                {
+                    disk.store_bytes(disk_key, encoded);
                 }
-                if let Ok(mut cache) = self.cache.lock() {
-                    cache.insert(key, Arc::clone(&manifest));
+                if let (Ok(mut cache), Some(encoded)) = (self.cache.lock(), encoded.as_ref()) {
+                    cache.insert_with_bytes(key, Arc::clone(&manifest), encoded.len());
                 }
                 manifest_response(manifest.as_ref(), false)
             }

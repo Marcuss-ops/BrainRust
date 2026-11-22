@@ -89,6 +89,25 @@ fn shared_worker_splits_editorial_embedding_passages_with_utf8_offsets() {
 }
 
 #[test]
+fn health_reports_cache_occupancy_and_misses() {
+    let worker = Worker::new(4);
+    let request = json!({
+        "operation": "analyze_script",
+        "language": "it",
+        "scenes": [{"scene_id": "s1", "text": "Garlasco, 42 abitanti."}]
+    });
+    let first: serde_json::Value =
+        serde_json::from_str(&worker.handle_line(&request.to_string())).unwrap();
+    assert_eq!(first["ok"], true);
+    let health: serde_json::Value =
+        serde_json::from_str(&worker.handle_line(r#"{"operation":"health"}"#)).unwrap();
+    assert_eq!(health["cache"]["entries"], 1);
+    assert_eq!(health["cache"]["misses"], 1);
+    assert_eq!(health["cache"]["hits"], 0);
+    assert!(health["cache"]["bytes"].as_u64().unwrap() > 0);
+}
+
+#[test]
 fn health_reports_lexicon_provenance_and_model_slots() {
     let worker = Worker::new(1);
     let response: serde_json::Value =
@@ -104,6 +123,21 @@ fn health_reports_lexicon_provenance_and_model_slots() {
         .as_u64()
         .is_some());
     assert!(response["udpipe_model_slots"].as_u64().is_some());
+    assert!(response["udpipe"]["cached_slots"].as_u64().is_some());
+    assert!(response["udpipe"]["loaded_languages"].is_array());
+    assert!(response["udpipe"]["failed_languages"].is_array());
+    assert!(response["udpipe"]["installed_languages"].is_array());
+    assert!(response["udpipe"]["missing_languages"].is_array());
+    assert!(
+        ["disabled", "enabled", "auto"].contains(&response["ner"]["mode"].as_str().unwrap_or(""))
+    );
+    assert!(response["ner"]["model_installed"].is_boolean());
+    assert!(response["ner"]["model_dir"].as_str().is_some());
+    assert!(response["ner"]["worker_started"].is_boolean());
+    assert!(response["cache"]["hits"].as_u64().is_some());
+    assert!(response["cache"]["misses"].as_u64().is_some());
+    assert!(response["cache"]["max_bytes"].as_u64().unwrap() > 0);
+    assert_eq!(response["cache"]["disk_enabled"], false);
     assert_eq!(
         response["entity_linker_version"],
         semantic_core::entity_linker::linker_version()

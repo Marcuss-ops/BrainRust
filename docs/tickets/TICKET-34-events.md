@@ -1,7 +1,7 @@
 # TICKET-34 — events are not a first-class fact
 
 - Priority: P2
-- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
+- Status: DONE (bound/Rust) (2026-11-22; external gate: natural event gold 34d, see “Chiusura 2026-11-22”)
 - Depends on: TICKET-31 (dates), TICKET-32 (places), TICKET-33 (roles)
 - Files: `semantic-core/src/event.rs` (new), `lexicon/events/<lang>.json`,
   `semantic-engine/src/events.rs` (new), `semantic-engine/src/groups.rs`,
@@ -297,3 +297,18 @@ entrambi.
   è passato nell'intero workspace; `cargo clippy -p semantic-engine
   --all-targets --locked -- -D warnings`, `cargo fmt --all -- --check`,
   `build_language_packs.py --check` e `git diff --check` passano.
+
+## Chiusura 2026-11-22 — DONE (bound/Rust)
+
+- Local contract closed: all 12 core event types with trigger lexicons in 11
+  languages, active/passive participant roles, nearest-date and setting-place
+  attachment, discourse-thread-aware cross-scene merge with exact date/place,
+  negation/uncertainty status, 200-frame cap, deterministic order and Go
+  validation. Runtime coverage spans id/pl/ru/tr plus localized
+  negation/uncertainty and the full workspace suite passes.
+- Named external gate: 34d — ≥25 natural events per language across ≥8 types,
+  ≥20 negatives per language, and the 20-case confusable-merge metrics with
+  independent labels. Existing event tests are engineering fixtures, not that
+  gold.
+- Owner decision 2026-11-22: DONE (bound/Rust); the threshold boxes stay
+  unchecked as the named external gate.

@@ -1,7 +1,7 @@
 # TICKET-43 — Expand visual entity types and `Quantity` dimensions
 
 - Priority: P2
-- Status: OPEN (created 2026-11-22)
+- Status: DONE (2026-11-22)
 - Depends on: TICKET-30, TICKET-35
 - Files: `visualner/src/`, `semantic-core/src/types.rs`,
   `semantic-core/src/units.rs`, `lexicon/units/`, `lexicon/type_cues.json`,
@@ -53,17 +53,24 @@
 
 ## Acceptance criteria
 
-- [ ] `lexicon/units/*.json` checks pass and `content_fingerprint` updates.
-- [ ] `ratio`, `growth_rate`, and `rank` have ≥ 10 positive + ≥ 10 negative
+- [x] `lexicon/units/*.json` checks pass and `content_fingerprint` updates.
+- [x] `ratio`, `growth_rate`, and `rank` have ≥ 10 positive + ≥ 10 negative
       cases per dimension across the 11 languages, with 0 false positives on
       existing TICKET-30 negatives.
-- [ ] New entity types have deterministic unit + integration tests (both
+- [x] New entity types have deterministic unit + integration tests (both
       model-free and UDPipe/GLiNER paths where enabled) without regressing the
       existing short/long gold entity recall or precision.
-- [ ] `AnalyzerVersions` bumped; Go `contract/` & `rustexec` enum decoders
+- [x] `AnalyzerVersions` bumped; Go `contract/` & `rustexec` enum decoders
       accept the new types cleanly.
 
 ## Non-goals
 
 - Rewriting historical `entity_index_v1.json` IDs.
 - Inferring medical/legal truth from extracted `DISEASE` or `LAW` entities.
+
+## Verification — 2026-11-22
+
+- `lexicon/entity_type_terms.json` covers the 10 additive types in all 11 languages; `build_language_packs.py --check` validates it and `content_fingerprint` includes it.
+- `semantic-core` unit tests prove exact/head/tail matching in every language; `visualner` integration tests ground 20 cases across languages without changing older OBJECT terms.
+- `ratio`, `growth_rate` and `rank` are in `lexicon/units/*.json`; `quantities::tests` covers 11 positives and language-scoped negatives per dimension.
+- `AnalyzerVersions.visualner` is `visualner.v2.additive_types`; Go `entitytype` folds the new spellings into existing closed families and its tests pass.

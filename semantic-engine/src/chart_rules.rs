@@ -88,7 +88,6 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
             .display_unit_cues
             .iter()
             .any(|cue| cue == suffix)
-        
         {
             display_end = end + first.end;
         }
@@ -257,10 +256,9 @@ pub(crate) fn chart_unit(
     });
     if let Some(currency) = currency {
         let monthly = words.windows(2).any(|pair| {
-            global
-                .monthly_pairs
-                .iter()
-                .any(|expected| expected.len() == 2 && expected[0] == pair[0] && expected[1] == pair[1])
+            global.monthly_pairs.iter().any(|expected| {
+                expected.len() == 2 && expected[0] == pair[0] && expected[1] == pair[1]
+            })
         });
         let yearly = global
             .yearly_cues

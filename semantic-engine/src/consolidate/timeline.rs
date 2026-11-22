@@ -197,6 +197,7 @@ pub(super) fn push_timeline(
         suggested_visual: "timeline".to_string(),
         chart_items: Vec::new(),
         chart_meta: None,
+        visual_payload: None,
         temporal_surfaces,
         // The asset key names the composition, so it must be unique across
         // the whole script, not only inside one scene: the scene prefix makes

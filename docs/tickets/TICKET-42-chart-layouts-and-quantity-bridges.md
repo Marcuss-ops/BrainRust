@@ -1,7 +1,7 @@
 # TICKET-42 — Dynamic chart layouts, `QuantityComparison` delta bridges & ranking bars
 
 - Priority: P1
-- Status: OPEN (created 2026-11-22)
+- Status: DONE (2026-11-22)
 - Depends on: TICKET-30, TICKET-41
 - Files: `semantic-engine/src/groups/charts.rs`,
   `semantic-engine/src/chart_rules.rs`,
@@ -69,22 +69,29 @@
 
 ## Acceptance criteria
 
-- [ ] Annual series emit `timeline_growth` (or `qualified_growth`), share
+- [x] Annual series emit `timeline_growth` (or `qualified_growth`), share
       percentages emit `segmented_total_bar`, scenario comparisons emit
       `scenario_split`, and range comparisons emit `bounded_range_comparison`;
       ordinary comparisons map cleanly without breaking Go consumers.
-- [ ] Grounded `QuantityComparison` (`ratio`, `difference`, `change`) emits
+- [x] Grounded `QuantityComparison` (`ratio`, `difference`, `change`) emits
       a `before_after_metric` proposal with verbatim evidence and byte spans;
       incompatible units/currencies still emit 0 proposals.
-- [ ] Existing tests (`chart_acceptance_36`, `charts_numeric`,
+- [x] Existing tests (`chart_acceptance_36`, `charts_numeric`,
       `chart_multilingual`, `chart_bare_cue`) continue to pass without weakening
       Top-10 rank veto assertions.
-- [ ] `overlay-compiler` and Go consumer (`refactored`) accept the `ChartsPack`
+- [x] `overlay-compiler` and Go consumer (`refactored`) accept the `ChartsPack`
       layout hints without breaking sealed `chart_placements` invariants.
-- [ ] Positive + negative fixture coverage across the 11 languages.
+- [x] Positive + negative fixture coverage across the 11 languages.
 
 ## Non-goals
 
 - Implementing new Chronon shader/geometry primitives (handled in `Chronon3d` /
   `ChrononMotion3D`).
 - Inferring missing percentages to force a pie/donut to sum to 100%.
+
+## Verification — 2026-11-22
+
+- `select_layout` emits `timeline_growth`/`qualified_growth`/`missing_data_timeline`, `segmented_total_bar`, `scenario_split` and `bounded_range_comparison`, with `bar_comparison` as the legacy fallback.
+- Grounded `QuantityComparison` emits a `before_after_metric` proposal and production candidate only for compatible units; incompatible units emit none.
+- Ranked groups emit `ranking_bar` with 2..=10 grounded same-unit values, rank indices excluded, and no `chart` proposal (Top-10 veto preserved).
+- `overlay-compiler` validates the new layout names; Go `rustexec` tests pass.

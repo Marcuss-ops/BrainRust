@@ -256,30 +256,14 @@ fn entity_cards(
 /// number such as "due" must never become a person card or a co-mention group;
 /// measurements feed charts and timelines instead.
 pub(crate) fn is_visual_entity(entity: &VisualEntity) -> bool {
-    matches!(
-        entity.r#type.as_str(),
-        "PERSON"
-            | "ORGANIZATION"
-            | "ORG"
-            | "LOCATION"
-            | "FACILITY"
-            | "BRAND"
-            | "PRODUCT"
-            | "WORK"
-            | "OBJECT"
-            | "STRUCTURE"
-            | "EVENT"
-    )
+    semantic_core::entity_capabilities::entity_capabilities(&entity.r#type).visual_subject
 }
 
 /// A named subject a planner can picture and search: a person, place, venue,
 /// organization, brand, product or work. Generic concepts and measurements
 /// are not subjects of a co-mention grid.
 pub(crate) fn is_named_subject(entity: &VisualEntity) -> bool {
-    matches!(
-        entity.r#type.as_str(),
-        "PERSON" | "ORGANIZATION" | "ORG" | "LOCATION" | "FACILITY" | "BRAND" | "PRODUCT" | "WORK"
-    )
+    semantic_core::entity_capabilities::entity_capabilities(&entity.r#type).named_subject
 }
 
 /// A chart compares like with like: all values share one kind.

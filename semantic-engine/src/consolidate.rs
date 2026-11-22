@@ -84,6 +84,7 @@ fn entity_search_candidate(
         suggested_visual: "search_asset".to_string(),
         chart_items: Vec::new(),
         chart_meta: None,
+        visual_payload: None,
         temporal_surfaces: Vec::new(),
         asset_key: format!("entity:{}", identity.id),
         requires_media: !queries.is_empty(),
@@ -114,6 +115,7 @@ struct RawFact {
 mod concepts;
 mod identities;
 mod producers;
+mod recipes;
 mod stats;
 mod timeline;
 
@@ -122,6 +124,7 @@ use identities::{canonical_facts, collect_identities, is_named_kind};
 use producers::{
     push_charts, push_multiple_entities, push_named_entities, push_ranking_bars, reference_numbers,
 };
+use recipes::push_visual_recipes;
 use stats::{canonical_micro_count, metrics, scene_rank, scene_stats};
 use timeline::{canonical_dates, push_timeline, selected_timeline_groups, timeline_groups};
 
@@ -136,6 +139,7 @@ pub fn build(
     language: &str,
     sources: &[SceneInput],
     scenes: &[SceneManifest],
+    events: &[semantic_core::EventFrame],
     search_entries: &[SearchFeedbackEntry],
     scene_query_seeds: &[(String, Vec<semantic_core::ContextualImageQuery>)],
 ) -> VisualConsolidation {
@@ -184,6 +188,7 @@ pub fn build(
 
     push_charts(scenes, &identities, &reference_keys, &mut candidates);
     push_ranking_bars(sources, scenes, &mut candidates);
+    push_visual_recipes(sources, scenes, events, &identities, &mut candidates);
     push_multiple_entities(scenes, &identities, &mut candidates);
     push_named_entities(scenes, &identities, &mut candidates);
     push_visual_concepts(language, scenes, &identities, &mut candidates);

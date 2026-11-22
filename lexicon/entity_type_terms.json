@@ -10,8 +10,98 @@
     "DISEASE",
     "TECHNOLOGY",
     "ARTWORK",
-    "CELESTIAL"
+    "CELESTIAL",
+    "MEDIA_OUTLET"
   ],
+  "media_outlet_domains": {
+    "de": [
+      "spiegel.de",
+      "welt.de",
+      "zeit.de",
+      "faz.net",
+      "sueddeutsche.de",
+      "dpa.com"
+    ],
+    "en": [
+      "theguardian.com",
+      "nytimes.com",
+      "washingtonpost.com",
+      "reuters.com",
+      "apnews.com",
+      "bbc.com",
+      "ft.com"
+    ],
+    "es": [
+      "elpais.com",
+      "elmundo.es",
+      "lavanguardia.com",
+      "efe.com",
+      "eldiario.es"
+    ],
+    "fr": [
+      "lemonde.fr",
+      "lefigaro.fr",
+      "liberation.fr",
+      "lexpress.fr",
+      "lepoint.fr",
+      "afp.com"
+    ],
+    "id": [
+      "kompas.com",
+      "detik.com",
+      "antaranews.com",
+      "thejakartapost.com",
+      "jawapos.com"
+    ],
+    "it": [
+      "ansa.it",
+      "repubblica.it",
+      "ilfattoquotidiano.it",
+      "ilsole24ore.com",
+      "corriere.it",
+      "lastampa.it",
+      "avvenire.it",
+      "ilpost.it",
+      "notizie.it",
+      "fanpage.it",
+      "today.it",
+      "adnkronos.com",
+      "agi.it",
+      "rainews.it"
+    ],
+    "nl": [
+      "telegraaf.nl",
+      "volkskrant.nl",
+      "nrc.nl",
+      "nos.nl"
+    ],
+    "pl": [
+      "wyborcza.pl",
+      "rzeczpospolita.pl",
+      "onet.pl",
+      "tvn24.pl"
+    ],
+    "pt": [
+      "folha.uol.com.br",
+      "oglobo.globo.com",
+      "estadao.com.br",
+      "publico.pt",
+      "expresso.pt"
+    ],
+    "ru": [
+      "kommersant.ru",
+      "novayagazeta.ru",
+      "vedomosti.ru",
+      "interfax.ru",
+      "tass.ru"
+    ],
+    "tr": [
+      "hurriyet.com.tr",
+      "milliyet.com.tr",
+      "cumhuriyet.com.tr",
+      "aa.com.tr"
+    ]
+  },
   "languages": {
     "de": {
       "ANIMAL": [
@@ -72,6 +162,14 @@
         "asteroid",
         "komet",
         "galaxie"
+      ],
+      "MEDIA_OUTLET": [
+        "der spiegel",
+        "die welt",
+        "die zeit",
+        "frankfurter allgemeine",
+        "süddeutsche zeitung",
+        "dpa"
       ]
     },
     "en": {
@@ -132,6 +230,17 @@
         "asteroid",
         "comet",
         "galaxy"
+      ],
+      "MEDIA_OUTLET": [
+        "the guardian",
+        "the new york times",
+        "washington post",
+        "reuters",
+        "associated press",
+        "bbc news",
+        "financial times",
+        "guardian",
+        "new york times"
       ]
     },
     "es": {
@@ -192,6 +301,13 @@
         "asteroide",
         "cometa",
         "galaxia"
+      ],
+      "MEDIA_OUTLET": [
+        "el país",
+        "el mundo",
+        "la vanguardia",
+        "efe",
+        "el diario"
       ]
     },
     "fr": {
@@ -252,6 +368,15 @@
         "astéroïde",
         "comète",
         "galaxie"
+      ],
+      "MEDIA_OUTLET": [
+        "le monde",
+        "le figaro",
+        "libération",
+        "l'express",
+        "le point",
+        "afp",
+        "figaro"
       ]
     },
     "id": {
@@ -312,6 +437,13 @@
         "asteroid",
         "komet",
         "galaksi"
+      ],
+      "MEDIA_OUTLET": [
+        "kompas",
+        "detik",
+        "antara",
+        "the jakarta post",
+        "java pos"
       ]
     },
     "it": {
@@ -323,6 +455,7 @@
       ],
       "FOOD": [
         "sushi",
+        "pizza",
         "pane",
         "formaggio",
         "zuppa"
@@ -372,6 +505,18 @@
         "asteroide",
         "cometa",
         "galassia"
+      ],
+      "MEDIA_OUTLET": [
+        "il fatto quotidiano",
+        "il sole 24 ore",
+        "corriere della sera",
+        "la repubblica",
+        "la stampa",
+        "ansa",
+        "avvenire",
+        "il post",
+        "fatto quotidiano",
+        "sole 24 ore"
       ]
     },
     "nl": {
@@ -432,6 +577,14 @@
         "asteroïde",
         "komeet",
         "melkweg"
+      ],
+      "MEDIA_OUTLET": [
+        "de telegraaf",
+        "de volkskrant",
+        "nrc handelsblad",
+        "nos",
+        "telegraaf",
+        "volkskrant"
       ]
     },
     "pl": {
@@ -492,6 +645,12 @@
         "asteroida",
         "kometa",
         "galaktyka"
+      ],
+      "MEDIA_OUTLET": [
+        "gazeta wyborcza",
+        "rzeczpospolita",
+        "onet",
+        "tvn24"
       ]
     },
     "pt": {
@@ -552,6 +711,13 @@
         "asteroide",
         "cometa",
         "galáxia"
+      ],
+      "MEDIA_OUTLET": [
+        "folha de s. paulo",
+        "o globo",
+        "estadão",
+        "público",
+        "expresso"
       ]
     },
     "ru": {
@@ -612,6 +778,13 @@
         "астероид",
         "комета",
         "галактика"
+      ],
+      "MEDIA_OUTLET": [
+        "kommersant",
+        "novaya gazeta",
+        "vedomosti",
+        "interfax",
+        "tass"
       ]
     },
     "tr": {
@@ -672,6 +845,12 @@
         "asteroit",
         "kuyruklu yıldız",
         "galaksi"
+      ],
+      "MEDIA_OUTLET": [
+        "hürriyet",
+        "milliyet",
+        "cumhuriyet",
+        "anadolu ajansı"
       ]
     }
   }

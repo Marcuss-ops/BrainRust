@@ -9,6 +9,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
+use crate::numeric::parse_chart_value;
 use crate::{
     cascade_clustered_entrances, rank_entity_overlays, CascadeEntranceItem,
     CascadeEntrancesRequest, EntityRankingInput, EntityRankingScene, RankEntityOverlaysRequest,
@@ -34,6 +35,7 @@ mod media;
 mod presentation;
 mod preset_sampler;
 mod promotion;
+mod visual_recipes;
 
 use admission::*;
 use candidates::*;
@@ -407,45 +409,6 @@ fn seal(
     }
 }
 
-/// Strict verbatim numeric label parser, mirroring `overlays.ParseChartValue`:
-/// digits with at most one decimal separator and one optional trailing
-/// percentage/currency sign. Anything else (number words, embedded digits,
-/// "42 per cento") is rejected instead of coerced.
-fn parse_chart_value(text: &str) -> Option<f64> {
-    let mut value = text.trim();
-    if value.is_empty() {
-        return None;
-    }
-    value = value.trim_matches(|ch| matches!(ch, '%' | '€' | '$' | '£' | '¥'));
-    let compact = value.trim().replace(' ', "");
-    if compact.is_empty() {
-        return None;
-    }
-    let numeric = if compact.matches(',').count() == 1 && !compact.contains('.') {
-        compact.replace(',', ".")
-    } else {
-        compact.replace(',', "")
-    };
-    if numeric.is_empty() || numeric == "-" || numeric == "." || numeric == "-." {
-        return None;
-    }
-    let mut digits = 0usize;
-    let mut separator = false;
-    for (index, ch) in numeric.char_indices() {
-        match ch {
-            '0'..='9' => digits += 1,
-            '.' if !separator && index > 0 => separator = true,
-            '-' if index == 0 => {}
-            _ => return None,
-        }
-    }
-    if digits == 0 {
-        return None;
-    }
-    let parsed: f64 = numeric.parse().ok()?;
-    (!parsed.is_nan() && !parsed.is_infinite()).then_some(parsed)
-}
-
 /// Counts the grounded numeric comparisons the chart lane can render, with the
 /// same rules as `ChartPlacementsForScenes`: 2..6 strict values in one scene
 /// and a window of at least two seconds. The items themselves are generated
@@ -491,3 +454,6 @@ fn count_chart_placements(request: &EditorialPlanV2Request) -> i64 {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "visual_recipes_tests.rs"]
+mod visual_recipes_tests;

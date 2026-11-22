@@ -202,19 +202,7 @@ pub(super) fn visual_action_component(
 }
 
 pub(crate) fn is_visual_query_entity(entity_type: &str) -> bool {
-    matches!(
-        entity_type,
-        "PERSON"
-            | "LOCATION"
-            | "ORG"
-            | "ORGANIZATION"
-            | "FACILITY"
-            | "BRAND"
-            | "PRODUCT"
-            | "OBJECT"
-            | "WORK"
-            | "STRUCTURE"
-    )
+    semantic_core::entity_capabilities::entity_capabilities(entity_type).visual_query
 }
 
 pub(crate) fn is_image_component_type(entity_type: &str) -> bool {

@@ -1,7 +1,7 @@
 # TICKET-36 — pronoun and role-nominal coreference is too conservative
 
 - Priority: P2
-- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
+- Status: DONE (bound/Rust) (2026-11-22; external gate: independent gold and traps 36f, see “Chiusura 2026-11-22”)
 - Depends on: TICKET-35 (reliable antecedent identities); benefits from 33
 - Files: `semantic-engine/src/discourse/{references.rs,resolution.rs,threads.rs}`,
   `semantic-core/src/narrative.rs`, `lexicon/languages/<lang>/pronouns.txt`
@@ -340,3 +340,17 @@ dipende da 35, 36e da 33.
   the current worker hash. Authority remains
   `assistant_draft_pending_human_review`; independent review, agreement
   breadth and the salience margin remain open.
+
+## Chiusura 2026-11-22 — DONE (bound/Rust)
+
+- Local contract closed: structured pronoun/reference inventories in 11
+  languages, gender/number compatibility with curated given names, role
+  nominals with `resolution_basis=role_nominal`, discourse
+  `v7.role_nominal_basis`, deterministic abstention and Go validation. The
+  release draft baseline scores 440/440 status and target matches with zero
+  false resolutions.
+- Named external gate: 36f — independently reviewed gold plus ≥20 traps per
+  language — and 36d salience/margin calibration. The 440-case draft is
+  `assistant_draft_pending_human_review`, not independent evidence.
+- Owner decision 2026-11-22: DONE (bound/Rust); the reviewed-gold and trap
+  boxes stay unchecked as the named external gate.

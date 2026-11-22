@@ -9,12 +9,14 @@ use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
 use regex::Regex;
-use unicode_normalization::UnicodeNormalization;
+use semantic_core::text::{fragment_tokens, is_numeric_token, phrase_tokens};
+
+use crate::numeric::parse_chart_value;
 
 use super::request::{
     CanvasV2, EditorialPlanV2Request, EntityTimelineV2, HeavySentenceV2, ImageCandidateV2,
     ImagePlanV2, MediaV2, NumericLexiconV2, RawEntityV2, RawGeoV2, RawMentionV2, RawSceneV2,
-    RecapBriefV2, SceneAnnotationsV2, SceneV2, TimedAnnotationV2,
+    RecapBriefV2, SceneAnnotationsV2, SceneV2, TimedAnnotationV2, VisualRecipeSpecV2,
 };
 
 #[cfg(test)]
@@ -327,6 +329,7 @@ fn project_scene(
 
     apply_chart_values(&mut out, raw);
     out.chart_layout = raw.chart_layout.clone();
+    apply_visual_recipes(&mut out, raw);
     apply_heavy_sentence_boost(&mut out, heavy);
     drop_disabled_categories(&mut out, scene, canvas, charts_enabled);
     out
@@ -664,39 +667,6 @@ fn endpoint_phrase_timing(
     best.map(|(start, end, _)| (start, end))
 }
 
-fn phrase_tokens(phrase: &str) -> Vec<String> {
-    phrase
-        .split_whitespace()
-        .flat_map(fragment_tokens)
-        .collect()
-}
-
-fn fragment_tokens(field: &str) -> Vec<String> {
-    field
-        .split(is_dash_separator)
-        .filter_map(|fragment| {
-            let token = normalize_token(fragment);
-            (!token.is_empty()).then_some(token)
-        })
-        .collect()
-}
-
-fn normalize_token(token: &str) -> String {
-    let folded: String = token.nfc().collect::<String>().to_lowercase();
-    let folded: String = folded
-        .chars()
-        .map(|ch| match ch {
-            '\u{2018}' | '\u{2019}' | '\u{201B}' | '\u{02BC}' => '\'',
-            other => other,
-        })
-        .collect();
-    folded
-        .trim_matches(|ch: char| ch.is_ascii_punctuation() && ch != '\'')
-        .trim_end_matches('\'')
-        .trim()
-        .to_string()
-}
-
 fn tokens_match(query: &str, candidate: &str) -> bool {
     if query == candidate {
         return true;
@@ -708,32 +678,6 @@ fn tokens_match(query: &str, candidate: &str) -> bool {
         .strip_suffix(query)
         .map(|tail| tail.ends_with('\''))
         .unwrap_or(false)
-}
-
-fn is_numeric_token(token: &str) -> bool {
-    let mut seen_dot = false;
-    let mut seen_digit = false;
-    for ch in token.chars() {
-        match ch {
-            '0'..='9' => seen_digit = true,
-            '.' | ',' if !seen_dot => seen_dot = true,
-            _ => return false,
-        }
-    }
-    seen_digit
-}
-
-fn is_dash_separator(ch: char) -> bool {
-    matches!(
-        ch,
-        '-' | '\u{2010}'
-            | '\u{2011}'
-            | '\u{2012}'
-            | '\u{2013}'
-            | '\u{2014}'
-            | '\u{2015}'
-            | '\u{2212}'
-    )
 }
 
 #[path = "projection/numeric.rs"]
@@ -777,39 +721,28 @@ fn same_float(left: f64, right: f64) -> bool {
     (left - right).abs() <= 1e-9 * 1.0_f64.max(left.abs())
 }
 
-fn parse_chart_value(text: &str) -> Option<f64> {
-    let mut value = text.trim();
-    if value.is_empty() {
-        return None;
+/// Projects the scene's recipe pair and list. The legacy pair stays the first
+/// element so a frozen producer that only knows `visual_recipe` keeps working;
+/// when the producer already listed the same first recipe, it is not repeated.
+fn apply_visual_recipes(out: &mut SceneAnnotationsV2, raw: &RawSceneV2) {
+    out.visual_recipe = raw.visual_recipe.clone();
+    out.visual_payload = raw.visual_payload.clone();
+    out.visual_recipes = raw.visual_recipes.clone();
+    if raw.visual_recipe.trim().is_empty() {
+        return;
     }
-    value = value.trim_matches(|ch| matches!(ch, '%' | '€' | '$' | '£' | '¥'));
-    let compact = value.trim().replace(' ', "");
-    if compact.is_empty() {
-        return None;
+    let first_matches = out.visual_recipes.first().is_some_and(|spec| {
+        spec.recipe.trim() == raw.visual_recipe.trim() && spec.payload == raw.visual_payload
+    });
+    if !first_matches {
+        out.visual_recipes.insert(
+            0,
+            VisualRecipeSpecV2 {
+                recipe: raw.visual_recipe.clone(),
+                payload: raw.visual_payload.clone(),
+            },
+        );
     }
-    let numeric = if compact.matches(',').count() == 1 && !compact.contains('.') {
-        compact.replace(',', ".")
-    } else {
-        compact.replace(',', "")
-    };
-    if numeric.is_empty() || matches!(numeric.as_str(), "-" | "." | "-.") {
-        return None;
-    }
-    let mut digits = 0;
-    let mut separator = false;
-    for (index, ch) in numeric.char_indices() {
-        match ch {
-            '0'..='9' => digits += 1,
-            '.' if !separator && index > 0 => separator = true,
-            '-' if index == 0 => {}
-            _ => return None,
-        }
-    }
-    if digits == 0 {
-        return None;
-    }
-    let parsed: f64 = numeric.parse().ok()?;
-    (!parsed.is_nan() && !parsed.is_infinite()).then_some(parsed)
 }
 
 fn apply_heavy_sentence_boost(out: &mut SceneAnnotationsV2, heavy: &[HeavySentenceV2]) {

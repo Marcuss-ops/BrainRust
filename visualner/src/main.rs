@@ -95,6 +95,9 @@ fn main() {
         println!("{}", supported_spellout_language_count());
         return;
     }
+    // Resolve the bundled ONNX Runtime before any worker thread starts. The
+    // model thread must never mutate process-global environment state.
+    visualner::configure_ner_runtime();
     // The persistent worker serves independent requests from a bounded
     // thread pool; responses stay in input order and byte-identical to the
     // serial loop. `VISUALNER_WORKERS=1` restores serial processing.

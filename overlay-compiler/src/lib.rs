@@ -12,6 +12,7 @@ use serde_json::Value;
 
 mod chapter_bullet;
 mod editorial_plan_v2;
+mod numeric;
 pub use chapter_bullet::*;
 pub use editorial_plan_v2::*;
 

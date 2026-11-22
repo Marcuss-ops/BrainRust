@@ -215,8 +215,13 @@ fn stress_entities_keep_curated_acronym_and_team_types() {
             .iter()
             .find(|entity| entity.text == name)
             .unwrap_or_else(|| panic!("{name} missing: {entities:?}"));
+        // MEDIA_OUTLET is the specific organization type for a curated
+        // outlet (ANSA); every consumer treats it as an organization.
         assert!(
-            matches!(entity.r#type.as_str(), "ORG" | "ORGANIZATION"),
+            matches!(
+                entity.r#type.as_str(),
+                "ORG" | "ORGANIZATION" | "MEDIA_OUTLET"
+            ),
             "{name}: {entity:?}"
         );
     }
@@ -235,6 +240,82 @@ fn stress_entities_keep_curated_acronym_and_team_types() {
             .count(),
         1,
         "an elided article must not create a second organization identity: {entities:?}"
+    );
+}
+
+#[test]
+fn a_curated_outlet_has_one_span_and_one_specific_type() {
+    // The gazetteer scan typed it ORG (no proper-noun evidence) while the
+    // single-token scan typed it MEDIA_OUTLET; both survived and the manifest
+    // order depended on hash iteration. One span, one specific type.
+    for _ in 0..4 {
+        let entities = extract(
+            "ANSA",
+            &ExtractOptions {
+                language: "it".into(),
+                entity_count: 20,
+            },
+        )
+        .unwrap();
+        let outlets: Vec<_> = entities
+            .iter()
+            .filter(|entity| entity.text == "ANSA")
+            .collect();
+        assert_eq!(outlets.len(), 1, "{entities:?}");
+        assert_eq!(outlets[0].r#type, "MEDIA_OUTLET", "{entities:?}");
+    }
+}
+
+#[test]
+fn a_dropped_article_use_a_distinctive_outlet_name() {
+    let entities = extract(
+        "Fatto Quotidiano ha pubblicato l'inchiesta. Repubblica ha rilanciato la notizia.",
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 40,
+        },
+    )
+    .unwrap();
+    assert!(
+        entities
+            .iter()
+            .any(|entity| entity.text == "Fatto Quotidiano" && entity.r#type == "MEDIA_OUTLET"),
+        "the article-less distinctive name is a source: {entities:?}"
+    );
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| entity.text == "Repubblica" && entity.r#type == "MEDIA_OUTLET"),
+        "a bare ambiguous head must not be guessed: {entities:?}"
+    );
+}
+
+#[test]
+fn curated_outlet_domains_are_sources_even_in_lowercase() {
+    let source = "Secondo ansa.it, il debito è salito. Il sito notizie.it riporta la notizia. \
+         Un lettore ha scritto a redazione@ansa.it e il dominio example.com non è una fonte.";
+    let entities = extract(
+        source,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 40,
+        },
+    )
+    .unwrap();
+    for domain in ["ansa.it", "notizie.it"] {
+        let found: Vec<_> = entities
+            .iter()
+            .filter(|entity| entity.text.eq_ignore_ascii_case(domain))
+            .collect();
+        assert_eq!(found.len(), 1, "{domain} must be one mention: {entities:?}");
+        assert_eq!(found[0].r#type, "MEDIA_OUTLET", "{domain}: {entities:?}");
+        assert_eq!(&source[found[0].start..found[0].end], found[0].text);
+    }
+    assert!(
+        !entities
+            .iter()
+            .any(|entity| entity.text.eq_ignore_ascii_case("example.com")),
+        "an unlisted domain is not a source: {entities:?}"
     );
 }
 
@@ -280,8 +361,7 @@ fn capitalized_multilingual_institution_heads_keep_the_full_name() {
 
 #[test]
 fn a_name_particle_fragment_is_not_a_visual_concept() {
-    // The lowercase particle breaks the title-case run, so "Sanne" and
-    // "Vries" were emitted as standalone concepts next to the person. A
+    // The lowercase particle breaks the title-case run, so "Sanne" and    // "Vries" were emitted as standalone concepts next to the person. A
     // concept fully inside a longer person name is a fragment, not B-roll.
     let source = "In 2019 gaf de gemeente Utrecht de ingenieur Sanne de Vries de opdracht om de werkzaamheden te controleren.";
     let entities = extract(

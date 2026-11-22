@@ -4,9 +4,19 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-22 (HEAD `8b70701`), snapshot of an ongoing local
-implementation pass. **31 DONE/CLOSED, 6 PARTIAL (30, 32–36), 5 OPEN (41–45), 3 BLOCKED
-(08, 10, 26).**
+Last verified: 2026-11-22 (working tree), snapshot of an ongoing local
+implementation pass. **45 DONE/CLOSED, 0 PARTIAL, 0 OPEN, 3 BLOCKED (08, 10,
+26).** TICKET-30 and 32–36 are DONE (bound/Rust): the local contract is
+complete and each names its independent gold/review as the external gate.
+TICKET-46 is DONE: the five taxonomy copies now read one
+capability table, `MEDIA_OUTLET` is typed in all 11 languages, `quote_attribution`
+and `source_highlight` exist, the planner lowers five recipes onto certified
+templates, and Go forwards the payload without interpreting it. TICKET-47 is
+DONE (2026-11-22): scenes carry an additive `visual_recipes` list with one
+apply-per-recipe dedupe, outlet domains and unambiguous article-dropped aliases
+close the measured coverage gap, and `role_of` keeps its narrower policy while
+adding `MEDIA_OUTLET`. TICKET-48 is DONE: the three unrendered layouts stay
+validated-but-inert after measuring 0/1/3 scenes in the archived corpus.
 `semantic-engine` passes **355 tests in 28 suites, 0 failed, 4 ignored** at
 HEAD `06ea22c` plus the Polish/noise fixes with the UDPipe 2.5 models loaded
 (`VISUALNER_MODEL_DIR` at `$HOME/.local/share/visualner/models`, 13
@@ -17,6 +27,26 @@ re-scored against it. Details in [Verification — 2026-11-21 (model-backed
 rerun)](#verification--2026-11-21-model-backed-rerun).
 TICKET-27 is CLOSED (`v0.3.8` published on 2026-11-19) and was still counted
 among the blocked entries in the previous line; TICKET-40 is CLOSED too.
+Verification — 2026-11-22 (TICKET 41–45): `cargo fmt --all -- --check`,
+`cargo clippy --workspace --all-targets --locked -- -D warnings`,
+`cargo test --workspace --locked` (**1,216 passed, 0 failed, 7 ignored**),
+`build_language_packs.py --check`, `build_units.py --check`,
+`check_event_lexicons.py`, the 149 overlay-compiler tests plus the 32 frozen
+`overlay_plan_contract` fixtures, and the Go `entitytype`, `rustexec` and
+`kernel/script` suites all pass. TICKET-30/32–36 are DONE (bound/Rust) as of
+2026-11-22: local contract complete, independent gold/review named as the
+external gate in each ticket's “Chiusura 2026-11-22” section; 08/10/26 remain
+BLOCKED on their external gates.
+Verification — 2026-11-22 (audit remediation + TICKET 46–48 closeout):
+`cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --locked
+-- -D warnings`, `cargo test --workspace --locked` (**1,260 passed, 0 failed,
+7 ignored**, 62 binaries, models loaded), `contracts/overlay-v2/verify.sh`
+(Rust contract 33/33, PipelineGen producer wire, RenderingGen corpus traversal),
+`go test ./internal/capabilities/scripts`, `build_language_packs.py --check`,
+`build_units.py --check` and `check_event_lexicons.py` all pass. The
+`layout_only_recipes_stay_validated_but_inert` regression pins the TICKET-48
+decision in the planner.
+
 TICKET-37 adds the persistent manifest cache, TICKET-38 the preflight engine
 and TICKET-39 their cross-repo wire to the Go consumer. The
 six-workstream performance and product plan with acceptance criteria and
@@ -81,30 +111,34 @@ Status vocabulary:
 | [28](TICKET-28-imagecatalog-retirement.md) | P2 | CLOSED (2026-11-18) | The Rust `imagecatalog` crate is retired: workspace entry, crate and tests deleted, shared policy fixture moved under the surviving Go `entitycatalog` test. |
 | [31](TICKET-31-relative-dates.md) | P1 | CLOSED (2026-11-19) | Relative dates in 11 languages: `relative_time.json`, token scan, explicit/reference/narrative anchor, calendar-correct arithmetic, `TemporalFact.relative` + `derived`, optional `ScriptRequest.reference_date` in fingerprint/cache, `AnalyzerVersions.dates`; 231-case positive + 220-case negative matrices and 9 focused tests. |
 | [29](TICKET-29-spoken-number-words.md) | P1 | CLOSED (2026-11-19) | Word numbers in 11 languages: conjunctions, additive/multiplicative runs, fractions, additive/fused halves, approximators and idiom negatives; `NumericFact.form`; 20 positive + 20 negative cases per language (assistant draft), mixed `3 milioni e mezzo` = 3.5e6, `build_language_packs.py --check` gate, `AnalyzerVersions.numbers` bump. 119 visualner + 225 semantic-core lib tests and all semantic-engine integration suites green. |
-| [30](TICKET-30-typed-quantities.md) | P1 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | Unit packs for 11 languages, grounded quantities, chart bridge and Go validation are implemented. The release draft scorer covers 1,784 cases: 1,643/1,643 positive quantity matches, 33/33 ratio/difference/change comparisons, and 33 incompatible comparisons rejected, with zero false positives. Full `semantic-engine`, Clippy and Go `rustexec` suites pass; a new regression verifies Top 10 rankings coexist with ten typed EUR quantities without charting ranks. Broader natural contexts and independent annotation review remain. Report authority is `assistant_draft_pending_human_review`. |
-| [32](TICKET-32-places-and-routes.md) | P1 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | `place_index.v1` contains 195 countries and 199 capitals with Wikidata labels across all 11 supported languages; missing capital labels fall back to English. The builder is offline/checksummed, declares 36 alias collisions and stays under 5 MiB; inflected PL/RU/TR aliases retain exact spans and coordinates. Explicit class cues, indexed context terms and same-sentence parent coherence disambiguate supported collisions such as Luxembourg; role cues, waypoint routes and consecutive-hop merging exist. Broad multilingual gold, wider geo-parent disambiguation and inflection coverage remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [33](TICKET-33-person-roles.md) | P2 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | 40-code role lexicons and grounded extraction now cover all 11 languages; byte-exact spans, same-sentence explicit-date binding, gendered test forms in DE/PL/RU and conservative Turkish gender handling pass. Numeric/spelled ages and directional family/work relations are projected and Go validated. Full inflection coverage and independent gold remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [34](TICKET-34-events.md) | P2 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | Trigger lexicons cover all 12 core event types in all 11 supported languages; runtime tests exercise each type in id/pl/ru/tr and localized negation/uncertainty. Grounded frame assembly and cross-scene merge now require a discourse thread spanning both scenes. Independent natural event gold, confusable-merge metrics and acceptance thresholds remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [35](TICKET-35-entity-disambiguation.md) | P1 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | Rust emits scored candidates with byte-exact feature spans; versioned weights are hashed into health/fingerprint and confusable tests cover 46 surfaces / 276+276 lookups. Context/counter evidence now matches whole words (`entity_linker.v4`/rule `v3`), with localized `type_cues` and a same-thread/same-type `discourse_prior`. Natural 10-language gold and independent margin calibration remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
-| [36](TICKET-36-coreference-pronouns.md) | P2 | PARTIAL (verified 2026-11-21, HEAD `06ea22c`) | `pronouns.v1` and `discourse_reference_terms.v1` cover 11 languages; discourse now uses `discourse.v7.role_nominal_basis`. Release draft gold scores 440/440 status and target matches with zero false resolutions; role nominals emit the dedicated `role_nominal` basis. Independent gold validation, broader agreement/number and salience/margin calibration remain open. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [30](TICKET-30-typed-quantities.md) | P1 | DONE (bound/Rust) (2026-11-22) | Unit packs for 11 languages, grounded quantities, chart bridge and Go validation are implemented. The release draft scorer covers 1,784 cases: 1,643/1,643 positive quantity matches, 33/33 ratio/difference/change comparisons, and 33 incompatible comparisons rejected, with zero false positives. Full `semantic-engine`, Clippy and Go `rustexec` suites pass; a new regression verifies Top 10 rankings coexist with ten typed EUR quantities without charting ranks. Broader natural contexts and independent annotation review remain. Report authority is `assistant_draft_pending_human_review`. |
+| [32](TICKET-32-places-and-routes.md) | P1 | DONE (bound/Rust) (2026-11-22) | `place_index.v1` contains 195 countries and 199 capitals with Wikidata labels across all 11 supported languages; missing capital labels fall back to English. The builder is offline/checksummed, declares 36 alias collisions and stays under 5 MiB; inflected PL/RU/TR aliases retain exact spans and coordinates. Explicit class cues, indexed context terms and same-sentence parent coherence disambiguate supported collisions such as Luxembourg; role cues, waypoint routes and consecutive-hop merging exist. Broad multilingual gold, wider geo-parent disambiguation and inflection coverage remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [33](TICKET-33-person-roles.md) | P2 | DONE (bound/Rust) (2026-11-22) | 40-code role lexicons and grounded extraction now cover all 11 languages; byte-exact spans, same-sentence explicit-date binding, gendered test forms in DE/PL/RU and conservative Turkish gender handling pass. Numeric/spelled ages and directional family/work relations are projected and Go validated. Full inflection coverage and independent gold remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [34](TICKET-34-events.md) | P2 | DONE (bound/Rust) (2026-11-22) | Trigger lexicons cover all 12 core event types in all 11 supported languages; runtime tests exercise each type in id/pl/ru/tr and localized negation/uncertainty. Grounded frame assembly and cross-scene merge now require a discourse thread spanning both scenes. Independent natural event gold, confusable-merge metrics and acceptance thresholds remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [35](TICKET-35-entity-disambiguation.md) | P1 | DONE (bound/Rust) (2026-11-22) | Rust emits scored candidates with byte-exact feature spans; versioned weights are hashed into health/fingerprint and confusable tests cover 46 surfaces / 276+276 lookups. Context/counter evidence now matches whole words (`entity_linker.v4`/rule `v3`), with localized `type_cues` and a same-thread/same-type `discourse_prior`. Natural 10-language gold and independent margin calibration remain. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
+| [36](TICKET-36-coreference-pronouns.md) | P2 | DONE (bound/Rust) (2026-11-22) | `pronouns.v1` and `discourse_reference_terms.v1` cover 11 languages; discourse now uses `discourse.v7.role_nominal_basis`. Release draft gold scores 440/440 status and target matches with zero false resolutions; role nominals emit the dedicated `role_nominal` basis. Independent gold validation, broader agreement/number and salience/margin calibration remain open. Roadmap: [ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md](ROADMAP-SEMANTIC-EXPANSION-2026-11-19.md). |
 | [37](TICKET-37-persistent-manifest-cache.md) | P1 | CLOSED (2026-11-19) | Opt-in disk cache keyed by SHA-256 over the request plus a cache identity (embedded lexicon content including `legal/index.json`, build hash, ICU, model presence): atomic publishes, fail-closed reads, mtime LRU bound. 23 unit + 5 fingerprint + 4 cross-process tests (restart, 8 concurrent writers, model-profile separation, broken dir); T1–T15 observed; memory-only default unchanged. |
 | [38](TICKET-38-preflight-engine.md) | P2 | CLOSED (2026-11-19) | Pure pre-render checks for assets, subtitle timing and per-track overlays (including enclosed overlays), with stable codes and an advisory/blocking split. 14 unit + 4 real-ffprobe tests; no writes. |
 | [39](TICKET-39-cross-repo-wire.md) | P2 | CLOSED (2026-11-19) | `preflight` is a `mediaexec.v2` operation (schemas + golden + consumer copy) with a typed Go caller and a Go-owned `Blocked` decision; `NewSemanticEngineExecutor` forwards `SEMANTIC_CACHE_DIR`/`SEMANTIC_CACHE_MAX_BYTES`, and a `cached:true` hit is logged. Verified cold 3.64 s vs warm 1.56 s on a repeated batch; `v0.3.8` carries the operation and `refactored` pins it. |
 | [40](TICKET-40-entity-index-growth.md) | P1 | CLOSED (verified 2026-11-20) | 86 provenance-tracked rows cover 46 declared collisions; 276 positive and 276 counter-context lookups are frozen and checked in CI. |
-| [41](TICKET-41-chart-lexicon-and-series.md) | P1 | OPEN (2026-11-22) | Move hardcoded chart cue/unit/veto/stopword tables into `lexicon/`, generalize `cross_sentence_series` from 2-point pairs to N-point (`2..=6`) series, and add `chart_meta` + `ChartQualifier` aligned to `ChrononTemplate/ChartsPack.hpp`. |
-| [42](TICKET-42-chart-layouts-and-quantity-bridges.md) | P1 | OPEN (2026-11-22) | Dynamic `suggested_layout` aligned to the 9 `ChartsPack.hpp` styles (`timeline_growth`, `segmented_total_bar`, `scenario_split`, `bounded_range_comparison`, `qualified_growth`, `dual_comparison_bars`), bridge `QuantityComparison` to `before_after_metric`, and emit `ranked_bars` without breaking Top-10 rank vetoes. |
-| [43](TICKET-43-entity-and-quantity-taxonomy-expansion.md) | P2 | OPEN (2026-11-22) | Expand visual entity types (`ANIMAL`, `FOOD`, `VEHICLE`, `LAW`, `COURT_CASE`, `NORP`, `DISEASE`, `TECHNOLOGY`, `ARTWORK`, `CELESTIAL`) and add `ratio`, `growth_rate`, `rank` dimensions to `lexicon/units/`. |
-| [44](TICKET-44-event-taxonomy-expansion.md) | P2 | OPEN (2026-11-22) | Expand `lexicon/events/*.json` across 11 languages with `protest_strike`, `bankruptcy_layoff_ipo`, `sanction_embargo`, `scientific_discovery`, `outbreak_epidemic`, `natural_disaster`, `crime_incident`, `ceasefire_truce`, `record_milestone`. |
-| [45](TICKET-45-visual-recipes-for-extracted-facts.md) | P2 | OPEN (2026-11-22) | Emit grounded `ProductionCandidate` recipes & `editorial_plan.v2` lanes (`relationship_graph`, `role_lower_third`, `route_map`, `choropleth_value_map`, `lifespan_timeline`, `counter_odometer`) for already-extracted semantic facts. |
+| [41](TICKET-41-chart-lexicon-and-series.md) | P1 | DONE (2026-11-22) | `lexicon/chart_cues.json` owns all chart tables; N-point series (`2..=6`) work in all 11 languages; `chart_meta` and additive `ChartItem` qualifier/period/range fields are grounded. Chart regressions and lexicons gates pass. |
+| [42](TICKET-42-chart-layouts-and-quantity-bridges.md) | P1 | DONE (2026-11-22) | Dynamic layouts (`timeline_growth`, `qualified_growth`, `missing_data_timeline`, `segmented_total_bar`, `scenario_split`, `bounded_range_comparison`, `bar_comparison`) and `before_after_metric` bridges are implemented; `ranking_bar` keeps the Top-10 rank veto. Overlay and Go accept the hints. |
+| [43](TICKET-43-entity-and-quantity-taxonomy-expansion.md) | P2 | DONE (2026-11-22) | Ten additive entity types are data-driven in all 11 languages with model-free and tokenizer integration tests; `ratio`, `growth_rate` and `rank` are in the unit packs with 11-language positive/negative coverage. Go folds the new spellings deterministically. |
+| [44](TICKET-44-event-taxonomy-expansion.md) | P2 | DONE (2026-11-22) | Nine new event types are trigger-covered in all 11 languages; Italian lexicon drift is repaired; asserted/negated/uncertain runtime tests and the 28 existing event tests pass. `AnalyzerVersions.events` is bumped. |
+| [45](TICKET-45-visual-recipes-for-extracted-facts.md) | P2 | DONE (2026-11-22) | Six grounded recipes emit typed `visual_payload`s with exact spans and `covered_fact_ids`; positive/negative protocol tests pass; `editorial_plan.v2` preserves the additive recipe/payload and frozen contract fixtures stay byte-identical. |
+| [46](TICKET-46-visual-recipes-wiring-and-cleanup.md) | P1 | DONE (2026-11-22) | One `EntityCapabilities` table replaces five taxonomy copies; `MEDIA_OUTLET` is exact-matched in 11 languages and folded to `Org` in Go; `quote_attribution` and `source_highlight` join existing manifest data; the planner lowers five recipes onto `METRIC_STAT_CARD`, `LOWER_THIRD`, `QUOTE`, `IMPORTANT_PHRASE` and `MAP` without new item kinds; Go forwards `visual_recipe`/`visual_payload` verbatim. 8 + 1 + 6 + 12 Rust tests, the 8-recipe protocol fixture and the targeted Go suites pass. |
+| [47](TICKET-47-multi-recipe-scenes-and-outlet-coverage.md) | P2 | DONE (2026-11-22) | Additive `visual_recipes` list (legacy field first, max 8, empty omitted) with planner dedupe; Go forwards every supported recipe in priority order. Measured 21 missed outlet surfaces in 1,173 archived scenes, so curated domains plus unambiguous article-dropped aliases were added (no suffix matching); `role_of` keeps the narrower policy, adds `MEDIA_OUTLET` and pins the difference from the SSOT. 16 planner + contract + Go wire tests pass. |
+| [48](TICKET-48-unrendered-recipe-layouts.md) | P3 | DONE (2026-11-22) | Measured `relationship_graph` 3, `lifespan_timeline` 1, `choropleth_value_map` 0 in 1,173 scenes. Option 2 chosen for all three: validated-but-inert, still not forwarded by Go; no new layout or `ItemKind` added. |
 
 ## Verification — 2026-11-20 (status audit, open and blocked tickets)
 
 One-by-one recheck against the working tree (`2bbeca1` plus the uncommitted
 work described under “Local Rust progress”). The first pass of this audit
 predates the 33a/34a/35a/36b work and still reported 33, 34 and 36 as OPEN; the
-bullets below are the current state. No non-closed ticket is closable today.
+bullets below are the 2026-11-20 evidence; the 2026-11-22 closure moved 30 and
+32–36 to DONE (bound/Rust) and is recorded in each ticket.
 
-- **30 — PARTIAL confirmed.** `lexicon/units.json`, `semantic-core/src/{units,quantity}.rs`,
+- **30 — DONE (bound/Rust).** `lexicon/units.json`, `semantic-core/src/{units,quantity}.rs`,
   `semantic-engine/src/quantities.rs` and the `quantities` /
   `quantity_comparisons` manifest fields exist and are untouched in this
   working tree. The committed `semantic-engine/fixtures/quantities/report.json`
@@ -114,12 +148,12 @@ bullets below are the current state. No non-closed ticket is closable today.
   positives**; `annotation_authority` is
   `assistant_draft_pending_human_review`. Independent annotation review and
   broader natural contexts remain.
-- **32 — PARTIAL (32a done; 32b/32c/32d initial slices).** The frozen index,
+- **32 — DONE (bound/Rust) (32a done; 32b/32c/32d landed).** The frozen index,
   scene place projection, exact-alias linking, localized role and class cues,
   same-sentence waypoint routes, and same-scene consecutive-hop merging for
   the same grounded person are in place. Cross-scene multi-hop,
   advanced disambiguation, Go parity and gold remain open.
-- **33 — PARTIAL (33a complete seed coverage; runtime 33b/33c and initial 33d slices).** `lexicon/roles/*.json` carry
+- **33 — DONE (bound/Rust) (33a seed; 33b/33c/33d landed).** `lexicon/roles/*.json` carry
   40 role codes each in all 11 languages; `python3 lexicon/tools/check_roles.py` — **PASS**. The
   working tree also contains `PersonRole` / `RoleRank` / `RoleTense` /
   `RoleStatus`, `SceneManifest.person_roles`, `AnalyzerVersions.roles =
@@ -132,13 +166,13 @@ bullets below are the current state. No non-closed ticket is closable today.
   in all 11 languages, and duration phrases remain excluded. The updated Go
   real-worker suite passes. Independent gold and full inflection/form coverage
   remain open.
-- **34 — PARTIAL (34a–34c initial slices done).** Trigger lexicons cover all
+- **34 — DONE (bound/Rust) (34a–34c landed).** Trigger lexicons cover all
   12 core types in all 11 languages; grounded frames reach
   `SemanticManifest.events`; asserted cross-scene repeats require a participant
   thread spanning both scenes plus matching date/place; overlapping entity
   facts are referenced through `source_fact_ids`. Gold and acceptance metrics
   remain.
-- **35 — PARTIAL (35a done; initial 35b slice).** `LinkedEntity.link_candidates`,
+- **35 — DONE (bound/Rust) (35a/35b landed).** `LinkedEntity.link_candidates`,
   `link_margin` and `link_rule` with byte-exact feature spans are implemented;
   `lexicon/link_weights_v1.json` is versioned and its SHA-256 is exposed by
   health and included in the fingerprint. `lexicon/type_cues.json` now feeds
@@ -148,7 +182,7 @@ bullets below are the current state. No non-closed ticket is closable today.
   Go validator accepts six while rejecting seven. Linker gold covers 46
   surfaces with 276 positive + 276 counter-context lookups. Missing: natural
   10-language gold (35c) and independent calibration (35d).
-- **36 — PARTIAL (36a/36b done locally; initial 36c slices).** `pronouns.v1` inventories exist for all 11
+- **36 — DONE (bound/Rust) (36a/36b/36c/36e landed).** `pronouns.v1` inventories exist for all 11
   languages and `build_language_packs.py --check` — **PASS** without changing
   generated pack bytes; `resolution_basis` still exists in
   `discourse/resolution.rs`. Gender compatibility now uses structured pronoun

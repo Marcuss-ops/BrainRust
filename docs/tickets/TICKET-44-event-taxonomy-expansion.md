@@ -1,7 +1,7 @@
 # TICKET-44 — Expand event taxonomy beyond the 12 core types
 
 - Priority: P2
-- Status: OPEN (created 2026-11-22)
+- Status: DONE (2026-11-22)
 - Depends on: TICKET-34
 - Files: `lexicon/events/*.json`,
   `semantic-engine/src/events.rs`,
@@ -49,16 +49,23 @@ rely on event types not covered by those 13 buckets:
 
 ## Acceptance criteria
 
-- [ ] All new event types have trigger coverage in all 11 languages in
+- [x] All new event types have trigger coverage in all 11 languages in
       `lexicon/events/*.json` and pass `build_language_packs.py --check`.
-- [ ] Runtime tests exercise each new type (asserted, negated, uncertain) in
+- [x] Runtime tests exercise each new type (asserted, negated, uncertain) in
       all 11 languages, with exact byte spans and 0 false positives on a
       negative non-event corpus.
-- [ ] Zero regression on existing TICKET-34 tests and long-gold metrics.
-- [ ] `AnalyzerVersions.events` bumped so cached manifests invalidate cleanly.
+- [x] Zero regression on existing TICKET-34 tests and long-gold metrics.
+- [x] `AnalyzerVersions.events` bumped so cached manifests invalidate cleanly.
 
 ## Non-goals
 
 - Closing TICKET-34's independent human-annotated gold gate (stays tracked in
   TICKET-34).
 - Generating free-form event summaries not verbatim in the script.
+
+## Verification — 2026-11-22
+
+- All nine new types have triggers in all 11 `lexicon/events/*.json` files; the pre-existing Italian surface/lemma and role drift is repaired.
+- `semantic-engine/tests/event_taxonomy_44.rs` checks asserted, negated and uncertain frames in all 11 languages, exact trigger spans, participant grounding in at least 8/11 languages per type, and no new frames on neutral text.
+- The 28 existing event unit tests and `check_event_lexicons.py` pass.
+- `AnalyzerVersions.events` is `event_frames.v4.documentary_taxonomy`.

@@ -1,7 +1,7 @@
 //! Conservative, clause-local event frames grounded in typed triggers and
 //! already-grounded participants, dates, and place mentions.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use semantic_core::{
     Candidate, EventEvidence, EventFrame, EventParticipant, EventTime, Place, SentenceSpan,
@@ -492,6 +492,128 @@ pub(crate) fn extract_bounded(input: SceneEventInput<'_>, max_frames: usize) -> 
     extract_bounded_with_tokens(input, &[], max_frames)
 }
 
+/// Per-scene token lookups used by the trigger classifier. The former loop
+/// rescanned every token for each trigger (participle, voice, dependency,
+/// agent); these maps make one pass over the token list instead.
+struct TokenIndex<'a> {
+    by_start: HashMap<usize, &'a visualner::AnalyzedToken>,
+    by_id: HashMap<i32, Vec<&'a visualner::AnalyzedToken>>,
+    agent_heads: HashSet<(Option<i32>, i32)>,
+}
+
+impl<'a> TokenIndex<'a> {
+    fn new(tokens: &'a [visualner::AnalyzedToken]) -> Self {
+        let mut by_start = HashMap::with_capacity(tokens.len());
+        let mut by_id: HashMap<i32, Vec<&'a visualner::AnalyzedToken>> = HashMap::new();
+        let mut agent_heads = HashSet::new();
+        for token in tokens {
+            by_start.entry(token.start).or_insert(token);
+            if let Some(id) = token.id {
+                by_id.entry(id).or_default().push(token);
+            }
+            if token
+                .dependency
+                .as_deref()
+                .is_some_and(|relation| matches!(relation, "obl:agent" | "nmod:agent" | "agent"))
+            {
+                if let Some(head) = token.head {
+                    agent_heads.insert((token.sentence_id, head));
+                }
+            }
+        }
+        Self {
+            by_start,
+            by_id,
+            agent_heads,
+        }
+    }
+
+    fn at(&self, start: usize) -> Option<&'a visualner::AnalyzedToken> {
+        self.by_start.get(&start).copied()
+    }
+
+    fn head_in_sentence(
+        &self,
+        id: i32,
+        sentence: &SentenceSpan,
+    ) -> Option<&'a visualner::AnalyzedToken> {
+        self.by_id
+            .get(&id)?
+            .iter()
+            .copied()
+            .find(|token| token.start >= sentence.start_byte && token.end <= sentence.end_byte)
+    }
+
+    fn has_agent_child(&self, token: &visualner::AnalyzedToken) -> bool {
+        token
+            .id
+            .is_some_and(|id| self.agent_heads.contains(&(token.sentence_id, id)))
+    }
+}
+
+/// The trigger's morphosyntactic reading. Extracted from the loop body so the
+/// six conditions are named and testable instead of nested `tokens.iter().any`
+/// closures.
+#[derive(Default)]
+struct TriggerForm {
+    attributive_participle: bool,
+    participial_predicate: bool,
+    modifier_like_trigger: bool,
+    attributive_work: bool,
+    passive_voice: bool,
+    agent_child: bool,
+}
+
+impl TriggerForm {
+    fn classify(
+        token: Option<&visualner::AnalyzedToken>,
+        index: &TokenIndex<'_>,
+        candidates: &[Candidate],
+        sentence: &SentenceSpan,
+    ) -> Self {
+        let Some(token) = token else {
+            return Self::default();
+        };
+        let dependency = token.dependency.as_deref();
+        let attributive_dependency = dependency.is_some_and(|relation| {
+            relation == "amod" || relation == "acl" || relation.starts_with("acl:")
+        });
+        let participle = token.features.as_deref().is_some_and(|features| {
+            features
+                .split('|')
+                .any(|feature| feature == "VerbForm=Part")
+        });
+        // Only a participle can modify a work attributively. The dependency
+        // parser also attaches finite verbs to the noun they follow ("Nel 2024
+        // pubblicò La vita s'impara" can come back as an advcl of the title),
+        // and treating that as a passive participle hides the real active
+        // agent.
+        let attributive_work = participle
+            && token
+                .head
+                .and_then(|head_id| index.head_in_sentence(head_id, sentence))
+                .is_some_and(|head| {
+                    candidates.iter().any(|candidate| {
+                        candidate.kind == "WORK"
+                            && candidate.start_byte <= head.start
+                            && candidate.end_byte >= head.end
+                    })
+                });
+        Self {
+            attributive_participle: participle && attributive_dependency,
+            participial_predicate: participle,
+            modifier_like_trigger: token.upos.as_deref() == Some("ADJ") || attributive_dependency,
+            attributive_work,
+            passive_voice: token
+                .features
+                .as_deref()
+                .is_some_and(|features| features.split('|').any(|feature| feature == "Voice=Pass"))
+                || matches!(dependency, Some("nsubj:pass" | "csubj:pass")),
+            agent_child: index.has_agent_child(token),
+        }
+    }
+}
+
 /// Uses the exact token/lemma annotations produced during VisualNER analysis.
 /// Literal trigger surfaces remain the no-model fallback.
 pub(crate) fn extract_bounded_with_tokens(
@@ -519,6 +641,7 @@ pub(crate) fn extract_bounded_with_tokens(
         .language_profiles
         .pro_drop_subjects(base_language);
     let sentences = semantic_core::split_sentences(source, language, None);
+    let token_index = TokenIndex::new(tokens);
     let mut frames = Vec::new();
     for (sentence_index, sentence) in sentences.iter().enumerate() {
         let Some(sentence_text) = source.get(sentence.start_byte..sentence.end_byte) else {
@@ -531,94 +654,27 @@ pub(crate) fn extract_bounded_with_tokens(
                 {
                     let trigger_start = sentence.start_byte + local_start;
                     let trigger_end = sentence.start_byte + local_end;
-                    let attributive_participle = tokens.iter().any(|token| {
-                        token.start == trigger_start
-                            && token.features.as_deref().is_some_and(|features| {
-                                features
-                                    .split('|')
-                                    .any(|feature| feature == "VerbForm=Part")
-                            })
-                            && token.dependency.as_deref().is_some_and(|relation| {
-                                relation == "amod"
-                                    || relation == "acl"
-                                    || relation.starts_with("acl:")
-                            })
-                    });
-                    let participial_predicate = tokens.iter().any(|token| {
-                        token.start == trigger_start
-                            && token.features.as_deref().is_some_and(|features| {
-                                features
-                                    .split('|')
-                                    .any(|feature| feature == "VerbForm=Part")
-                            })
-                    });
-                    let modifier_like_trigger = tokens.iter().any(|token| {
-                        token.start == trigger_start
-                            && (token.upos.as_deref() == Some("ADJ")
-                                || token.dependency.as_deref().is_some_and(|relation| {
-                                    relation == "amod"
-                                        || relation == "acl"
-                                        || relation.starts_with("acl:")
-                                }))
-                    });
-                    // Only a participle can modify a work attributively. The
-                    // dependency parser also attaches finite verbs to the noun
-                    // they follow ("Nel 2024 pubblicò La vita s'impara" can come
-                    // back as an advcl of the title), and treating that as a
-                    // passive participle hides the real active agent.
-                    let attributive_work = participial_predicate
-                        && tokens.iter().any(|trigger_token| {
-                            trigger_token.start == trigger_start
-                                && trigger_token.head.is_some_and(|head_id| {
-                                    tokens.iter().any(|head| {
-                                        head.id == Some(head_id)
-                                            && head.start >= sentence.start_byte
-                                            && head.end <= sentence.end_byte
-                                            && candidates.iter().any(|candidate| {
-                                                candidate.kind == "WORK"
-                                                    && candidate.start_byte <= head.start
-                                                    && candidate.end_byte >= head.end
-                                            })
-                                    })
-                                })
-                        });
-                    if attributive_participle && !attributive_work {
+                    let form = TriggerForm::classify(
+                        token_index.at(trigger_start),
+                        &token_index,
+                        candidates,
+                        sentence,
+                    );
+                    if form.attributive_participle && !form.attributive_work {
                         continue;
                     }
-                    if (participial_predicate || modifier_like_trigger)
-                        && !attributive_work
+                    if (form.participial_predicate || form.modifier_like_trigger)
+                        && !form.attributive_work
                         && event_type == "launch_release"
                         && !passive_context(sentence_text, local_start, base_language)
                         && !active_perfect_context(sentence_text, local_start, base_language)
                     {
                         continue;
                     }
-                    let passive = attributive_work
+                    let passive = form.attributive_work
                         || passive_context(sentence_text, local_start, base_language)
-                        || tokens.iter().any(|token| {
-                            token.start == trigger_start
-                                && (token.features.as_deref().is_some_and(|features| {
-                                    features.split('|').any(|feature| feature == "Voice=Pass")
-                                }) || token.dependency.as_deref().is_some_and(|relation| {
-                                    relation == "nsubj:pass" || relation == "csubj:pass"
-                                }))
-                        })
-                        || tokens.iter().any(|token| {
-                            token.start == trigger_start
-                                && token.id.is_some_and(|trigger_id| {
-                                    tokens.iter().any(|argument| {
-                                        argument.sentence_id == token.sentence_id
-                                            && argument.head == Some(trigger_id)
-                                            && argument.dependency.as_deref().is_some_and(
-                                                |relation| {
-                                                    relation == "obl:agent"
-                                                        || relation == "nmod:agent"
-                                                        || relation == "agent"
-                                                },
-                                            )
-                                    })
-                                })
-                        });
+                        || form.passive_voice
+                        || form.agent_child;
                     let duplicate_voice = triggers.iter().any(|other| {
                         let same_trigger = match (&other.surface, &trigger.surface) {
                             (Some(left), Some(right)) => left.eq_ignore_ascii_case(right),
@@ -673,7 +729,7 @@ pub(crate) fn extract_bounded_with_tokens(
                                 });
                                 pro_drop_resolved = true;
                             } else if let Some(person_id) =
-                                established_event_agent(&frames, &event_type, scene_id)
+                                established_event_agent(&frames, event_type, scene_id)
                             {
                                 participants.push(EventParticipant {
                                     role: role.clone(),
@@ -764,10 +820,15 @@ pub(crate) fn extract_bounded_with_tokens(
             }
         }
     }
+    // An active token can also match the passive entry of the same lexeme,
+    // producing two frames over one span. The richer frame is the grounded
+    // one: keep it visible when the classifier keeps only one.
     frames.sort_by(|a, b| {
         a.trigger_start_byte
             .cmp(&b.trigger_start_byte)
             .then(a.event_type.cmp(&b.event_type))
+            .then(b.participants.len().cmp(&a.participants.len()))
+            .then(a.trigger.cmp(&b.trigger))
     });
     frames.dedup_by(|a, b| {
         a.trigger_start_byte == b.trigger_start_byte && a.event_type == b.event_type
@@ -931,1232 +992,5 @@ fn same_place(left: &EventFrame, right: &EventFrame) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn event_matching_uses_shared_udpipe_lemma_and_offsets() {
-        let source = "Augias nacque a Roma.";
-        let start = source.find("nacque").unwrap();
-        let trigger = TriggerEntry {
-            surface: Some("è nato".into()),
-            lemma: "nascere".into(),
-            voice: "active".into(),
-            roles: BTreeMap::new(),
-            pro_drop_roles: Vec::new(),
-        };
-        let tokens = vec![visualner::AnalyzedToken {
-            text: "nacque".into(),
-            lemma: Some("nascere".into()),
-            upos: Some("VERB".into()),
-            features: None,
-            dependency: Some("root".into()),
-            id: Some(2),
-            head: Some(0),
-            sentence_id: Some(0),
-            start,
-            end: start + "nacque".len(),
-        }];
-        assert_eq!(
-            trigger_spans(source, 0, &trigger, &tokens),
-            vec![(start, start + "nacque".len())]
-        );
-    }
-
-    #[test]
-    fn event_participant_uses_udpipe_subject_dependency() {
-        let source = "Anna Bianchi nacque a Roma.";
-        let event_start = source.find("nacque").unwrap();
-        let person = candidate(source, "Anna Bianchi", "person_1", "PERSON");
-        let tokens = vec![
-            visualner::AnalyzedToken {
-                text: "Anna".into(),
-                lemma: Some("Anna".into()),
-                upos: Some("PROPN".into()),
-                features: None,
-                dependency: Some("nsubj".into()),
-                id: Some(1),
-                head: Some(3),
-                sentence_id: Some(0),
-                start: 0,
-                end: 4,
-            },
-            visualner::AnalyzedToken {
-                text: "Bianchi".into(),
-                lemma: Some("Bianchi".into()),
-                upos: Some("PROPN".into()),
-                features: None,
-                dependency: Some("flat:name".into()),
-                id: Some(2),
-                head: Some(1),
-                sentence_id: Some(0),
-                start: 5,
-                end: 12,
-            },
-            visualner::AnalyzedToken {
-                text: "nacque".into(),
-                lemma: Some("nascere".into()),
-                upos: Some("VERB".into()),
-                features: Some("VerbForm=Fin".into()),
-                dependency: Some("root".into()),
-                id: Some(3),
-                head: Some(0),
-                sentence_id: Some(0),
-                start: event_start,
-                end: event_start + 6,
-            },
-        ];
-        let sentences = semantic_core::split_sentences(source, "it", None);
-        let candidates = [person];
-        let found = nearest_candidate(
-            &candidates,
-            &tokens,
-            event_start,
-            event_start + 6,
-            &sentences[0],
-            "subject",
-            false,
-        );
-        assert_eq!(found.map(|value| value.id.as_str()), Some("person_1"));
-    }
-
-    #[test]
-    fn passive_event_links_the_agent_from_udpipe_oblique_agent() {
-        let source = "La Repubblica fu fondata da Eugenio Scalfari.";
-        let trigger_start = source.find("fondata").unwrap();
-        let organization = candidate(source, "Repubblica", "org_1", "ORGANIZATION");
-        let person = candidate(source, "Eugenio Scalfari", "person_1", "PERSON");
-        let tokens = vec![
-            visualner::AnalyzedToken {
-                text: "Repubblica".into(),
-                lemma: Some("Repubblica".into()),
-                upos: Some("PROPN".into()),
-                features: None,
-                dependency: Some("nsubj:pass".into()),
-                id: Some(2),
-                head: Some(4),
-                sentence_id: Some(0),
-                start: source.find("Repubblica").unwrap(),
-                end: source.find("Repubblica").unwrap() + "Repubblica".len(),
-            },
-            visualner::AnalyzedToken {
-                text: "fondata".into(),
-                lemma: Some("fondare".into()),
-                upos: Some("VERB".into()),
-                features: Some("Voice=Pass".into()),
-                dependency: Some("root".into()),
-                id: Some(4),
-                head: Some(0),
-                sentence_id: Some(0),
-                start: trigger_start,
-                end: trigger_start + "fondata".len(),
-            },
-            visualner::AnalyzedToken {
-                text: "Scalfari".into(),
-                lemma: Some("Scalfari".into()),
-                upos: Some("PROPN".into()),
-                features: None,
-                dependency: Some("obl:agent".into()),
-                id: Some(8),
-                head: Some(4),
-                sentence_id: Some(0),
-                start: source.find("Scalfari").unwrap(),
-                end: source.find("Scalfari").unwrap() + "Scalfari".len(),
-            },
-        ];
-        let sentences = semantic_core::split_sentences(source, "it", None);
-        let candidates = [organization, person];
-        let patient = nearest_candidate(
-            &candidates,
-            &tokens,
-            trigger_start,
-            trigger_start + "fondata".len(),
-            &sentences[0],
-            "subject",
-            false,
-        );
-        let agent = nearest_candidate(
-            &candidates,
-            &tokens,
-            trigger_start,
-            trigger_start + "fondata".len(),
-            &sentences[0],
-            "agent",
-            false,
-        );
-        assert_eq!(patient.map(|value| value.id.as_str()), Some("org_1"));
-        assert_eq!(agent.map(|value| value.id.as_str()), Some("person_1"));
-    }
-
-    fn event(scene: &str, date: &str, person: &str) -> EventFrame {
-        EventFrame {
-            id: format!("ev_{scene}"),
-            event_type: "arrest".to_string(),
-            trigger: "arrested".to_string(),
-            trigger_start_byte: 0,
-            trigger_end_byte: 8,
-            participants: vec![EventParticipant {
-                role: "patient".to_string(),
-                entity_id: person.to_string(),
-            }],
-            place_id: None,
-            time: Some(EventTime {
-                fact_index: 0,
-                normalized_date: Some(date.to_string()),
-                derived: false,
-            }),
-            status: "asserted".to_string(),
-            scene_ids: vec![scene.to_string()],
-            evidence: vec![EventEvidence {
-                scene_id: scene.to_string(),
-                start_byte: 0,
-                end_byte: 20,
-                text: "Maya was arrested.".to_string(),
-            }],
-            confidence_basis: vec!["trigger".to_string(), "participant".to_string()],
-            source_fact_ids: vec![format!("fact_{scene}")],
-        }
-    }
-
-    fn thread(entity_id: &str, scene_ids: &[&str]) -> semantic_core::EntityThread {
-        semantic_core::EntityThread {
-            entity_id: entity_id.to_string(),
-            canonical_surface: "Maya Chen".to_string(),
-            entity_type: "PERSON".to_string(),
-            scene_ids: scene_ids.iter().map(|scene| (*scene).to_string()).collect(),
-            first_scene_id: scene_ids[0].to_string(),
-            last_scene_id: scene_ids[scene_ids.len() - 1].to_string(),
-            mention_count: scene_ids.len(),
-            return_count: 0,
-            beats: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn cross_scene_events_merge_with_shared_identity_and_date_only() {
-        let frames = vec![
-            event("s1", "2019", "per_maya"),
-            event("s2", "2019", "per_maya"),
-        ];
-        let no_thread = merge_cross_scene(frames.clone(), &[]);
-        assert_eq!(
-            no_thread.len(),
-            2,
-            "identity reuse without a discourse thread must not merge"
-        );
-        let merged = merge_cross_scene(frames, &[thread("per_maya", &["s1", "s2"])]);
-        assert_eq!(merged.len(), 1);
-        assert_eq!(merged[0].scene_ids, ["s1", "s2"]);
-        assert_eq!(merged[0].evidence.len(), 2);
-        assert_eq!(merged[0].source_fact_ids, ["fact_s1", "fact_s2"]);
-
-        let threads = [
-            thread("per_maya", &["s1", "s2"]),
-            thread("per_other", &["s1", "s2"]),
-        ];
-        let conflicting_dates = merge_cross_scene(
-            vec![
-                event("s1", "2019", "per_maya"),
-                event("s2", "2020", "per_maya"),
-            ],
-            &threads,
-        );
-        assert_eq!(conflicting_dates.len(), 2);
-        let different_person = merge_cross_scene(
-            vec![
-                event("s1", "2019", "per_maya"),
-                event("s2", "2019", "per_other"),
-            ],
-            &threads,
-        );
-        assert_eq!(different_person.len(), 2);
-    }
-
-    fn candidate(source: &str, text: &str, id: &str, kind: &str) -> Candidate {
-        let start_byte = source.find(text).unwrap();
-        Candidate {
-            id: id.to_string(),
-            text: text.to_string(),
-            kind: kind.to_string(),
-            start_byte,
-            end_byte: start_byte + text.len(),
-            sentence_index: 0,
-            evidence: text.to_string(),
-            score: 0.9,
-            provenance: "test".to_string(),
-        }
-    }
-
-    fn extract_with_model(
-        scene_index: usize,
-        scene_id: &str,
-        source: &str,
-        language: &str,
-        candidates: &[Candidate],
-    ) -> Vec<EventFrame> {
-        let analysis = visualner::analyze(
-            source,
-            &visualner::ExtractOptions {
-                language: language.to_string(),
-                entity_count: 50,
-            },
-        )
-        .expect("tagged source analysis");
-        let temporal = semantic_core::temporal_facts(source, language);
-        extract_bounded_with_tokens(
-            SceneEventInput {
-                scene_index,
-                scene_id,
-                source,
-                language,
-                candidates,
-                temporal_facts: &temporal,
-                places: &[],
-            },
-            &analysis.tokens,
-            MAX_EVENT_FRAMES,
-        )
-    }
-
-    fn place(source: &str, text: &str) -> Place {
-        let start_byte = source.find(text).unwrap();
-        Place {
-            id: "pl_1".to_string(),
-            entity_local_id: "loc_1".to_string(),
-            kb_id: Some("wd:Q90".to_string()),
-            link_status: "linked".to_string(),
-            kind: "city".to_string(),
-            name: text.to_string(),
-            lat: Some(48.8566),
-            lon: Some(2.3522),
-            parent_ids: Vec::new(),
-            role: "setting".to_string(),
-            start_byte,
-            end_byte: start_byte + text.len(),
-            sentence_index: 0,
-            evidence: text.to_string(),
-        }
-    }
-
-    #[test]
-    fn passive_arrest_frame_attaches_patient_place_and_date() {
-        let source = "Maya Chen was arrested in Paris in 2019.";
-        let candidates = vec![candidate(source, "Maya Chen", "per_1", "PERSON")];
-        let dates = semantic_core::temporal_facts(source, "en");
-        let places = vec![place(source, "Paris")];
-        let frames = extract(0, "s1", source, "en", &candidates, &dates, &places);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].event_type, "arrest");
-        assert_eq!(frames[0].participants[0].role, "patient");
-        assert_eq!(frames[0].participants[0].entity_id, "per_1");
-        assert_eq!(frames[0].place_id.as_deref(), Some("pl_1"));
-        assert_eq!(
-            frames[0]
-                .time
-                .as_ref()
-                .and_then(|time| time.normalized_date.as_deref()),
-            Some("2019")
-        );
-        assert_eq!(
-            &source[frames[0].trigger_start_byte..frames[0].trigger_end_byte],
-            "arrested"
-        );
-    }
-
-    #[test]
-    fn active_arrest_assigns_agent_and_patient_by_grounded_order() {
-        let source = "Officer Lee arrested Maya Chen.";
-        let candidates = vec![
-            candidate(source, "Officer Lee", "per_1", "PERSON"),
-            candidate(source, "Maya Chen", "per_2", "PERSON"),
-        ];
-        let frames = extract(0, "s1", source, "en", &candidates, &[], &[]);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].participants.len(), 2);
-        assert!(frames[0]
-            .participants
-            .iter()
-            .any(|p| p.role == "agent" && p.entity_id == "per_1"));
-        assert!(frames[0]
-            .participants
-            .iter()
-            .any(|p| p.role == "patient" && p.entity_id == "per_2"));
-    }
-
-    #[test]
-    fn trigger_without_another_grounded_slot_is_dropped() {
-        let source = "The arrest was discussed.";
-        assert!(extract(0, "s1", source, "en", &[], &[], &[]).is_empty());
-    }
-
-    #[test]
-    fn negation_is_preserved_on_a_grounded_frame() {
-        let source = "Maya Chen was not arrested.";
-        let candidates = vec![candidate(source, "Maya Chen", "per_1", "PERSON")];
-        let frames = extract(0, "s1", source, "en", &candidates, &[], &[]);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].status, "negated");
-    }
-
-    #[test]
-    fn italian_passive_trigger_uses_italian_voice_and_cues() {
-        let source = "Anna Bianchi è stata arrestata a Parigi.";
-        let candidates = vec![candidate(source, "Anna Bianchi", "per_1", "PERSON")];
-        let frames = extract_with_model(0, "s1", source, "it", &candidates);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].event_type, "arrest");
-        assert_eq!(frames[0].participants[0].role, "patient");
-    }
-
-    #[test]
-    fn italian_pro_drop_subject_uses_a_unique_recurrent_person_focus() {
-        let source = "Corrado Augias lavorò a Roma. Nel 2006 pubblicò un libro.";
-        let mut person = candidate(source, "Corrado Augias", "person_corrado", "PERSON");
-        let second_mention = Candidate {
-            start_byte: source.rfind("Corrado Augias").unwrap(),
-            end_byte: source.rfind("Corrado Augias").unwrap() + "Corrado Augias".len(),
-            ..person.clone()
-        };
-        person.sentence_index = 0;
-        let frames = extract_with_model(0, "s1", source, "it", &[person, second_mention]);
-        let publication = frames
-            .iter()
-            .find(|frame| frame.event_type == "launch_release")
-            .expect("lemma-triggered publication frame");
-        assert!(publication.participants.iter().any(|participant| {
-            participant.role == "agent" && participant.entity_id == "person_corrado"
-        }));
-        assert!(publication
-            .confidence_basis
-            .iter()
-            .any(|basis| basis == "pro_drop_coref"));
-    }
-
-    #[test]
-    fn italian_passive_publication_uses_possessive_for_unique_author_coreference() {
-        let source =
-            "Corrado Augias fu autore. Tra i suoi successi troviamo Quel treno da Vienna, pubblicato nel 1981.";
-        let person = candidate(source, "Corrado Augias", "person_corrado", "PERSON");
-        let work = candidate(source, "Quel treno da Vienna", "work_train", "WORK");
-        let trigger_start = source.find("pubblicato").unwrap();
-        let head_start = source.find("treno").unwrap();
-        let tokens = vec![
-            visualner::AnalyzedToken {
-                text: "treno".into(),
-                lemma: Some("treno".into()),
-                upos: Some("NOUN".into()),
-                features: None,
-                dependency: Some("nsubj:pass".into()),
-                id: Some(6),
-                head: Some(7),
-                sentence_id: Some(1),
-                start: head_start,
-                end: head_start + "treno".len(),
-            },
-            visualner::AnalyzedToken {
-                text: "pubblicato".into(),
-                lemma: Some("pubblicare".into()),
-                upos: Some("VERB".into()),
-                features: Some("VerbForm=Part|Voice=Pass".into()),
-                dependency: Some("acl".into()),
-                id: Some(7),
-                head: Some(6),
-                sentence_id: Some(1),
-                start: trigger_start,
-                end: trigger_start + "pubblicato".len(),
-            },
-        ];
-        let temporal = semantic_core::temporal_facts(source, "it");
-        let frames = extract_bounded_with_tokens(
-            SceneEventInput {
-                scene_index: 0,
-                scene_id: "s1",
-                source,
-                language: "it",
-                candidates: &[person.clone(), work.clone()],
-                temporal_facts: &temporal,
-                places: &[],
-            },
-            &tokens,
-            MAX_EVENT_FRAMES,
-        );
-        let publication = frames
-            .iter()
-            .find(|frame| frame.event_type == "launch_release")
-            .expect("passive publication frame");
-        assert!(publication.participants.iter().any(|participant| {
-            participant.role == "agent" && participant.entity_id == "person_corrado"
-        }));
-        assert!(publication.participants.iter().any(|participant| {
-            participant.role == "patient" && participant.entity_id == "work_train"
-        }));
-
-        let no_possessive = source.replace("i suoi successi", "i successi");
-        let mut person_without_possessive = person;
-        person_without_possessive.start_byte = no_possessive.find("Corrado Augias").unwrap();
-        person_without_possessive.end_byte =
-            person_without_possessive.start_byte + "Corrado Augias".len();
-        let work_start = no_possessive.find("Quel treno da Vienna").unwrap();
-        let work_without_possessive = Candidate {
-            start_byte: work_start,
-            end_byte: work_start + "Quel treno da Vienna".len(),
-            text: "Quel treno da Vienna".into(),
-            evidence: "Quel treno da Vienna".into(),
-            ..work
-        };
-        let trigger_start = no_possessive.find("pubblicato").unwrap();
-        let head_start = no_possessive.find("treno").unwrap();
-        let no_possessive_tokens = [
-            visualner::AnalyzedToken {
-                start: head_start,
-                end: head_start + "treno".len(),
-                ..tokens[0].clone()
-            },
-            visualner::AnalyzedToken {
-                start: trigger_start,
-                end: trigger_start + "pubblicato".len(),
-                ..tokens[1].clone()
-            },
-        ];
-        let temporal = semantic_core::temporal_facts(&no_possessive, "it");
-        let frames = extract_bounded_with_tokens(
-            SceneEventInput {
-                scene_index: 0,
-                scene_id: "s2",
-                source: &no_possessive,
-                language: "it",
-                candidates: &[person_without_possessive, work_without_possessive],
-                temporal_facts: &temporal,
-                places: &[],
-            },
-            &no_possessive_tokens,
-            MAX_EVENT_FRAMES,
-        );
-        let publication = frames
-            .iter()
-            .find(|frame| frame.event_type == "launch_release")
-            .expect("passive publication still has the grounded work and date");
-        assert!(!publication
-            .participants
-            .iter()
-            .any(|participant| participant.role == "agent"));
-    }
-
-    // A biography often describes the family between two publications, so the
-    // sentence before the omitted subject names two people. The publication
-    // history of the scene still identifies the author.
-    #[test]
-    fn ambiguous_omitted_subject_reuses_the_scene_established_publication_agent() {
-        let source = "Corrado Augias nacque a Roma. Nel 2006 pubblicò Inchiesta su Gesù. Era sposato con Daniela Pasti e aveva una figlia, Natalia. Nel 2024 pubblicò La vita s'impara.";
-        let candidates = vec![
-            candidate(source, "Corrado Augias", "person_corrado", "PERSON"),
-            candidate(source, "Daniela Pasti", "person_daniela", "PERSON"),
-            candidate(source, "Natalia", "person_natalia", "PERSON"),
-            candidate(source, "Inchiesta su Gesù", "work_gesu", "WORK"),
-            candidate(source, "La vita s'impara", "work_vita", "WORK"),
-        ];
-        let frames = extract_with_model(0, "s1", source, "it", &candidates);
-        let publication = frames
-            .iter()
-            .find(|frame| {
-                frame.event_type == "launch_release"
-                    && frame
-                        .evidence
-                        .iter()
-                        .any(|evidence| evidence.text.contains("2024"))
-            })
-            .expect("2024 publication frame");
-        assert!(publication.participants.iter().any(|participant| {
-            participant.role == "agent" && participant.entity_id == "person_corrado"
-        }));
-        assert!(publication
-            .confidence_basis
-            .iter()
-            .any(|basis| basis == "discourse_agent_coref"));
-    }
-
-    #[test]
-    fn election_agreement_and_accident_types_have_grounded_slots() {
-        let election = "Maya Chen was elected in 2019.";
-        let election_candidates = vec![candidate(election, "Maya Chen", "per_1", "PERSON")];
-        let election_frames = extract(
-            0,
-            "s1",
-            election,
-            "en",
-            &election_candidates,
-            &semantic_core::temporal_facts(election, "en"),
-            &[],
-        );
-        assert_eq!(election_frames[0].event_type, "election");
-
-        let agreement = "Maya Chen signed an agreement in 2019.";
-        let agreement_candidates = vec![candidate(agreement, "Maya Chen", "per_1", "PERSON")];
-        let agreement_frames = extract(
-            0,
-            "s1",
-            agreement,
-            "en",
-            &agreement_candidates,
-            &semantic_core::temporal_facts(agreement, "en"),
-            &[],
-        );
-        assert_eq!(agreement_frames[0].event_type, "agreement");
-        assert_eq!(agreement_frames[0].participants[0].role, "signatory");
-
-        let accident = "A truck crashed in Paris in 2019.";
-        let accident_candidates = vec![candidate(accident, "truck", "veh_1", "VEHICLE")];
-        let accident_frames = extract(
-            0,
-            "s1",
-            accident,
-            "en",
-            &accident_candidates,
-            &semantic_core::temporal_facts(accident, "en"),
-            &[],
-        );
-        assert_eq!(accident_frames[0].event_type, "accident_disaster");
-        assert_eq!(accident_frames[0].participants[0].role, "vehicle");
-    }
-
-    #[test]
-    fn all_core_event_types_have_grounded_english_and_italian_triggers() {
-        let cases = [
-            ("en", "Maya Chen was born.", "Maya Chen", "PERSON", "birth"),
-            ("en", "Maya Chen died.", "Maya Chen", "PERSON", "death"),
-            (
-                "en",
-                "Maya Chen was convicted.",
-                "Maya Chen",
-                "PERSON",
-                "trial_verdict",
-            ),
-            (
-                "en",
-                "Maya Chen was appointed.",
-                "Maya Chen",
-                "PERSON",
-                "appointment_resignation",
-            ),
-            (
-                "en",
-                "Acme Labs was founded.",
-                "Acme Labs",
-                "ORG",
-                "founding",
-            ),
-            (
-                "en",
-                "Acme Labs acquired Beta Corp.",
-                "Acme Labs",
-                "ORG",
-                "acquisition_merger",
-            ),
-            (
-                "en",
-                "Acme Labs launched Orion.",
-                "Acme Labs",
-                "ORG",
-                "launch_release",
-            ),
-            (
-                "en",
-                "Maya Chen attacked Lee.",
-                "Maya Chen",
-                "PERSON",
-                "attack_battle",
-            ),
-            (
-                "en",
-                "Maya Chen defeated Lee.",
-                "Maya Chen",
-                "PERSON",
-                "match_competition_result",
-            ),
-            (
-                "it",
-                "Anna Bianchi è nata.",
-                "Anna Bianchi",
-                "PERSON",
-                "birth",
-            ),
-            (
-                "it",
-                "Anna Bianchi nacque a Roma.",
-                "Anna Bianchi",
-                "PERSON",
-                "birth",
-            ),
-            (
-                "it",
-                "Anna Bianchi è morta.",
-                "Anna Bianchi",
-                "PERSON",
-                "death",
-            ),
-            (
-                "it",
-                "Anna Bianchi morì a Roma.",
-                "Anna Bianchi",
-                "PERSON",
-                "death",
-            ),
-            (
-                "it",
-                "Anna Bianchi pubblicò un libro.",
-                "Anna Bianchi",
-                "PERSON",
-                "launch_release",
-            ),
-            (
-                "it",
-                "Anna Bianchi restituì un premio.",
-                "Anna Bianchi",
-                "PERSON",
-                "award_return",
-            ),
-            (
-                "it",
-                "Anna Bianchi è stata condannata.",
-                "Anna Bianchi",
-                "PERSON",
-                "trial_verdict",
-            ),
-            (
-                "it",
-                "Anna Bianchi è stata nominata.",
-                "Anna Bianchi",
-                "PERSON",
-                "appointment_resignation",
-            ),
-            (
-                "it",
-                "Acme Labs è stata fondata.",
-                "Acme Labs",
-                "ORG",
-                "founding",
-            ),
-            (
-                "it",
-                "Acme Labs ha acquisito Beta Corp.",
-                "Acme Labs",
-                "ORG",
-                "acquisition_merger",
-            ),
-            (
-                "it",
-                "Acme Labs ha lanciato Orion.",
-                "Acme Labs",
-                "ORG",
-                "launch_release",
-            ),
-            (
-                "it",
-                "Anna Bianchi ha attaccato Marco.",
-                "Anna Bianchi",
-                "PERSON",
-                "attack_battle",
-            ),
-            (
-                "it",
-                "Milan ha sconfitto Roma.",
-                "Milan",
-                "ORG",
-                "match_competition_result",
-            ),
-        ];
-
-        for (index, (language, source, participant, kind, expected_type)) in
-            cases.into_iter().enumerate()
-        {
-            let candidate = candidate(source, participant, "entity_1", kind);
-            let frames = extract_with_model(index, "event", source, language, &[candidate]);
-            assert!(
-                frames.iter().any(|frame| frame.event_type == expected_type),
-                "missing {expected_type} frame for {language}: {source}; got {frames:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn all_core_event_types_have_grounded_spanish_triggers() {
-        let cases = [
-            ("Maya Chen nació.", "Maya Chen", "PERSON", "birth"),
-            ("Maya Chen murió.", "Maya Chen", "PERSON", "death"),
-            ("Maya Chen fue arrestada.", "Maya Chen", "PERSON", "arrest"),
-            (
-                "Maya Chen fue condenada.",
-                "Maya Chen",
-                "PERSON",
-                "trial_verdict",
-            ),
-            ("Maya Chen fue elegida.", "Maya Chen", "PERSON", "election"),
-            (
-                "Maya Chen fue nombrada.",
-                "Maya Chen",
-                "PERSON",
-                "appointment_resignation",
-            ),
-            ("Acme Labs fue fundada.", "Acme Labs", "ORG", "founding"),
-            (
-                "Acme Labs adquirió Beta Corp.",
-                "Acme Labs",
-                "ORG",
-                "acquisition_merger",
-            ),
-            (
-                "Acme Labs lanzó Orion.",
-                "Acme Labs",
-                "ORG",
-                "launch_release",
-            ),
-            (
-                "El camión se estrelló.",
-                "camión",
-                "VEHICLE",
-                "accident_disaster",
-            ),
-            (
-                "Maya Chen atacó a Lee.",
-                "Maya Chen",
-                "PERSON",
-                "attack_battle",
-            ),
-            (
-                "Maya Chen derrotó a Lee.",
-                "Maya Chen",
-                "PERSON",
-                "match_competition_result",
-            ),
-        ];
-
-        for (index, (source, participant, kind, expected_type)) in cases.into_iter().enumerate() {
-            let candidate = candidate(source, participant, "entity_1", kind);
-            let frames = extract_with_model(index, "event", source, "es", &[candidate]);
-            assert!(
-                frames.iter().any(|frame| frame.event_type == expected_type),
-                "missing {expected_type} frame for es: {source}; got {frames:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn all_core_event_types_have_grounded_french_triggers() {
-        let cases = [
-            ("Maya Chen est née à Paris.", "Maya Chen", "PERSON", "birth"),
-            (
-                "Maya Chen est morte à Paris.",
-                "Maya Chen",
-                "PERSON",
-                "death",
-            ),
-            ("Maya Chen a été arrêtée.", "Maya Chen", "PERSON", "arrest"),
-            (
-                "Maya Chen a été condamnée.",
-                "Maya Chen",
-                "PERSON",
-                "trial_verdict",
-            ),
-            ("Maya Chen a été élue.", "Maya Chen", "PERSON", "election"),
-            (
-                "Maya Chen a été nommée.",
-                "Maya Chen",
-                "PERSON",
-                "appointment_resignation",
-            ),
-            ("Acme Labs a été fondée.", "Acme Labs", "ORG", "founding"),
-            (
-                "Acme Labs a acquis Beta Corp.",
-                "Acme Labs",
-                "ORG",
-                "acquisition_merger",
-            ),
-            (
-                "Acme Labs a lancé Orion.",
-                "Acme Labs",
-                "ORG",
-                "launch_release",
-            ),
-            (
-                "Avion Orion s'est écrasé.",
-                "Avion Orion",
-                "VEHICLE",
-                "accident_disaster",
-            ),
-            (
-                "Maya Chen a attaqué Lee.",
-                "Maya Chen",
-                "PERSON",
-                "attack_battle",
-            ),
-            (
-                "Milan a battu Roma.",
-                "Milan",
-                "ORG",
-                "match_competition_result",
-            ),
-        ];
-
-        for (index, (source, participant, kind, expected_type)) in cases.into_iter().enumerate() {
-            let candidate = candidate(source, participant, "entity_fr", kind);
-            let frames = extract(index, "event-fr", source, "fr", &[candidate], &[], &[]);
-            assert!(
-                frames.iter().any(|frame| frame.event_type == expected_type),
-                "missing {expected_type} frame for fr: {source}; got {frames:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn french_negation_is_preserved_on_event_frames() {
-        let source = "Maya Chen n'a pas été arrêtée.";
-        let candidates = vec![candidate(source, "Maya Chen", "per_fr", "PERSON")];
-        let frames = extract(0, "s-fr", source, "fr", &candidates, &[], &[]);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].status, "negated");
-    }
-
-    #[test]
-    fn french_uncertainty_is_preserved_on_event_frames() {
-        let source = "Maya Chen aurait été arrêtée.";
-        let candidates = vec![candidate(source, "Maya Chen", "per_fr", "PERSON")];
-        let frames = extract(0, "s-fr", source, "fr", &candidates, &[], &[]);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].status, "uncertain");
-    }
-
-    #[test]
-    fn all_core_event_types_have_grounded_portuguese_triggers() {
-        let cases = [
-            (
-                "Maya Chen nasceu em Lisboa.",
-                "Maya Chen",
-                "PERSON",
-                "birth",
-            ),
-            (
-                "Maya Chen morreu em Lisboa.",
-                "Maya Chen",
-                "PERSON",
-                "death",
-            ),
-            ("Maya Chen foi presa.", "Maya Chen", "PERSON", "arrest"),
-            (
-                "Maya Chen foi condenada.",
-                "Maya Chen",
-                "PERSON",
-                "trial_verdict",
-            ),
-            ("Maya Chen foi eleita.", "Maya Chen", "PERSON", "election"),
-            (
-                "Maya Chen foi nomeada.",
-                "Maya Chen",
-                "PERSON",
-                "appointment_resignation",
-            ),
-            ("Acme Labs foi fundada.", "Acme Labs", "ORG", "founding"),
-            (
-                "Acme Labs adquiriu Beta Corp.",
-                "Acme Labs",
-                "ORG",
-                "acquisition_merger",
-            ),
-            (
-                "Acme Labs lançou Orion.",
-                "Acme Labs",
-                "ORG",
-                "launch_release",
-            ),
-            (
-                "Avião Orion sofreu um acidente.",
-                "Avião Orion",
-                "VEHICLE",
-                "accident_disaster",
-            ),
-            (
-                "Maya Chen atacou Lee.",
-                "Maya Chen",
-                "PERSON",
-                "attack_battle",
-            ),
-            (
-                "Milan venceu Roma.",
-                "Milan",
-                "ORG",
-                "match_competition_result",
-            ),
-        ];
-
-        for (index, (source, participant, kind, expected_type)) in cases.into_iter().enumerate() {
-            let candidate = candidate(source, participant, "entity_pt", kind);
-            let frames = extract(index, "event-pt", source, "pt", &[candidate], &[], &[]);
-            assert!(
-                frames.iter().any(|frame| frame.event_type == expected_type),
-                "missing {expected_type} frame for pt: {source}; got {frames:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn portuguese_negation_and_uncertainty_are_preserved_on_event_frames() {
-        for (source, expected) in [
-            ("Maya Chen não foi presa.", "negated"),
-            ("Maya Chen foi presa, supostamente.", "uncertain"),
-        ] {
-            let candidates = vec![candidate(source, "Maya Chen", "per_pt", "PERSON")];
-            let frames = extract(0, "s-pt", source, "pt", &candidates, &[], &[]);
-            assert_eq!(frames.len(), 1, "{source}: {frames:?}");
-            assert_eq!(frames[0].status, expected, "{source}: {frames:?}");
-        }
-    }
-
-    #[test]
-    fn all_core_event_types_have_grounded_german_triggers() {
-        let cases = [
-            (
-                "Maya Chen wurde in Berlin geboren.",
-                "Maya Chen",
-                "PERSON",
-                "birth",
-            ),
-            ("Maya Chen starb in Berlin.", "Maya Chen", "PERSON", "death"),
-            (
-                "Maya Chen wurde festgenommen.",
-                "Maya Chen",
-                "PERSON",
-                "arrest",
-            ),
-            (
-                "Maya Chen wurde verurteilt.",
-                "Maya Chen",
-                "PERSON",
-                "trial_verdict",
-            ),
-            (
-                "Maya Chen wurde gewählt.",
-                "Maya Chen",
-                "PERSON",
-                "election",
-            ),
-            (
-                "Maya Chen wurde ernannt.",
-                "Maya Chen",
-                "PERSON",
-                "appointment_resignation",
-            ),
-            ("Acme Labs wurde gegründet.", "Acme Labs", "ORG", "founding"),
-            (
-                "Acme Labs übernahm Beta Corp.",
-                "Acme Labs",
-                "ORG",
-                "acquisition_merger",
-            ),
-            (
-                "Acme Labs veröffentlichte Orion.",
-                "Acme Labs",
-                "ORG",
-                "launch_release",
-            ),
-            (
-                "Flugzeug Orion stürzte ab.",
-                "Flugzeug Orion",
-                "VEHICLE",
-                "accident_disaster",
-            ),
-            (
-                "Maya Chen attackierte Lee.",
-                "Maya Chen",
-                "PERSON",
-                "attack_battle",
-            ),
-            (
-                "Milan besiegte Roma.",
-                "Milan",
-                "ORG",
-                "match_competition_result",
-            ),
-        ];
-
-        for (index, (source, participant, kind, expected_type)) in cases.into_iter().enumerate() {
-            let candidate = candidate(source, participant, "entity_de", kind);
-            let frames = extract(index, "event-de", source, "de", &[candidate], &[], &[]);
-            assert!(
-                frames.iter().any(|frame| frame.event_type == expected_type),
-                "missing {expected_type} frame for de: {source}; got {frames:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn german_negation_and_uncertainty_are_preserved_on_event_frames() {
-        for (source, expected) in [
-            ("Maya Chen wurde nicht festgenommen.", "negated"),
-            ("Maya Chen wurde angeblich festgenommen.", "uncertain"),
-        ] {
-            let candidates = vec![candidate(source, "Maya Chen", "per_de", "PERSON")];
-            let frames = extract(0, "s-de", source, "de", &candidates, &[], &[]);
-            assert_eq!(frames.len(), 1, "{source}: {frames:?}");
-            assert_eq!(frames[0].status, expected, "{source}: {frames:?}");
-        }
-    }
-
-    #[test]
-    fn all_core_event_types_have_grounded_dutch_triggers() {
-        let cases = [
-            (
-                "Maya Chen werd in Amsterdam geboren.",
-                "Maya Chen",
-                "PERSON",
-                "birth",
-            ),
-            (
-                "Maya Chen overleed in Amsterdam.",
-                "Maya Chen",
-                "PERSON",
-                "death",
-            ),
-            (
-                "Maya Chen werd gearresteerd.",
-                "Maya Chen",
-                "PERSON",
-                "arrest",
-            ),
-            (
-                "Maya Chen werd veroordeeld.",
-                "Maya Chen",
-                "PERSON",
-                "trial_verdict",
-            ),
-            ("Maya Chen werd gekozen.", "Maya Chen", "PERSON", "election"),
-            (
-                "Maya Chen werd benoemd.",
-                "Maya Chen",
-                "PERSON",
-                "appointment_resignation",
-            ),
-            ("Acme Labs werd opgericht.", "Acme Labs", "ORG", "founding"),
-            (
-                "Acme Labs verwierf Beta Corp.",
-                "Acme Labs",
-                "ORG",
-                "acquisition_merger",
-            ),
-            (
-                "Acme Labs publiceerde Orion.",
-                "Acme Labs",
-                "ORG",
-                "launch_release",
-            ),
-            (
-                "Vliegtuig Orion stortte neer.",
-                "Vliegtuig Orion",
-                "VEHICLE",
-                "accident_disaster",
-            ),
-            (
-                "Maya Chen bestormde Lee.",
-                "Maya Chen",
-                "PERSON",
-                "attack_battle",
-            ),
-            (
-                "Milan versloeg Roma.",
-                "Milan",
-                "ORG",
-                "match_competition_result",
-            ),
-        ];
-
-        for (index, (source, participant, kind, expected_type)) in cases.into_iter().enumerate() {
-            let candidate = candidate(source, participant, "entity_nl", kind);
-            let frames = extract(index, "event-nl", source, "nl", &[candidate], &[], &[]);
-            assert!(
-                frames.iter().any(|frame| frame.event_type == expected_type),
-                "missing {expected_type} frame for nl: {source}; got {frames:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn dutch_negation_and_uncertainty_are_preserved_on_event_frames() {
-        for (source, expected) in [
-            ("Maya Chen werd niet gearresteerd.", "negated"),
-            ("Maya Chen werd vermoedelijk gearresteerd.", "uncertain"),
-        ] {
-            let candidates = vec![candidate(source, "Maya Chen", "per_nl", "PERSON")];
-            let frames = extract(0, "s-nl", source, "nl", &candidates, &[], &[]);
-            assert_eq!(frames.len(), 1, "{source}: {frames:?}");
-            assert_eq!(frames[0].status, expected, "{source}: {frames:?}");
-        }
-    }
-
-    #[test]
-    fn all_core_event_types_have_grounded_indonesian_polish_russian_and_turkish_triggers() {
-        for language in ["id", "pl", "ru", "tr"] {
-            let file = lexicon(language).expect("event lexicon should be compiled");
-            for (event_type, triggers) in file.event_types {
-                let first = &triggers[0];
-                let trigger = first.surface.as_deref().unwrap_or(&first.lemma);
-                let source = format!("Maya Chen {trigger}.");
-                let candidate = candidate(&source, "Maya Chen", "per_test", "PERSON");
-                let frames = extract(0, "event-test", &source, language, &[candidate], &[], &[]);
-                assert!(
-                    frames.iter().any(|frame| frame.event_type == event_type),
-                    "missing {event_type} frame for {language}: {source}; got {frames:?}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn negation_and_uncertainty_are_preserved_for_new_event_languages() {
-        for (language, source, expected) in [
-            ("id", "Maya Chen tidak ditangkap.", "negated"),
-            ("id", "Maya Chen diduga ditangkap.", "uncertain"),
-            ("pl", "Maya Chen nie został aresztowany.", "negated"),
-            (
-                "pl",
-                "Maya Chen został prawdopodobnie aresztowany.",
-                "uncertain",
-            ),
-            ("ru", "Maya Chen не арестован.", "negated"),
-            ("ru", "Maya Chen якобы арестован.", "uncertain"),
-            ("tr", "Maya Chen tutuklu değil.", "negated"),
-            ("tr", "Maya Chen muhtemelen tutuklandı.", "uncertain"),
-        ] {
-            let candidates = vec![candidate(source, "Maya Chen", "per_test", "PERSON")];
-            let frames = extract(0, "event-status", source, language, &candidates, &[], &[]);
-            assert_eq!(frames.len(), 1, "{language} {source}: {frames:?}");
-            assert_eq!(frames[0].status, expected, "{language} {source}");
-        }
-    }
-
-    #[test]
-    fn spanish_negation_is_preserved_on_event_frames() {
-        let source = "Maya Chen no fue arrestada.";
-        let candidates = vec![candidate(source, "Maya Chen", "per_1", "PERSON")];
-        let frames = extract_with_model(0, "s1", source, "es", &candidates);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].status, "negated");
-    }
-
-    #[test]
-    fn frame_cap_keeps_the_earliest_source_events() {
-        let source = "Agreement in 2019. Agreement in 2020. Agreement in 2021.";
-        let frames = extract_bounded(
-            SceneEventInput {
-                scene_index: 0,
-                scene_id: "s1",
-                source,
-                language: "en",
-                candidates: &[],
-                temporal_facts: &semantic_core::temporal_facts(source, "en"),
-                places: &[],
-            },
-            2,
-        );
-        assert_eq!(frames.len(), 2);
-        assert!(frames[0].trigger_start_byte < frames[1].trigger_start_byte);
-        assert_eq!(frames[0].event_type, "agreement");
-    }
-}
+#[path = "events_tests.rs"]
+mod tests;

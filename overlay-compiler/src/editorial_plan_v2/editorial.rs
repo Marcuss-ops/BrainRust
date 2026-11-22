@@ -10,6 +10,8 @@
 
 use std::collections::BTreeMap;
 
+use semantic_core::text::phrase_tokens;
+
 use super::error::EditorialPlanError;
 use super::request::{SceneV2, TimingV2};
 use super::response::{EditorialPlanV2Response, ScenePhraseV2};
@@ -317,14 +319,6 @@ fn locate_phrase(timing: &TimingV2, phrase: &str) -> Option<(i64, i64)> {
         }
     }
     None
-}
-
-fn phrase_tokens(value: &str) -> Vec<String> {
-    value
-        .split(|character: char| !character.is_alphanumeric())
-        .filter(|token| !token.is_empty())
-        .map(|token| token.to_lowercase())
-        .collect()
 }
 
 #[cfg(test)]

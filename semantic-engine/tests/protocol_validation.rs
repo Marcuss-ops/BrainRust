@@ -20,7 +20,10 @@ fn replay_of_the_same_script_gives_identical_manifest_and_fingerprint() {
     assert_eq!(first, second);
     assert_eq!(first["schema_version"], "semantic_manifest.v3");
     assert_eq!(first["fingerprint"].as_str().unwrap().len(), 16);
-    assert_eq!(first["analyzers"]["visualner"], "visualner.v2.additive_types");
+    assert_eq!(
+        first["analyzers"]["visualner"],
+        "visualner.v2.additive_types"
+    );
 }
 
 #[test]
@@ -326,6 +329,12 @@ fn ndjson_protocol_serves_health_analysis_and_errors() {
     assert_eq!(health["schema_version"], "semantic_manifest.v3");
     assert_eq!(health["entity_index_version"], "entity_index.v1");
     assert!(health["entity_index_entries"].as_u64().unwrap() >= 8);
+    // Degradation is visible: a worker without models must say so instead of
+    // looking healthy because a slot counter happens to be zero.
+    assert!(health["udpipe"]["missing_languages"].is_array());
+    assert!(health["udpipe"]["loaded_languages"].is_array());
+    assert!(health["ner"]["mode"].as_str().is_some());
+    assert!(health["cache"]["max_entries"].as_u64().is_some());
 
     let request = json!({
         "operation": "analyze_script",

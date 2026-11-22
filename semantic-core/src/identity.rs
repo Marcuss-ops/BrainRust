@@ -262,10 +262,21 @@ fn starts_with_acronym(value: &str) -> bool {
 
 /// Named kinds are eligible for an identity lookup and the VLM identity gate.
 /// Generic visual concepts and objects are B-roll/stock subjects instead.
+/// The editorial role a kind plays in a decision: a named identity gets an
+/// identity card, a visual concept only gets a frame.
+///
+/// This is deliberately narrower than `entity_capabilities::entity_capabilities`'
+/// `named_kind` flag. That flag answers "does the identity registry key this
+/// kind as a name?" and includes the TICKET-43 additive types (ANIMAL, FOOD,
+/// VEHICLE, ...), which are pictured and registered but are not identities: a
+/// tiger is not a person and must not get a name card. MEDIA_OUTLET is the
+/// opposite case: an outlet is an organization for identity and image binding,
+/// so it belongs here even though it is not a pictureable *subject* in
+/// `NAMED_SUBJECTS`.
 pub fn role_of(kind: &str) -> EntityRole {
     match kind {
         "PERSON" | "ORG" | "ORGANIZATION" | "LOCATION" | "FACILITY" | "BRAND" | "PRODUCT"
-        | "WORK" | "EVENT" | "ROLE" => EntityRole::NamedEntity,
+        | "WORK" | "EVENT" | "ROLE" | "MEDIA_OUTLET" => EntityRole::NamedEntity,
         _ => EntityRole::VisualConcept,
     }
 }
@@ -380,7 +391,9 @@ fn identity_key(kind: &str, surface: &str) -> String {
 fn id_prefix(kind: &str) -> &'static str {
     match kind {
         "PERSON" => "person",
-        "ORG" | "ORGANIZATION" => "org",
+        // A media outlet is an organization for every identity consumer; the
+        // specific extraction type must not split its canonical id.
+        "ORG" | "ORGANIZATION" | "MEDIA_OUTLET" => "org",
         "LOCATION" => "location",
         "DATE" => "date",
         "PERCENT" | "NUMBER" | "MONEY" | "MEASUREMENT" => "number",
@@ -547,9 +560,40 @@ mod tests {
         assert_eq!(role_of("PERSON"), EntityRole::NamedEntity);
         assert_eq!(role_of("ORG"), EntityRole::NamedEntity);
         assert_eq!(role_of("BRAND"), EntityRole::NamedEntity);
+        assert_eq!(role_of("MEDIA_OUTLET"), EntityRole::NamedEntity);
         assert_eq!(role_of("VISUAL_CONCEPT"), EntityRole::VisualConcept);
         assert_eq!(role_of("OBJECT"), EntityRole::VisualConcept);
         assert_eq!(role_of("NUMBER"), EntityRole::VisualConcept);
+        // The SSOT's named_kind includes the TICKET-43 additive visual types;
+        // the editorial role does not. Keep the difference explicit so a future
+        // "why not read named_kind?" does not silently create name cards for
+        // animals, diseases or artworks.
+        for kind in [
+            "ANIMAL",
+            "FOOD",
+            "VEHICLE",
+            "LAW",
+            "COURT_CASE",
+            "NORP",
+            "DISEASE",
+            "TECHNOLOGY",
+            "ARTWORK",
+            "CELESTIAL",
+        ] {
+            assert!(
+                crate::entity_capabilities::entity_capabilities(kind).named_kind,
+                "{kind}: the SSOT keys it as a name"
+            );
+            assert_eq!(
+                role_of(kind),
+                EntityRole::VisualConcept,
+                "{kind}: a visual type is not an editorial identity"
+            );
+        }
+        assert!(
+            crate::entity_capabilities::entity_capabilities("MEDIA_OUTLET").named_kind,
+            "MEDIA_OUTLET: the SSOT keys it as a name"
+        );
     }
 
     #[test]

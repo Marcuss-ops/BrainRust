@@ -105,6 +105,64 @@ pub fn cached_model_slots() -> usize {
         .unwrap_or(0)
 }
 
+/// Process-wide model availability, as seen by the worker health response.
+///
+/// A slot count alone cannot distinguish a healthy worker from one running
+/// the model-free fallback: slots are created on first use whether the model
+/// file exists or not, and they stay zero until the first request. This view
+/// separates what is installed on disk (`installed`/`missing`) from what the
+/// process actually loaded (`loaded`/`failed`). `failed` is the degradation
+/// signal: those languages ran without POS evidence at least once.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ModelStatus {
+    /// Language slots currently held by the bounded process cache.
+    pub cached_slots: usize,
+    /// Languages whose model is loaded in this process.
+    pub loaded_languages: Vec<String>,
+    /// Languages whose slot finished with no model (missing or load error).
+    pub failed_languages: Vec<String>,
+    /// Certified languages whose model file exists on disk.
+    pub installed_languages: Vec<String>,
+    /// Certified languages with no model file: POS evidence is unavailable.
+    pub missing_languages: Vec<String>,
+}
+
+/// Reports model availability without loading anything.
+pub fn model_status() -> ModelStatus {
+    let mut status = ModelStatus::default();
+    let profiles = &semantic_core::lexicon::lexicon().language_profiles;
+    for language in profiles.profiles.keys() {
+        if language == "default" || profiles.treebank(language).is_none() {
+            continue;
+        }
+        if model_path(language).is_some() {
+            status.installed_languages.push(language.clone());
+        } else {
+            status.missing_languages.push(language.clone());
+        }
+    }
+    status.installed_languages.sort();
+    status.missing_languages.sort();
+    let Some(slots) = MODELS.get() else {
+        return status;
+    };
+    let guard = match slots.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    status.cached_slots = guard.len();
+    for (language, slot) in &guard.slots {
+        match slot.get() {
+            Some(Some(_)) => status.loaded_languages.push(language.clone()),
+            Some(None) => status.failed_languages.push(language.clone()),
+            None => {}
+        }
+    }
+    status.loaded_languages.sort();
+    status.failed_languages.sort();
+    status
+}
+
 /// Universal POS tags that are phrase material (nouns, proper nouns, numbers).
 const CONTENT_UPOS: &[&str] = &["NOUN", "PROPN", "NUM"];
 

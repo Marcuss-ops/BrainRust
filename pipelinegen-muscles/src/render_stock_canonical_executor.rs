@@ -21,6 +21,29 @@ struct PartJob {
     command: ProcessCommand,
 }
 
+/// Segment scratch directory that removes itself on every exit path. The
+/// executor used to repeat `remove_dir_all` before each early return; a new
+/// `return` could silently leave gigabytes behind.
+struct ScratchDir(PathBuf);
+
+impl ScratchDir {
+    fn create(path: PathBuf) -> std::io::Result<Self> {
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path)?;
+        Ok(Self(path))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for ScratchDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
 pub(super) fn execute_canonical_render(
     plan: &CanonicalRenderPlan,
     request: &Request,
@@ -58,14 +81,16 @@ pub(super) fn execute_canonical_render(
         Err(error) => return failed_response(None, error.to_string()),
     };
     let runner = FFmpegRunner::from_ffmpeg_path(ffmpeg);
-    let temp_dir = PathBuf::from(format!("{part}.segments"));
-    let _ = fs::remove_dir_all(&temp_dir);
-    if let Err(error) = fs::create_dir_all(&temp_dir) {
-        return failed_response(
-            None,
-            format!("canonical render could not create the segment directory: {error}"),
-        );
-    }
+    let scratch = match ScratchDir::create(PathBuf::from(format!("{part}.segments"))) {
+        Ok(scratch) => scratch,
+        Err(error) => {
+            return failed_response(
+                None,
+                format!("canonical render could not create the segment directory: {error}"),
+            )
+        }
+    };
+    let temp_dir = scratch.path();
 
     let mut jobs: Vec<PartJob> = Vec::new();
     // An audio-only intro may precede the first visual segment; validation
@@ -86,7 +111,6 @@ pub(super) fn execute_canonical_render(
         ]);
         command.args(["-frames:v", &leading_gap.to_string(), "-an"]);
         if let Err(error) = append_video_args(&mut command, &encoder, profile, None) {
-            let _ = fs::remove_dir_all(&temp_dir);
             return failed_response(None, error.to_string());
         }
         command.args(["-video_track_timescale", "90000", &path.to_string_lossy()]);
@@ -99,7 +123,6 @@ pub(super) fn execute_canonical_render(
     let mut cursor_frame = leading_gap;
     for segment in &segments {
         let Some((path, frame_count)) = manifest.get(&segment.asset_id) else {
-            let _ = fs::remove_dir_all(&temp_dir);
             return failed_response(
                 None,
                 format!("render_plan asset missing: {}", segment.asset_id),
@@ -110,11 +133,9 @@ pub(super) fn execute_canonical_render(
             .start_frame
             .checked_add(segment.source.frame_count)
         else {
-            let _ = fs::remove_dir_all(&temp_dir);
             return failed_response(None, "render_plan source frame range overflows".to_string());
         };
         if source_end > *frame_count {
-            let _ = fs::remove_dir_all(&temp_dir);
             return failed_response(
                 None,
                 format!(
@@ -139,7 +160,6 @@ pub(super) fn execute_canonical_render(
             ]);
             command.args(["-frames:v", &gap_frames.to_string(), "-an"]);
             if let Err(error) = append_video_args(&mut command, &encoder, profile, None) {
-                let _ = fs::remove_dir_all(&temp_dir);
                 return failed_response(None, error.to_string());
             }
             command.args([
@@ -200,7 +220,6 @@ pub(super) fn execute_canonical_render(
             "-an",
         ]);
         if let Err(error) = append_video_args(&mut command, &encoder, profile, None) {
-            let _ = fs::remove_dir_all(&temp_dir);
             return failed_response(None, error.to_string());
         }
         command.args([
@@ -217,10 +236,9 @@ pub(super) fn execute_canonical_render(
 
     let encode_started = std::time::Instant::now();
     if let Err(error) = run_parts(jobs) {
-        let _ = fs::remove_dir_all(&temp_dir);
         return failed_response(None, error);
     }
-    let parts = fs::read_dir(&temp_dir)
+    let parts = fs::read_dir(temp_dir)
         .map(|entries| {
             let mut paths = entries
                 .filter_map(|entry| entry.ok())
@@ -235,14 +253,12 @@ pub(super) fn execute_canonical_render(
         &runner,
         &parts,
         &part,
-        &temp_dir,
+        temp_dir,
         plan.fps_numerator,
         plan.fps_denominator,
     ) {
-        let _ = fs::remove_dir_all(&temp_dir);
         return failed_response(None, error);
     }
-    let _ = fs::remove_dir_all(&temp_dir);
     let ffmpeg_ms = encode_started.elapsed().as_millis() as i64;
     // Certify the bytes before they replace the published output. The plan
     // says what should have been produced; only a fresh ffprobe proves what

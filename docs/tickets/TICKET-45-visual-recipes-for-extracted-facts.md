@@ -1,7 +1,7 @@
 # TICKET-45 — Visual recipes & layout hints for already-extracted semantic facts
 
 - Priority: P2
-- Status: OPEN (created 2026-11-22)
+- Status: DONE (2026-11-22)
 - Depends on: TICKET-30, TICKET-32, TICKET-33, TICKET-42
 - Files: `semantic-engine/src/proposals.rs`,
   `semantic-engine/src/groups.rs`,
@@ -53,15 +53,15 @@ and layout hints; Go owns scheduling/assets; Chronon owns rendering/animation):
 
 ## Acceptance criteria
 
-- [ ] Each new recipe emits only from grounded facts with verbatim `evidence`
+- [x] Each new recipe emits only from grounded facts with verbatim `evidence`
       and exact `[start_byte, end_byte)` spans; missing slots fail closed (no
       recipe emitted).
-- [ ] Consolidation deduplicates overlapping facts (`covered_fact_ids`) so a
+- [x] Consolidation deduplicates overlapping facts (`covered_fact_ids`) so a
       `choropleth_value_map` or `counter_odometer` does not duplicate a chart or
       plain `fact_card` for the same sentence span unless permitted by budget.
-- [ ] Existing `overlay_plan_contract` frozen fixtures remain byte-identical
+- [x] Existing `overlay_plan_contract` frozen fixtures remain byte-identical
       when new optional inputs are absent.
-- [ ] Unit + protocol tests cover positive and negative cases for all 6 recipes;
+- [x] Unit + protocol tests cover positive and negative cases for all 6 recipes;
       `cargo fmt`, `clippy --all-targets -- -D warnings`, and Go contract sync
       pass.
 
@@ -70,3 +70,10 @@ and layout hints; Go owns scheduling/assets; Chronon owns rendering/animation):
 - Implementing Chronon shaders/keyframe animations (tracked separately in
   `Chronon3d` / `ChrononMotion3D`).
 - Designing Go editorial pacing or UI controls (tracked in `refactored`).
+
+## Verification — 2026-11-22
+
+- `consolidate/recipes.rs` emits `relationship_graph`, `role_lower_third`, `route_map`, `choropleth_value_map`, `lifespan_timeline` and `counter_odometer` only from grounded facts, with verbatim `evidence`, exact spans, typed `visual_payload` and non-empty `covered_fact_ids`.
+- `semantic-engine/tests/visual_recipes_45.rs` covers positive and missing-slot negatives for all six recipes, chart/counter dedupe, and neutral text.
+- `SceneAnnotationsV2`/`RawSceneV2` carry additive `visual_recipe`/`visual_payload`; unknown recipes and non-object payloads fail closed.
+- Frozen `overlay_plan_contract` fixtures remain byte-identical when the new optional inputs are absent.

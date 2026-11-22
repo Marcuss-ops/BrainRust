@@ -270,3 +270,63 @@ fn a_short_scene_without_timing_becomes_one_phrase_card() {
     assert_eq!(annotations.phrases[0].text, "Roma ha 18% il 13 agosto 2007");
     assert_eq!(annotations.phrases[0].duration_us, 4_000_000);
 }
+
+#[test]
+fn grounded_visual_recipe_and_payload_are_projected_verbatim() {
+    let mut plan_request = request(json!({}));
+    let raw = plan_request.scenes[0].raw.as_mut().expect("raw scene");
+    raw.visual_recipe = "counter_odometer".to_string();
+    raw.visual_payload = Some(json!({
+        "recipe": "counter_odometer",
+        "value": 18.0,
+        "unit": "PCT",
+        "subject_label": "Roma"
+    }));
+    project_request(&mut plan_request);
+    let annotations = plan_request.scenes[0]
+        .annotations
+        .as_ref()
+        .expect("projected annotations");
+    assert_eq!(annotations.visual_recipe, "counter_odometer");
+    assert_eq!(
+        annotations.visual_payload.as_ref().expect("payload")["value"],
+        18.0
+    );
+}
+
+#[test]
+fn absent_visual_recipe_keeps_the_request_byte_identical() {
+    let mut plan_request = request(json!({}));
+    project_request(&mut plan_request);
+    let serialized = serde_json::to_string(&plan_request).expect("serialize");
+    assert!(!serialized.contains("visual_recipe"));
+    assert!(!serialized.contains("visual_payload"));
+}
+
+#[test]
+fn unsupported_visual_recipe_and_non_object_payload_fail_closed() {
+    let mut plan_request = request(json!({}));
+    project_request(&mut plan_request);
+    plan_request.scenes[0]
+        .annotations
+        .as_mut()
+        .expect("annotations")
+        .visual_recipe = "hologram".to_string();
+    let error = plan_request
+        .validate_compilable()
+        .expect_err("unknown recipe");
+    assert!(error.to_string().contains("visual_recipe"), "{error}");
+
+    let mut plan_request = request(json!({}));
+    project_request(&mut plan_request);
+    let annotations = plan_request.scenes[0]
+        .annotations
+        .as_mut()
+        .expect("annotations");
+    annotations.visual_recipe = "route_map".to_string();
+    annotations.visual_payload = Some(json!([1, 2, 3]));
+    let error = plan_request
+        .validate_compilable()
+        .expect_err("non-object payload");
+    assert!(error.to_string().contains("visual_payload"), "{error}");
+}

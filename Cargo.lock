@@ -962,6 +962,7 @@ name = "overlay-compiler"
 version = "0.1.0"
 dependencies = [
  "regex",
+ "semantic-core",
  "serde",
  "serde_json",
  "sha2",

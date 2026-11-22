@@ -51,7 +51,7 @@ pub(super) fn candidates(source: &str, language: &str) -> Result<(bool, Vec<Cand
             model_dir.display()
         ));
     }
-    let worker = worker(&model_dir);
+    let worker = worker(&model_dir)?;
     let (response, result) = mpsc::channel();
     worker
         .send(ModelRequest {
@@ -68,25 +68,67 @@ pub(super) fn candidates(source: &str, language: &str) -> Result<(bool, Vec<Cand
     ))
 }
 
-fn worker(model_dir: &std::path::Path) -> &'static Sender<ModelRequest> {
-    NER_WORKER.get_or_init(|| {
-        let (requests, incoming) = mpsc::channel::<ModelRequest>();
-        let model_dir = model_dir.to_path_buf();
-        std::thread::Builder::new()
-            .name("visualner-gliner25".to_string())
-            .spawn(move || {
-                let mut model = load_model(&model_dir);
-                while let Ok(request) = incoming.recv() {
-                    let candidates = model
-                        .as_mut()
-                        .map_err(|error| error.clone())
-                        .map(|model| extract_candidates(model, &request.source, &request.language));
-                    let _ = request.response.send(candidates);
-                }
-            })
-            .expect("could not start GLiNER2.5 worker");
-        requests
-    })
+/// Non-invasive NER state for the worker health response. Reading it never
+/// spawns the model thread and never loads weights.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NerStatus {
+    /// `disabled`, `enabled` (explicitly requested) or `auto`.
+    pub mode: &'static str,
+    /// A GLiNER manifest exists under the resolved model directory.
+    pub model_installed: bool,
+    /// Resolved model directory (for deployment diagnostics).
+    pub model_dir: String,
+    /// The model thread has been started at least once in this process.
+    pub worker_started: bool,
+}
+
+pub fn status() -> NerStatus {
+    let model_dir = model_dir();
+    NerStatus {
+        mode: requested_mode(),
+        model_installed: has_local_model(&model_dir),
+        model_dir: model_dir.to_string_lossy().into_owned(),
+        worker_started: NER_WORKER.get().is_some(),
+    }
+}
+
+fn requested_mode() -> &'static str {
+    match std::env::var("BRAINRUST_NER_MODEL") {
+        Ok(value) if is_disabled_value(&value) => "disabled",
+        Ok(value) if value.eq_ignore_ascii_case("gliner25") => "enabled",
+        _ => "auto",
+    }
+}
+
+fn is_disabled_value(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "off" | "none" | "disabled"
+    )
+}
+
+fn worker(model_dir: &std::path::Path) -> Result<&'static Sender<ModelRequest>, String> {
+    if let Some(sender) = NER_WORKER.get() {
+        return Ok(sender);
+    }
+    let (requests, incoming) = mpsc::channel::<ModelRequest>();
+    let model_dir = model_dir.to_path_buf();
+    std::thread::Builder::new()
+        .name("visualner-gliner25".to_string())
+        .spawn(move || {
+            let mut model = load_model(&model_dir);
+            while let Ok(request) = incoming.recv() {
+                let candidates = model
+                    .as_mut()
+                    .map_err(|error| error.clone())
+                    .map(|model| extract_candidates(model, &request.source, &request.language));
+                let _ = request.response.send(candidates);
+            }
+        })
+        .map_err(|error| format!("could not start GLiNER2.5 worker: {error}"))?;
+    // A concurrent caller may have won the OnceLock; the loser's thread sees
+    // its sender dropped and exits on the first `recv`.
+    Ok(NER_WORKER.get_or_init(|| requests))
 }
 
 fn extract_candidates(model: &mut BoundaryEngine, source: &str, language: &str) -> Vec<Candidate> {
@@ -140,8 +182,21 @@ fn extract_candidates(model: &mut BoundaryEngine, source: &str, language: &str) 
         .collect()
 }
 
-fn load_model(model_dir: &std::path::Path) -> Result<BoundaryEngine, String> {
-    if std::env::var_os("ORT_DYLIB_PATH").is_none() {
+/// Resolves the bundled ONNX Runtime for GLiNER and exports it for the
+/// process. Call this once **before** starting worker threads.
+///
+/// `std::env::set_var` mutates process-global state; doing it from the model
+/// thread could race with any other environment access. The binary calls this
+/// from `main`, and library embedders that enable GLiNER must call it during
+/// their single-threaded startup. When the variable is already set, or no
+/// bundled library exists, this is a no-op.
+pub fn configure_runtime() {
+    static CONFIGURED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    CONFIGURED.get_or_init(|| {
+        if std::env::var_os("ORT_DYLIB_PATH").is_some() {
+            return;
+        }
+        let model_dir = model_dir();
         for name in ["libonnxruntime.so", "libonnxruntime.so.1.23.2"] {
             let candidate = model_dir.join(name);
             if candidate.is_file() {
@@ -149,7 +204,10 @@ fn load_model(model_dir: &std::path::Path) -> Result<BoundaryEngine, String> {
                 break;
             }
         }
-    }
+    });
+}
+
+fn load_model(model_dir: &std::path::Path) -> Result<BoundaryEngine, String> {
     gliner25_rs::init("visualner-gliner25");
     let config = BoundaryConfig::new(model_dir).with_execution(ExecutionMode::Standard);
     BoundaryEngine::new(config).map_err(|error| {
@@ -168,12 +226,7 @@ fn threshold_from_env(name: &str, fallback: f32) -> f32 {
 }
 
 fn model_disabled() -> bool {
-    std::env::var("BRAINRUST_NER_MODEL").is_ok_and(|value| {
-        matches!(
-            value.to_ascii_lowercase().as_str(),
-            "off" | "none" | "disabled"
-        )
-    })
+    std::env::var("BRAINRUST_NER_MODEL").is_ok_and(|value| is_disabled_value(&value))
 }
 
 fn model_dir() -> PathBuf {
@@ -225,4 +278,29 @@ fn entity_kind(label: &str) -> Option<&'static str> {
 fn has_name_shape(text: &str, language: &str) -> bool {
     let profiles = &semantic_core::lexicon::lexicon().language_profiles;
     !profiles.is_cased(language) || text.chars().any(char::is_uppercase)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::entity_kind;
+
+    #[test]
+    fn additive_gliner_labels_project_to_typed_entity_kinds() {
+        for (label, expected) in [
+            ("animal", "ANIMAL"),
+            ("species", "ANIMAL"),
+            ("food", "FOOD"),
+            ("vehicle", "VEHICLE"),
+            ("law", "LAW"),
+            ("court case", "COURT_CASE"),
+            ("norp", "NORP"),
+            ("disease", "DISEASE"),
+            ("technology", "TECHNOLOGY"),
+            ("artwork", "ARTWORK"),
+            ("celestial body", "CELESTIAL"),
+        ] {
+            assert_eq!(entity_kind(label), Some(expected), "{label}");
+        }
+        assert_eq!(entity_kind("untyped"), None);
+    }
 }

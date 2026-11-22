@@ -1,7 +1,7 @@
 # TICKET-32 — places have no kind, coordinates, hierarchy or routes
 
 - Priority: P1
-- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
+- Status: DONE (bound/Rust) (2026-11-22; external gate: multilingual gold 32e, see “Chiusura 2026-11-22”)
 - Depends on: TICKET-35 (a wrong link gives wrong coordinates)
 - Files: `lexicon/place_index_v1.json` (+ `lexicon/tools/build_place_index.py`),
   `semantic-core/src/{place.rs (new),entity_linker.rs}`,
@@ -353,3 +353,20 @@ conservativo e le cue locali non lo richiedono.
   stato rimosso.
 - È uno slice iniziale per le forme flesse, non il gate ≥30 luoghi/lingua né
   il linking geo-parent generale: TICKET-32 resta **PARTIAL**.
+
+## Chiusura 2026-11-22 — DONE (bound/Rust)
+
+- Local contract closed: reproducible `place_index.v1` (195 countries, 199
+  capitals, 11-language labels, 36 declared collisions, <5 MiB, offline
+  checksum), exact-alias linking with coordinates only for unique grounded
+  aliases, class/role cues in 11 languages, explicit class filtering and
+  same-sentence parent/context disambiguation, waypoint routes, same-person
+  hop merging, cross-scene projection and Go validation.
+  `build_place_index.py --check`, the 12 `places` tests, the route tests and the
+  workspace suite pass.
+- Named external gate: 32e — ≥30 places and ≥20 routes per language with kind
+  accuracy, exact-coordinate, stop-order and recall thresholds — plus wider
+  geo-parent and inflection coverage. No synthetic gold was added or counted as
+  reviewed.
+- Owner decision 2026-11-22: DONE (bound/Rust) per the README vocabulary; the
+  reviewed-gold boxes stay unchecked as the named external gate.

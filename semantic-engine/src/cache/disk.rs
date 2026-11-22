@@ -186,15 +186,35 @@ impl DiskCache {
     /// cache, never the request. A manifest larger than the whole budget is not
     /// written, matching the in-memory rule.
     pub fn store(&self, key: &str, manifest: &SemanticManifest) {
-        let payload = Payload {
-            cache_format: CACHE_FORMAT,
-            key: key.to_string(),
-            schema_version: manifest.schema_version.clone(),
-            manifest: manifest.clone(),
-        };
-        let Ok(bytes) = serde_json::to_vec(&payload) else {
+        let Ok(encoded) = serde_json::to_vec(manifest) else {
             return;
         };
+        self.store_bytes(key, &encoded);
+    }
+
+    /// Stores an already-serialized manifest under `key`.
+    ///
+    /// The payload wrapper is assembled around the manifest bytes instead of
+    /// deserializing/rewriting them: the worker encodes the manifest once for
+    /// both the memory budget and this store. The key and schema are small
+    /// JSON strings produced by the serializer, never interpolated raw.
+    pub fn store_bytes(&self, key: &str, encoded_manifest: &[u8]) {
+        let (Ok(key_json), Ok(schema_json)) = (
+            serde_json::to_string(key),
+            serde_json::to_string(crate::SCHEMA_VERSION),
+        ) else {
+            return;
+        };
+        let mut bytes = Vec::with_capacity(encoded_manifest.len() + key_json.len() + 96);
+        bytes.extend_from_slice(b"{\"cache_format\":");
+        bytes.extend_from_slice(CACHE_FORMAT.to_string().as_bytes());
+        bytes.extend_from_slice(b",\"key\":");
+        bytes.extend_from_slice(key_json.as_bytes());
+        bytes.extend_from_slice(b",\"schema_version\":");
+        bytes.extend_from_slice(schema_json.as_bytes());
+        bytes.extend_from_slice(b",\"manifest\":");
+        bytes.extend_from_slice(encoded_manifest);
+        bytes.push(b'}');
         if bytes.len() as u64 > self.max_bytes {
             return;
         }
@@ -317,9 +337,11 @@ fn touch(path: &Path) {
 }
 
 fn lowercase_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
-        out.push_str(&format!("{byte:02x}"));
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
     }
     out
 }
@@ -380,6 +402,28 @@ mod tests {
             serde_json::to_vec(loaded.as_ref()).unwrap(),
             serde_json::to_vec(&manifest).unwrap(),
             "a disk hit must be byte-identical to a fresh analysis"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn pre_encoded_manifest_uses_the_same_payload_format() {
+        let root = temp_root("pre-encoded");
+        let cache = DiskCache::open(root.clone(), DEFAULT_DISK_BYTES).expect("open");
+        let text = "Il comune di Garlasco ha 42 abitanti.";
+        let manifest = manifest(text);
+        let key = key_for(text);
+        let encoded = serde_json::to_vec(&manifest).expect("encode manifest");
+
+        cache.store_bytes(&key, &encoded);
+        let loaded = cache
+            .load(&key, &manifest.fingerprint)
+            .expect("pre-encoded entry loads");
+
+        assert_eq!(
+            serde_json::to_vec(loaded.as_ref()).unwrap(),
+            encoded,
+            "the wrapper must not rewrite the manifest bytes"
         );
         let _ = fs::remove_dir_all(root);
     }

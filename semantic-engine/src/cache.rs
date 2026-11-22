@@ -90,12 +90,24 @@ impl ManifestCache {
     /// the entry cap and the serialized-byte budget hold. A manifest larger
     /// than the whole budget is not cached.
     pub fn insert(&mut self, key: String, manifest: Arc<SemanticManifest>) {
-        if self.max_entries == 0 || self.max_bytes == 0 {
-            return;
-        }
         let bytes = serde_json::to_vec(manifest.as_ref())
             .map(|encoded| encoded.len())
             .unwrap_or(usize::MAX);
+        self.insert_with_bytes(key, manifest, bytes);
+    }
+
+    /// Stores a manifest whose serialized size is already known. The worker
+    /// serializes the manifest once for the disk cache and reuses the length
+    /// here, instead of encoding the same manifest a second time.
+    pub fn insert_with_bytes(
+        &mut self,
+        key: String,
+        manifest: Arc<SemanticManifest>,
+        bytes: usize,
+    ) {
+        if self.max_entries == 0 || self.max_bytes == 0 {
+            return;
+        }
         if bytes > self.max_bytes {
             return;
         }
@@ -124,6 +136,11 @@ impl ManifestCache {
     /// Serialized bytes currently held by the cache.
     pub fn bytes(&self) -> usize {
         self.total_bytes
+    }
+
+    /// Configured `(entry cap, byte budget)` for the health response.
+    pub fn capacity(&self) -> (usize, usize) {
+        (self.max_entries, self.max_bytes)
     }
 
     pub fn is_empty(&self) -> bool {

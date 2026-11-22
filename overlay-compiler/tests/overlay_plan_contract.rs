@@ -880,3 +880,107 @@ fn a_plan_with_a_foreign_output_profile_is_rejected() {
         .expect_err("foreign output profile");
     assert!(error.to_string().contains("output_profile_id"));
 }
+
+#[derive(serde::Deserialize)]
+struct ProtocolManifest {
+    protocol_fixtures: Vec<ProtocolFixture>,
+}
+
+#[derive(serde::Deserialize)]
+struct ProtocolFixture {
+    id: String,
+    source: String,
+    kind: String,
+    expect: String,
+    #[serde(default)]
+    values: Vec<String>,
+    error_contains: Option<String>,
+}
+
+#[test]
+fn the_cross_repo_protocol_fixtures_cover_chart_layouts_and_visual_recipes() {
+    let manifest_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../contracts/overlay-v2/manifest.json");
+    let manifest: ProtocolManifest =
+        serde_json::from_str(&std::fs::read_to_string(&manifest_path).expect("protocol manifest"))
+            .expect("protocol manifest schema");
+    assert!(!manifest.protocol_fixtures.is_empty());
+
+    let mut ids = std::collections::BTreeSet::new();
+    for fixture in &manifest.protocol_fixtures {
+        assert!(ids.insert(&fixture.id), "duplicate protocol fixture id");
+        assert_eq!(fixture.kind, "brainrust_request", "{}", fixture.id);
+
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(&fixture.source);
+        let raw = std::fs::read_to_string(&source)
+            .unwrap_or_else(|error| panic!("{}: {error}", fixture.id));
+        let value: serde_json::Value = serde_json::from_str(&raw).expect("protocol fixture JSON");
+        let request = parse_request(&raw);
+
+        match fixture.expect.as_str() {
+            "compiled" => {
+                request
+                    .validate_compilable()
+                    .expect("protocol fixture validates");
+                compile_overlay_plan_v2(&request).expect("protocol fixture compiles");
+
+                let mut observed = Vec::new();
+                for scene in value["scenes"].as_array().expect("scenes") {
+                    let annotations = &scene["annotations"];
+                    if let Some(layout) = annotations["chart_layout"].as_str() {
+                        observed.push(layout.to_string());
+                    }
+                    if let Some(recipe) = annotations["visual_recipe"].as_str() {
+                        assert!(
+                            annotations["visual_payload"].is_object(),
+                            "{}: visual_payload must be an object",
+                            fixture.id
+                        );
+                        assert_eq!(
+                            annotations["visual_payload"]["recipe"], recipe,
+                            "{}: visual_payload recipe must match",
+                            fixture.id
+                        );
+                        observed.push(recipe.to_string());
+                    }
+                    for spec in annotations["visual_recipes"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                    {
+                        let recipe = spec["recipe"]
+                            .as_str()
+                            .unwrap_or_else(|| panic!("{}: missing recipe", fixture.id));
+                        assert!(
+                            spec["payload"].is_object(),
+                            "{}: visual_recipes payload must be an object",
+                            fixture.id
+                        );
+                        assert_eq!(
+                            spec["payload"]["recipe"], recipe,
+                            "{}: visual_recipes payload recipe must match",
+                            fixture.id
+                        );
+                        observed.push(recipe.to_string());
+                    }
+                }
+                assert_eq!(observed, fixture.values, "{}: protocol values", fixture.id);
+            }
+            "rejected" => {
+                let error = request
+                    .validate_compilable()
+                    .expect_err("unsupported protocol fixture must fail closed");
+                assert!(
+                    error
+                        .to_string()
+                        .contains(fixture.error_contains.as_deref().unwrap_or("")),
+                    "{}: unexpected error: {error}",
+                    fixture.id
+                );
+            }
+            other => panic!("{}: unknown expectation {other}", fixture.id),
+        }
+    }
+}

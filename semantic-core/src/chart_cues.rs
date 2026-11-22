@@ -89,12 +89,14 @@ pub struct LanguageChartCues {
     pub share_context_cues: Vec<String>,
     #[serde(default)]
     pub growth_cues: Vec<String>,
+    /// Hypothetical/forecast cues that split one comparison into scenarios.
+    #[serde(default)]
+    pub scenario_cues: Vec<String>,
 }
 
 fn parse() -> ChartCueFile {
-    let file: ChartCueFile =
-        serde_json::from_str(include_str!("../../lexicon/chart_cues.json"))
-            .expect("embedded chart cue lexicon must be valid JSON");
+    let file: ChartCueFile = serde_json::from_str(include_str!("../../lexicon/chart_cues.json"))
+        .expect("embedded chart cue lexicon must be valid JSON");
     assert_eq!(
         file.schema, CHART_CUES_SCHEMA,
         "unsupported chart cue lexicon schema"

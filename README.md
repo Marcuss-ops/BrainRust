@@ -147,8 +147,31 @@ automatically):
 ./visualner/tools/install_udpipe_models.sh
 ```
 
+### Health and model degradation
+
+The `health` operation is the deployment probe. Besides the lexicon and entity
+linker provenance it reports:
+
+- `udpipe.installed_languages` / `udpipe.missing_languages`: certified languages
+  whose model file exists or is absent, read from disk without loading it;
+- `udpipe.loaded_languages` / `udpipe.failed_languages`: what this process
+  actually loaded, or tried and failed (a language in `failed_languages` is
+  running the model-free fallback);
+- `ner.mode` (`auto`, `enabled`, `disabled`), `ner.model_installed`,
+  `ner.model_dir` and `ner.worker_started` for GLiNER2.5;
+- `cache.entries`/`bytes`/`hits`/`misses` plus the configured caps and whether
+  the persistent disk cache is enabled.
+
+`udpipe_model_slots` is kept for older probes, but it counts created slots
+(including languages with no model and slots that stay zero until first use),
+so it cannot distinguish a healthy worker from a degraded one. Alert on
+`missing_languages`, `failed_languages` and `ner.mode == "disabled"` instead.
+A worker is allowed to run degraded by design; it must never do so silently.
+
 The suite fails closed when a declared model is missing; it never silently
-degrades to the model-free extractor.
+degrades to the model-free extractor. `VISUALNER_MODEL_DIR` selects the model
+directory (default `$HOME/.local/share/visualner/models`), and
+`BRAINRUST_NER_MODEL=off|none|disabled` turns GLiNER off explicitly.
 
 ```sh
 cd <this repository>

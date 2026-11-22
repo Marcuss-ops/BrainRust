@@ -72,11 +72,13 @@ fn a_four_sentence_annual_series_is_one_n_point_line_series_in_eleven_languages(
             .filter_map(|item| item["value"].as_f64())
             .collect();
         if values != [120.0, 180.0, 210.0, 240.0] {
-            failures.push(format!("{language}: expected 4 ordered values, found {values:?}"));
-        }
-        if chart["suggested_visual"] != "line_series" {
             failures.push(format!(
-                "{language}: expected line_series, found {}",
+                "{language}: expected 4 ordered values, found {values:?}"
+            ));
+        }
+        if chart["suggested_visual"] != "timeline_growth" {
+            failures.push(format!(
+                "{language}: expected timeline_growth, found {}",
                 chart["suggested_visual"]
             ));
         }
@@ -130,7 +132,14 @@ fn chart_metadata_exposes_grounded_metric_unit_dimension_and_period() {
     assert_eq!(meta["unit"], "EUR", "{meta}");
     assert_eq!(meta["dimension"], "currency", "{meta}");
     assert_eq!(meta["series_type"], "time", "{meta}");
-    assert_eq!(chart["suggested_visual"], "line_series");
+    assert_eq!(chart["suggested_visual"], "timeline_growth");
+    let items = chart["chart_items"].as_array().expect("items");
+    assert_eq!(items[0]["period"], "2021", "{items:?}");
+    assert_eq!(items[1]["period"], "2022", "{items:?}");
+    assert!(
+        items.iter().all(|item| item["qualifier"] == "exact"),
+        "{items:?}"
+    );
     let production = manifest["visual_consolidation"]["production_candidates"]
         .as_array()
         .expect("production candidates")
@@ -146,13 +155,19 @@ fn layouts_distinguish_share_from_comparison() {
     let donut = manifest_value_for("en", vec![scene("donut", donut_text)]);
     let charts = proposals_of(&donut["scenes"][0], "chart");
     assert!(!charts.is_empty(), "{}", donut["scenes"][0]);
-    assert_eq!(charts[0]["suggested_visual"], "donut_share");
+    assert_eq!(charts[0]["suggested_visual"], "segmented_total_bar");
 
     let bar_text = "Aurora recorded 42% compared with 18% for Lumen.";
     let bar = manifest_value_for("en", vec![scene("bar", bar_text)]);
     let charts = proposals_of(&bar["scenes"][0], "chart");
     assert!(!charts.is_empty(), "{}", bar["scenes"][0]);
     assert_eq!(charts[0]["suggested_visual"], "bar_comparison");
+
+    let scenario_text = "Aurora recorded 42% compared with 18% for Lumen in the forecast.";
+    let scenario = manifest_value_for("en", vec![scene("scenario", scenario_text)]);
+    let charts = proposals_of(&scenario["scenes"][0], "chart");
+    assert!(!charts.is_empty(), "{}", scenario["scenes"][0]);
+    assert_eq!(charts[0]["suggested_visual"], "scenario_split");
 }
 
 #[test]
@@ -163,7 +178,7 @@ fn grounded_change_comparison_emits_a_before_after_delta_proposal() {
     let deltas = proposals_of(scene, "delta_comparison");
     assert_eq!(deltas.len(), 1, "{}", scene["quantity_comparisons"]);
     let delta = deltas[0];
-    assert_eq!(delta["suggested_visual"], "before_after");
+    assert_eq!(delta["suggested_visual"], "before_after_metric");
     let items = delta["chart_items"].as_array().expect("delta items");
     assert_eq!(items.len(), 2, "{items:?}");
     let start = delta["start_byte"].as_u64().unwrap() as usize;

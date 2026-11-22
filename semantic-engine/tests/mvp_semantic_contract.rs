@@ -58,7 +58,10 @@ fn apostrophe_variants_keep_source_offsets_and_canonicalize_elided_articles() {
         .iter()
         .find(|entity| entity["evidence"].as_str().unwrap_or("").contains("ANSA"))
         .expect("ANSA mention extracted");
-    assert_eq!(ansa["type"], "ORG");
+    // ANSA is a citable outlet (TICKET-46), so it carries its own type in the
+    // semantic manifest. Go folds it onto Org for identity and image binding;
+    // this test still owns the surface/offset guarantee, not the family.
+    assert_eq!(ansa["type"], "MEDIA_OUTLET");
     assert_eq!(
         ansa["text"], "ANSA",
         "article must not pollute entity surface"
@@ -93,6 +96,16 @@ fn apostrophe_variants_keep_source_offsets_and_canonicalize_elided_articles() {
     assert_eq!(
         paragraph_ansa["canonical_id"], isolated_ansa["canonical_id"],
         "canonical identity should be stable for the same entity"
+    );
+    assert_eq!(
+        value("it", "ansa-isolata", "ANSA")["scenes"][0]["entities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|entity| entity["text"] == "ANSA")
+            .count(),
+        1,
+        "one grounded span must not become an outlet and an organization"
     );
 
     let linked_ansa = linked(&manifest, "ANSA");

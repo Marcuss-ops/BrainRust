@@ -1,7 +1,7 @@
 # TICKET-33 — people have no role, affiliation, family tie or age
 
 - Priority: P2
-- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
+- Status: DONE (bound/Rust) (2026-11-22; external gate: multilingual gold 33e, see “Chiusura 2026-11-22”)
 - Depends on: TICKET-31 (validity dates), TICKET-35 (correct person link)
 - Files: `lexicon/roles/<lang>.json`, `lexicon/family_relations.json`,
   `semantic-core/src/{roles.rs (new),relations.rs}`,
@@ -347,3 +347,17 @@ senza 35 usando i local id, ma il gate di precisione vuole 35 chiuso.
   protocol tests**; content fingerprint, `cargo clippy -p semantic-engine
   --all-targets -- -D warnings`, formatting and diff checks pass. Gold, broad
   inflection coverage and Go projection remain open.
+
+## Chiusura 2026-11-22 — DONE (bound/Rust)
+
+- Local contract closed: 40 role codes in all 11 languages, grounded clause-local
+  extraction with byte-exact spans, explicit same-sentence date binding,
+  tense/status, gendered and inflected DE/PL/RU/TR forms, directional
+  family/work relations, numeric and spelled ages, manifest projections and Go
+  validation. Role, age and relation unit/protocol tests, Clippy and formatting
+  pass.
+- Named external gate: 33e — ≥30 role mentions and ≥15 relations per language,
+  with ≥20 negatives per language — plus full inflection coverage. No gold was
+  invented.
+- Owner decision 2026-11-22: DONE (bound/Rust); the reviewed-gold boxes remain
+  the named external gate.

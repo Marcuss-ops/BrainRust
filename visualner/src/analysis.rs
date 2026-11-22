@@ -490,29 +490,7 @@ fn relations(
 /// The types that can share an editorial frame. Measurements are values, not
 /// subjects, and a generic visual concept is a phrase, not a name.
 fn is_co_mention_subject(entity: &VisualEntity) -> bool {
-    matches!(
-        entity.r#type.as_str(),
-        "PERSON"
-            | "ORGANIZATION"
-            | "ORG"
-            | "LOCATION"
-            | "FACILITY"
-            | "BRAND"
-            | "PRODUCT"
-            | "WORK"
-            | "OBJECT"
-            | "EVENT"
-            | "ANIMAL"
-            | "FOOD"
-            | "VEHICLE"
-            | "LAW"
-            | "COURT_CASE"
-            | "NORP"
-            | "DISEASE"
-            | "TECHNOLOGY"
-            | "ARTWORK"
-            | "CELESTIAL"
-    )
+    semantic_core::entity_capabilities::entity_capabilities(&entity.r#type).co_mention_subject
 }
 
 /// Projects the shared bullet candidates (one generation and one scoring

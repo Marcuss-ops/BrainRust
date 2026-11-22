@@ -347,11 +347,27 @@ pub struct SceneAnnotationsV2 {
     pub numbers: Vec<TimedAnnotationV2>,
     #[serde(default)]
     pub chart_numbers: Vec<TimedAnnotationV2>,
-    /// Grounded chart layout hint (`line_series`, `donut_share`,
-    /// `bar_comparison`, `ranking_bar`, `before_after`). Empty when absent so
-    /// frozen requests stay byte-identical.
+    /// Grounded chart layout hint aligned to `ChartsPack.hpp`
+    /// (`timeline_growth`, `segmented_total_bar`, `bounded_range_comparison`,
+    /// `bar_comparison`, `ranking_bar`, `before_after_metric`, ...). Empty
+    /// when absent so frozen requests stay byte-identical.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub chart_layout: String,
+    /// Grounded non-chart visual recipe (`relationship_graph`, ...). Empty when
+    /// absent so frozen requests stay byte-identical.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub visual_recipe: String,
+    /// Opaque producer-owned payload for `visual_recipe`; renderer metadata is
+    /// copied verbatim, exactly like `animation_directives`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visual_payload: Option<Value>,
+    /// Every grounded recipe the scene carries, in producer priority order.
+    /// Additive: `visual_recipe` stays the first element for frozen requests,
+    /// and an absent list serializes exactly like before. Duplicate recipes are
+    /// allowed (two quotes in one scene) because the payload identifies the
+    /// fact; the planner applies each once.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub visual_recipes: Vec<VisualRecipeSpecV2>,
     #[serde(default)]
     pub brand_texts: Vec<TimedAnnotationV2>,
     #[serde(default)]
@@ -385,10 +401,28 @@ pub struct RawSceneV2 {
     pub chart_values: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub chart_layout: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub visual_recipe: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visual_payload: Option<Value>,
+    /// All grounded recipes of the scene, ordered by producer priority. The
+    /// legacy pair above stays the first entry so older producers keep working.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub visual_recipes: Vec<VisualRecipeSpecV2>,
     #[serde(default)]
     pub charts_certified: bool,
     #[serde(default)]
     pub source_numeric_values: Vec<String>,
+}
+
+/// One grounded visual recipe plus its opaque payload. The recipe name is
+/// validated against the closed set; the payload is renderer metadata and is
+/// never interpreted by the planner beyond the fact keys it documents.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VisualRecipeSpecV2 {
+    pub recipe: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

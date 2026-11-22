@@ -1,7 +1,7 @@
 # TICKET-35 — entity linking is not explainable and under-uses context
 
 - Priority: P1
-- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
+- Status: DONE (bound/Rust) (2026-11-22; external gate: natural gold 35c and calibration 35d, see “Chiusura 2026-11-22”)
 - Depends on: TICKET-40 (confusable index coverage)
 - Files: `semantic-core/src/entity_linker.rs`, `lexicon/entity_index_v1.json`,
   `semantic-engine/src/identity_lookup.rs`, `LinkedEntity`
@@ -244,3 +244,17 @@ senza gold multilingue 35d non può calibrare. 35a/35b non richiedono 36.
 - `cargo test -p semantic-core --lib entity_linker --locked` — **11/11 PASS**,
   including the existing 46-surface confusable matrix. Broader independent
   gold and margin calibration remain required; the ticket stays **PARTIAL**.
+
+## Chiusura 2026-11-22 — DONE (bound/Rust)
+
+- Local contract closed: `link_candidates` / `link_margin` / `link_rule` with
+  byte-exact feature spans, versioned and hashed weights, localized `type_cues`,
+  whole-word context/counter evidence and the same-thread/same-type
+  `discourse_prior`; health and fingerprint carry the asset identity, and the
+  Go validator accepts six features while rejecting seven. The 46-surface /
+  276+276-lookup confusable matrix and the linker unit tests pass.
+- Named external gate: 35c natural 10-language gold (≥40 surfaces per language)
+  and 35d `θ_link`/margin calibration against an independent judge. No labels
+  were invented.
+- Owner decision 2026-11-22: DONE (bound/Rust); the calibration boxes stay
+  unchecked as the named external gate.

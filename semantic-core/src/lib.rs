@@ -30,6 +30,7 @@ pub mod content_fingerprint;
 pub mod cue_timing;
 pub mod dates;
 pub mod discourse;
+pub mod entity_capabilities;
 pub mod entity_linker;
 pub mod entity_type_terms;
 pub mod event;
@@ -65,7 +66,6 @@ pub use identity::{
     role_of, stable_surface_key, CanonicalIdentity, EntityRole, IdentityRegistry, LinkCandidate,
     LinkEvidenceSpan, LinkFeature, LinkStatus, LinkedEntity, Mention, SearchIntent,
 };
-pub use manifest::{ChartItem, ChartMetadata};
 pub use manifest::{
     AnalyzerVersions, Candidate, ComposedImageQuery, ConsolidatedDate, ConsolidatedDateSpan,
     ConsolidatedEventLink, ConsolidatedFact, ConsolidationInventory, ConsolidationMetrics,
@@ -78,6 +78,7 @@ pub use manifest::{
     StoryGraph, StoryNode, VisualConsolidation, VisualCoverage, VisualProposal, SCHEMA_VERSION,
     SUPPORTED_SCHEMA_VERSIONS, VISUAL_CONSOLIDATION_SCHEMA,
 };
+pub use manifest::{ChartItem, ChartMetadata};
 pub use narrative::{
     DiscourseCounts, DiscourseProjection, DiscourseReference, EntityThread, SceneContinuity,
     ThreadBeat, DISCOURSE_SCHEMA,

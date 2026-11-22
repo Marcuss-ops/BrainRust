@@ -76,6 +76,7 @@ ENTITY_TYPE_TERMS = ROOT / "lexicon" / "entity_type_terms.json"
 ADDITIVE_ENTITY_TYPES = (
     "ANIMAL", "FOOD", "VEHICLE", "LAW", "COURT_CASE",
     "NORP", "DISEASE", "TECHNOLOGY", "ARTWORK", "CELESTIAL",
+    "MEDIA_OUTLET",
 )
 LEGAL_INDEX = LEGAL / "index.json"
 GENERATED_LEGAL = ROOT / "semantic-core" / "src" / "generated_legal_packs.rs"
@@ -479,6 +480,24 @@ def validate_entity_type_terms() -> list[str]:
             f"{ENTITY_TYPE_TERMS.relative_to(ROOT)}: types must be "
             + ", ".join(ADDITIVE_ENTITY_TYPES)
         )
+    domains = data.get("media_outlet_domains")
+    if not isinstance(domains, dict) or set(domains) != set(CHART_CUE_LANGUAGES):
+        errors.append(
+            f"{ENTITY_TYPE_TERMS.relative_to(ROOT)}: media_outlet_domains must be "
+            + ", ".join(CHART_CUE_LANGUAGES)
+        )
+    else:
+        for language, entries in domains.items():
+            if not isinstance(entries, list) or not entries:
+                errors.append(f"{language}.media_outlet_domains: expected a non-empty array")
+                continue
+            if any(
+                not isinstance(domain, str)
+                or "." not in domain
+                or any(ch.isspace() for ch in domain)
+                for domain in entries
+            ):
+                errors.append(f"{language}.media_outlet_domains: entries must be domains")
     languages = data.get("languages")
     if not isinstance(languages, dict) or set(languages) != set(CHART_CUE_LANGUAGES):
         errors.append(
@@ -583,6 +602,7 @@ def validate_chart_cues() -> list[str]:
             "semicolon_metric_stems",
             "share_context_cues",
             "growth_cues",
+            "scenario_cues",
         ):
             rows = cues.get(key)
             if not isinstance(rows, list) or not rows:

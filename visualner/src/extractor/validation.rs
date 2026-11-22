@@ -141,7 +141,13 @@ pub(crate) fn validate_evidence(
     // independently grounded and keep their normal extraction behavior.
     if !matches!(
         entity_type.as_str(),
-        "OBJECT" | "NUMBER" | "PERCENT" | "MONEY"
+        "OBJECT"
+            | "NUMBER"
+            | "PERCENT"
+            | "MONEY"
+            // A curated outlet is grounded by the lexicon even when it starts a
+            // sentence in lowercase ("ansa.it riporta...").
+            | semantic_core::entity_type_terms::MEDIA_OUTLET
     ) && is_sentence_initial(source_text, c.start)
         && c.text.split_whitespace().count() == 1
         && !has_structural_name_case(&c.text)

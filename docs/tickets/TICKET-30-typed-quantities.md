@@ -1,7 +1,7 @@
 # TICKET-30 — numeric facts have no unit, scale, year or comparison
 
 - Priority: P1
-- Status: PARTIAL (verified 2026-11-21, HEAD `06ea22c`; suite 355/0/4)
+- Status: DONE (bound/Rust) (2026-11-22; external gate: independent annotation review, see “Chiusura 2026-11-22”)
 - Depends on: TICKET-29
 - Files: `semantic-core/src/{numbers.rs,quantity.rs (new)}`,
   `lexicon/units.json`, `semantic-engine` (new `quantities.rs`),
@@ -327,3 +327,19 @@ in questo repository.
   comparisons, 33 incompatible pairs rejected, zero false positives. The
   report now carries the current worker hash. This confirms the draft matrix;
   it does not replace the independent review required by 30b.
+
+## Chiusura 2026-11-22 — DONE (bound/Rust)
+
+- Local contract closed: unit packs for 11 languages, grounded `Quantity` /
+  `QuantityComparison` projection, ratio/difference/change arithmetic,
+  incompatible-pair guard, chart bridge and Go validation. The release draft
+  scorer reports 1,784 cases, 1,643/1,643 positive quantities, 33/33 positive
+  comparisons, 33 incompatible pairs rejected and zero false positives; the
+  Top-10/rank regression pins the deliberate choice not to chart ranks.
+- Named external gate: 30b, independent human annotation review — the report
+  authority remains `assistant_draft_pending_human_review` — plus wider natural
+  contexts. No annotation was added or relabelled in this pass.
+- Owner decision 2026-11-22: the ticket moves to DONE (bound/Rust) under the
+  README status vocabulary (local contract complete, external gate named). The
+  acceptance boxes that require reviewed gold stay unchecked and are exactly
+  that gate.

@@ -87,6 +87,15 @@ impl EditorialPlanV2Request {
             if let Some(annotations) = &scene.annotations {
                 validate_annotations(id, scene, annotations)?;
             }
+            if let Some(raw) = &scene.raw {
+                validate_visual_recipe(
+                    &format!("scenes.{id}.raw.visual_recipe"),
+                    &format!("scenes.{id}.raw.visual_payload"),
+                    &raw.visual_recipe,
+                    raw.visual_payload.as_ref(),
+                )?;
+                validate_visual_recipe_list(&format!("scenes.{id}.raw"), &raw.visual_recipes)?;
+            }
         }
         for clip in &self.clips {
             if !scene_ids.contains(clip.scene_id.trim()) {
@@ -192,6 +201,10 @@ impl EditorialPlanV2Request {
         Ok(())
     }
 }
+
+#[path = "validation/media.rs"]
+mod media;
+use media::*;
 
 impl CanvasV2 {
     fn validate(&self) -> Result<(), EditorialPlanError> {
@@ -567,55 +580,6 @@ impl MediaV2 {
     }
 }
 
-fn validate_asset_ref(label: &str, asset: &AssetRefV2) -> Result<(), EditorialPlanError> {
-    if asset.asset_id.trim().is_empty() {
-        return Err(EditorialPlanError::invalid(label, "asset_id is required"));
-    }
-    if !asset.sha256.trim().is_empty() && !is_lower_hex_64(&asset.sha256) {
-        return Err(EditorialPlanError::invalid(
-            label,
-            "sha256 must be 64 lowercase hex characters",
-        ));
-    }
-    reject_placeholder_url(label, &asset.url)
-}
-
-fn validate_image_candidate(
-    label: &str,
-    candidate: &ImageCandidateV2,
-) -> Result<(), EditorialPlanError> {
-    if candidate.asset_id.trim().is_empty() && candidate.url.trim().is_empty() {
-        return Err(EditorialPlanError::invalid(
-            label,
-            "image candidate needs an asset_id or a url",
-        ));
-    }
-    if !candidate.sha256.trim().is_empty() && !is_lower_hex_64(&candidate.sha256) {
-        return Err(EditorialPlanError::invalid(
-            label,
-            "sha256 must be 64 lowercase hex characters",
-        ));
-    }
-    if candidate.duration_us < 0 || candidate.start_us < 0 {
-        return Err(EditorialPlanError::invalid(label, "negative image window"));
-    }
-    reject_placeholder_url(label, &candidate.url)
-}
-
-/// A semantic catalog reference is a database identity until its bytes are
-/// materialized. It can never be a render asset, so it is a contract error
-/// here instead of a silently skipped item later.
-fn reject_placeholder_url(label: &str, url: &str) -> Result<(), EditorialPlanError> {
-    let url = url.trim();
-    if url.starts_with("assets/semantic/") || url.starts_with("semantic/") {
-        return Err(EditorialPlanError::invalid(
-            label,
-            format!("unmaterialized semantic placeholder URL {url:?}"),
-        ));
-    }
-    Ok(())
-}
-
 fn validate_annotations(
     scene_id: &str,
     scene: &SceneV2,
@@ -654,8 +618,20 @@ fn validate_annotations(
     if !annotations.chart_layout.is_empty()
         && !matches!(
             annotations.chart_layout.as_str(),
-            "line_series" | "donut_share" | "bar_comparison" | "ranking_bar" | "before_after"
+            "line_series"
+                | "donut_share"
+                | "before_after"
                 | "delta_comparison"
+                | "timeline_growth"
+                | "qualified_growth"
+                | "missing_data_timeline"
+                | "segmented_total_bar"
+                | "scenario_split"
+                | "bounded_range_comparison"
+                | "dual_comparison_bars"
+                | "bar_comparison"
+                | "ranking_bar"
+                | "before_after_metric"
         )
     {
         return Err(EditorialPlanError::invalid(
@@ -663,6 +639,13 @@ fn validate_annotations(
             "unsupported grounded chart layout",
         ));
     }
+    validate_visual_recipe(
+        &format!("{label}.visual_recipe"),
+        &format!("{label}.visual_payload"),
+        &annotations.visual_recipe,
+        annotations.visual_payload.as_ref(),
+    )?;
+    validate_visual_recipe_list(&label, &annotations.visual_recipes)?;
     for (name, candidates) in [
         ("images", &annotations.images),
         ("products", &annotations.products),

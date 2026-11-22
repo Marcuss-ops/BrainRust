@@ -17,7 +17,15 @@ pub(super) fn build_base_candidates(
         }
         append_editorial(&mut items, scene, editorial);
         if let Some(annotations) = &scene.annotations {
+            let first = items.len();
             append_annotations(&mut items, scene, annotations, request);
+            super::visual_recipes::apply_visual_recipes(
+                &mut items,
+                scene,
+                annotations,
+                request,
+                first,
+            );
         }
     }
     // Budget text while the candidates are still a flat list: each fragment

@@ -142,23 +142,15 @@ pub fn analyze_scene(
     registry: &mut IdentityRegistry,
 ) -> SceneManifest {
     let context = visualner::ScriptContext::default();
-    analyze_scene_with_search(scene, language, safety_cap, registry, &context, None).0
+    analyze_scene_with_search(scene, language, safety_cap, registry, &context, None).manifest
 }
 
 /// A scene the extractor refused, materialized as the same empty manifest a
 /// successful path would produce. Keeping the literal out of the orchestration
 /// makes the rejection contract explicit and testable on its own.
-fn rejected_scene(
-    scene: &SceneInput,
-    reason: String,
-) -> (
-    SceneManifest,
-    Vec<SearchFeedbackEntry>,
-    Vec<ContextualImageQuery>,
-    Vec<visualner::AnalyzedToken>,
-) {
-    (
-        SceneManifest {
+fn rejected_scene(scene: &SceneInput, reason: String) -> SceneAnalysis {
+    SceneAnalysis {
+        manifest: SceneManifest {
             scene_id: scene.scene_id.clone(),
             status: "rejected".to_string(),
             reason: Some(reason),
@@ -188,10 +180,10 @@ fn rejected_scene(
             micro_summaries: Vec::new(),
             rejected_items: 0,
         },
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
-    )
+        search_feedback: Vec::new(),
+        query_seeds: Vec::new(),
+        tokens: Vec::new(),
+    }
 }
 
 /// Collapses a facility fragment into the maximal facility span that contains
@@ -199,22 +191,31 @@ fn rejected_scene(
 /// legitimately nest (an acronym inside an organization, a place inside an
 /// organization), so only facilities are collapsed.
 fn collapse_facility_fragments(entities: &mut Vec<VisualEntity>) {
+    // Sort facilities by start ascending and end descending: the first span at
+    // a given start is the maximal one, and every later facility whose end is
+    // inside the running maximum is nested. The former nested scan was O(n²)
+    // on the entity list (100M comparisons at the 10k safety cap).
+    let mut facilities: Vec<usize> = entities
+        .iter()
+        .enumerate()
+        .filter(|(_, entity)| entity.r#type == "FACILITY")
+        .map(|(index, _)| index)
+        .collect();
+    facilities.sort_by(|left, right| {
+        entities[*left]
+            .start
+            .cmp(&entities[*right].start)
+            .then(entities[*right].end.cmp(&entities[*left].end))
+            .then(left.cmp(right))
+    });
     let mut keep = vec![true; entities.len()];
-    for (index, entity) in entities.iter().enumerate() {
-        if !keep[index] || entity.r#type != "FACILITY" {
-            continue;
-        }
-        for (other_index, other) in entities.iter().enumerate() {
-            if index != other_index
-                && keep[other_index]
-                && other.r#type == "FACILITY"
-                && other.start <= entity.start
-                && entity.end <= other.end
-                && (other.start < entity.start || entity.end < other.end)
-            {
-                keep[index] = false;
-                break;
-            }
+    let mut running_end: Option<usize> = None;
+    for index in facilities {
+        let entity = &entities[index];
+        if running_end.is_some_and(|end| entity.end <= end) {
+            keep[index] = false;
+        } else {
+            running_end = Some(entity.end);
         }
     }
     let mut keep = keep.into_iter();
@@ -328,6 +329,177 @@ fn prepare_entities(
     (entities, rejected_entities)
 }
 
+/// One scene's analysis output. The former positional 4-tuple made every
+/// caller depend on field order and hid what the scene actually produced; the
+/// named fields keep the orchestration readable and let a new output be added
+/// without touching the call sites.
+struct SceneAnalysis {
+    manifest: SceneManifest,
+    search_feedback: Vec<SearchFeedbackEntry>,
+    query_seeds: Vec<ContextualImageQuery>,
+    tokens: Vec<visualner::AnalyzedToken>,
+}
+
+/// Everything the fact builders derive from one grounded scene. Grouping the
+/// outputs keeps the stage boundary explicit instead of threading a dozen
+/// `let` bindings through the orchestrator.
+struct SceneFacts {
+    entity_facts: Vec<EntityFact>,
+    person_roles: Vec<semantic_core::PersonRole>,
+    age_facts: Vec<semantic_core::PersonAgeFact>,
+    person_relations: Vec<semantic_core::PersonRelation>,
+    places: Vec<semantic_core::Place>,
+    routes: Vec<semantic_core::Route>,
+    quantities: Vec<semantic_core::quantity::Quantity>,
+    quantity_comparisons: Vec<semantic_core::quantity::QuantityComparison>,
+    relations: RelationView,
+    micro_groups: Vec<SemanticGroup>,
+    micro_summaries: Vec<semantic_core::MicroSummary>,
+}
+
+/// Inputs shared by the fact-derivation stage. Borrowing one struct keeps the
+/// stage signature at one argument and makes the data flow visible.
+struct SceneDerive<'a> {
+    scene_id: &'a str,
+    source: &'a str,
+    language: &'a str,
+    sentence_spans: &'a [semantic_core::SentenceSpan],
+    entities: &'a [VisualEntity],
+    entity_ids: &'a [String],
+    identities: &'a IdentityLookup,
+    analysis: &'a visualner::Analysis,
+    temporal_facts: &'a [TemporalFact],
+}
+
+/// Roles, ages, relations, places, routes, legal facts, quantities and micro
+/// summaries: the grounded facts a scene contributes before any overlay is
+/// chosen. This was half of `analyze_scene_with_search`'s body.
+fn derive_scene_facts(input: SceneDerive<'_>) -> SceneFacts {
+    let SceneDerive {
+        scene_id,
+        source,
+        language,
+        sentence_spans,
+        entities,
+        entity_ids,
+        identities,
+        analysis,
+        temporal_facts,
+    } = input;
+    let mut entity_facts = extract_entity_facts(
+        source,
+        sentence_spans,
+        entities,
+        &analysis.numeric_facts,
+        temporal_facts,
+        identities,
+    );
+    let person_roles = roles::extract(
+        source,
+        language,
+        sentence_spans,
+        entities,
+        entity_ids,
+        temporal_facts,
+    );
+    let age_facts = ages::extract(
+        source,
+        language,
+        sentence_spans,
+        entities,
+        entity_ids,
+        &analysis.numeric_facts,
+        temporal_facts,
+    );
+    let person_relations =
+        person_relations::extract(source, language, sentence_spans, entities, entity_ids);
+    let places = places::extract(source, language, sentence_spans, entities, entity_ids);
+    let routes = routes::extract_with_people(
+        source,
+        language,
+        sentence_spans,
+        &places,
+        entities,
+        entity_ids,
+    );
+    entity_facts.extend(legal::extract(
+        source,
+        language,
+        sentence_spans,
+        entities,
+        entity_ids,
+        temporal_facts,
+        &analysis.numeric_facts,
+    ));
+    for fact in &mut entity_facts {
+        fact.finalize();
+    }
+    let mut quantities =
+        quantities::extract(source, language, &analysis.numeric_facts, temporal_facts);
+    quantities::attach_grounded_facts(&mut quantities, &entity_facts);
+    let quantity_comparisons = quantities::comparisons(source, language, &quantities);
+    let built = micro::build(
+        language,
+        scene_id,
+        source,
+        &entity_facts,
+        entities,
+        entity_ids,
+    );
+    let relations = build_relations(
+        source,
+        language,
+        sentence_spans,
+        entities,
+        &analysis.relations,
+        &entity_facts,
+        identities,
+    );
+    SceneFacts {
+        entity_facts,
+        person_roles,
+        age_facts,
+        person_relations,
+        places,
+        routes,
+        quantities,
+        quantity_comparisons,
+        relations,
+        micro_groups: built.groups,
+        micro_summaries: built.summaries,
+    }
+}
+
+/// Inputs for the visual-candidate stage.
+struct SceneContentInput<'a> {
+    scene_id: &'a str,
+    source: &'a str,
+    language: &'a str,
+    sentence_spans: &'a [semantic_core::SentenceSpan],
+    entities: &'a [VisualEntity],
+    entity_ids: &'a [String],
+    identities: &'a IdentityLookup,
+    facts: &'a SceneFacts,
+    temporal_facts: &'a [TemporalFact],
+    analysis: &'a visualner::Analysis,
+}
+
+/// Grounded visual candidates, grouped structures and search proposals. Every
+/// candidate is still retained only after its grounding check, exactly as
+/// before the split; this stage owns the *selection* half of the old body.
+struct SceneContent {
+    entity_candidates: Vec<Candidate>,
+    important_words: Vec<Candidate>,
+    important_segments: Vec<ImportantSegment>,
+    composed_image_queries: Vec<ComposedImageQuery>,
+    contextual: candidates::contextual::ContextualQueries,
+    bullets: Vec<Candidate>,
+    visual_proposals: Vec<VisualProposal>,
+    search_feedback: Vec<SearchFeedbackEntry>,
+    semantic_groups: Vec<SemanticGroup>,
+    rejected_candidates: usize,
+}
+
 /// Same analysis, also returning the asset-search entries the script-level
 /// manifest aggregates and the production-candidate seeds for the visual
 /// context queries. Retrieval never happens here: every entry is `pending`.
@@ -338,12 +510,7 @@ fn analyze_scene_with_search(
     registry: &mut IdentityRegistry,
     context: &visualner::ScriptContext,
     reference_date: Option<&str>,
-) -> (
-    SceneManifest,
-    Vec<SearchFeedbackEntry>,
-    Vec<semantic_core::ContextualImageQuery>,
-    Vec<visualner::AnalyzedToken>,
-) {
+) -> SceneAnalysis {
     let options = ExtractOptions {
         language: language.to_string(),
         // The extractor keeps every grounded entity up to the safety cap; the
@@ -373,219 +540,71 @@ fn analyze_scene_with_search(
         registry,
         &mut analysis,
     );
-    let temporal_facts = retain_grounded_temporal(source, analysis.temporal_facts);
+    let temporal_facts =
+        retain_grounded_temporal(source, std::mem::take(&mut analysis.temporal_facts));
     let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context, language);
-    let mut entity_facts = extract_entity_facts(
-        source,
-        &sentence_spans,
-        &entities,
-        &analysis.numeric_facts,
-        &temporal_facts,
-        &identities,
-    );
     let entity_ids: Vec<String> = (0..entities.len())
         .map(|index| identities.id_of(index))
         .collect();
-    let person_roles = roles::extract(
+    let facts = derive_scene_facts(SceneDerive {
+        scene_id: &scene.scene_id,
         source,
         language,
-        &sentence_spans,
-        &entities,
-        &entity_ids,
-        &temporal_facts,
-    );
-    let age_facts = ages::extract(
+        sentence_spans: &sentence_spans,
+        entities: &entities,
+        entity_ids: &entity_ids,
+        identities: &identities,
+        analysis: &analysis,
+        temporal_facts: &temporal_facts,
+    });
+    let content = derive_scene_content(SceneContentInput {
+        scene_id: &scene.scene_id,
         source,
         language,
-        &sentence_spans,
-        &entities,
-        &entity_ids,
-        &analysis.numeric_facts,
-        &temporal_facts,
-    );
-    let person_relations =
-        person_relations::extract(source, language, &sentence_spans, &entities, &entity_ids);
-    let places = places::extract(source, language, &sentence_spans, &entities, &entity_ids);
-    let routes = routes::extract_with_people(
-        source,
-        language,
-        &sentence_spans,
-        &places,
-        &entities,
-        &entity_ids,
-    );
-    entity_facts.extend(legal::extract(
-        source,
-        language,
-        &sentence_spans,
-        &entities,
-        &entity_ids,
-        &temporal_facts,
-        &analysis.numeric_facts,
-    ));
-    for fact in &mut entity_facts {
-        fact.finalize();
-    }
-    let mut quantities =
-        quantities::extract(source, language, &analysis.numeric_facts, &temporal_facts);
-    quantities::attach_grounded_facts(&mut quantities, &entity_facts);
-    let quantity_comparisons = quantities::comparisons(source, language, &quantities);
-    let built = micro::build(
-        language,
-        &scene.scene_id,
-        source,
-        &entity_facts,
-        &entities,
-        &entity_ids,
-    );
-    let relations = build_relations(
-        source,
-        language,
-        &sentence_spans,
-        &entities,
-        &analysis.relations,
-        &entity_facts,
-        &identities,
-    );
-    let composed_image_queries = composed_query_candidates(
-        source,
-        &sentence_spans,
-        &entities,
-        &analysis.numeric_facts,
-        &temporal_facts,
-    );
-    let contextual = contextual_image_query_candidates(
-        language,
-        source,
-        &sentence_spans,
-        &entities,
-        &entity_ids,
-        &entity_facts,
-    );
-    let bullets = bullet_candidates(source, &sentence_spans, &entities);
-    let candidates = groups::build_candidates(
-        groups::SceneSource {
-            text: source,
-            language,
-        },
-        &entities,
-        &analysis.bullets,
-        groups::ChartInput {
-            points: &analysis.chart_points,
-            quantities: &quantities,
-            comparisons: &quantity_comparisons,
-        },
-        &analysis.lower_thirds,
-        &temporal_facts,
-        &identities,
-    );
-    let (mut visual_candidates, rejected_candidates) =
-        retain_grounded_candidates(source, candidates);
-    let semantic_groups = {
-        let mut groups =
-            chronological_groups(&scene.scene_id, source, &sentence_spans, &temporal_facts);
-        groups.extend(process_groups(
-            &scene.scene_id,
-            source,
-            &sentence_spans,
-            &entities,
-            &identities,
-        ));
-        groups.extend(comparison_groups(
-            &scene.scene_id,
-            source,
-            &sentence_spans,
-            &entities,
-            &identities,
-        ));
-        groups.extend(causal_groups(
-            &scene.scene_id,
-            source,
-            &sentence_spans,
-            &entities,
-            &identities,
-            &relations,
-        ));
-        groups.extend(numbered_groups(&scene.scene_id, source, &sentence_spans));
-        groups.extend(ordered_sequence_groups(
-            &scene.scene_id,
-            source,
-            &sentence_spans,
-            language,
-        ));
-        groups.extend(built.groups.clone());
-        groups
-    };
-    // A complete dated sequence is ONE timeline: the planner can animate the
-    // whole progression, and the fragment timelines of its own sentences stop
-    // competing with it for the same facts.
-    sequence_timeline_candidates(
-        source,
-        &sentence_spans,
-        &semantic_groups,
-        &temporal_facts,
-        &entity_facts,
-        &mut visual_candidates,
-    );
+        sentence_spans: &sentence_spans,
+        entities: &entities,
+        entity_ids: &entity_ids,
+        identities: &identities,
+        facts: &facts,
+        temporal_facts: &temporal_facts,
+        analysis: &analysis,
+    });
 
-    let mut visual_proposals = Vec::with_capacity(visual_candidates.len());
-    let mut search_feedback = Vec::new();
-    for (index, candidate) in visual_candidates.into_iter().enumerate() {
-        let (proposal, feedback) =
-            to_visual_proposal(candidate, &scene.scene_id, index, source, language);
-        visual_proposals.push(proposal);
-        if let Some(entry) = feedback {
-            search_feedback.push(entry);
-        }
-    }
-
-    // The scene entity list keeps only typed entities, but the identity graph
-    // must publish visual concepts too: entity-search proposals reference
-    // their ids and the Go planner resolves every proposal entity id against
-    // this registry. Dropping them here left validated B-roll proposals with
-    // unborn identities. The entity list handed to the lookup stays unfiltered
-    // on purpose: the lookup is indexed by it, so filtering first would shift
-    // every id.
-    let entity_candidate_list =
-        typed_entity_candidates(source, &sentence_spans, &entities, &identities);
-    let important_words = important_word_candidates(&entity_candidate_list);
-    let important_segments = segment_candidates(source, &sentence_spans, &entities, &entity_facts);
-
-    (
-        SceneManifest {
+    SceneAnalysis {
+        manifest: SceneManifest {
             scene_id: scene.scene_id.clone(),
             status: "valid".to_string(),
             reason: None,
-            entities: entity_candidate_list,
+            entities: content.entity_candidates,
             identities: registry.identities().to_vec(),
-            person_roles,
-            age_facts,
-            person_relations,
-            places,
-            routes,
-            relations,
+            person_roles: facts.person_roles,
+            age_facts: facts.age_facts,
+            person_relations: facts.person_relations,
+            places: facts.places,
+            routes: facts.routes,
+            relations: facts.relations,
             numeric_facts: analysis.numeric_facts,
-            quantities,
-            quantity_comparisons,
+            quantities: facts.quantities,
+            quantity_comparisons: facts.quantity_comparisons,
             temporal_facts,
-            entity_facts,
-            important_words,
-            important_segments,
-            composed_image_queries,
-            contextual_image_queries: contextual.manifest_queries,
-            bullets,
+            entity_facts: facts.entity_facts,
+            important_words: content.important_words,
+            important_segments: content.important_segments,
+            composed_image_queries: content.composed_image_queries,
+            contextual_image_queries: content.contextual.manifest_queries,
+            bullets: content.bullets,
             short_phrases: phrase_candidates(source, &sentence_spans, &entities, 0, 18),
             long_phrases: phrase_candidates(source, &sentence_spans, &entities, 18, usize::MAX),
             quotes: quote_candidates(source, &sentence_spans),
-            visual_proposals,
-            semantic_groups,
-            micro_summaries: built.summaries,
-            rejected_items: rejected_entities + rejected_candidates,
+            visual_proposals: content.visual_proposals,
+            semantic_groups: content.semantic_groups,
+            micro_summaries: facts.micro_summaries,
+            rejected_items: rejected_entities + content.rejected_candidates,
         },
-        search_feedback,
-        contextual.production_seeds,
-        analysis.tokens,
-    )
+        search_feedback: content.search_feedback,
+        query_seeds: content.contextual.production_seeds,
+        tokens: analysis.tokens,
+    }
 }
 
 /// Analyses every scene of a script in one call.
@@ -628,7 +647,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         .collect();
     let context = visualner::script_person_tokens(&texts, language);
     for (scene_index, scene) in request.scenes.iter().enumerate() {
-        let (manifest, entries, seeds, analysis_tokens_for_events) = analyze_scene_with_search(
+        let analyzed = analyze_scene_with_search(
             scene,
             language,
             safety_cap,
@@ -643,16 +662,16 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
                 scene_id: &scene.scene_id,
                 source: &scene.text,
                 language,
-                candidates: &manifest.entities,
-                temporal_facts: &manifest.temporal_facts,
-                places: &manifest.places,
+                candidates: &analyzed.manifest.entities,
+                temporal_facts: &analyzed.manifest.temporal_facts,
+                places: &analyzed.manifest.places,
             },
-            &analysis_tokens_for_events,
+            &analyzed.tokens,
             remaining_event_capacity,
         ));
-        scene_query_seeds.push((manifest.scene_id.clone(), seeds));
-        scenes.push(manifest);
-        search_entries.extend(entries);
+        scene_query_seeds.push((analyzed.manifest.scene_id.clone(), analyzed.query_seeds));
+        scenes.push(analyzed.manifest);
+        search_entries.extend(analyzed.search_feedback);
     }
     for event in &mut event_frames {
         let participant_ids: HashSet<&str> = event
@@ -701,7 +720,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
     let entities = semantic_core::entity_linker::link_all_with_threads(
         language,
         &scene_texts,
-        &registry.identities().to_vec(),
+        registry.identities(),
         &discourse.threads,
     );
 
@@ -711,6 +730,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         language,
         &request.scenes,
         &scenes,
+        &event_frames,
         &search_entries,
         &scene_query_seeds,
     );
@@ -848,152 +868,12 @@ fn fnv1a_hex(body: &[u8]) -> String {
     format!("{hash:016x}")
 }
 
-/// Relations split into co-mentions (grouping signal) and asserted relations.
-/// `visualner` only proves co-occurrence. Asserted edges are admitted only
-/// from explicit ownership/location predicates already grounded as facts.
-fn build_relations(
-    source: &str,
-    language: &str,
-    sentences: &[semantic_core::SentenceSpan],
-    entities: &[VisualEntity],
-    relations: &[visualner::analysis::EntityRelation],
-    facts: &[EntityFact],
-    identities: &IdentityLookup,
-) -> RelationView {
-    let mut co_mentions = Vec::new();
-    for relation in relations {
-        // The pair must reference two grounded, distinct entities. Entity
-        // indices are validated against the grounded list; the relation is
-        // admitted only when its evidence actually occurs in the source.
-        if relation.source >= entities.len() || relation.target >= entities.len() {
-            continue;
-        }
-        // Measurements (numbers, percentages, money, dates) are not things
-        // that co-occur as subjects: a spelled-out number such as "due" must
-        // never pair with a person. Only visual subjects form a co-mention.
-        if !is_visual_subject(&entities[relation.source])
-            || !is_visual_subject(&entities[relation.target])
-        {
-            continue;
-        }
-        if relation.evidence.is_empty() || !source.contains(&relation.evidence) {
-            continue;
-        }
-        co_mentions.push(CoMention {
-            left_id: identities.id_of(relation.source),
-            right_id: identities.id_of(relation.target),
-            sentence_index: relation.sentence_index,
-            evidence: relation.evidence.clone(),
-        });
-    }
-    let mut asserted_relations: Vec<AssertedRelation> = facts
-        .iter()
-        .filter_map(|fact| {
-            let target_id = fact.target_entity_id.as_ref()?;
-            let predicate = match fact.predicate.as_str() {
-                "owned_by" => "ownership",
-                "located_in" => "location",
-                _ => return None,
-            };
-            if fact.evidence.is_empty()
-                || !source
-                    .get(fact.evidence_start_byte..fact.evidence_end_byte)
-                    .is_some_and(|evidence| evidence == fact.evidence)
-            {
-                return None;
-            }
-            let status = match fact.status.as_str() {
-                "negated" => RelationStatus::Negated,
-                "uncertain" => RelationStatus::Uncertain,
-                _ => RelationStatus::Asserted,
-            };
-            Some(AssertedRelation {
-                source_id: fact.subject_entity_id.clone(),
-                target_id: target_id.clone(),
-                predicate: Some(predicate.to_string()),
-                status,
-                sentence_index: fact.sentence_index,
-                evidence: fact.evidence.clone(),
-            })
-        })
-        .collect();
-    let mut seen: HashSet<(String, String, String)> = asserted_relations
-        .iter()
-        .filter_map(|relation| {
-            Some((
-                relation.source_id.clone(),
-                relation.target_id.clone(),
-                relation.predicate.clone()?,
-            ))
-        })
-        .collect();
-    for (sentence_index, sentence) in sentences.iter().enumerate() {
-        let present: Vec<usize> = entities
-            .iter()
-            .enumerate()
-            .filter(|(_, entity)| {
-                is_visual_subject(entity)
-                    && entity.start >= sentence.start_byte
-                    && entity.end <= sentence.end_byte
-            })
-            .map(|(index, _)| index)
-            .collect();
-        if present.len() < 2 {
-            continue;
-        }
-        let Some(sentence_text) = source.get(sentence.start_byte..sentence.end_byte) else {
-            continue;
-        };
-        let Some(marker) =
-            semantic_core::relations::explicit_relation_marker(sentence_text, language)
-        else {
-            continue;
-        };
-        let (source_index, target_index) = if matches!(
-            marker.predicate.as_str(),
-            "ownership" | "funding" | "causal" | "temporal"
-        ) {
-            let before = present
-                .iter()
-                .copied()
-                .rfind(|index| entities[*index].end <= sentence.start_byte + marker.start_byte);
-            let after = present
-                .iter()
-                .copied()
-                .find(|index| entities[*index].start >= sentence.start_byte + marker.start_byte);
-            (
-                before.unwrap_or(present[0]),
-                after.unwrap_or(*present.last().unwrap()),
-            )
-        } else {
-            (present[0], *present.last().unwrap())
-        };
-        if source_index == target_index {
-            continue;
-        }
-        let source_id = identities.id_of(source_index);
-        let target_id = identities.id_of(target_index);
-        if !seen.insert((
-            source_id.clone(),
-            target_id.clone(),
-            marker.predicate.clone(),
-        )) {
-            continue;
-        }
-        asserted_relations.push(AssertedRelation {
-            source_id,
-            target_id,
-            predicate: Some(marker.predicate),
-            status: marker.status,
-            sentence_index,
-            evidence: sentence_text.to_string(),
-        });
-    }
-    RelationView {
-        co_mentions,
-        asserted_relations,
-    }
-}
+#[path = "relations.rs"]
+mod relations;
+use relations::*;
+#[path = "scene_content.rs"]
+mod scene_content;
+use scene_content::*;
 
 /// Words a comparison may put between a subject and its cue. "il reddito di
 /// Milano rispetto a quello di Roma" keeps a pronoun between cue and subject;

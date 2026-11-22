@@ -116,6 +116,7 @@ pub(super) fn push_charts(
                 suggested_visual: proposal.suggested_visual.clone(),
                 chart_items: items,
                 chart_meta: proposal.chart_meta.clone(),
+                visual_payload: None,
                 temporal_surfaces: Vec::new(),
                 asset_key: key.clone(),
                 queries: Vec::new(),
@@ -158,8 +159,10 @@ pub(super) fn push_ranking_bars(
             if group.group_type != "ranking" || !(2..=10).contains(&group.members.len()) {
                 continue;
             }
-            let mut matched: Vec<(&semantic_core::SemanticGroupMember, &semantic_core::Quantity)> =
-                Vec::new();
+            let mut matched: Vec<(
+                &semantic_core::SemanticGroupMember,
+                &semantic_core::Quantity,
+            )> = Vec::new();
             let mut signature: Option<(String, String)> = None;
             for member in &group.members {
                 let quantity = scene
@@ -243,6 +246,15 @@ pub(super) fn push_ranking_bars(
                         value: quantity.value?,
                         start_byte: quantity.start_byte,
                         end_byte: quantity.end_byte,
+                        qualifier: Some(quantity.qualifier.clone())
+                            .filter(|value| !value.is_empty()),
+                        period: quantity
+                            .period
+                            .as_ref()
+                            .map(|period| period.year.to_string()),
+                        lower: None,
+                        upper: None,
+                        range_id: quantity.range_id.clone(),
                     })
                 })
                 .collect();
@@ -273,6 +285,7 @@ pub(super) fn push_ranking_bars(
                 suggested_visual: "ranking_bar".to_string(),
                 chart_items: items,
                 chart_meta: Some(chart_meta),
+                visual_payload: None,
                 temporal_surfaces: Vec::new(),
                 asset_key: key.clone(),
                 queries: Vec::new(),
@@ -347,6 +360,7 @@ pub(super) fn push_multiple_entities(
                 suggested_visual: proposal.suggested_visual.clone(),
                 chart_items: Vec::new(),
                 chart_meta: None,
+                visual_payload: None,
                 temporal_surfaces: Vec::new(),
                 asset_key: key.clone(),
                 queries: Vec::new(),
@@ -448,6 +462,7 @@ pub(super) fn push_named_entities(
             suggested_visual: "entity_card".to_string(),
             chart_items: Vec::new(),
             chart_meta: None,
+            visual_payload: None,
             temporal_surfaces: Vec::new(),
             asset_key: format!("entity:{}", identity.id),
             queries: Vec::new(),

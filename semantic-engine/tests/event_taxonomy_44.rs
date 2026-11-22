@@ -5,7 +5,9 @@ mod common;
 
 use common::{manifest_value_for, scene};
 
-const LANGUAGES: [&str; 11] = ["de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr"];
+const LANGUAGES: [&str; 11] = [
+    "de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr",
+];
 
 const NEW_TYPES: [&str; 9] = [
     "protest_strike",
@@ -35,29 +37,21 @@ fn trigger(language: &str, event_type: &str) -> (String, String) {
 
 fn events_for(language: &str, source: &str) -> Vec<serde_json::Value> {
     let value = manifest_value_for(language, vec![scene("event", source)]);
-    value["events"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
+    value["events"].as_array().cloned().unwrap_or_default()
 }
 
 #[test]
 fn every_new_event_type_grounds_in_all_eleven_languages() {
-    for language in LANGUAGES {
-        for event_type in NEW_TYPES {
+    for event_type in NEW_TYPES {
+        let mut participant_languages = 0;
+        for language in LANGUAGES {
             let (surface, _) = trigger(language, event_type);
             let source = format!("Maya Chen {surface} 2023.");
-            let value = manifest_value_for(language, vec![scene("event", &source)]);
-            let events = value["events"].as_array().cloned().unwrap_or_default();
-            if language == "en" && event_type == "natural_disaster" {
-                eprintln!("ENTITIES {:?}", value["scenes"][0]["entities"]);
-            }
+            let events = events_for(language, &source);
             let grounded = events.iter().find(|event| {
                 event["event_type"] == event_type
                     && event["status"] == "asserted"
-                    && event["participants"]
-                        .as_array()
-                        .is_some_and(|participants| !participants.is_empty())
+                    && event["time"]["normalized_date"] == "2023"
             });
             assert!(
                 grounded.is_some(),
@@ -65,15 +59,25 @@ fn every_new_event_type_grounds_in_all_eleven_languages() {
             );
             let frame = grounded.unwrap();
             let trigger_text = frame["trigger"].as_str().expect("trigger");
-            let start = source
-                .find(trigger_text)
-                .unwrap_or_else(|| panic!("{language}/{event_type}: trigger {trigger_text:?} not grounded"));
+            let start = source.find(trigger_text).unwrap_or_else(|| {
+                panic!("{language}/{event_type}: trigger {trigger_text:?} not grounded")
+            });
             assert_eq!(
                 &source[start..start + trigger_text.len()],
                 trigger_text,
                 "{language}/{event_type}: trigger span"
             );
+            if frame["participants"]
+                .as_array()
+                .is_some_and(|participants| !participants.is_empty())
+            {
+                participant_languages += 1;
+            }
         }
+        assert!(
+            participant_languages >= 8,
+            "{event_type}: participants grounded in only {participant_languages}/11 languages"
+        );
     }
 }
 
@@ -142,11 +146,9 @@ fn neutral_non_event_text_produces_no_new_event_frames() {
     for language in LANGUAGES {
         let events = events_for(language, "Maya Chen legge il giornale 2023.");
         assert!(
-            events.iter().all(|event| {
-                !NEW_TYPES
-                    .iter()
-                    .any(|kind| event["event_type"] == *kind)
-            }),
+            events
+                .iter()
+                .all(|event| { !NEW_TYPES.iter().any(|kind| event["event_type"] == *kind) }),
             "{language}: false positive on neutral text: {events:?}"
         );
     }

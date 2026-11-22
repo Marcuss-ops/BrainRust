@@ -281,6 +281,23 @@ pub struct ChartItem {
     pub value: f64,
     pub start_byte: usize,
     pub end_byte: usize,
+    /// Additive `ChartsPack.hpp` qualifier (`exact`, `approximate`,
+    /// `greater_than`, `forecast`, `hypothetical`, `range`, `missing`) when
+    /// the grounded quantity carries one. Absent for legacy items.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qualifier: Option<String>,
+    /// Grounded period (`2023`, `2023-Q2`, ...) when the quantity has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period: Option<String>,
+    /// Grounded inclusive lower bound for an explicit range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lower: Option<f64>,
+    /// Grounded inclusive upper bound for an explicit range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upper: Option<f64>,
+    /// Quantity range id when the value is one endpoint of an explicit range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_id: Option<String>,
 }
 
 /// Chart-level metadata for downstream renderers. Every field is derived from
@@ -674,6 +691,12 @@ pub struct ProductionCandidate {
     /// Structured chart metadata when the values are unit/metric grounded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chart_meta: Option<ChartMetadata>,
+    /// Structured, grounded payload for a visual recipe that is not a chart
+    /// (`relationship_graph`, `role_lower_third`, `route_map`,
+    /// `choropleth_value_map`, `lifespan_timeline`, `counter_odometer`).
+    /// Absent for every pre-existing recipe so frozen outputs stay identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visual_payload: Option<serde_json::Value>,
     /// Date surfaces backing a timeline candidate (empty otherwise).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub temporal_surfaces: Vec<String>,
