@@ -1,8 +1,8 @@
 use super::{checked_multi_inputs, finish_run, ExpectedInputs};
-use crate::artifact::{failed_response, part_path};
+use crate::artifact::part_path;
 use crate::error::MuscleError;
 use crate::process::FFmpegRunner;
-use crate::protocol::{MediaMetadata, Request, Response};
+use crate::protocol::{MediaMetadata, Operation, Request, Response};
 
 /// The copy-only mux must never reconcile a video/audio duration divergence by
 /// truncation (`-shortest`). The audio master is padded to cover the
@@ -44,6 +44,7 @@ fn duration_mismatch(video_sec: f64, audio_sec: f64) -> Option<String> {
 pub(super) fn execute(request: Request) -> Response {
     let (inputs, output) = match checked_multi_inputs(
         &request,
+        Operation::MuxAudioCopy,
         ExpectedInputs::Exactly(2),
         "mux_audio_copy requires exactly video and final audio inputs",
     ) {
@@ -81,13 +82,15 @@ pub(super) fn execute(request: Request) -> Response {
             metadata.duration_sec
         }
         Ok(_) => {
-            return failed_response(
+            return Response::failure(
+                Operation::MuxAudioCopy,
                 Some(inputs[0].to_string()),
                 format!("video has no usable duration: {}", inputs[0]),
             )
         }
         Err(error) => {
-            return failed_response(
+            return Response::failure(
+                Operation::MuxAudioCopy,
                 Some(inputs[0].to_string()),
                 format!("video probe failed: {error}"),
             )
@@ -98,13 +101,15 @@ pub(super) fn execute(request: Request) -> Response {
             metadata
         }
         Ok(_) => {
-            return failed_response(
+            return Response::failure(
+                Operation::MuxAudioCopy,
                 Some(inputs[1].to_string()),
                 format!("final audio has no usable duration: {}", inputs[1]),
             )
         }
         Err(error) => {
-            return failed_response(
+            return Response::failure(
+                Operation::MuxAudioCopy,
                 Some(inputs[1].to_string()),
                 format!("final audio probe failed: {error}"),
             )
@@ -115,19 +120,20 @@ pub(super) fn execute(request: Request) -> Response {
     // 48kHz stereo contract. Anything else fails closed here instead of
     // producing an unplayable MP4 downstream.
     if !crate::audio_copy::is_canonically_compatible(&audio_metadata) {
-        return failed_response(
+        return Response::failure(Operation::MuxAudioCopy,
             Some(inputs[1].to_string()),
             format!(
-                "FINAL_MUX_AUDIO_NOT_COPY_ELIGIBLE: final audio is {:?}/{:?}/{:?}, want aac/48000/stereo",
+                "FINAL_MUX_AUDIO_NOT_COPY_ELIGIBLE: final audio is {:?}/{:?}/{:?}, want aac/{}/stereo",
                 audio_metadata.audio_codec,
                 audio_metadata.sample_rate,
                 audio_metadata.channels,
+                crate::config::CANONICAL_SAMPLE_RATE,
             ),
         );
     }
     let audio_sec = audio_metadata.duration_sec;
     if let Some(error) = duration_mismatch(video_sec, audio_sec) {
-        return failed_response(Some(inputs[0].to_string()), error);
+        return Response::failure(Operation::MuxAudioCopy, Some(inputs[0].to_string()), error);
     }
 
     let part = part_path(&output);
@@ -157,7 +163,7 @@ pub(super) fn execute(request: Request) -> Response {
     ]);
     let result = command.output();
     finish_run(
-        "mux_audio_copy",
+        Operation::MuxAudioCopy,
         &inputs[0],
         &part,
         &output,

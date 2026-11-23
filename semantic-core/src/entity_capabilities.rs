@@ -108,6 +108,66 @@ pub fn entity_capabilities(kind: &str) -> EntityCapabilities {
     }
 }
 
+/// The planner-facing family of one extractor spelling.
+///
+/// Extractors emit fine-grained types (`GPE`, `CITY`, `ORGANISATION`,
+/// `MEDIA_OUTLET`, …) while the planner, the identity tables and the ranking
+/// weights care about a small closed set of families. Before this enum the
+/// planner kept its own alias table, so a type known to extraction could be
+/// unknown to the lane that pictures it: `MEDIA_OUTLET` was a named subject
+/// with an `org:*` identity but produced no annotation, no card and no image
+/// recovery. [`fold_entity_kind`] is now the only spelling→family table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EntityKind {
+    /// A kind no planner lane handles (additive taxonomy, visual concepts).
+    #[default]
+    Other,
+    Person,
+    Organization,
+    Place,
+    Brand,
+    Logo,
+    Number,
+    Money,
+    Percent,
+    Date,
+    Time,
+    Quote,
+    Product,
+    Event,
+    Concept,
+}
+
+/// Folds any extractor spelling onto its planner family.
+///
+/// The table is deliberately explicit: it is the one place a new extractor
+/// type must be registered, and `the_declared_vocabulary_folds_without_a_gap`
+/// keeps the lexicon-declared types reachable from here.
+pub fn fold_entity_kind(kind: &str) -> EntityKind {
+    match kind.trim().to_ascii_uppercase().as_str() {
+        "PERSON" | "PER" | "HUMAN" | "CEO" | "FOUNDER" | "PRESIDENT" => EntityKind::Person,
+        "ORG" | "ORGANIZATION" | "ORGANISATION" | "COMPANY" | "CORP" | "CORPORATION"
+        | "BUSINESS" | "INSTITUTION" | "AGENCY" | "COURT" | "NGO" | "GOVERNMENT" | "UNIVERSITY"
+        | "TEAM" | "MEDIA_OUTLET" => EntityKind::Organization,
+        "PLACE" | "GPE" | "LOC" | "LOCATION" | "CITY" | "COUNTRY" | "NATION" | "REGION"
+        | "STATE" | "PROVINCE" | "TOWN" | "VILLAGE" | "LANDMARK" | "SITE" | "GEO" | "ADDRESS"
+        | "FAC" | "FACILITY" => EntityKind::Place,
+        "BRAND" => EntityKind::Brand,
+        "LOGO" => EntityKind::Logo,
+        "NUM" | "CARDINAL" | "ORDINAL" | "QUANTITY" | "METRIC" | "METRICS" | "STATISTIC"
+        | "STATISTICS" | "COUNT" | "NUMBER" => EntityKind::Number,
+        "CURRENCY" | "MONEY" => EntityKind::Money,
+        "PERCENT" | "PERCENTAGE" => EntityKind::Percent,
+        "DATETIME" | "CALENDAR_DATE" | "DATE" => EntityKind::Date,
+        "TIME" => EntityKind::Time,
+        "QUOTE" => EntityKind::Quote,
+        "PRODUCT" => EntityKind::Product,
+        "EVENT" => EntityKind::Event,
+        "CONCEPT" => EntityKind::Concept,
+        _ => EntityKind::Other,
+    }
+}
+
 /// True for every kind that is a measurement. Kept as a named helper because
 /// chart/timeline lanes ask exactly this question and nothing else.
 pub fn is_measurement(kind: &str) -> bool {
@@ -189,6 +249,98 @@ mod tests {
         );
         assert_eq!(names("CONCEPT"), Vec::<&str>::new());
         assert_eq!(names("NUMBER"), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn media_outlets_fold_onto_the_organization_family() {
+        assert_eq!(fold_entity_kind("MEDIA_OUTLET"), EntityKind::Organization);
+        assert_eq!(fold_entity_kind(" media_outlet "), EntityKind::Organization);
+        let caps = entity_capabilities("MEDIA_OUTLET");
+        assert!(caps.named_subject, "an outlet is a named subject");
+        assert!(caps.media_outlet);
+    }
+
+    /// Every legacy spelling the planner used to fold by hand, pinned so the
+    /// move into this module cannot silently lose an alias.
+    #[test]
+    fn every_legacy_alias_keeps_its_family() {
+        for kind in ["PERSON", "PER", "HUMAN", "CEO", "FOUNDER", "PRESIDENT"] {
+            assert_eq!(fold_entity_kind(kind), EntityKind::Person, "{kind}");
+        }
+        for kind in [
+            "ORG",
+            "ORGANIZATION",
+            "ORGANISATION",
+            "COMPANY",
+            "CORP",
+            "CORPORATION",
+            "BUSINESS",
+            "INSTITUTION",
+            "AGENCY",
+            "COURT",
+            "NGO",
+            "GOVERNMENT",
+            "UNIVERSITY",
+            "TEAM",
+            "MEDIA_OUTLET",
+        ] {
+            assert_eq!(fold_entity_kind(kind), EntityKind::Organization, "{kind}");
+        }
+        for kind in [
+            "PLACE", "GPE", "LOC", "LOCATION", "CITY", "COUNTRY", "NATION", "REGION", "STATE",
+            "PROVINCE", "TOWN", "VILLAGE", "LANDMARK", "SITE", "GEO", "ADDRESS", "FAC", "FACILITY",
+        ] {
+            assert_eq!(fold_entity_kind(kind), EntityKind::Place, "{kind}");
+        }
+        for kind in [
+            "NUM",
+            "CARDINAL",
+            "ORDINAL",
+            "QUANTITY",
+            "METRIC",
+            "METRICS",
+            "STATISTIC",
+            "STATISTICS",
+            "COUNT",
+            "NUMBER",
+        ] {
+            assert_eq!(fold_entity_kind(kind), EntityKind::Number, "{kind}");
+        }
+        assert_eq!(fold_entity_kind("CURRENCY"), EntityKind::Money);
+        assert_eq!(fold_entity_kind("MONEY"), EntityKind::Money);
+        assert_eq!(fold_entity_kind("PERCENTAGE"), EntityKind::Percent);
+        assert_eq!(fold_entity_kind("PERCENT"), EntityKind::Percent);
+        assert_eq!(fold_entity_kind("DATETIME"), EntityKind::Date);
+        assert_eq!(fold_entity_kind("CALENDAR_DATE"), EntityKind::Date);
+        assert_eq!(fold_entity_kind("DATE"), EntityKind::Date);
+        assert_eq!(fold_entity_kind("TIME"), EntityKind::Time);
+        assert_eq!(fold_entity_kind("BRAND"), EntityKind::Brand);
+        assert_eq!(fold_entity_kind("LOGO"), EntityKind::Logo);
+        assert_eq!(fold_entity_kind("QUOTE"), EntityKind::Quote);
+        assert_eq!(fold_entity_kind("PRODUCT"), EntityKind::Product);
+        assert_eq!(fold_entity_kind("EVENT"), EntityKind::Event);
+        assert_eq!(fold_entity_kind("CONCEPT"), EntityKind::Concept);
+        assert_eq!(fold_entity_kind("ANIMAL"), EntityKind::Other);
+        assert_eq!(fold_entity_kind(""), EntityKind::Other);
+    }
+
+    /// The lexicon declares the closed set extraction can emit. Every declared
+    /// type must either fold to a planner family or be an explicitly additive
+    /// visual type with no lane; nothing may fall through by accident.
+    #[test]
+    fn the_declared_vocabulary_folds_without_a_gap() {
+        for kind in &crate::entity_type_terms::terms().types {
+            let folded = fold_entity_kind(kind);
+            let additive = crate::entity_type_terms::ADDITIVE_TYPES.contains(&kind.as_str());
+            assert!(
+                folded != EntityKind::Other || additive,
+                "declared type {kind} has no family and is not additive"
+            );
+        }
+        assert_eq!(
+            fold_entity_kind(crate::entity_type_terms::MEDIA_OUTLET),
+            EntityKind::Organization
+        );
     }
 
     #[test]

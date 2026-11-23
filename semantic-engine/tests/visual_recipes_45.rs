@@ -26,7 +26,16 @@ fn assert_grounded(source: &str, candidate: &Value) {
     let end = candidate["end_byte"].as_u64().unwrap() as usize;
     let evidence = candidate["evidence"].as_str().unwrap();
     assert_eq!(&source[start..end], evidence, "{candidate:?}");
-    assert!(!candidate["covered_fact_ids"].as_array().unwrap().is_empty());
+    // Coverage crosses the wire as canonical fact ids only: a recipe grounded
+    // on a raw artifact (a quantity, a route, a role) contributes no coverage
+    // rather than an id the consumer cannot resolve.
+    for id in candidate["covered_fact_ids"].as_array().unwrap() {
+        let id = id.as_str().unwrap();
+        assert!(
+            id.starts_with("cf_"),
+            "non-canonical coverage {id} in {candidate:?}"
+        );
+    }
 }
 
 #[test]

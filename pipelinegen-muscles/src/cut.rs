@@ -1,11 +1,11 @@
-use crate::artifact::{failed_response, part_path};
+use crate::artifact::part_path;
 use crate::hash::sha256_file;
 
 use crate::config;
 use crate::encoder;
 use crate::probe::{ffprobe_path, probe_file, validate_output};
 use crate::process::FFmpegRunner;
-use crate::protocol::{CutItem, CutJob, Request, Response};
+use crate::protocol::{CutItem, CutJob, Operation, Request, Response};
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -26,9 +26,19 @@ fn cut_batch(request: Request) -> Response {
     let source = match request.source_path.as_deref() {
         Some(value) if !value.is_empty() && Path::new(value).is_file() => value,
         Some(value) => {
-            return failed_response(source_path, format!("source file is not readable: {value}"));
+            return Response::failure(
+                Operation::CutBatch,
+                source_path,
+                format!("source file is not readable: {value}"),
+            );
         }
-        None => return failed_response(source_path, "source_path is required".to_string()),
+        None => {
+            return Response::failure(
+                Operation::CutBatch,
+                source_path,
+                "source_path is required".to_string(),
+            )
+        }
     };
 
     let jobs = request.jobs.unwrap_or_default();
@@ -39,15 +49,17 @@ fn cut_batch(request: Request) -> Response {
         .unwrap_or_else(|| "ffmpeg".to_string());
     let profile = match request.media.profile() {
         Ok(value) => value,
-        Err(error) => return failed_response(source_path, error),
+        Err(error) => return Response::failure(Operation::CutBatch, source_path, error),
     };
     let encoder = match request.media.encoder() {
         Ok(value) => value,
-        Err(error) => return failed_response(source_path, error),
+        Err(error) => return Response::failure(Operation::CutBatch, source_path, error),
     };
     let max_parallel = match request.media.parallel_cuts() {
         Ok(value) => value,
-        Err(error) => return failed_response(source_path, error.to_string()),
+        Err(error) => {
+            return Response::failure(Operation::CutBatch, source_path, error.to_string())
+        }
     };
     let ffprobe = ffprobe_path(&ffmpeg);
     // Decode acceleration is policy-driven AND capability-aware: the encoder
@@ -101,18 +113,21 @@ fn cut_batch(request: Request) -> Response {
     }
 
     let all_failed = !items.is_empty() && items.iter().all(|item| item.status == "failed");
-    Response {
-        ok: !all_failed,
-        operation: "cut_batch".to_string(),
-        source_path,
-        error: if all_failed {
-            Some("all cut jobs failed".to_string())
-        } else {
-            None
-        },
-        metadata: None,
-        preflight: None,
-        items,
+    if all_failed {
+        // The partial-failure envelope still carries the per-job items, so it
+        // cannot use `Response::failure` (which starts empty); only the
+        // operation name is derived instead of typed as a literal.
+        Response {
+            ok: false,
+            operation: Operation::CutBatch.as_str().to_string(),
+            source_path,
+            error: Some("all cut jobs failed".to_string()),
+            metadata: None,
+            preflight: None,
+            items,
+        }
+    } else {
+        Response::success(Operation::CutBatch, source_path, items, None)
     }
 }
 

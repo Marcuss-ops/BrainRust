@@ -341,3 +341,14 @@ fn drops_a_scene_title_that_overlaps_a_map() {
 
     assert!(!edits[1].keep);
 }
+
+/// The ranking weight reads the same fold as the card and annotation lanes, so
+/// an outlet cannot rank as an unknown type while it cards as an organization.
+#[test]
+fn media_outlet_ranks_like_an_organization() {
+    assert_eq!(
+        super::entity_type_weight("MEDIA_OUTLET"),
+        super::entity_type_weight("ORG")
+    );
+    assert_eq!(super::entity_type_weight("MEDIA_OUTLET"), 0.9);
+}

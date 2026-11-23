@@ -1,10 +1,10 @@
 use super::{checked_multi_inputs, write_concat_list, ExpectedInputs};
-use crate::artifact::{failed_response, part_path, publish_output};
+use crate::artifact::{part_path, publish_output};
 use crate::error::MuscleError;
 use crate::probe::{ffprobe_path, probe_file};
 use crate::process::FFmpegRunner;
 use crate::protocol::{
-    CopyCertification, MediaMetadata, Request, Response, VELOX_ASSEMBLY_READY_V1,
+    CopyCertification, MediaMetadata, Operation, Request, Response, VELOX_ASSEMBLY_READY_V1,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -38,18 +38,20 @@ pub(super) fn execute(request: Request) -> Response {
     let cert = match request.copy_certification.as_ref() {
         Some(cert) => cert,
         None => {
-            return failed_response(
+            return Response::failure(
+                Operation::AssembleCopy,
                 None,
                 "copy_certification is required for assemble_copy".to_string(),
             )
         }
     };
     if let Err(error) = cert.validate() {
-        return failed_response(None, error);
+        return Response::failure(Operation::AssembleCopy, None, error);
     }
 
     let (inputs, output) = match checked_multi_inputs(
         &request,
+        Operation::AssembleCopy,
         ExpectedInputs::AtLeastOne,
         "input_paths are required",
     ) {
@@ -63,10 +65,12 @@ pub(super) fn execute(request: Request) -> Response {
     // ── AssemblyCompatibilityGate: probe all inputs concurrently ──
     let probes = match probe_all_inputs_concurrent(&ffprobe, &inputs) {
         Ok(probes) => probes,
-        Err(error) => return failed_response(Some(inputs[0].to_string()), error),
+        Err(error) => {
+            return Response::failure(Operation::AssembleCopy, Some(inputs[0].to_string()), error)
+        }
     };
     if let Err(error) = assembly_compatibility_gate(cert, &probes) {
-        return failed_response(Some(inputs[0].to_string()), error);
+        return Response::failure(Operation::AssembleCopy, Some(inputs[0].to_string()), error);
     }
 
     // ── All inputs compatible → concat -c copy ──
@@ -90,7 +94,7 @@ pub(super) fn execute(request: Request) -> Response {
         let list_path = match write_concat_list(&inputs, "assemble_copy") {
             Ok(path) => path,
             Err(error) => {
-                return failed_response(Some(inputs[0].clone()), error);
+                return Response::failure(Operation::AssembleCopy, Some(inputs[0].clone()), error);
             }
         };
         let list = list_path.to_string_lossy().into_owned();
@@ -114,7 +118,8 @@ pub(super) fn execute(request: Request) -> Response {
                 Ok(output_meta) => {
                     if let Err(error) = cert.verify_metadata(&output_meta) {
                         let _ = fs::remove_file(&part);
-                        return failed_response(
+                        return Response::failure(
+                            Operation::AssembleCopy,
                             Some(inputs[0].to_string()),
                             format!("assembly output certification failed: {error}"),
                         );
@@ -122,28 +127,29 @@ pub(super) fn execute(request: Request) -> Response {
                 }
                 Err(error) => {
                     let _ = fs::remove_file(&part);
-                    return failed_response(
+                    return Response::failure(
+                        Operation::AssembleCopy,
                         Some(inputs[0].to_string()),
                         format!("assembly output probe failed: {error}"),
                     );
                 }
             }
             match publish_output(&part, &output) {
-                Ok(()) => Response {
-                    ok: true,
-                    operation: "assemble_copy".to_string(),
-                    source_path: Some(inputs[0].to_string()),
-                    items: Vec::new(),
-                    metadata: None,
-                    preflight: None,
-                    error: None,
-                },
-                Err(error) => failed_response(Some(inputs[0].to_string()), error),
+                Ok(()) => Response::success(
+                    Operation::AssembleCopy,
+                    Some(inputs[0].to_string()),
+                    Vec::new(),
+                    None,
+                ),
+                Err(error) => {
+                    Response::failure(Operation::AssembleCopy, Some(inputs[0].to_string()), error)
+                }
             }
         }
         Ok(result) => {
             let _ = fs::remove_file(&part);
-            failed_response(
+            Response::failure(
+                Operation::AssembleCopy,
                 Some(inputs[0].to_string()),
                 format!(
                     "assemble_copy failed: {}",
@@ -153,7 +159,8 @@ pub(super) fn execute(request: Request) -> Response {
         }
         Err(error) => {
             let _ = fs::remove_file(&part);
-            failed_response(
+            Response::failure(
+                Operation::AssembleCopy,
                 Some(inputs[0].to_string()),
                 format!("assemble_copy failed to start: {error}"),
             )

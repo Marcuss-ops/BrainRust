@@ -2,10 +2,10 @@
   "operation": "compile_editorial_plan",
   "schema_version": "editorial_plan.v2",
   "plan": {
-    "plan_id": "cards-promotable-fixture",
-    "video_id": "video-cards-promotable",
+    "plan_id": "cards-bundle-fixture",
+    "video_id": "video-cards-bundle",
     "project_id": "project-fixture",
-    "motion_seed": "seed-cards-promotable",
+    "motion_seed": "seed-cards-bundle",
     "width": 1920,
     "height": 1080,
     "fps_num": 24,
@@ -241,9 +241,7 @@
   },
   "media": {
     "materialized_assets": [],
-    "verified_entity_assets": [],
-    "scene_image_candidates": [],
-    "promotable_entity_assets": [
+    "verified_entity_assets": [
       {
         "entity_id": "person-ada",
         "canonical_entity_id": "person:ada-lovelace",
@@ -280,7 +278,8 @@
           }
         ]
       }
-    ]
+    ],
+    "scene_image_candidates": []
   },
   "budgets": {
     "phrase_overlays": 0,

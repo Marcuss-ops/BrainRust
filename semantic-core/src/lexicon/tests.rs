@@ -38,47 +38,55 @@ fn filler_phrases_match_as_consecutive_words_never_inside_a_word() {
 #[test]
 fn geonames_places_are_indexed_with_a_capitalization_guard() {
     let lexicon = Lexicon::global();
-    assert!(lexicon.is_place("Pavia", "it"));
-    assert!(lexicon.is_place("Garlasco", "it"));
-    assert!(lexicon.is_place("Vigevano", "it"));
-    // Country names are ADM0 features, so the populated-place dump excludes
-    // them; the curated location seed must still type them as places.
-    assert!(lexicon.is_place("Italia", "it"));
-    assert!(lexicon.is_place("Francia", "it"));
-    // The generated dump carries the English names; the curated delta adds the
-    // Italian exonyms and the region names that are not populated places.
-    assert!(lexicon.is_place("Gerusalemme", "it"));
-    assert!(lexicon.is_place("Betlemme", "it"));
-    assert!(lexicon.is_place("Vicino Oriente", "it"));
-    assert!(lexicon.is_place("Mar Morto", "it"));
-    // A curated addition never lowers the capitalization guard.
-    assert!(!lexicon.is_place("gerusalemme", "it"));
-    assert!(lexicon.is_place("Germania", "it"));
-    assert!(lexicon.is_place("Svizzera", "it"));
-    assert!(lexicon.is_place("Italy", "en"));
-    assert!(lexicon.is_place("Switzerland", "en"));
-    // Italian elides the article: the spoken surface is "L'Italia", and the
-    // GeoNames alias "La Francia" is a hamlet, not the country named Francia.
-    assert!(lexicon.is_place("L'Italia", "it"));
-    assert!(!lexicon.is_place("La Francia", "it"));
-    // A caseless script has no uppercase initial: the index must still
-    // type the place.
-    assert!(lexicon.is_place("北京", "zh"));
-    assert!(lexicon.is_place("東京", "ja"));
-    assert!(lexicon.is_place("서울", "ko"));
-    assert!(lexicon.is_place("القاهرة", "ar"));
-    assert!(lexicon.is_place("मुंबई", "hi"));
-    // German is cased even though nouns are capitalized: the lowercase
-    // guard still applies.
-    assert!(lexicon.is_place("Berlin", "de"));
-    assert!(!lexicon.is_place("berlin", "de"));
-    // Lowercase common nouns that collide with a GeoNames alias stay out.
-    assert!(!lexicon.is_place("casa", "it"));
-    assert!(!lexicon.is_place("mare", "it"));
-    assert!(!lexicon.is_place("pavia", "it"));
-    // "Corte" is both a French town and the Italian common noun "court".
-    assert!(!lexicon.is_place("Corte", "it"));
-    assert!(lexicon.is_place("Corte", "en"));
+    let cases = [
+        ("Pavia", "it", true),
+        ("Garlasco", "it", true),
+        ("Vigevano", "it", true),
+        // Country names are ADM0 features, so the populated-place dump
+        // excludes them; the curated location seed types them as places.
+        ("Italia", "it", true),
+        ("Francia", "it", true),
+        // The generated dump carries the English names; the curated delta adds
+        // the Italian exonyms and the region names that are not towns.
+        ("Gerusalemme", "it", true),
+        ("Betlemme", "it", true),
+        ("Vicino Oriente", "it", true),
+        ("Mar Morto", "it", true),
+        // A curated addition never lowers the capitalization guard.
+        ("gerusalemme", "it", false),
+        ("Germania", "it", true),
+        ("Svizzera", "it", true),
+        ("Italy", "en", true),
+        ("Switzerland", "en", true),
+        // Italian elides the article: the spoken surface is "L'Italia", and
+        // the GeoNames alias "La Francia" is a hamlet, not the country.
+        ("L'Italia", "it", true),
+        ("La Francia", "it", false),
+        // A caseless script has no uppercase initial: the index still types
+        // the place.
+        ("北京", "zh", true),
+        ("東京", "ja", true),
+        ("서울", "ko", true),
+        ("القاهرة", "ar", true),
+        ("मुंबई", "hi", true),
+        // German is cased even though nouns are capitalized.
+        ("Berlin", "de", true),
+        ("berlin", "de", false),
+        // Lowercase common nouns that collide with a GeoNames alias stay out.
+        ("casa", "it", false),
+        ("mare", "it", false),
+        ("pavia", "it", false),
+        // "Corte" is both a French town and the Italian common noun "court".
+        ("Corte", "it", false),
+        ("Corte", "en", true),
+    ];
+    for (surface, language, expected) in cases {
+        assert_eq!(
+            lexicon.is_place(surface, language),
+            expected,
+            "{surface} in {language}"
+        );
+    }
 }
 
 #[test]

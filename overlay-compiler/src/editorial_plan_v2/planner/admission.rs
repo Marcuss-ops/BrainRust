@@ -4,8 +4,8 @@
 
 use super::*;
 
-pub(super) fn new_intake(request: &EditorialPlanV2Request, candidates: &[PlanItemV2]) -> IntakeV2 {
-    let budgets = request.budgets.as_ref().expect("validated budgets");
+pub(super) fn new_intake(request: &ValidatedRequest<'_>, candidates: &[PlanItemV2]) -> IntakeV2 {
+    let budgets = request.budgets();
     let mut intake = IntakeV2 {
         scenes: request.scenes.len() as i64,
         timed_scenes: request
@@ -31,12 +31,34 @@ pub(super) fn new_intake(request: &EditorialPlanV2Request, candidates: &[PlanIte
     intake
 }
 
+/// Explicit admission priority. Every ceiling is a finite resource, so the
+/// kind that matters must be considered first; append order is not a policy.
+/// Lower ranks win: a verified portrait or a map beats a generic still, a
+/// text surface beats a date. Within one rank the request order is preserved,
+/// so each run budget is still spent scene by scene and the old two-pass
+/// append order no longer decides who lives (Augias R41: a full scene of
+/// dates erased every verified portrait because cards were appended last).
+fn admission_rank(item: &PlanItemV2) -> u8 {
+    if is_map(item) {
+        return 0;
+    }
+    match item.kind.as_str() {
+        "entity_image" | "entity_card" | "organization" | "location" | "concept" => 0,
+        "image" | "product" | "logo" => 1,
+        "number" => 3,
+        _ => 2,
+    }
+}
+
+/// Admits every candidate exactly once. The selection walks the candidates in
+/// [`admission_rank`] order and the survivors are returned in request order, so
+/// the plan keeps its editorial ordering while the priority decides the cuts.
 pub(super) fn admit(
-    request: &EditorialPlanV2Request,
+    request: &ValidatedRequest<'_>,
     candidates: Vec<PlanItemV2>,
     mut intake: IntakeV2,
 ) -> (Vec<PlanItemV2>, IntakeV2) {
-    let budgets = request.budgets.as_ref().expect("validated budgets");
+    let budgets = request.budgets();
     let max_per_scene = if budgets.max_per_scene > 0 {
         budgets.max_per_scene
     } else {
@@ -48,17 +70,20 @@ pub(super) fn admit(
     let mut images = 0;
     let mut maps = 0;
     let mut bullets = 0;
-    let mut selected: Vec<PlanItemV2> = Vec::new();
-    for item in candidates {
-        if request.canvas.maps_only && !is_map(&item) {
+    let mut keep = vec![false; candidates.len()];
+    let mut order: Vec<usize> = (0..candidates.len()).collect();
+    order.sort_by_key(|index| (admission_rank(&candidates[*index]), *index));
+    for index in order {
+        let item = &candidates[index];
+        if request.canvas.maps_only && !is_map(item) {
             drop_reason(&mut intake, "maps_only");
             continue;
         }
-        if category_disabled(request, &item) {
+        if category_disabled(request, item) {
             drop_reason(&mut intake, "category");
             continue;
         }
-        let group = group_for(&item);
+        let group = group_for(item);
         if request.canvas.group_limits.get(group).is_some_and(|limit| {
             *limit > 0 && group_counts.get(group).copied().unwrap_or(0) >= *limit
         }) {
@@ -70,16 +95,18 @@ pub(super) fn admit(
                 drop_reason(&mut intake, "budget");
                 continue;
             }
-            if role(&item) == "scene_bullet" && budgets.bullet > 0 && bullets >= budgets.bullet {
+            if role(item) == "scene_bullet" && budgets.bullet > 0 && bullets >= budgets.bullet {
                 drop_reason(&mut intake, "budget");
                 continue;
             }
         }
-        if is_image(&item) && budgets.image_overlays > 0 && images >= budgets.image_overlays {
+        if is_image(item) && budgets.image_overlays > 0 && images >= budgets.image_overlays {
+            // Verified portraits were considered first, so a generic still
+            // that reaches this branch lost the ceiling to them.
             drop_reason(&mut intake, "budget");
             continue;
         }
-        if is_map(&item) && budgets.map_overlays > 0 && maps >= budgets.map_overlays {
+        if is_map(item) && budgets.map_overlays > 0 && maps >= budgets.map_overlays {
             drop_reason(&mut intake, "budget");
             continue;
         }
@@ -90,44 +117,31 @@ pub(super) fn admit(
                 .unwrap_or(0)
                 >= max_per_scene
         {
-            // Text entity cards are appended after the base candidates, so a
-            // scene full of numbers used to consume every slot and erase the
-            // person card. The ticket requires the named card, so at the
-            // ceiling one entity card may displace the last number of the same
-            // scene. Numbers still win over any other late candidate.
-            if !is_text_entity(&item) {
-                drop_reason(&mut intake, "per_scene");
-                continue;
-            }
-            let Some(position) = selected
-                .iter()
-                .rposition(|prior| prior.scene_id == item.scene_id && prior.kind == "number")
-            else {
-                drop_reason(&mut intake, "per_scene");
-                continue;
-            };
-            let evicted = selected.remove(position);
-            if let Some(count) = scene_counts.get_mut(evicted.scene_id.as_str()) {
-                *count -= 1;
-            }
-            if let Some(count) = group_counts.get_mut(group_for(&evicted)) {
-                *count -= 1;
-            }
-            drop_reason(&mut intake, "number_replaced_by_entity");
+            // A named card was considered first, so a date that reaches this
+            // branch lost its slot to the identity, not to another date.
+            drop_reason(&mut intake, "per_scene");
+            continue;
         }
+        keep[index] = true;
         *group_counts.entry(group).or_default() += 1;
         *scene_counts.entry(item.scene_id.clone()).or_default() += 1;
         if item.kind == "text_phrase" {
             phrases += 1;
-            if role(&item) == "scene_bullet" {
+            if role(item) == "scene_bullet" {
                 bullets += 1;
             }
         }
-        if is_image(&item) {
+        if is_image(item) {
             images += 1;
         }
-        if is_map(&item) {
+        if is_map(item) {
             maps += 1;
+        }
+    }
+    let mut selected = Vec::with_capacity(keep.iter().filter(|kept| **kept).count());
+    for (index, item) in candidates.into_iter().enumerate() {
+        if !keep[index] {
+            continue;
         }
         *intake.planned_by_kind.entry(item.kind.clone()).or_default() += 1;
         selected.push(item);
@@ -167,13 +181,16 @@ fn category_for(item: &PlanItemV2) -> &'static str {
     }
 }
 
-fn category_disabled(request: &EditorialPlanV2Request, item: &PlanItemV2) -> bool {
-    let category = category_for(item);
-    if let Some(scene) = request
-        .scenes
-        .iter()
-        .find(|scene| scene.id == item.scene_id)
-    {
+/// One category-toggle lookup for both admission and the card builder. The
+/// card builder needs it before attaching a portrait: an `images: disabled`
+/// scene must keep a text card, not become an `entity_image` that admission
+/// then drops.
+pub(super) fn category_toggle_disabled(
+    request: &EditorialPlanV2Request,
+    scene_id: &str,
+    category: &str,
+) -> bool {
+    if let Some(scene) = request.scenes.iter().find(|scene| scene.id == scene_id) {
         if let Some(toggle) = scene.overlay_categories.get(category) {
             if !toggle.is_empty() && toggle != "default" {
                 return toggle == "disabled";
@@ -188,11 +205,8 @@ fn category_disabled(request: &EditorialPlanV2Request, item: &PlanItemV2) -> boo
         .unwrap_or(false)
 }
 
-fn is_text_entity(item: &PlanItemV2) -> bool {
-    matches!(
-        item.kind.as_str(),
-        "entity_card" | "organization" | "location" | "concept"
-    )
+fn category_disabled(request: &EditorialPlanV2Request, item: &PlanItemV2) -> bool {
+    category_toggle_disabled(request, &item.scene_id, category_for(item))
 }
 
 fn group_for(item: &PlanItemV2) -> &'static str {

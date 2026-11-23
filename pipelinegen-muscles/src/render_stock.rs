@@ -1,5 +1,4 @@
-use crate::artifact::failed_response;
-use crate::protocol::{Request, Response};
+use crate::protocol::{Operation, Request, Response};
 use std::fs;
 use std::path::Path;
 
@@ -17,27 +16,38 @@ pub(crate) fn execute(request: Request) -> Response {
     let plan = match request.render_plan.clone() {
         Some(value) => value,
         None => {
-            return failed_response(
+            return Response::failure(
+                Operation::RenderStock,
                 None,
                 "render_stock requires a canonical render_plan".to_string(),
             );
         }
     };
     if let Err(error) = crate::render_stock_canonical_plan::validate_canonical_plan(&plan) {
-        return failed_response(None, error);
+        return Response::failure(Operation::RenderStock, None, error);
     }
     let output = match request.output_path.as_deref() {
         Some(path) if !path.is_empty() => path,
-        _ => return failed_response(None, "output_path is required".to_string()),
+        _ => {
+            return Response::failure(
+                Operation::RenderStock,
+                None,
+                "output_path is required".to_string(),
+            )
+        }
     };
     let profile = match request.media.profile() {
         Ok(profile) => profile,
-        Err(error) => return failed_response(None, error),
+        Err(error) => return Response::failure(Operation::RenderStock, None, error),
     };
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
     if let Some(parent) = Path::new(output).parent() {
         if let Err(error) = fs::create_dir_all(parent) {
-            return failed_response(None, format!("create output directory: {error}"));
+            return Response::failure(
+                Operation::RenderStock,
+                None,
+                format!("create output directory: {error}"),
+            );
         }
     }
     executor::execute_canonical_render(&plan, &request, output, ffmpeg, &profile)

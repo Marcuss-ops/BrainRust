@@ -7,21 +7,17 @@
 //! `PreflightReport.ok` into a blocking decision is the caller's job.
 
 use crate::preflight::check;
-use crate::protocol::{Request, Response};
+use crate::protocol::{Operation, Request, Response};
 
 pub(super) fn execute(request: Request) -> Response {
     let Some(mut payload) = request.preflight else {
         // `Request::validate` already rejects this shape; keep the arm
         // fail-closed instead of panicking if the call order ever changes.
-        return Response {
-            ok: false,
-            operation: "preflight".to_string(),
-            source_path: request.source_path,
-            items: Vec::new(),
-            metadata: None,
-            preflight: None,
-            error: Some("preflight is required".to_string()),
-        };
+        return Response::failure(
+            Operation::Preflight,
+            request.source_path,
+            "preflight is required",
+        );
     };
     // Reuse the envelope override the Go client already fills from the shared
     // executor, so a caller never has to repeat the ffmpeg path inside the
@@ -30,13 +26,5 @@ pub(super) fn execute(request: Request) -> Response {
         payload.ffmpeg_path = request.ffmpeg_path;
     }
     let report = check(&payload);
-    Response {
-        ok: true,
-        operation: "preflight".to_string(),
-        source_path: None,
-        items: Vec::new(),
-        metadata: None,
-        preflight: Some(report),
-        error: None,
-    }
+    Response::success(Operation::Preflight, None, Vec::new(), None).with_preflight(report)
 }

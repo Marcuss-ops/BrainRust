@@ -1,86 +1,6 @@
 use super::*;
 
 #[cfg(test)]
-mod identity_ownership_tests {
-    use super::*;
-
-    fn asset(id: &str, sha: &str) -> AssetRefV2 {
-        AssetRefV2 {
-            asset_id: id.to_string(),
-            url: format!("https://example.test/{id}.jpg"),
-            sha256: sha.to_string(),
-            media_type: "image/jpeg".to_string(),
-        }
-    }
-
-    /// A card that already has a donor portrait in the request must keep its
-    /// own kind, text and (empty) preset: attaching bytes is not promoting.
-    #[test]
-    fn attaching_a_resolved_image_never_takes_the_identity_decision() {
-        let card = PlanItemV2 {
-            id: "card-ada".to_string(),
-            scene_id: "scene-1".to_string(),
-            kind: "entity_card".to_string(),
-            template_id: "person_default".to_string(),
-            entity_id: "ent_ada".to_string(),
-            text: "Ada Lovelace".to_string(),
-            entity_caption: "Matematica".to_string(),
-            start_us: 0,
-            duration_us: 2_000_000,
-            ..Default::default()
-        };
-        let donor = PlanItemV2 {
-            id: "image-ada".to_string(),
-            scene_id: "scene-1".to_string(),
-            kind: "image".to_string(),
-            entity_id: "ent_ada".to_string(),
-            asset_refs: vec![asset("portrait-ada", &"1".repeat(64))],
-            ..Default::default()
-        };
-
-        let out = attach_resolved_entity_images(vec![card, donor]);
-        let card = &out[0];
-        assert_eq!(
-            "entity_card", card.kind,
-            "the planner must not promote the card"
-        );
-        assert_eq!("person_default", card.template_id);
-        assert_eq!("Ada Lovelace", card.text, "the card keeps its own text");
-        assert!(
-            card.preset_id.is_empty(),
-            "preset selection belongs to the Go sampler"
-        );
-        assert!(card.image_preset_id.is_empty());
-        assert_eq!(1, card.asset_refs.len(), "the donor bytes are attached");
-        assert_eq!("portrait-ada", card.asset_refs[0].asset_id);
-    }
-
-    /// A card whose donor carries no content-hashed asset is not promoted and
-    /// gets no bytes: an unverified portrait must never reach the renderer.
-    #[test]
-    fn unverified_donors_attach_nothing() {
-        let card = PlanItemV2 {
-            id: "card-ada".to_string(),
-            kind: "entity_card".to_string(),
-            entity_id: "ent_ada".to_string(),
-            text: "Ada Lovelace".to_string(),
-            ..Default::default()
-        };
-        let donor = PlanItemV2 {
-            id: "image-ada".to_string(),
-            kind: "image".to_string(),
-            entity_id: "ent_ada".to_string(),
-            asset_refs: vec![asset("portrait-ada", "")],
-            ..Default::default()
-        };
-
-        let out = attach_resolved_entity_images(vec![card, donor]);
-        assert_eq!("entity_card", out[0].kind);
-        assert!(out[0].asset_refs.is_empty());
-    }
-}
-
-#[cfg(test)]
 mod entity_window_sequencing_tests {
     use super::*;
 
@@ -345,5 +265,31 @@ mod entity_window_sequencing_tests {
             items[1].style.is_none(),
             "badge plate leaked onto a text item"
         );
+    }
+
+    /// TICKET-49 local regression, carried by the reduced R30 fixture: two
+    /// occurrences of Corrado Augias inside one scene must produce one card,
+    /// while the same identity in a second scene still gets its own card.
+    /// Occurrence ids differ, so the old per-overlay admission emitted both
+    /// portraits in scene 1.
+    #[test]
+    fn r30_entity_cards_are_deduplicated_by_canonical_identity_per_scene() {
+        let request: EditorialPlanV2Request = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/r30-entity-admission.json"
+        ))
+        .expect("R30 fixture request");
+        let mut items = Vec::new();
+        append_entity_cards(&mut items, &request).expect("entity cards");
+        assert_eq!(2, items.len(), "one card per scene, not per occurrence");
+        assert_eq!("scene-1", items[0].scene_id);
+        assert_eq!("ent_augias_s1a", items[0].entity_id);
+        assert_eq!("scene-2", items[1].scene_id);
+        assert_eq!("ent_augias_s2", items[1].entity_id);
+        for item in &items {
+            assert_eq!(
+                "person:corrado-augias",
+                item.entity_ref.as_ref().unwrap().canonical_entity_id
+            );
+        }
     }
 }

@@ -17,12 +17,17 @@ contract is approved.
 
 The workspace has deliberately separate execution boundaries:
 
-- `semantic-engine` is the dedicated CPU-only text-analysis worker. One
+- `semantic-engine` is the dedicated CPU-only semantic worker. One
   `analyze_script` request carries all scenes and returns the versioned
   `semantic_manifest.v3`, including a script-level `entities` projection with
   linked ids, roles, glosses, negative constraints and typed intents from the
   packaged `entity_index.v1`; it does not search for assets or perform media
-  I/O.
+  I/O. Since TICKET-14 the same worker is also the single-call editorial
+  planner: `compile_editorial_plan` runs the five planner phases (map-window
+  trim, entity ranking, entrance cascade, overlap resolution, seal) inside
+  `overlay-compiler`. Planning moved here on purpose — one request, one
+  response, no second Go implementation — so the separation to preserve is
+  "planner decides, Go materializes bytes", not "engine never plans".
 - `imagecatalog` was **retired on 2026-11-18** (TICKET-28) and its crate
   directory was deleted. It was an offline experiment with no Go consumer and
   a second copy of the catalog policy; the live flow is documented in

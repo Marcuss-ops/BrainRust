@@ -10,26 +10,10 @@ pub fn process(request: Request) -> Response {
     // envelope renders it back to its stable wire name.
     let operation = request.operation;
     if let Err(error) = request.validate() {
-        return Response {
-            ok: false,
-            operation: operation.as_str().to_string(),
-            source_path: request.source_path,
-            items: Vec::new(),
-            metadata: None,
-            preflight: None,
-            error: Some(error.to_string()),
-        };
+        return Response::failure(operation, request.source_path, error);
     }
-    let mut response = match operation {
-        Operation::Health => Response {
-            ok: true,
-            operation: "health".to_string(),
-            source_path: None,
-            items: Vec::new(),
-            metadata: None,
-            preflight: None,
-            error: None,
-        },
+    match operation {
+        Operation::Health => Response::success(Operation::Health, None, Vec::new(), None),
         Operation::CutBatch => crate::cut::execute(request),
         Operation::Probe => crate::probe::execute(request),
         Operation::Normalize => crate::transform::execute(request, Operation::Normalize),
@@ -57,11 +41,7 @@ pub fn process(request: Request) -> Response {
             crate::transform::execute(request, Operation::ExtractTimelineWindow)
         }
         Operation::Preflight => crate::preflight_operation::execute(request),
-    };
-    if !response.ok {
-        response.operation = operation.as_str().to_string();
     }
-    response
 }
 
 pub fn run_stdio() -> io::Result<()> {
@@ -224,6 +204,22 @@ mod tests {
         let response = process(health);
         assert!(response.ok);
         assert!(response.preflight.is_none());
+    }
+
+    #[test]
+    fn a_failed_operation_reports_its_own_name() {
+        // The shared failure helper used to hardcode `cut_batch`; only the
+        // dispatcher rewrote the field. The envelope must name the request that
+        // failed on its own, without a post-hoc patch.
+        for operation in ["assemble_copy", "merge_inputs", "mux_audio_copy"] {
+            let request: Request = serde_json::from_str(&format!(
+                r#"{{"version":"mediaexec.v2","operation":"{operation}"}}"#
+            ))
+            .expect("request parses; validation owns the requirements");
+            let response = process(request);
+            assert!(!response.ok, "{operation} without inputs must fail");
+            assert_eq!(response.operation, operation);
+        }
     }
 
     #[test]

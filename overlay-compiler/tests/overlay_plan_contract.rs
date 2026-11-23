@@ -7,8 +7,9 @@
 //! recap cards plus clip-start light leaks, the general chain coalescer's
 //! phrase/image/mixed sequences with maps left standalone, a map collision
 //! that is resolved before the surviving phrases fuse, and entity cards whose
-//! portraits arrive only on `media.promotable_entity_assets` (the planner, not
-//! Go, promotes them). The plan files are produced by the real planner with
+//! portraits arrive only on the producer-resolved `media.verified_entity_assets`
+//! surface (the planner, not Go, binds them). The plan files are produced by
+//! the real planner with
 //! `cargo run -p overlay-compiler --example compile_fixture -- <request>`.
 //!
 //! A missing section, an unknown version, a duplicate identity, an unmaterialized
@@ -78,11 +79,11 @@ const FIXTURES: &[Fixture] = &[
         plan: include_str!("fixtures/overlay_plan/plans/chain_collision_resolution.plan.json"),
     },
     Fixture {
-        name: "entity_cards_promotable_media",
+        name: "entity_cards_bundle_media",
         request: include_str!(
-            "fixtures/overlay_plan/requests/entity_cards_promotable_media.request.json"
+            "fixtures/overlay_plan/requests/entity_cards_bundle_media.request.json"
         ),
-        plan: include_str!("fixtures/overlay_plan/plans/entity_cards_promotable_media.plan.json"),
+        plan: include_str!("fixtures/overlay_plan/plans/entity_cards_bundle_media.plan.json"),
     },
     Fixture {
         name: "chain_segments_conformance",
@@ -730,8 +731,8 @@ fn a_missing_editorial_manifest_fails_closed() {
 }
 
 #[test]
-fn promotable_media_is_promoted_by_the_planner_not_by_the_consumer() {
-    let plan = compile("entity_cards_promotable_media").plan;
+fn bundle_media_binds_the_card_without_a_post_plan_promotion() {
+    let plan = compile("entity_cards_bundle_media").plan;
     assert_eq!(
         plan.items.len(),
         2,
@@ -749,8 +750,10 @@ fn promotable_media_is_promoted_by_the_planner_not_by_the_consumer() {
         2,
         "both portraits reached the chain"
     );
-    // The fused chain id is the preset seed, exactly like the Go media plane.
-    assert_eq!(chain.preset_id, "image_fade_in");
+    // A promoted card used to invent an `image_fade_in` entrance after the
+    // plan was sealed. The entity image now takes the same presentation path
+    // as every other image, so no special promotion preset exists.
+    assert!(chain.preset_id.is_empty(), "no post-plan preset: {chain:?}");
     let segments = chain.params.as_ref().expect("params")["chain_segments"]
         .as_array()
         .expect("segments")
@@ -762,27 +765,23 @@ fn promotable_media_is_promoted_by_the_planner_not_by_the_consumer() {
     ]) {
         assert_eq!(Some("entity_image"), segment["kind"].as_str());
         assert_eq!(Some("image_popup"), segment["template_id"].as_str());
-        assert_eq!(
-            Some(chain.preset_id.as_str()),
-            segment["preset_id"].as_str()
-        );
         assert_eq!(Some("image_scale_in"), segment["image_preset_id"].as_str());
         assert_eq!(Some(entity), segment["entity_id"].as_str());
         assert_eq!(Some(caption), segment["entity_caption"].as_str());
         assert_eq!(Some(asset), segment["asset_id"].as_str());
-        // The card-only surface is gone: the planner, not the consumer, decided.
-        for dropped in [
-            "text",
-            "motion_id",
-            "motion_params",
-            "params",
-            "entity_style_id",
-        ] {
-            assert!(
-                segment.get(dropped).is_none(),
-                "a promoted segment must not carry {dropped}"
-            );
-        }
+        // The segment is a normal admitted entity image: it keeps the motion,
+        // style and params the planner assigned before sealing.
+        assert!(
+            segment["motion_id"]
+                .as_str()
+                .is_some_and(|motion| !motion.is_empty()),
+            "the entity image keeps its planned motion: {segment:?}"
+        );
+        assert_eq!(
+            Some("PERSON"),
+            segment["params"]["entity_type"].as_str(),
+            "the canonical entity type reaches the segment"
+        );
     }
     // A lone card is promoted in place and keeps the planner-owned identity Go
     // projects onto OverlayItem.EntityRef (never serialized on the plan wire).
@@ -808,13 +807,13 @@ fn promotable_media_is_promoted_by_the_planner_not_by_the_consumer() {
 }
 
 #[test]
-fn promotable_media_without_entries_leaves_the_cards_text_only() {
-    let mut request = parse_request(fixture("entity_cards_promotable_media").request);
+fn verified_media_absent_leaves_the_cards_text_only() {
+    let mut request = parse_request(fixture("entity_cards_bundle_media").request);
     request
         .media
         .as_mut()
         .expect("media")
-        .promotable_entity_assets
+        .verified_entity_assets
         .clear();
     let compiled = compile_overlay_plan_v2(&request).expect("compile");
     assert!(
@@ -823,7 +822,7 @@ fn promotable_media_without_entries_leaves_the_cards_text_only() {
             .items
             .iter()
             .all(|item| item.kind != "entity_image" && item.kind != "image_chain"),
-        "without a promotable portrait the cards stay text-only"
+        "without a verified portrait the cards stay text-only"
     );
 }
 

@@ -133,7 +133,11 @@ pub(super) fn probe_audio(
             .profile
             .as_deref()
             .is_none_or(|profile| !profile.eq_ignore_ascii_case("LC"))
-        || stream.sample_rate.as_deref() != Some("48000")
+        || stream
+            .sample_rate
+            .as_deref()
+            .and_then(|rate| rate.parse::<i64>().ok())
+            != Some(crate::config::CANONICAL_SAMPLE_RATE)
         || stream.channels != Some(2)
     {
         return Err("rendered audio violates canonical AAC-LC 48kHz stereo contract".into());

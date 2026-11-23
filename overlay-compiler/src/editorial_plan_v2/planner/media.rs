@@ -3,6 +3,7 @@
 //! bytes stay owned by the Go side.
 
 use super::*;
+use semantic_core::entity_capabilities::{fold_entity_kind, EntityKind};
 
 /// Adds the payload-selected caption plate after presentation normalization,
 /// which deliberately owns and replaces typography style maps.
@@ -177,7 +178,12 @@ pub(super) fn append_entity_cards(
         let Some(indices) = selected.get(scene_index) else {
             continue;
         };
+        // A disabled images category keeps the identity visible as a text card.
+        // Attaching the portrait here would turn it into an `entity_image` that
+        // admission drops by the same toggle, losing the card altogether.
+        let images_disabled = category_toggle_disabled(request, &scene.id, "images");
         let mut text_cards = 0;
+        let mut admitted_identities = std::collections::HashSet::new();
         for &entity_index in indices {
             let Some(entity) = entity_scene.entities.get(entity_index) else {
                 continue;
@@ -190,7 +196,18 @@ pub(super) fn append_entity_cards(
                 // location card as well would render the same entity twice.
                 continue;
             }
-            let assets = verified_entity_assets(media, entity);
+            let identity = entity_card_identity(entity);
+            if !identity.is_empty() && admitted_identities.contains(identity) {
+                // One card per identity per scene. Two occurrences of the same
+                // person are spans of one card, not two portraits competing
+                // for the same image budget.
+                continue;
+            }
+            let assets = if images_disabled {
+                Vec::new()
+            } else {
+                verified_entity_assets(media, entity)
+            };
             if assets.is_empty() {
                 if text_cards >= 2 {
                     continue;
@@ -233,114 +250,11 @@ pub(super) fn append_entity_cards(
                 "canonical_entity_id": entity.canonical_entity_id,
                 "priority": entity.confidence,
             }));
+            if !identity.is_empty() {
+                admitted_identities.insert(identity.to_string());
+            }
             items.push(item);
         }
-    }
-    Ok(())
-}
-
-/// Recovers a verified organization/place portrait that admission dropped with
-/// its scene. The fallback uses only verified bytes already present on the
-/// request, only when an occurrence gives it a certified window, and only
-/// while the run-level image ceiling has room. It never searches or invents an
-/// asset.
-pub(super) fn append_verified_intent_images(
-    request: &EditorialPlanV2Request,
-    items: &mut Vec<PlanItemV2>,
-) -> Result<(), EditorialPlanError> {
-    let Some(media) = request.media.as_ref() else {
-        return Ok(());
-    };
-    let Some(timeline) = request.entity_timeline.as_ref() else {
-        return Ok(());
-    };
-    let budgets = request.budgets.as_ref().expect("validated budgets");
-    let max_images = if budgets.image_overlays > 0 {
-        budgets.image_overlays
-    } else {
-        request.canvas.max_image_overlays
-    };
-    if max_images <= 0 {
-        return Ok(());
-    }
-    let mut used = BTreeSet::new();
-    let mut image_count = 0_i64;
-    for item in items.iter() {
-        if is_image(item) {
-            image_count += 1;
-        }
-        for asset in &item.asset_refs {
-            if !asset.sha256.trim().is_empty() {
-                used.insert(asset.sha256.to_ascii_lowercase());
-            }
-        }
-    }
-    for verified in &media.verified_entity_assets {
-        if image_count >= max_images {
-            break;
-        }
-        let asset = verified
-            .assets
-            .iter()
-            .find(|asset| !asset.url.trim().is_empty() && asset.sha256.trim().len() == 64);
-        let Some(asset) = asset else {
-            continue;
-        };
-        let sha = asset.sha256.to_ascii_lowercase();
-        if !used.insert(sha.clone()) {
-            continue;
-        }
-        let occurrence = timeline.scenes.iter().find_map(|scene| {
-            scene.entities.iter().find(|entity| {
-                let type_ok = matches!(
-                    entity.entity_type.trim().to_ascii_uppercase().as_str(),
-                    "ORG" | "ORGANIZATION" | "GPE" | "PLACE" | "LOCATION"
-                );
-                if !type_ok {
-                    return false;
-                }
-                let id_match = !verified.entity_id.is_empty()
-                    && (entity.entity_id == verified.entity_id
-                        || entity.canonical_entity_id == verified.entity_id);
-                let canonical_match = !verified.canonical_entity_id.is_empty()
-                    && (entity.canonical_entity_id == verified.canonical_entity_id
-                        || entity.entity_id == verified.canonical_entity_id);
-                id_match || canonical_match
-            })
-        });
-        let Some(entity) = occurrence else {
-            continue;
-        };
-        let Some(scene) = request
-            .scenes
-            .iter()
-            .find(|scene| scene.id == entity.scene_id)
-        else {
-            continue;
-        };
-        let Some((start_us, duration_us)) = entity_window(scene, entity) else {
-            continue;
-        };
-        let name = entity_name(entity);
-        let mut item = scene_item(
-            format!("image-focus-reveal__{name}__entity_image__01"),
-            scene,
-            "entity_image",
-            "image_popup",
-            start_us,
-            duration_us,
-            String::new(),
-        );
-        item.entity_id = entity.entity_id.clone();
-        item.entity_caption = name;
-        item.asset_refs = vec![asset.clone()];
-        item.params = Some(json!({
-            "entity_type": entity.entity_type,
-            "canonical_entity_id": entity.canonical_entity_id,
-            "priority": entity.confidence,
-        }));
-        items.push(item);
-        image_count += 1;
     }
     Ok(())
 }
@@ -419,12 +333,16 @@ pub(super) fn verified_entity_assets(
     Vec::new()
 }
 
+/// The card lane for one entity, sourced from the single fold in
+/// `semantic_core::entity_capabilities`. `MEDIA_OUTLET` lands on the
+/// organization family here, which is what `identity.rs` already asserts when
+/// it prefixes an outlet's canonical id with `org`.
 fn entity_card_kind(entity_type: &str) -> Option<(&'static str, &'static str)> {
-    match entity_type.trim().to_ascii_uppercase().as_str() {
-        "PERSON" => Some(("entity_card", "person_default")),
-        "ORG" | "ORGANIZATION" => Some(("organization", "org_default")),
-        "GPE" | "PLACE" | "LOCATION" => Some(("location", "gpe_default")),
-        "CONCEPT" | "EVENT" => Some(("concept", "concept_default")),
+    match fold_entity_kind(entity_type) {
+        EntityKind::Person => Some(("entity_card", "person_default")),
+        EntityKind::Organization => Some(("organization", "org_default")),
+        EntityKind::Place => Some(("location", "gpe_default")),
+        EntityKind::Concept | EntityKind::Event => Some(("concept", "concept_default")),
         _ => None,
     }
 }
@@ -468,53 +386,21 @@ fn entity_overlay_id(scene_id: &str, entity: &EntityOccurrenceV2) -> String {
     format!("overlay-{}-{}", scene_id.trim(), entity.entity_id.trim())
 }
 
-pub(super) fn is_image_backed_entity_card(item: &PlanItemV2) -> bool {
-    chain_family(&item.kind) == "card" && !item.asset_refs.is_empty()
+/// The identity a card is deduplicated by. The canonical id is authoritative
+/// when present; the stable occurrence id is the fallback for producers that
+/// have not linked the entity yet. Scoping happens at the call site, because
+/// the same identity legitimately gets one card per scene.
+fn entity_card_identity(entity: &EntityOccurrenceV2) -> &str {
+    let canonical = entity.canonical_entity_id.trim();
+    if canonical.is_empty() {
+        entity.entity_id.trim()
+    } else {
+        canonical
+    }
 }
 
-pub(super) fn attach_resolved_entity_images(mut items: Vec<PlanItemV2>) -> Vec<PlanItemV2> {
-    let mut donors: BTreeMap<String, Vec<AssetRefV2>> = BTreeMap::new();
-    for item in items.iter() {
-        let id = item.entity_id.trim();
-        if id.is_empty() || item.asset_refs.is_empty() {
-            continue;
-        }
-        if chain_family(&item.kind) != "card" && chain_family(&item.kind) != "image" {
-            continue;
-        }
-        // Only a renderable, content-addressed asset may be copied onto a card.
-        // The same rule guards `append_verified_intent_images`: an unverified
-        // portrait would reach the renderer as an impossible path and fail the
-        // whole plan downstream.
-        let verified: Vec<AssetRefV2> = item
-            .asset_refs
-            .iter()
-            .filter(|asset| !asset.url.trim().is_empty() && asset.sha256.trim().len() == 64)
-            .cloned()
-            .collect();
-        if verified.is_empty() {
-            continue;
-        }
-        donors.entry(id.to_string()).or_insert(verified);
-    }
-    if donors.is_empty() {
-        return items;
-    }
-    for item in items.iter_mut() {
-        let kind = item.kind.trim().to_ascii_lowercase();
-        if !item.asset_refs.is_empty()
-            || !matches!(
-                kind.as_str(),
-                "entity_card" | "organization" | "location" | "concept"
-            )
-        {
-            continue;
-        }
-        if let Some(assets) = donors.get(item.entity_id.trim()) {
-            item.asset_refs = assets.clone();
-        }
-    }
-    items
+pub(super) fn is_image_backed_entity_card(item: &PlanItemV2) -> bool {
+    chain_family(&item.kind) == "card" && !item.asset_refs.is_empty()
 }
 
 // Identity ownership (ADR-029 exception 2): the planner carries the bytes a card

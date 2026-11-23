@@ -195,5 +195,6 @@ fn chain_entity_image(id: &str, caption: &str, start_us: i64, duration_us: i64) 
 }
 
 include!("tests/core.rs");
+include!("tests/entity_image_priority.rs");
 include!("tests/phrases.rs");
 include!("tests/chains.rs");

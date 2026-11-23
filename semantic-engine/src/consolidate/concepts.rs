@@ -31,71 +31,8 @@ pub(super) fn push_visual_concepts(
     let mut selected: BTreeSet<String> = BTreeSet::new();
     let mut selected_concrete = 0;
     for scene in scenes {
-        let named_spans: Vec<(usize, usize)> = scene
-            .entities
-            .iter()
-            .filter(|entity| is_named_kind(&entity.kind))
-            .map(|entity| (entity.start_byte, entity.end_byte))
-            .collect();
-        let mut concepts: Vec<&Candidate> = scene
-            .entities
-            .iter()
-            .filter(|entity| entity.kind == "VISUAL_CONCEPT")
-            // Editorial/legal abstractions are useful to semantic analysis,
-            // but they are not image-search subjects. Keep this vocabulary
-            // in policy data so it can evolve without changing extraction.
-            .filter(|entity| !is_policy_excluded_visual_concept(&entity.text))
-            .filter(|entity| {
-                // A fragment of a longer named entity ("d'Assise d'Appello"
-                // inside "Corte d'Assise d'Appello") is inventory, not a
-                // second production candidate.
-                !named_spans.iter().any(|(start, end)| {
-                    *start <= entity.start_byte
-                        && entity.end_byte <= *end
-                        && (*start < entity.start_byte || entity.end_byte < *end)
-                })
-            })
-            .collect();
-        concepts.sort_by(|left, right| {
-            concept_priority(right)
-                .partial_cmp(&concept_priority(left))
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| right.text.len().cmp(&left.text.len()))
-                .then_with(|| left.start_byte.cmp(&right.start_byte))
-        });
-        let mut scene_selected = BTreeSet::new();
-        for concept in concepts {
-            let concrete = is_concrete_visual_subject(&concept.text);
-            // A small, explicit vocabulary admits useful one-off cutaways
-            // under its own document-wide cap, independent of recurrent
-            // abstract concepts selected for this scene.
-            if concrete {
-                if selected_concrete < MAX_CONCRETE_CONCEPTS_PER_DOCUMENT
-                    && selected.insert(concept.id.clone())
-                {
-                    selected_concrete += 1;
-                }
-                continue;
-            }
-
-            // Other visual concepts need script-level recurrence and remain
-            // under the per-scene salience cap.
-            let recurrent = identities
-                .get(&concept.id)
-                .is_some_and(|identity| identity.mentions.len() >= 2);
-            if !recurrent {
-                continue;
-            }
-            if concept_priority(concept) < MIN_CONCEPT_PRIORITY {
-                continue;
-            }
-            if scene_selected.insert(concept.id.clone()) {
-                selected.insert(concept.id.clone());
-                if scene_selected.len() >= MAX_GENERIC_CONCEPTS_PER_SCENE {
-                    break;
-                }
-            }
-        }
+        let concepts = scene_concepts(scene);
+        select_scene_concepts(&concepts, identities, &mut selected, &mut selected_concrete);
     }
     if let Some(anchor_id) = &document_anchor {
         selected.insert(anchor_id.clone());
@@ -153,6 +90,85 @@ pub(super) fn push_visual_concepts(
     }
 }
 
+/// Collects and deterministically ranks one scene's visual-concept mentions.
+fn scene_concepts(scene: &SceneManifest) -> Vec<&Candidate> {
+    let named_spans: Vec<(usize, usize)> = scene
+        .entities
+        .iter()
+        .filter(|entity| is_named_kind(&entity.kind))
+        .map(|entity| (entity.start_byte, entity.end_byte))
+        .collect();
+    let mut concepts: Vec<&Candidate> = scene
+        .entities
+        .iter()
+        .filter(|entity| entity.kind == "VISUAL_CONCEPT")
+        // Editorial/legal abstractions are useful to semantic analysis,
+        // but they are not image-search subjects. Keep this vocabulary
+        // in policy data so it can evolve without changing extraction.
+        .filter(|entity| !is_policy_excluded_visual_concept(&entity.text))
+        .filter(|entity| {
+            // A fragment of a longer named entity ("d'Assise d'Appello"
+            // inside "Corte d'Assise d'Appello") is inventory, not a
+            // second production candidate.
+            !named_spans.iter().any(|(start, end)| {
+                *start <= entity.start_byte
+                    && entity.end_byte <= *end
+                    && (*start < entity.start_byte || entity.end_byte < *end)
+            })
+        })
+        .collect();
+    concepts.sort_by(|left, right| {
+        concept_priority(right)
+            .partial_cmp(&concept_priority(left))
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| right.text.len().cmp(&left.text.len()))
+            .then_with(|| left.start_byte.cmp(&right.start_byte))
+    });
+    concepts
+}
+
+/// Admits a scene's concepts into the document-wide lanes: concrete cutaways
+/// under their own cap, recurrent concepts under the per-scene cap.
+fn select_scene_concepts(
+    concepts: &[&Candidate],
+    identities: &BTreeMap<String, IdentityState>,
+    selected: &mut BTreeSet<String>,
+    selected_concrete: &mut usize,
+) {
+    let mut scene_selected = BTreeSet::new();
+    for &concept in concepts {
+        let concrete = is_concrete_visual_subject(&concept.text);
+        // A small, explicit vocabulary admits useful one-off cutaways
+        // under its own document-wide cap, independent of recurrent
+        // abstract concepts selected for this scene.
+        if concrete {
+            if *selected_concrete < MAX_CONCRETE_CONCEPTS_PER_DOCUMENT
+                && selected.insert(concept.id.clone())
+            {
+                *selected_concrete += 1;
+            }
+            continue;
+        }
+
+        // Other visual concepts need script-level recurrence and remain
+        // under the per-scene salience cap.
+        let recurrent = identities
+            .get(&concept.id)
+            .is_some_and(|identity| identity.mentions.len() >= 2);
+        if !recurrent {
+            continue;
+        }
+        if concept_priority(concept) < MIN_CONCEPT_PRIORITY {
+            continue;
+        }
+        if scene_selected.insert(concept.id.clone()) {
+            selected.insert(concept.id.clone());
+            if scene_selected.len() >= MAX_GENERIC_CONCEPTS_PER_SCENE {
+                break;
+            }
+        }
+    }
+}
 fn document_topic_anchor(
     language: &str,
     identities: &BTreeMap<String, IdentityState>,

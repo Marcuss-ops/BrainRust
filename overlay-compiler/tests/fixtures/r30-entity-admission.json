@@ -1,0 +1,96 @@
+{
+  "operation": "compile_editorial_plan",
+  "schema_version": "editorial_plan.v2",
+  "plan": {
+    "plan_id": "plan-r30-entity-admission",
+    "video_id": "video-r30-entity-admission",
+    "project_id": "project-r30-entity-admission",
+    "motion_seed": "seed-r30-entity-admission",
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1
+  },
+  "language": "it",
+  "seal": {
+    "audio_duration_us": 20000000
+  },
+  "scenes": [
+    {
+      "id": "scene-1",
+      "text": "",
+      "duration_ms": 10000,
+      "timeline_start_us": 0,
+      "duration_us": 10000000
+    },
+    {
+      "id": "scene-2",
+      "text": "",
+      "duration_ms": 10000,
+      "timeline_start_us": 10000000,
+      "duration_us": 10000000
+    }
+  ],
+  "entity_timeline": {
+    "version": 1,
+    "project_id": "project-r30-entity-admission",
+    "language": "it",
+    "duration_us": 20000000,
+    "scenes": [
+      {
+        "scene_id": "scene-1",
+        "scene_index": 0,
+        "timeline_start_us": 0,
+        "entities": [
+          {
+            "entity_id": "ent_augias_s1a",
+            "name": "Corrado Augias",
+            "type": "PERSON",
+            "scene_id": "scene-1",
+            "local_start_us": 1000000,
+            "local_end_us": 2000000,
+            "timeline_start_us": 0,
+            "audio_start_us": 1000000,
+            "audio_end_us": 2000000,
+            "confidence": 1.0,
+            "canonical_entity_id": "person:corrado-augias"
+          },
+          {
+            "entity_id": "ent_augias_s1b",
+            "name": "Corrado Augias",
+            "type": "PERSON",
+            "scene_id": "scene-1",
+            "local_start_us": 4000000,
+            "local_end_us": 5000000,
+            "timeline_start_us": 0,
+            "audio_start_us": 4000000,
+            "audio_end_us": 5000000,
+            "confidence": 1.0,
+            "canonical_entity_id": "person:corrado-augias"
+          }
+        ]
+      },
+      {
+        "scene_id": "scene-2",
+        "scene_index": 1,
+        "timeline_start_us": 10000000,
+        "entities": [
+          {
+            "entity_id": "ent_augias_s2",
+            "name": "Corrado Augias",
+            "type": "PERSON",
+            "scene_id": "scene-2",
+            "local_start_us": 1000000,
+            "local_end_us": 2000000,
+            "timeline_start_us": 10000000,
+            "audio_start_us": 11000000,
+            "audio_end_us": 12000000,
+            "confidence": 1.0,
+            "canonical_entity_id": "person:corrado-augias"
+          }
+        ]
+      }
+    ]
+  },
+  "media": {}
+}

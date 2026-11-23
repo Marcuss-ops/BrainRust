@@ -254,10 +254,7 @@
             "media_type": "image/jpeg"
           }
         ]
-      }
-    ],
-    "scene_image_candidates": [],
-    "promotable_entity_assets": [
+      },
       {
         "entity_id": "person-ada",
         "canonical_entity_id": "person:ada-lovelace",
@@ -318,7 +315,8 @@
           }
         ]
       }
-    ]
+    ],
+    "scene_image_candidates": []
   },
   "budgets": {
     "phrase_overlays": 0,

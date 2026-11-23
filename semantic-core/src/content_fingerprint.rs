@@ -441,38 +441,33 @@ mod tests {
         let assets = embedded_assets();
         let has = |name: &str| assets.iter().any(|(asset, _)| asset == name);
 
-        assert!(has("lexicon/entity_gazetteer_delta.json"));
-        assert!(has("lexicon/entity_index_v1.json"));
-        assert!(has("lexicon/discourse_reference_terms_v1.json"));
-        assert!(has("lexicon/link_weights_v1.json"));
-        assert!(has("lexicon/type_cues.json"));
-        assert!(has("lexicon/roles/en.json"));
-        assert!(has("lexicon/roles/it.json"));
-        assert!(has("lexicon/roles/es.json"));
-        for language in ["de", "fr", "id", "nl", "pl", "pt", "ru", "tr"] {
-            assert!(has(&format!("lexicon/roles/{language}.json")));
-        }
-        assert!(has("lexicon/events/en.json"));
-        assert!(has("lexicon/events/it.json"));
-        assert!(has("lexicon/events/es.json"));
-        assert!(has("lexicon/events/fr.json"));
-        assert!(has("lexicon/events/pt.json"));
-        assert!(has("lexicon/events/de.json"));
-        assert!(has("lexicon/events/nl.json"));
-        assert!(has("lexicon/events/id.json"));
-        assert!(has("lexicon/events/pl.json"));
-        assert!(has("lexicon/events/ru.json"));
-        assert!(has("lexicon/events/tr.json"));
-        assert!(has("lexicon/place_index_v1.json"));
-        assert!(has("lexicon/family_relations.json"));
-        assert!(has("lexicon/given_names.json"));
-        for language in [
-            "de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr",
+        for name in [
+            "lexicon/entity_gazetteer_delta.json",
+            "lexicon/entity_index_v1.json",
+            "lexicon/discourse_reference_terms_v1.json",
+            "lexicon/link_weights_v1.json",
+            "lexicon/type_cues.json",
+            "lexicon/place_index_v1.json",
+            "lexicon/family_relations.json",
+            "lexicon/given_names.json",
+            "lexicon/place_kind_cues.json",
+            "lexicon/legal/index.json",
         ] {
-            assert!(has(&format!("lexicon/languages/{language}/pronouns.json")));
+            assert!(has(name), "{name} missing from the content fingerprint");
         }
-        assert!(has("lexicon/place_kind_cues.json"));
-        assert!(has("lexicon/legal/index.json"));
+        let languages = [
+            "de", "en", "es", "fr", "id", "it", "nl", "pl", "pt", "ru", "tr",
+        ];
+        for language in languages {
+            for table in ["roles", "events", "languages"] {
+                let name = if table == "languages" {
+                    format!("lexicon/languages/{language}/pronouns.json")
+                } else {
+                    format!("lexicon/{table}/{language}.json")
+                };
+                assert!(has(&name), "{name} missing from the content fingerprint");
+            }
+        }
         for (language, _) in crate::generated_language_packs::PACKS {
             assert!(has(&format!("lexicon/packs/{language}.json")));
         }

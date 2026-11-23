@@ -635,7 +635,7 @@ fn general_chain_treats_important_word_as_text_family() {
 }
 
 #[test]
-fn general_chain_attaches_resolved_entity_portraits_before_the_gate() {
+fn general_chain_keeps_a_text_card_textual_and_the_portrait_with_its_owner() {
     let portrait = super::AssetRefV2 {
         asset_id: "portrait-ada".to_string(),
         url: "https://example.test/ada.jpg".to_string(),
@@ -662,8 +662,14 @@ fn general_chain_attaches_resolved_entity_portraits_before_the_gate() {
     );
     assert_eq!(3, disabled.len());
     let card_out = disabled.iter().find(|item| item.id == "card").unwrap();
-    assert_eq!(1, card_out.asset_refs.len());
-    assert_eq!("portrait-ada", card_out.asset_refs[0].asset_id);
+    assert_eq!(
+        "entity_card", card_out.kind,
+        "coalescing never promotes a text card"
+    );
+    assert!(
+        card_out.asset_refs.is_empty(),
+        "a portrait is bound by the card builder, not copied from a donor"
+    );
 
     let chained = super::coalesce_chained_overlays(
         vec![image, card, phrase],
@@ -684,9 +690,11 @@ fn general_chain_attaches_resolved_entity_portraits_before_the_gate() {
         "portrait-ada",
         segments[0]["assets"][0]["asset_id"].as_str().unwrap()
     );
-    assert_eq!(
-        "portrait-ada",
-        segments[1]["assets"][0]["asset_id"].as_str().unwrap(),
-        "the pending card inherited the identity portrait before the gate"
+    assert!(
+        segments[1].get("assets").is_none_or(|assets| assets
+            .as_array()
+            .is_none_or(|assets| assets.is_empty())),
+        "the text card stays text inside the chain: {:?}",
+        segments[1]
     );
 }

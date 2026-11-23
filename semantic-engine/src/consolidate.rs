@@ -215,6 +215,38 @@ pub fn build(
     );
     contextual_queries::apply_visual_query_priority(language, &identities, &mut candidates);
 
+    // A recipe can be grounded on a raw artifact (a quantity, a route, a role)
+    // rather than on a canonical fact. The production view is validated against
+    // the canonical fact inventory, so coverage is projected onto it: an id
+    // that already names a canonical fact is kept, a raw fact id maps to the
+    // canonical fact it belongs to, and an artifact with no canonical
+    // counterpart contributes no coverage instead of failing the whole script
+    // in the consumer's grounding check.
+    let canonical_fact_ids: HashSet<&str> = facts.iter().map(|fact| fact.id.as_str()).collect();
+    let canonical_by_raw: HashMap<&str, &str> = facts
+        .iter()
+        .flat_map(|fact| {
+            fact.fact_ids
+                .iter()
+                .map(move |raw| (raw.as_str(), fact.id.as_str()))
+        })
+        .collect();
+    for candidate in candidates.iter_mut() {
+        let mut covered: Vec<String> = Vec::with_capacity(candidate.covered_fact_ids.len());
+        for id in &candidate.covered_fact_ids {
+            let mapped = if canonical_fact_ids.contains(id.as_str()) {
+                Some(id.as_str())
+            } else {
+                canonical_by_raw.get(id.as_str()).copied()
+            };
+            if let Some(mapped) = mapped {
+                if !covered.iter().any(|existing| existing == mapped) {
+                    covered.push(mapped.to_string());
+                }
+            }
+        }
+        candidate.covered_fact_ids = covered;
+    }
     // Rank once, then assign stable production ids and resolve the fact
     // representations against the final candidate ids.
     candidates.sort_by(|left, right| {

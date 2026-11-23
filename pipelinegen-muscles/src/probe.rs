@@ -1,10 +1,8 @@
-use crate::artifact::failed_response;
-
 use crate::config;
 use crate::config::EncoderPolicy;
 use crate::error::MuscleError;
 use crate::process::FFmpegRunner;
-use crate::protocol::{MediaMetadata, Request, Response};
+use crate::protocol::{MediaMetadata, Operation, Request, Response};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -318,25 +316,29 @@ fn probe(request: Request) -> Response {
     let source = match request.source_path.as_deref() {
         Some(path) if !path.is_empty() && Path::new(path).is_file() => path,
         Some(path) => {
-            return failed_response(
+            return Response::failure(
+                Operation::Probe,
                 Some(path.to_string()),
                 format!("source file is not readable: {path}"),
             )
         }
-        None => return failed_response(None, "source_path is required".to_string()),
+        None => {
+            return Response::failure(
+                Operation::Probe,
+                None,
+                "source_path is required".to_string(),
+            )
+        }
     };
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
     match probe_file(&ffprobe_path(ffmpeg), source) {
-        Ok(metadata) => Response {
-            ok: true,
-            operation: "probe".to_string(),
-            source_path: Some(source.to_string()),
-            items: Vec::new(),
-            metadata: Some(metadata),
-            preflight: None,
-            error: None,
-        },
-        Err(error) => failed_response(Some(source.to_string()), error),
+        Ok(metadata) => Response::success(
+            Operation::Probe,
+            Some(source.to_string()),
+            Vec::new(),
+            Some(metadata),
+        ),
+        Err(error) => Response::failure(Operation::Probe, Some(source.to_string()), error),
     }
 }
 

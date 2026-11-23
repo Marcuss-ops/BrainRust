@@ -4,9 +4,15 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-22 (working tree), snapshot of an ongoing local
-implementation pass. **45 DONE/CLOSED, 0 PARTIAL, 1 OPEN, 3 BLOCKED (08, 10,
-26).** TICKET-30 and 32–36 are DONE (bound/Rust): the local contract is
+Last verified: 2026-11-23 (working tree). **46 DONE/CLOSED, 0 PARTIAL, 1 OPEN,
+3 BLOCKED (08, 10, 26).** TICKET-50 is DONE: `EntityKind::fold_entity_kind` in
+`semantic-core` is the only entity spelling→family table (overlay-compiler's
+private `fold_entity_type`/`entity_card_kind` are gone, `MEDIA_OUTLET` cards
+and binds its verified asset), `Response::failure`/`success` take a typed
+`Operation` so the failure envelope names itself, and the six production
+`48000` literals derive from `CANONICAL_SAMPLE_RATE`. Acceptance evidence in
+the ticket; `select_phrases`/`noun_phrase_candidates` complexity stays as the
+open follow-up from the 2026-11-23 audit. TICKET-30 and 32–36 are DONE (bound/Rust): the local contract is
 complete and each names its independent gold/review as the external gate.
 TICKET-46 is DONE: the five taxonomy copies now read one
 capability table, `MEDIA_OUTLET` is typed in all 11 languages, `quote_attribution`
@@ -130,6 +136,7 @@ Status vocabulary:
 | [47](TICKET-47-multi-recipe-scenes-and-outlet-coverage.md) | P2 | DONE (2026-11-22) | Additive `visual_recipes` list (legacy field first, max 8, empty omitted) with planner dedupe; Go forwards every supported recipe in priority order. Measured 21 missed outlet surfaces in 1,173 archived scenes, so curated domains plus unambiguous article-dropped aliases were added (no suffix matching); `role_of` keeps the narrower policy, adds `MEDIA_OUTLET` and pins the difference from the SSOT. 16 planner + contract + Go wire tests pass. |
 | [48](TICKET-48-unrendered-recipe-layouts.md) | P3 | DONE (2026-11-22) | Measured `relationship_graph` 3, `lifespan_timeline` 1, `choropleth_value_map` 0 in 1,173 scenes. Option 2 chosen for all three: validated-but-inert, still not forwarded by Go; no new layout or `ItemKind` added. |
 | [49](TICKET-49-entity-intent-admission.md) | P1 | OPEN (2026-11-22) | Run R30: 36 `entity_not_planned` su 88 intenti. 23 dei 36 sono date/numeri (di cui 8 frammenti di uno slug+UUID), 8 sono persone/org reali. Decisione: una card per `entity_id` per scena con le occorrenze come span, non una card per occorrenza (budget 25 vs 54 intenti, stesso volto ripetuto); lineage deve risolvere per identità, non per testo. Criterio: 0 per PERSON e `image_status`/`reasons` concordi. |
+| [50](TICKET-50-entity-kind-ssot-and-envelope.md) | P2 | DONE (2026-11-23) | `EntityKind::fold_entity_kind` is the single spelling→family table: `overlay-compiler` dropped its private fold/card table, `MEDIA_OUTLET` now cards, binds its verified asset, is recovered when dropped and ranks as an organization. `Response::failure/success` take a typed `Operation` (112 failure call sites plus the success envelopes converted, dispatcher patch deleted) and every production `48000` derives from `CANONICAL_SAMPLE_RATE`. `README` documents the unified planner worker; `encode_ms` states that it mirrors `ffmpeg_ms`. 259 semantic-core, 172+33 overlay, 152+12 muscles and 175 semantic-engine tests pass; fmt and Clippy are clean. |
 
 ## Verification — 2026-11-20 (status audit, open and blocked tickets)
 

@@ -20,7 +20,7 @@
 //! master has any (overlay segments are silent; the final audio enters once
 //! at `mux_audio_copy`), and fail closed on any manifest inconsistency.
 
-use crate::artifact::{failed_response, part_path};
+use crate::artifact::part_path;
 use crate::encoder::append_video_options;
 use crate::hash::sha256_file;
 use crate::manifest_projection::{
@@ -29,7 +29,7 @@ use crate::manifest_projection::{
 };
 use crate::probe::{ffprobe_path, probe_file};
 use crate::process::FFmpegRunner;
-use crate::protocol::{MediaMetadata, Request, Response};
+use crate::protocol::{MediaMetadata, Operation, Request, Response};
 use crate::transform::finish_run;
 use std::fs;
 use std::path::Path;
@@ -38,28 +38,34 @@ use std::path::Path;
 /// master with that entry's artifact window. `source_path` is the master,
 /// `input_paths[0]` is the certified overlay artifact.
 pub(super) fn execute_projection(request: Request) -> Response {
-    let (master, artifacts, output) = match projection_inputs(&request) {
+    let operation = Operation::ProjectOverlayManifest;
+    let (master, artifacts, output) = match projection_inputs(&request, operation) {
         Ok(values) => values,
         Err(response) => return *response,
     };
     let manifest = match request.overlay_manifest.as_ref() {
         Some(manifest) => manifest,
         None => {
-            return failed_response(Some(master), "overlay_manifest is required".to_string());
+            return Response::failure(
+                operation,
+                Some(master),
+                "overlay_manifest is required".to_string(),
+            );
         }
     };
     let profile = match request.media.profile() {
         Ok(profile) => profile,
-        Err(error) => return failed_response(Some(master), error),
+        Err(error) => return Response::failure(operation, Some(master), error),
     };
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
     let ffprobe = ffprobe_path(ffmpeg);
     let master_meta = match probe_file(&ffprobe, &master) {
         Ok(meta) => meta,
-        Err(error) => return failed_response(Some(master), error),
+        Err(error) => return Response::failure(operation, Some(master), error),
     };
     if !master_meta.has_video {
-        return failed_response(
+        return Response::failure(
+            operation,
             Some(master),
             "manifest projection requires a video master".to_string(),
         );
@@ -79,57 +85,67 @@ pub(super) fn execute_projection(request: Request) -> Response {
             match fs::metadata(artifact) {
                 Ok(metadata) if metadata.len() == asset.size_bytes as u64 => {}
                 Ok(_) => {
-                    return failed_response(
+                    return Response::failure(
+                        operation,
                         Some(artifact.clone()),
                         "overlay artifact size mismatch".to_string(),
                     )
                 }
-                Err(error) => return failed_response(Some(artifact.clone()), error.to_string()),
+                Err(error) => {
+                    return Response::failure(operation, Some(artifact.clone()), error.to_string())
+                }
             }
             match sha256_file(artifact) {
                 Ok(actual) if actual.eq_ignore_ascii_case(&asset.sha256) => {}
                 Ok(_) => {
-                    return failed_response(
+                    return Response::failure(
+                        operation,
                         Some(artifact.clone()),
                         "overlay artifact SHA-256 mismatch".to_string(),
                     )
                 }
-                Err(error) => return failed_response(Some(artifact.clone()), error.to_string()),
+                Err(error) => {
+                    return Response::failure(operation, Some(artifact.clone()), error.to_string())
+                }
             }
         } else if matches!(
             &request.overlay_manifest,
             Some(crate::protocol::OverlayManifestWire::Set(_))
         ) {
-            return failed_response(
+            return Response::failure(
+                operation,
                 Some(artifact.clone()),
                 "multi-artifact manifest requires certified asset".to_string(),
             );
         }
         let meta = match probe_file(&ffprobe, artifact) {
             Ok(meta) => meta,
-            Err(error) => return failed_response(Some(artifact.clone()), error),
+            Err(error) => return Response::failure(operation, Some(artifact.clone()), error),
         };
         if !meta.has_video {
-            return failed_response(
+            return Response::failure(
+                operation,
                 Some(artifact.clone()),
                 "manifest artifact has no video".to_string(),
             );
         }
         if let Err(error) = same_frame_grid(&master_meta, &meta) {
-            return failed_response(Some(artifact.clone()), error);
+            return Response::failure(operation, Some(artifact.clone()), error);
         }
         if matches!(
             &request.overlay_manifest,
             Some(crate::protocol::OverlayManifestWire::Set(_))
         ) {
             let Some(asset) = manifest.asset.as_ref() else {
-                return failed_response(
+                return Response::failure(
+                    operation,
                     Some(artifact.clone()),
                     "multi-artifact manifest requires certified asset".to_string(),
                 );
             };
             if frame_count(&meta, fps_num, fps_den) != asset.frame_count {
-                return failed_response(
+                return Response::failure(
+                    operation,
                     Some(artifact.clone()),
                     "overlay artifact frame count mismatch".to_string(),
                 );
@@ -138,7 +154,8 @@ pub(super) fn execute_projection(request: Request) -> Response {
         let mut pieces = Vec::new();
         for entry in &manifest.entries {
             if entry.placement.is_some() {
-                return failed_response(
+                return Response::failure(
+                    operation,
                     Some(artifact.clone()),
                     "spatial placement is unsupported".to_string(),
                 );
@@ -151,12 +168,12 @@ pub(super) fn execute_projection(request: Request) -> Response {
                 master_frames,
             ) {
                 Ok(piece) => pieces.push(piece),
-                Err(error) => return failed_response(Some(master), error),
+                Err(error) => return Response::failure(operation, Some(master), error),
             }
         }
         match merge_pieces(pieces) {
             Ok(pieces) => runs.extend(pieces.into_iter().map(|piece| (index + 1, piece))),
-            Err(error) => return failed_response(Some(master), error),
+            Err(error) => return Response::failure(operation, Some(master), error),
         }
     }
     runs.sort_by_key(|(_, piece)| (piece.master_start, piece.master_end));
@@ -164,7 +181,8 @@ pub(super) fn execute_projection(request: Request) -> Response {
         .windows(2)
         .any(|pair| pair[1].1.master_start < pair[0].1.master_end)
     {
-        return failed_response(
+        return Response::failure(
+            operation,
             Some(master),
             "overlapping manifest windows across artifacts".to_string(),
         );
@@ -183,7 +201,7 @@ pub(super) fn execute_projection(request: Request) -> Response {
     }
     let filter = match projection_filter(&segments, &profile) {
         Ok(filter) => filter,
-        Err(error) => return failed_response(Some(master), error),
+        Err(error) => return Response::failure(operation, Some(master), error),
     };
     command.args(["-filter_complex", &filter, "-map", "[vout]"]);
     if master_meta.has_audio {
@@ -192,54 +210,65 @@ pub(super) fn execute_projection(request: Request) -> Response {
         command.arg("-an");
     }
     if let Err(error) = append_video_options(&mut command, &request) {
-        return failed_response(Some(master), error);
+        return Response::failure(operation, Some(master), error);
     }
     command.arg(&part);
-    finish_run(
-        "project_overlay_manifest",
-        &master,
-        &part,
-        &output,
-        command.output(),
-        None,
-    )
+    finish_run(operation, &master, &part, &output, command.output(), None)
 }
 
 /// `extract_timeline_window`: cut one manifest entry's artifact window (or a
 /// plan sub-window of it, `scene.clip.{timeline_item_id,in_us,out_us}`) as a
 /// silent video segment. `source_path` is the artifact.
 pub(super) fn execute_window(request: Request) -> Response {
+    let operation = Operation::ExtractTimelineWindow;
     let artifact = match request.source_path.as_deref() {
         Some(path) if !path.is_empty() && Path::new(path).is_file() => path.to_string(),
         Some(path) => {
-            return failed_response(
+            return Response::failure(
+                operation,
                 Some(path.to_string()),
                 format!("source file is not readable: {path}"),
             );
         }
-        None => return failed_response(None, "source_path is required".to_string()),
+        None => return Response::failure(operation, None, "source_path is required".to_string()),
     };
     let output = match request.output_path.as_deref() {
         Some(path) if !path.is_empty() => path.to_string(),
         _ => {
-            return failed_response(Some(artifact), "output_path is required".to_string());
+            return Response::failure(
+                operation,
+                Some(artifact),
+                "output_path is required".to_string(),
+            );
         }
     };
     if let Some(parent) = Path::new(&output).parent() {
         if let Err(error) = fs::create_dir_all(parent) {
-            return failed_response(Some(artifact), format!("create output directory: {error}"));
+            return Response::failure(
+                operation,
+                Some(artifact),
+                format!("create output directory: {error}"),
+            );
         }
     }
     let manifest = match request.overlay_manifest.as_ref() {
         Some(manifest) => manifest,
         None => {
-            return failed_response(Some(artifact), "overlay_manifest is required".to_string());
+            return Response::failure(
+                operation,
+                Some(artifact),
+                "overlay_manifest is required".to_string(),
+            );
         }
     };
     let window = match request.timeline_window.as_ref() {
         Some(window) => window,
         None => {
-            return failed_response(Some(artifact), "timeline_window is required".to_string());
+            return Response::failure(
+                operation,
+                Some(artifact),
+                "timeline_window is required".to_string(),
+            );
         }
     };
     let owner = manifest.manifests().into_iter().find(|manifest| {
@@ -256,7 +285,8 @@ pub(super) fn execute_window(request: Request) -> Response {
     }) {
         Some(entry) => entry,
         None => {
-            return failed_response(
+            return Response::failure(
+                operation,
                 Some(artifact),
                 format!(
                     "timeline_window references unknown manifest entry {}",
@@ -273,29 +303,35 @@ pub(super) fn execute_window(request: Request) -> Response {
             match fs::metadata(&artifact) {
                 Ok(metadata) if metadata.len() == asset.size_bytes as u64 => {}
                 Ok(_) => {
-                    return failed_response(
+                    return Response::failure(
+                        operation,
                         Some(artifact),
                         "timeline artifact size mismatch".to_string(),
                     )
                 }
-                Err(error) => return failed_response(Some(artifact), error.to_string()),
+                Err(error) => {
+                    return Response::failure(operation, Some(artifact), error.to_string())
+                }
             }
             match sha256_file(&artifact) {
                 Ok(actual) if actual.eq_ignore_ascii_case(&asset.sha256) => {}
                 Ok(_) => {
-                    return failed_response(
+                    return Response::failure(
+                        operation,
                         Some(artifact),
                         "timeline artifact SHA-256 mismatch".to_string(),
                     )
                 }
-                Err(error) => return failed_response(Some(artifact), error.to_string()),
+                Err(error) => {
+                    return Response::failure(operation, Some(artifact), error.to_string())
+                }
             }
         }
     }
     let (in_us, out_us) = match (window.in_us, window.out_us) {
         (Some(in_us), Some(out_us)) => match resolve_sub_window(entry, in_us, out_us) {
             Ok(span) => span,
-            Err(error) => return failed_response(Some(artifact), error),
+            Err(error) => return Response::failure(operation, Some(artifact), error),
         },
         _ => (
             entry.artifact_in_us.unwrap_or(entry.in_us),
@@ -304,16 +340,17 @@ pub(super) fn execute_window(request: Request) -> Response {
     };
     let profile = match request.media.profile() {
         Ok(profile) => profile,
-        Err(error) => return failed_response(Some(artifact), error),
+        Err(error) => return Response::failure(operation, Some(artifact), error),
     };
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
     let ffprobe = ffprobe_path(ffmpeg);
     let artifact_meta = match probe_file(&ffprobe, &artifact) {
         Ok(meta) => meta,
-        Err(error) => return failed_response(Some(artifact), error),
+        Err(error) => return Response::failure(operation, Some(artifact), error),
     };
     if !artifact_meta.has_video {
-        return failed_response(
+        return Response::failure(
+            operation,
             Some(artifact),
             "timeline window extraction requires a video artifact".to_string(),
         );
@@ -323,7 +360,8 @@ pub(super) fn execute_window(request: Request) -> Response {
     let start = us_to_frame_floor(in_us, fps_num, fps_den);
     let end = us_to_frame_ceil(out_us, fps_num, fps_den);
     if start >= artifact_frames {
-        return failed_response(
+        return Response::failure(
+            operation,
             Some(artifact),
             format!(
                 "timeline window starts beyond the artifact (frame {start} of {artifact_frames})"
@@ -332,7 +370,8 @@ pub(super) fn execute_window(request: Request) -> Response {
     }
     let end = end.min(artifact_frames);
     if end <= start {
-        return failed_response(
+        return Response::failure(
+            operation,
             Some(artifact),
             "timeline window has an empty artifact range".to_string(),
         );
@@ -344,42 +383,47 @@ pub(super) fn execute_window(request: Request) -> Response {
     let filter = window_filter(start, end, &profile);
     command.args(["-filter_complex", &filter, "-map", "[vout]", "-an"]);
     if let Err(error) = append_video_options(&mut command, &request) {
-        return failed_response(Some(artifact), error);
+        return Response::failure(operation, Some(artifact), error);
     }
     command.arg(&part);
-    finish_run(
-        "extract_timeline_window",
-        &artifact,
-        &part,
-        &output,
-        command.output(),
-        None,
-    )
+    finish_run(operation, &artifact, &part, &output, command.output(), None)
 }
 
 /// Shared prologue for the projection: master + exactly one artifact input,
 /// output required, output directory created.
-fn projection_inputs(request: &Request) -> Result<(String, Vec<String>, String), Box<Response>> {
+fn projection_inputs(
+    request: &Request,
+    operation: Operation,
+) -> Result<(String, Vec<String>, String), Box<Response>> {
     let master = match request.source_path.as_deref() {
         Some(path) if !path.is_empty() && Path::new(path).is_file() => path.to_string(),
         Some(path) => {
-            return Err(Box::new(failed_response(
+            return Err(Box::new(Response::failure(
+                operation,
                 Some(path.to_string()),
                 format!("source file is not readable: {path}"),
             )));
         }
-        None => return Err(Box::new(failed_response(None, "source_path is required"))),
+        None => {
+            return Err(Box::new(Response::failure(
+                operation,
+                None,
+                "source_path is required",
+            )))
+        }
     };
     let inputs = request.input_paths.clone().unwrap_or_default();
     if inputs.is_empty() {
-        return Err(Box::new(failed_response(
+        return Err(Box::new(Response::failure(
+            operation,
             Some(master),
             "artifact inputs are required",
         )));
     }
     for artifact in &inputs {
         if !Path::new(artifact).is_file() {
-            return Err(Box::new(failed_response(
+            return Err(Box::new(Response::failure(
+                operation,
                 Some(master),
                 format!("source file is not readable: {artifact}"),
             )));
@@ -388,7 +432,8 @@ fn projection_inputs(request: &Request) -> Result<(String, Vec<String>, String),
     let output = match request.output_path.as_deref() {
         Some(path) if !path.is_empty() => path.to_string(),
         _ => {
-            return Err(Box::new(failed_response(
+            return Err(Box::new(Response::failure(
+                operation,
                 Some(master),
                 "output_path is required",
             )));
@@ -396,7 +441,8 @@ fn projection_inputs(request: &Request) -> Result<(String, Vec<String>, String),
     };
     if let Some(parent) = Path::new(&output).parent() {
         if let Err(error) = fs::create_dir_all(parent) {
-            return Err(Box::new(failed_response(
+            return Err(Box::new(Response::failure(
+                operation,
                 Some(master),
                 format!("create output directory: {error}"),
             )));

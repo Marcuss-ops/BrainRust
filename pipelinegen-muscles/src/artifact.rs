@@ -1,5 +1,3 @@
-use crate::protocol::Response;
-
 use crate::error::MuscleError;
 use std::collections::HashMap;
 use std::fs;
@@ -11,18 +9,6 @@ use std::sync::{Mutex, OnceLock};
 /// deterministic `.part` name lets two workers write (and rename) the same
 /// temporary file; a unique suffix keeps every publish atomic and isolated.
 static NEXT_PART: AtomicU64 = AtomicU64::new(0);
-
-pub(crate) fn failed_response(source_path: Option<String>, error: impl ToString) -> Response {
-    Response {
-        ok: false,
-        operation: "cut_batch".to_string(),
-        source_path,
-        items: Vec::new(),
-        metadata: None,
-        preflight: None,
-        error: Some(error.to_string()),
-    }
-}
 
 pub(crate) fn part_path(final_path: &str) -> String {
     let unique = format!(

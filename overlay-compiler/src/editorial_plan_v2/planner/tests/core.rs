@@ -117,6 +117,7 @@ fn explicit_image_budget_is_a_run_ceiling() {
     );
     request.budgets.as_mut().expect("budgets").image_overlays = 1;
     let compiled = compile_plan(&request).expect("plan");
+    // The ceiling is a count, not a kind filter: one image reaches the plan.
     let images = compiled
         .plan
         .items
@@ -124,11 +125,19 @@ fn explicit_image_budget_is_a_run_ceiling() {
         .filter(|item| item.kind == "image" || item.kind == "entity_image")
         .count();
     assert_eq!(1, images);
-    assert!(!compiled
+    // Within the ceiling a verified entity portrait outranks an interchangeable
+    // scene still, so the portrait is the one that survives and the generic
+    // image is the one displaced.
+    assert!(compiled
         .plan
         .items
         .iter()
         .any(|item| item.kind == "entity_image"));
+    assert!(!compiled
+        .plan
+        .items
+        .iter()
+        .any(|item| item.kind == "image"));
     assert_eq!(1, compiled.plan.intake.dropped_by_reason["budget"]);
 }
 
@@ -430,11 +439,12 @@ fn chart_placements_reject_word_values() {
 }
 
 #[test]
-fn text_entity_card_displaces_a_number_at_the_per_scene_ceiling() {
+fn text_entity_card_wins_the_per_scene_ceiling_over_a_number() {
     // r18: scene-01 carried 12 admitted number/phrase items, so the three
     // text entity cards appended afterwards all failed the per-scene budget
-    // and the named person disappeared from the plan. One card must survive
-    // by displacing the last number of its own scene.
+    // and the named person disappeared from the plan. Admission ranks the
+    // named card above a date, so the card takes the slot and the date loses,
+    // in the same single pass every other lane goes through.
     let mut request = request();
     request.budgets.as_mut().expect("budgets").max_per_scene = 2;
     request
@@ -443,28 +453,59 @@ fn text_entity_card_displaces_a_number_at_the_per_scene_ceiling() {
         .expect("media")
         .verified_entity_assets
         .clear();
-    let intake = super::new_intake(&request, &[]);
-    let base = vec![
+    let validated = super::ValidatedRequest::new(&request).expect("validated");
+    let mut candidates = vec![
         overlay_item("number-1", "number", "DATE", 100_000, 400_000),
         overlay_item("number-2", "number", "DATE", 600_000, 400_000),
     ];
-    let (items, intake) = super::admit(&request, base, intake);
-    assert_eq!(2, items.len());
-
     let cards = super::build_entity_card_candidates(&request).expect("cards");
     assert_eq!(1, cards.len());
-    let mut candidates = items;
     candidates.extend(cards);
-    let (items, intake) = super::admit(&request, candidates, intake);
+    let intake = super::new_intake(&validated, &candidates);
+    let (items, intake) = super::admit(&validated, candidates, intake);
 
     let kinds: Vec<&str> = items.iter().map(|item| item.kind.as_str()).collect();
     assert_eq!(2, items.len(), "{kinds:?}");
     assert!(kinds.contains(&"entity_card"), "{kinds:?}");
     assert_eq!(1, kinds.iter().filter(|kind| **kind == "number").count());
-    assert_eq!(
-        Some(&1),
-        intake.dropped_by_reason.get("number_replaced_by_entity")
+    assert_eq!(Some(&1), intake.dropped_by_reason.get("per_scene"));
+}
+
+/// An `images: disabled` scene keeps the named identity visible as a text card.
+/// Before OVL-01 the post-plan promotion checked the toggle; with the portrait
+/// now attached in `append_entity_cards`, the same rule must run there or the
+/// card would become an `entity_image` that admission drops, losing the person
+/// entirely.
+#[test]
+fn images_disabled_keeps_the_entity_card_textual() {
+    let mut request = request();
+    request.scenes[0]
+        .overlay_categories
+        .insert("images".to_string(), "disabled".to_string());
+    let compiled = compile_plan(&request).expect("plan");
+    assert!(
+        compiled
+            .plan
+            .items
+            .iter()
+            .all(|item| item.kind != "entity_image" && item.kind != "image_chain"),
+        "no image survives an images:disabled scene: {:?}",
+        compiled
+            .plan
+            .items
+            .iter()
+            .map(|item| item.kind.clone())
+            .collect::<Vec<_>>()
     );
+    let card = compiled
+        .plan
+        .items
+        .iter()
+        .find(|item| item.entity_id == "person-tim")
+        .expect("the person card stays in the plan");
+    assert_eq!("entity_card", card.kind);
+    assert!(card.asset_refs.is_empty(), "{card:?}");
+    assert_eq!("Tim Cook", card.text);
 }
 
 const DENSE_SCENE_COUNT: usize = 6;
@@ -663,4 +704,113 @@ fn dense_six_scene_plan_reaches_forty_effective_moments() {
             );
         }
     }
+}
+
+/// An outlet is an organization for identity (`identity.rs` prefixes its
+/// canonical id with `org`), so the planner must route it to the same card and
+/// image lanes. Before the single fold, `MEDIA_OUTLET` was unknown to
+/// `entity_card_kind` and to the recovered-image gate: the entity was
+/// extracted, linked and counted as a named subject, yet never planned.
+fn media_outlet_request() -> EditorialPlanV2Request {
+    let mut request = request();
+    {
+        let entity = &mut request
+            .entity_timeline
+            .as_mut()
+            .expect("timeline")
+            .scenes[0]
+            .entities[0];
+        entity.entity_type = "MEDIA_OUTLET".to_string();
+        entity.name = "la Repubblica".to_string();
+        entity.entity_id = "outlet-repubblica".to_string();
+        entity.canonical_entity_id = "org:la-repubblica".to_string();
+    }
+    {
+        let verified = &mut request
+            .media
+            .as_mut()
+            .expect("media")
+            .verified_entity_assets[0];
+        verified.entity_id = "outlet-repubblica".to_string();
+        verified.canonical_entity_id = "org:la-repubblica".to_string();
+    }
+    request
+}
+
+#[test]
+fn a_media_outlet_is_carded_as_an_organization() {
+    let mut request = media_outlet_request();
+    request
+        .media
+        .as_mut()
+        .expect("media")
+        .verified_entity_assets
+        .clear();
+    let compiled = compile_plan(&request).expect("plan");
+    let card = compiled
+        .plan
+        .items
+        .iter()
+        .find(|item| item.kind == "organization")
+        .expect("organization card");
+    assert_eq!("org_default", card.template_id, "{card:?}");
+    // A text card carries its label in the body, not in the image caption.
+    assert_eq!("la Repubblica", card.text);
+    assert!(card.entity_caption.is_empty(), "{card:?}");
+    assert_eq!(
+        Some("MEDIA_OUTLET"),
+        card.params
+            .as_ref()
+            .and_then(|params| params["entity_type"].as_str())
+    );
+}
+
+#[test]
+fn a_media_outlet_binds_its_verified_asset() {
+    let request = media_outlet_request();
+    let compiled = compile_plan(&request).expect("plan");
+    let image = compiled
+        .plan
+        .items
+        .iter()
+        .find(|item| item.kind == "entity_image" && item.entity_caption == "la Repubblica")
+        .expect("outlet image");
+    assert_eq!("image_popup", image.template_id);
+    assert_eq!(1, image.asset_refs.len());
+}
+
+#[test]
+fn a_validated_request_hands_out_the_required_sections_without_optionals() {
+    let request = request();
+    let validated = super::ValidatedRequest::new(&request).expect("validated");
+    assert_eq!(
+        request.budgets.as_ref().expect("budgets").phrase_overlays,
+        validated.budgets().phrase_overlays
+    );
+    assert_eq!(
+        request.seal.as_ref().expect("seal").audio_duration_us,
+        validated.seal().audio_duration_us
+    );
+    // Every other field stays reachable through the deref.
+    assert_eq!(request.scenes.len(), validated.scenes.len());
+}
+
+#[test]
+fn a_request_without_budgets_is_rejected_not_panicked() {
+    let mut request = request();
+    request.budgets = None;
+    assert!(matches!(
+        super::ValidatedRequest::new(&request),
+        Err(super::EditorialPlanError::MissingSection("budgets"))
+    ));
+}
+
+#[test]
+fn a_request_without_seal_is_rejected_not_panicked() {
+    let mut request = request();
+    request.seal = None;
+    assert!(matches!(
+        super::ValidatedRequest::new(&request),
+        Err(super::EditorialPlanError::MissingSection("seal"))
+    ));
 }

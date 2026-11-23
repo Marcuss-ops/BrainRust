@@ -2,6 +2,10 @@
 
 use super::*;
 
+#[path = "contextual_queries/enrich.rs"]
+mod enrich;
+pub(super) use enrich::enrich_contextual_search_queries;
+
 /// Rank a source-grounded scene query above a bare identity lookup. The query
 /// ladder is already attached by `enrich_contextual_search_queries`; this pass
 /// changes only production ordering and leaves the inventory and fallback rung
@@ -101,6 +105,11 @@ pub(super) fn apply_visual_query_priority(
 /// rungs attached to an identity candidate; when that owner was absent or had
 /// a lower identity score, the best visual event could never compete for a
 /// media slot.
+/// Promotes each already-grounded contextual image query to a production
+/// candidate in its own right. Previously contextual queries only existed as
+/// rungs attached to an identity candidate; when that owner was absent or had
+/// a lower identity score, the best visual event could never compete for a
+/// media slot.
 pub(super) fn push_contextual_search_candidates(
     language: &str,
     sources: &[SceneInput],
@@ -123,149 +132,11 @@ pub(super) fn push_contextual_search_candidates(
             .copied()
             .unwrap_or(scene.contextual_image_queries.as_slice());
         for contextual in contextual_queries {
-            let policy = image_query_policy();
-            let lower_evidence = contextual.evidence.to_lowercase();
-            let future_or_proposed = policy
-                .irrealis_visual_cues
-                .iter()
-                .any(|cue| lower_evidence.contains(&cue.to_lowercase()));
-            let has_visual_plan_evidence = policy
-                .irrealis_visual_evidence_cues
-                .iter()
-                .any(|cue| lower_evidence.contains(&cue.to_lowercase()));
-            if future_or_proposed && !has_visual_plan_evidence {
+            let Some((components, has_visual_plan_evidence)) = resolve_contextual_components(
+                language, source, scene, contextual, identities, candidates,
+            ) else {
                 continue;
-            }
-            let enriched_query = candidates
-                .iter()
-                .filter(|candidate| {
-                    candidate.scene_id == scene.scene_id && candidate.recipe == "entity_search"
-                })
-                .flat_map(|candidate| candidate.queries.iter())
-                .find(|query| {
-                    query.origin == "derived_from_source_context"
-                        && query.evidence_start_byte == Some(contextual.evidence_start_byte)
-                        && query.evidence_end_byte == Some(contextual.evidence_end_byte)
-                });
-            let mut components = enriched_query
-                .map(|query| query.components.clone())
-                .unwrap_or_else(|| contextual.components.clone());
-            let location_anchor_end = components
-                .iter()
-                .filter(|component| component.component_type == "LOCATION")
-                .max_by_key(|component| component.end_byte)
-                .map(|component| component.end_byte)
-                .or_else(|| components.iter().map(|component| component.end_byte).max());
-            if let Some(anchor_end) = location_anchor_end {
-                let location_is_explicitly_linked = |start: usize| {
-                    source.get(anchor_end..start).is_some_and(|gap| {
-                        let gap = gap.to_lowercase();
-                        policy
-                            .nested_location_anchor_cues
-                            .iter()
-                            .any(|cue| gap.ends_with(&cue.to_lowercase()))
-                    })
-                };
-                let nested_location = scene
-                    .entities
-                    .iter()
-                    .find(|entity| {
-                        entity.kind == "LOCATION"
-                            && entity.start_byte > anchor_end
-                            && entity.start_byte >= contextual.evidence_start_byte
-                            && entity.end_byte <= contextual.evidence_end_byte
-                            && location_is_explicitly_linked(entity.start_byte)
-                    })
-                    .map(|entity| {
-                        (
-                            entity.kind.clone(),
-                            entity.text.clone(),
-                            entity.start_byte,
-                            entity.end_byte,
-                        )
-                    })
-                    .or_else(|| {
-                        identities.values().find_map(|identity| {
-                            if identity.kind != "LOCATION"
-                                && !(identity.kind == "VISUAL_CONCEPT"
-                                    && semantic_core::lexicon::lexicon()
-                                        .is_place(&identity.canonical, language))
-                            {
-                                return None;
-                            }
-                            let evidence = source.get(anchor_end..contextual.evidence_end_byte)?;
-                            evidence
-                                .match_indices(&identity.canonical)
-                                .map(|(offset, text)| {
-                                    let start = anchor_end + offset;
-                                    (text, start, start + text.len())
-                                })
-                                .find(|(_, start, _)| location_is_explicitly_linked(*start))
-                                .map(|(text, start, end)| {
-                                    (identity.kind.clone(), text.to_string(), start, end)
-                                })
-                        })
-                    });
-                if let Some((kind, text, start_byte, end_byte)) = nested_location {
-                    if !components.iter().any(|component| {
-                        component.start_byte == start_byte && component.end_byte == end_byte
-                    }) {
-                        components.push(semantic_core::QueryComponent {
-                            kind: "location".to_string(),
-                            component_type: kind,
-                            text,
-                            start_byte,
-                            end_byte,
-                        });
-                        components.sort_by_key(|component| component.start_byte);
-                    }
-                }
-            }
-            if components.len() < 2
-                || contextual.evidence_start_byte >= contextual.evidence_end_byte
-                || source.get(contextual.evidence_start_byte..contextual.evidence_end_byte)
-                    != Some(contextual.evidence.as_str())
-                || contextual.query.trim().is_empty()
-            {
-                continue;
-            }
-            let components_are_grounded = components.iter().all(|component| {
-                component.start_byte >= contextual.evidence_start_byte
-                    && component.start_byte < component.end_byte
-                    && component.end_byte <= contextual.evidence_end_byte
-                    && source
-                        .get(component.start_byte..component.end_byte)
-                        .is_some_and(|text| text == component.text)
-            });
-            if !components_are_grounded {
-                continue;
-            }
-            let location_components: Vec<_> = components
-                .iter()
-                .filter(|component| component.component_type == "LOCATION")
-                .collect();
-            if location_components.len() >= 2 && location_components.len() == components.len() {
-                let mut ordered = location_components.clone();
-                ordered.sort_by_key(|component| component.start_byte);
-                let gap = source
-                    .get(ordered[0].end_byte..ordered[1].start_byte)
-                    .unwrap_or_default();
-                let lower_gap = gap.to_lowercase();
-                let explicit_place_relation = policy
-                    .location_anchor_cues
-                    .iter()
-                    .any(|cue| lower_gap.ends_with(&cue.to_lowercase()));
-                if !explicit_place_relation
-                    || gap
-                        .chars()
-                        .any(|character| matches!(character, '.' | '!' | '?' | '\n'))
-                {
-                    // Two places in separate sentences are not a scene
-                    // relation. This catches list spillover such as a city
-                    // named several sentences before a train route.
-                    continue;
-                }
-            }
+            };
             let query = components
                 .iter()
                 .map(|component| component.text.trim())
@@ -284,85 +155,325 @@ pub(super) fn push_contextual_search_candidates(
             if !seen.insert(dedup_key.clone()) {
                 continue;
             }
-            let mut entity_ids = Vec::new();
-            for component in &components {
-                if let Some(identity) = scene.entities.iter().find(|entity| {
-                    entity.start_byte == component.start_byte
-                        && entity.end_byte == component.end_byte
-                        && entity.text == component.text
-                }) {
-                    if identities.contains_key(&identity.id) && !entity_ids.contains(&identity.id) {
-                        entity_ids.push(identity.id.clone());
-                    }
-                }
-            }
-            let complexity_bonus = (components.len().saturating_sub(2).min(2) as f32) * 0.025;
-            let action_bonus = if components
-                .iter()
-                .any(|component| component.component_type == "ACTION")
-            {
-                0.025
-            } else {
-                0.0
-            };
-            let priority = (0.79 + complexity_bonus + action_bonus).min(0.88);
-            let mut queries = vec![SearchQuery::contextual(
-                query.clone(),
-                contextual.evidence.clone(),
-                contextual.evidence_start_byte,
-                contextual.evidence_end_byte,
-                components.clone(),
+            let entity_ids = contextual_entity_ids(scene, &components, identities);
+            let queries = contextual_search_queries(
+                &query,
+                contextual,
+                &components,
+                identities,
+                &entity_ids,
                 has_visual_plan_evidence,
-            )];
-            for entity_id in &entity_ids {
-                let Some(identity) = identities.get(entity_id) else {
-                    continue;
-                };
-                if identity.canonical.eq_ignore_ascii_case(&query)
-                    || queries
-                        .iter()
-                        .any(|candidate| candidate.text.eq_ignore_ascii_case(&identity.canonical))
-                {
-                    continue;
-                }
-                queries.push(SearchQuery::literal(identity.canonical.clone()));
-                if queries.len() >= 3 {
-                    break;
-                }
-            }
-            candidates.push(ProductionCandidate {
-                id: String::new(),
-                recipe: "contextual_search".to_string(),
-                rank: 0,
-                priority,
-                scene_id: scene.scene_id.clone(),
-                scene_ids: vec![scene.scene_id.clone()],
-                entity_ids,
-                fact_ids: Vec::new(),
-                group_ids: Vec::new(),
-                title: query.clone(),
-                evidence: contextual.evidence.clone(),
-                start_byte: contextual.evidence_start_byte,
-                end_byte: contextual.evidence_end_byte,
-                suggested_visual: "search_asset".to_string(),
-                chart_items: Vec::new(),
-                chart_meta: None,
-                visual_payload: None,
-                temporal_surfaces: Vec::new(),
-                asset_key: dedup_key.clone(),
-                queries,
-                requires_media: true,
+            );
+            candidates.push(build_contextual_candidate(
+                scene,
+                contextual,
+                &components,
+                &query,
                 dedup_key,
-                covered_fact_ids: Vec::new(),
-                rationale: vec![
-                    "source-grounded contextual visual event".to_string(),
-                    "query components and evidence are exact source spans".to_string(),
-                ],
-            });
+                entity_ids,
+                queries,
+            ));
         }
     }
 }
 
+/// Applies the irrealis gate, finds the enriched component rung and validates
+/// every span against the source before a candidate may be emitted.
+fn resolve_contextual_components(
+    language: &str,
+    source: &str,
+    scene: &SceneManifest,
+    contextual: &semantic_core::ContextualImageQuery,
+    identities: &BTreeMap<String, IdentityState>,
+    candidates: &[ProductionCandidate],
+) -> Option<(Vec<semantic_core::QueryComponent>, bool)> {
+    let policy = image_query_policy();
+    let lower_evidence = contextual.evidence.to_lowercase();
+    let future_or_proposed = policy
+        .irrealis_visual_cues
+        .iter()
+        .any(|cue| lower_evidence.contains(&cue.to_lowercase()));
+    let has_visual_plan_evidence = policy
+        .irrealis_visual_evidence_cues
+        .iter()
+        .any(|cue| lower_evidence.contains(&cue.to_lowercase()));
+    if future_or_proposed && !has_visual_plan_evidence {
+        return None;
+    }
+    let enriched_query = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.scene_id == scene.scene_id && candidate.recipe == "entity_search"
+        })
+        .flat_map(|candidate| candidate.queries.iter())
+        .find(|query| {
+            query.origin == "derived_from_source_context"
+                && query.evidence_start_byte == Some(contextual.evidence_start_byte)
+                && query.evidence_end_byte == Some(contextual.evidence_end_byte)
+        });
+    let mut components = enriched_query
+        .map(|query| query.components.clone())
+        .unwrap_or_else(|| contextual.components.clone());
+    append_nested_location(
+        language,
+        source,
+        scene,
+        contextual,
+        identities,
+        &mut components,
+    );
+    if !contextual_components_are_valid(source, contextual, &components) {
+        return None;
+    }
+    Some((components, has_visual_plan_evidence))
+}
+
+/// Adds an explicitly linked nested place (for example "East Toledo" inside
+/// "Toledo") when the source names it immediately after the location anchor.
+fn append_nested_location(
+    language: &str,
+    source: &str,
+    scene: &SceneManifest,
+    contextual: &semantic_core::ContextualImageQuery,
+    identities: &BTreeMap<String, IdentityState>,
+    components: &mut Vec<semantic_core::QueryComponent>,
+) {
+    let policy = image_query_policy();
+    let location_anchor_end = components
+        .iter()
+        .filter(|component| component.component_type == "LOCATION")
+        .max_by_key(|component| component.end_byte)
+        .map(|component| component.end_byte)
+        .or_else(|| components.iter().map(|component| component.end_byte).max());
+    let Some(anchor_end) = location_anchor_end else {
+        return;
+    };
+    let location_is_explicitly_linked = |start: usize| {
+        source.get(anchor_end..start).is_some_and(|gap| {
+            let gap = gap.to_lowercase();
+            policy
+                .nested_location_anchor_cues
+                .iter()
+                .any(|cue| gap.ends_with(&cue.to_lowercase()))
+        })
+    };
+    let nested_location = scene
+        .entities
+        .iter()
+        .find(|entity| {
+            entity.kind == "LOCATION"
+                && entity.start_byte > anchor_end
+                && entity.start_byte >= contextual.evidence_start_byte
+                && entity.end_byte <= contextual.evidence_end_byte
+                && location_is_explicitly_linked(entity.start_byte)
+        })
+        .map(|entity| {
+            (
+                entity.kind.clone(),
+                entity.text.clone(),
+                entity.start_byte,
+                entity.end_byte,
+            )
+        })
+        .or_else(|| {
+            identities.values().find_map(|identity| {
+                if identity.kind != "LOCATION"
+                    && !(identity.kind == "VISUAL_CONCEPT"
+                        && semantic_core::lexicon::lexicon()
+                            .is_place(&identity.canonical, language))
+                {
+                    return None;
+                }
+                let evidence = source.get(anchor_end..contextual.evidence_end_byte)?;
+                evidence
+                    .match_indices(&identity.canonical)
+                    .map(|(offset, text)| {
+                        let start = anchor_end + offset;
+                        (text, start, start + text.len())
+                    })
+                    .find(|(_, start, _)| location_is_explicitly_linked(*start))
+                    .map(|(text, start, end)| (identity.kind.clone(), text.to_string(), start, end))
+            })
+        });
+    if let Some((kind, text, start_byte, end_byte)) = nested_location {
+        if !components
+            .iter()
+            .any(|component| component.start_byte == start_byte && component.end_byte == end_byte)
+        {
+            components.push(semantic_core::QueryComponent {
+                kind: "location".to_string(),
+                component_type: kind,
+                text,
+                start_byte,
+                end_byte,
+            });
+            components.sort_by_key(|component| component.start_byte);
+        }
+    }
+}
+
+/// The evidence and every component must be exact source spans, and two
+/// places must share an explicit relation inside one sentence.
+fn contextual_components_are_valid(
+    source: &str,
+    contextual: &semantic_core::ContextualImageQuery,
+    components: &[semantic_core::QueryComponent],
+) -> bool {
+    if components.len() < 2
+        || contextual.evidence_start_byte >= contextual.evidence_end_byte
+        || source.get(contextual.evidence_start_byte..contextual.evidence_end_byte)
+            != Some(contextual.evidence.as_str())
+        || contextual.query.trim().is_empty()
+    {
+        return false;
+    }
+    let components_are_grounded = components.iter().all(|component| {
+        component.start_byte >= contextual.evidence_start_byte
+            && component.start_byte < component.end_byte
+            && component.end_byte <= contextual.evidence_end_byte
+            && source
+                .get(component.start_byte..component.end_byte)
+                .is_some_and(|text| text == component.text)
+    });
+    if !components_are_grounded {
+        return false;
+    }
+    let location_components: Vec<_> = components
+        .iter()
+        .filter(|component| component.component_type == "LOCATION")
+        .collect();
+    if location_components.len() >= 2 && location_components.len() == components.len() {
+        let mut ordered = location_components;
+        ordered.sort_by_key(|component| component.start_byte);
+        let gap = source
+            .get(ordered[0].end_byte..ordered[1].start_byte)
+            .unwrap_or_default();
+        let lower_gap = gap.to_lowercase();
+        let explicit_place_relation = image_query_policy()
+            .location_anchor_cues
+            .iter()
+            .any(|cue| lower_gap.ends_with(&cue.to_lowercase()));
+        if !explicit_place_relation
+            || gap
+                .chars()
+                .any(|character| matches!(character, '.' | '!' | '?' | '\n'))
+        {
+            // Two places in separate sentences are not a scene relation. This
+            // catches list spillover such as a city named several sentences
+            // before a train route.
+            return false;
+        }
+    }
+    true
+}
+
+fn contextual_entity_ids(
+    scene: &SceneManifest,
+    components: &[semantic_core::QueryComponent],
+    identities: &BTreeMap<String, IdentityState>,
+) -> Vec<String> {
+    let mut entity_ids = Vec::new();
+    for component in components {
+        if let Some(identity) = scene.entities.iter().find(|entity| {
+            entity.start_byte == component.start_byte
+                && entity.end_byte == component.end_byte
+                && entity.text == component.text
+        }) {
+            if identities.contains_key(&identity.id) && !entity_ids.contains(&identity.id) {
+                entity_ids.push(identity.id.clone());
+            }
+        }
+    }
+    entity_ids
+}
+
+fn contextual_priority(components: &[semantic_core::QueryComponent]) -> f32 {
+    let complexity_bonus = (components.len().saturating_sub(2).min(2) as f32) * 0.025;
+    let action_bonus = if components
+        .iter()
+        .any(|component| component.component_type == "ACTION")
+    {
+        0.025
+    } else {
+        0.0
+    };
+    (0.79 + complexity_bonus + action_bonus).min(0.88)
+}
+
+fn contextual_search_queries(
+    query: &str,
+    contextual: &semantic_core::ContextualImageQuery,
+    components: &[semantic_core::QueryComponent],
+    identities: &BTreeMap<String, IdentityState>,
+    entity_ids: &[String],
+    has_visual_plan_evidence: bool,
+) -> Vec<SearchQuery> {
+    let mut queries = vec![SearchQuery::contextual(
+        query.to_string(),
+        contextual.evidence.clone(),
+        contextual.evidence_start_byte,
+        contextual.evidence_end_byte,
+        components.to_vec(),
+        has_visual_plan_evidence,
+    )];
+    for entity_id in entity_ids {
+        let Some(identity) = identities.get(entity_id) else {
+            continue;
+        };
+        if identity.canonical.eq_ignore_ascii_case(query)
+            || queries
+                .iter()
+                .any(|candidate| candidate.text.eq_ignore_ascii_case(&identity.canonical))
+        {
+            continue;
+        }
+        queries.push(SearchQuery::literal(identity.canonical.clone()));
+        if queries.len() >= 3 {
+            break;
+        }
+    }
+    queries
+}
+
+fn build_contextual_candidate(
+    scene: &SceneManifest,
+    contextual: &semantic_core::ContextualImageQuery,
+    components: &[semantic_core::QueryComponent],
+    query: &str,
+    dedup_key: String,
+    entity_ids: Vec<String>,
+    queries: Vec<SearchQuery>,
+) -> ProductionCandidate {
+    ProductionCandidate {
+        id: String::new(),
+        recipe: "contextual_search".to_string(),
+        rank: 0,
+        priority: contextual_priority(components),
+        scene_id: scene.scene_id.clone(),
+        scene_ids: vec![scene.scene_id.clone()],
+        entity_ids,
+        fact_ids: Vec::new(),
+        group_ids: Vec::new(),
+        title: query.to_string(),
+        evidence: contextual.evidence.clone(),
+        start_byte: contextual.evidence_start_byte,
+        end_byte: contextual.evidence_end_byte,
+        suggested_visual: "search_asset".to_string(),
+        chart_items: Vec::new(),
+        chart_meta: None,
+        visual_payload: None,
+        temporal_surfaces: Vec::new(),
+        asset_key: dedup_key.clone(),
+        queries,
+        requires_media: true,
+        dedup_key,
+        covered_fact_ids: Vec::new(),
+        rationale: vec![
+            "source-grounded contextual visual event".to_string(),
+            "query components and evidence are exact source spans".to_string(),
+        ],
+    }
+}
 pub(super) fn is_generic_object_surface(
     surface: &str,
     object_terms: &[String],
@@ -431,327 +542,6 @@ pub(super) fn visual_search_priority(
         priority * 0.82
     } else {
         priority
-    }
-}
-
-/// Adds one compact contextual search rung to non-person entity searches when
-/// another grounded visual entity occurs in the same complete source sentence.
-/// A person can combine with a non-person visual concept, while person-person
-/// and other named-entity pairs require an asserted relation.
-pub(super) fn enrich_contextual_search_queries(
-    _language: &str,
-    sources: &[SceneInput],
-    scenes: &[SceneManifest],
-    query_seeds: &HashMap<&str, &[semantic_core::ContextualImageQuery]>,
-    candidates: &mut [ProductionCandidate],
-) {
-    let policy = image_query_policy();
-    let sources_by_scene: HashMap<&str, &SceneInput> = sources
-        .iter()
-        .map(|source| (source.scene_id.as_str(), source))
-        .collect();
-    let mut entities_by_span: HashMap<(String, String, usize, usize), &semantic_core::Candidate> =
-        HashMap::new();
-    let mut identity_by_span: HashMap<(String, usize, usize), String> = HashMap::new();
-    let mut entities_by_scene: HashMap<&str, Vec<&semantic_core::Candidate>> = HashMap::new();
-    let mut contexts_by_scene: HashMap<&str, Vec<&semantic_core::ContextualImageQuery>> =
-        HashMap::new();
-    for scene in scenes {
-        for entity in &scene.entities {
-            entities_by_scene
-                .entry(scene.scene_id.as_str())
-                .or_default()
-                .push(entity);
-            entities_by_span.insert(
-                (
-                    scene.scene_id.clone(),
-                    entity.id.clone(),
-                    entity.start_byte,
-                    entity.end_byte,
-                ),
-                entity,
-            );
-            identity_by_span.insert(
-                (scene.scene_id.clone(), entity.start_byte, entity.end_byte),
-                entity.id.clone(),
-            );
-        }
-        let contextual_queries = query_seeds
-            .get(scene.scene_id.as_str())
-            .copied()
-            .unwrap_or(scene.contextual_image_queries.as_slice());
-        contexts_by_scene.insert(&scene.scene_id, contextual_queries.iter().collect());
-    }
-    let searchable_entity_ids: HashSet<(String, String)> = candidates
-        .iter()
-        .filter(|candidate| candidate.recipe == "entity_search" && candidate.entity_ids.len() == 1)
-        .map(|candidate| (candidate.scene_id.clone(), candidate.entity_ids[0].clone()))
-        .collect();
-
-    for candidate in candidates
-        .iter_mut()
-        .filter(|candidate| candidate.recipe == "entity_search" && candidate.entity_ids.len() == 1)
-    {
-        let Some(source) = sources_by_scene.get(candidate.scene_id.as_str()).copied() else {
-            continue;
-        };
-        let Some(contexts) = contexts_by_scene.get(candidate.scene_id.as_str()) else {
-            continue;
-        };
-        let identity = candidate.entity_ids[0].as_str();
-        let anchor_start = candidate.start_byte.min(source.text.len());
-        let anchor_end = candidate.end_byte.min(source.text.len());
-        let sentence_start = source.text[..anchor_start]
-            .rfind(['.', '!', '?', '\n'])
-            .map_or(0, |index| index + 1);
-        let sentence_end = source.text[anchor_end..]
-            .find(['.', '!', '?', '\n'])
-            .map_or(source.text.len(), |index| anchor_end + index + 1);
-        let candidate_text = source
-            .text
-            .get(sentence_start..sentence_end)
-            .unwrap_or("")
-            .to_lowercase();
-        let non_subject_object = policy
-            .non_subject_object_terms
-            .iter()
-            .any(|term| candidate.title.eq_ignore_ascii_case(term));
-        if non_subject_object {
-            candidate.requires_media = false;
-            candidate.queries.clear();
-            continue;
-        }
-        let disconnected_meta_sentence = policy
-            .link_disclaimer_cues
-            .iter()
-            .any(|cue| candidate_text.contains(cue.to_lowercase().as_str()));
-        let explicit_comparison_context = contexts.iter().any(|context| {
-            context.evidence_start_byte <= candidate.start_byte
-                && candidate.start_byte <= context.evidence_end_byte
-                && context.components.iter().any(|component| {
-                    component.component_type == "ACTION"
-                        && policy
-                            .comparison_cues
-                            .iter()
-                            .any(|cue| component.text.eq_ignore_ascii_case(cue))
-                })
-        });
-        if disconnected_meta_sentence && !explicit_comparison_context {
-            candidate.requires_media = false;
-            candidate.queries.clear();
-            continue;
-        }
-        let context_owner = |context: &semantic_core::ContextualImageQuery| {
-            context
-                .components
-                .iter()
-                .filter_map(|component| {
-                    let id = identity_by_span.get(&(
-                        candidate.scene_id.clone(),
-                        component.start_byte,
-                        component.end_byte,
-                    ))?;
-                    let entity = entities_by_span.get(&(
-                        candidate.scene_id.clone(),
-                        id.clone(),
-                        component.start_byte,
-                        component.end_byte,
-                    ))?;
-                    Some((visual_query_owner_rank(&entity.kind), id.as_str()))
-                })
-                .min_by_key(|(rank, _)| *rank)
-                .map(|(_, id)| id)
-        };
-        let effective_context_owner = |context: &semantic_core::ContextualImageQuery| {
-            let preferred = context_owner(context);
-            if preferred.is_some_and(|id| {
-                searchable_entity_ids.contains(&(candidate.scene_id.clone(), id.to_string()))
-            }) {
-                return preferred;
-            }
-            context
-                .components
-                .iter()
-                .filter_map(|component| {
-                    let id = identity_by_span.get(&(
-                        candidate.scene_id.clone(),
-                        component.start_byte,
-                        component.end_byte,
-                    ))?;
-                    if !searchable_entity_ids.contains(&(candidate.scene_id.clone(), id.clone())) {
-                        return None;
-                    }
-                    let entity = entities_by_span.get(&(
-                        candidate.scene_id.clone(),
-                        id.clone(),
-                        component.start_byte,
-                        component.end_byte,
-                    ))?;
-                    Some((visual_query_owner_rank(&entity.kind), id.as_str()))
-                })
-                .min_by_key(|(rank, _)| *rank)
-                .map(|(_, id)| id)
-        };
-        let owns_any_context = contexts
-            .iter()
-            .any(|context| effective_context_owner(context) == Some(identity));
-        let covered_by_context = contexts.iter().any(|context| {
-            effective_context_owner(context).is_some_and(|owner| owner != identity)
-                && context.components.iter().any(|component| {
-                    let component_identity = identity_by_span.get(&(
-                        candidate.scene_id.clone(),
-                        component.start_byte,
-                        component.end_byte,
-                    ));
-                    component_identity.is_some_and(|id| id == identity)
-                        || (component.start_byte <= candidate.start_byte
-                            && candidate.end_byte <= component.end_byte)
-                })
-        });
-        if covered_by_context && !owns_any_context {
-            // One contextual event gets one provider request. Its named
-            // subjects remain in the manifest, but do not each issue a
-            // separate exact-name search for the same scene event.
-            candidate.requires_media = false;
-            candidate.queries.clear();
-            continue;
-        }
-        let mut added = 0;
-        let mut contextual_queries = Vec::new();
-        for context in contexts
-            .iter()
-            .copied()
-            .filter(|context| effective_context_owner(context) == Some(identity))
-        {
-            if added >= policy.max_contextual_queries_per_candidate {
-                break;
-            }
-            let contains_anchor = context.components.iter().any(|component| {
-                entities_by_span
-                    .get(&(
-                        candidate.scene_id.clone(),
-                        candidate.entity_ids[0].clone(),
-                        component.start_byte,
-                        component.end_byte,
-                    ))
-                    .is_some_and(|entity| {
-                        entity.text == component.text
-                            && candidate
-                                .evidence
-                                .trim()
-                                .eq_ignore_ascii_case(component.text.trim())
-                    })
-            });
-            if !contains_anchor || context.components.len() < 2 {
-                continue;
-            }
-            let mut components = context.components.clone();
-            let Some(existing_location) = components
-                .iter()
-                .filter(|component| component.component_type == "LOCATION")
-                .max_by_key(|component| component.end_byte)
-            else {
-                continue;
-            };
-            let evidence_text = source
-                .text
-                .get(context.evidence_start_byte..context.evidence_end_byte)
-                .unwrap_or_default();
-            if let Some(nested_location) = entities_by_scene
-                .get(candidate.scene_id.as_str())
-                .into_iter()
-                .flatten()
-                .filter(|entity| entity.kind == "LOCATION")
-                .filter(|entity| {
-                    entity.start_byte > existing_location.end_byte
-                        && context.evidence_start_byte <= entity.start_byte
-                        && entity.end_byte <= context.evidence_end_byte
-                })
-                .find(|entity| {
-                    let Some(gap) = source
-                        .text
-                        .get(existing_location.end_byte..entity.start_byte)
-                    else {
-                        return false;
-                    };
-                    let gap = gap.to_lowercase();
-                    policy
-                        .nested_location_anchor_cues
-                        .iter()
-                        .any(|cue| gap.ends_with(&cue.to_lowercase()))
-                })
-            {
-                if !components.iter().any(|component| {
-                    component.start_byte == nested_location.start_byte
-                        && component.end_byte == nested_location.end_byte
-                }) {
-                    components.push(semantic_core::QueryComponent {
-                        kind: "location".to_string(),
-                        component_type: nested_location.kind.clone(),
-                        text: nested_location.text.clone(),
-                        start_byte: nested_location.start_byte,
-                        end_byte: nested_location.end_byte,
-                    });
-                    components.sort_by_key(|component| component.start_byte);
-                }
-            }
-            let query = components
-                .iter()
-                .map(|component| component.text.trim())
-                .collect::<Vec<_>>()
-                .join(" ");
-            if query.split_whitespace().count() > policy.max_query_words
-                || query.chars().count() > policy.max_query_chars
-                || candidate
-                    .queries
-                    .iter()
-                    .any(|prior| prior.text.eq_ignore_ascii_case(&query))
-            {
-                continue;
-            }
-            let evidence_valid = context.evidence_start_byte <= context.evidence_end_byte
-                && evidence_text == context.evidence;
-            let components_valid = components.iter().all(|component| {
-                component.start_byte <= component.end_byte
-                    && context.evidence_start_byte <= component.start_byte
-                    && component.end_byte <= context.evidence_end_byte
-                    && source
-                        .text
-                        .get(component.start_byte..component.end_byte)
-                        .is_some_and(|text| text == component.text)
-            });
-            let original_query = context
-                .components
-                .iter()
-                .map(|component| component.text.trim())
-                .collect::<Vec<_>>()
-                .join(" ");
-            if !evidence_valid || !components_valid || original_query != context.query {
-                continue;
-            }
-            contextual_queries.push(SearchQuery::contextual(
-                query,
-                context.evidence.clone(),
-                context.evidence_start_byte,
-                context.evidence_end_byte,
-                components,
-                false,
-            ));
-            added += 1;
-        }
-        if !contextual_queries.is_empty() {
-            // Search the source-supported event first. The canonical identity
-            // query remains the fallback if the composed search has no useful
-            // hit; it must not consume the first provider request by default.
-            if candidate.queries.is_empty() {
-                candidate
-                    .queries
-                    .push(SearchQuery::literal(candidate.title.clone()));
-            }
-            candidate.requires_media = true;
-            contextual_queries.append(&mut candidate.queries);
-            candidate.queries = contextual_queries;
-        }
     }
 }
 

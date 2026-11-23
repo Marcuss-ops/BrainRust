@@ -1,12 +1,13 @@
 use super::{checked_multi_inputs, finish_run, write_concat_list, ExpectedInputs};
-use crate::artifact::{failed_response, part_path};
+use crate::artifact::part_path;
 use crate::process::FFmpegRunner;
-use crate::protocol::{Request, Response};
+use crate::protocol::{Operation, Request, Response};
 use std::fs;
 
 pub(super) fn execute(request: Request) -> Response {
     let (inputs, output) = match checked_multi_inputs(
         &request,
+        Operation::MergeInputs,
         ExpectedInputs::AtLeastOne,
         "input_paths are required",
     ) {
@@ -16,7 +17,7 @@ pub(super) fn execute(request: Request) -> Response {
     let list_path = match write_concat_list(&inputs, "concat") {
         Ok(path) => path,
         Err(error) => {
-            return failed_response(Some(inputs[0].clone()), error);
+            return Response::failure(Operation::MergeInputs, Some(inputs[0].clone()), error);
         }
     };
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
@@ -37,5 +38,12 @@ pub(super) fn execute(request: Request) -> Response {
     command.args(["-c", "copy", &part]);
     let result = command.output();
     let _ = fs::remove_file(&list_path);
-    finish_run("merge_inputs", &inputs[0], &part, &output, result, None)
+    finish_run(
+        Operation::MergeInputs,
+        &inputs[0],
+        &part,
+        &output,
+        result,
+        None,
+    )
 }

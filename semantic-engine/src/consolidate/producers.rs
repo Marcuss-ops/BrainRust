@@ -156,49 +156,9 @@ pub(super) fn push_ranking_bars(
             continue;
         };
         for group in &scene.semantic_groups {
-            if group.group_type != "ranking" || !(2..=10).contains(&group.members.len()) {
-                continue;
-            }
-            let mut matched: Vec<(
-                &semantic_core::SemanticGroupMember,
-                &semantic_core::Quantity,
-            )> = Vec::new();
-            let mut signature: Option<(String, String)> = None;
-            for member in &group.members {
-                let quantity = scene
-                    .quantities
-                    .iter()
-                    .filter(|quantity| {
-                        quantity.start_byte >= member.start_byte
-                            && quantity.end_byte <= member.end_byte
-                            && quantity.value.is_some()
-                            && quantity.dimension != "rank"
-                            && quantity.dimension != "growth_rate"
-                    })
-                    // A quantity at the member's first non-space byte is the
-                    // rank marker itself ("1. France ..."), never a metric.
-                    .find(|quantity| {
-                        let leading = &text[member.start_byte..quantity.start_byte];
-                        leading.trim().chars().any(char::is_alphabetic)
-                    });
-                let Some(quantity) = quantity else {
-                    signature = None;
-                    break;
-                };
-                let key = (quantity.dimension.clone(), quantity.unit.clone());
-                if signature.as_ref().is_some_and(|existing| existing != &key) {
-                    signature = None;
-                    break;
-                }
-                signature = Some(key);
-                matched.push((member, quantity));
-            }
-            let Some((dimension, unit)) = signature else {
+            let Some((matched, dimension, unit)) = ranking_quantities(scene, group, text) else {
                 continue;
             };
-            if matched.len() != group.members.len() {
-                continue;
-            }
             let key = format!("ranking_bar:{}:{}", scene.scene_id, group.id);
             if !seen.insert(key.clone()) {
                 continue;
@@ -231,33 +191,7 @@ pub(super) fn push_ranking_bars(
             let Some(evidence) = text.get(start..end) else {
                 continue;
             };
-            let items: Vec<ChartItem> = matched
-                .iter()
-                .filter_map(|(member, quantity)| {
-                    Some(ChartItem {
-                        label: member.text.clone(),
-                        text: quantity.evidence.clone(),
-                        kind: match quantity.dimension.as_str() {
-                            "percent" => "PERCENT",
-                            "currency" => "MONEY",
-                            _ => "NUMBER",
-                        }
-                        .to_string(),
-                        value: quantity.value?,
-                        start_byte: quantity.start_byte,
-                        end_byte: quantity.end_byte,
-                        qualifier: Some(quantity.qualifier.clone())
-                            .filter(|value| !value.is_empty()),
-                        period: quantity
-                            .period
-                            .as_ref()
-                            .map(|period| period.year.to_string()),
-                        lower: None,
-                        upper: None,
-                        range_id: quantity.range_id.clone(),
-                    })
-                })
-                .collect();
+            let items = ranking_items(&matched);
             if items.len() != matched.len() {
                 continue;
             }
@@ -301,6 +235,84 @@ pub(super) fn push_ranking_bars(
     }
 }
 
+type RankingMatch<'a> = (
+    &'a semantic_core::SemanticGroupMember,
+    &'a semantic_core::Quantity,
+);
+
+/// Matches every ranked member to a real same-unit quantity, rejecting rank
+/// markers and mixed dimensions. Returns the matches plus the shared signature.
+fn ranking_quantities<'a>(
+    scene: &'a SceneManifest,
+    group: &'a semantic_core::SemanticGroup,
+    text: &str,
+) -> Option<(Vec<RankingMatch<'a>>, String, String)> {
+    if group.group_type != "ranking" || !(2..=10).contains(&group.members.len()) {
+        return None;
+    }
+    let mut matched: Vec<RankingMatch<'a>> = Vec::new();
+    let mut signature: Option<(String, String)> = None;
+    for member in &group.members {
+        let quantity = scene
+            .quantities
+            .iter()
+            .filter(|quantity| {
+                quantity.start_byte >= member.start_byte
+                    && quantity.end_byte <= member.end_byte
+                    && quantity.value.is_some()
+                    && quantity.dimension != "rank"
+                    && quantity.dimension != "growth_rate"
+            })
+            // A quantity at the member's first non-space byte is the
+            // rank marker itself ("1. France ..."), never a metric.
+            .find(|quantity| {
+                let leading = &text[member.start_byte..quantity.start_byte];
+                leading.trim().chars().any(char::is_alphabetic)
+            });
+        let Some(quantity) = quantity else {
+            signature = None;
+            break;
+        };
+        let key = (quantity.dimension.clone(), quantity.unit.clone());
+        if signature.as_ref().is_some_and(|existing| existing != &key) {
+            signature = None;
+            break;
+        }
+        signature = Some(key);
+        matched.push((member, quantity));
+    }
+    let (dimension, unit) = signature?;
+    (matched.len() == group.members.len()).then_some((matched, dimension, unit))
+}
+
+fn ranking_items(matched: &[RankingMatch<'_>]) -> Vec<ChartItem> {
+    matched
+        .iter()
+        .filter_map(|(member, quantity)| {
+            Some(ChartItem {
+                label: member.text.clone(),
+                text: quantity.evidence.clone(),
+                kind: match quantity.dimension.as_str() {
+                    "percent" => "PERCENT",
+                    "currency" => "MONEY",
+                    _ => "NUMBER",
+                }
+                .to_string(),
+                value: quantity.value?,
+                start_byte: quantity.start_byte,
+                end_byte: quantity.end_byte,
+                qualifier: Some(quantity.qualifier.clone()).filter(|value| !value.is_empty()),
+                period: quantity
+                    .period
+                    .as_ref()
+                    .map(|period| period.year.to_string()),
+                lower: None,
+                upper: None,
+                range_id: quantity.range_id.clone(),
+            })
+        })
+        .collect()
+}
 /// Fallback start for a malformed group without members; never used by the
 /// public contract because an empty group is skipped earlier.
 fn scene_start_fallback() -> usize {

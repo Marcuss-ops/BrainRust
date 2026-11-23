@@ -19,8 +19,8 @@ use crate::{
 use super::editorial::project_editorial_scenes;
 use super::error::EditorialPlanError;
 use super::request::{
-    AssetRefV2, EditorialPlanV2Request, EntityOccurrenceV2, ImageCandidateV2, MapCandidateV2,
-    MediaV2, PromotableEntityAssetV2, SceneV2, TimedAnnotationV2,
+    AssetRefV2, BudgetsV2, EditorialPlanV2Request, EntityOccurrenceV2, ImageCandidateV2,
+    MapCandidateV2, MediaV2, SceneV2, SealV2, TimedAnnotationV2,
 };
 use super::response::{
     EditorialPlanV2Compiled, EntityRefV2, FinalPlanV2, IntakeBudgetV2, IntakeV2, PlanItemV2,
@@ -33,8 +33,6 @@ mod coalesce;
 mod map_groups;
 mod media;
 mod presentation;
-mod preset_sampler;
-mod promotion;
 mod visual_recipes;
 
 use admission::*;
@@ -42,8 +40,57 @@ use candidates::*;
 use coalesce::*;
 use media::*;
 use presentation::*;
-use preset_sampler::*;
-use promotion::*;
+
+/// A request that passed [`EditorialPlanV2Request::validate_compilable`].
+///
+/// The planner phases take this type instead of the raw request, so a phase
+/// never re-asserts that `budgets` and `seal` are present: the presence check
+/// happens once, at the boundary, and [`Self::budgets`]/[`Self::seal`] hand
+/// out references rather than `Option`s. [`Deref`] keeps every other field
+/// reachable without threading a second argument through each phase.
+#[derive(Debug)]
+pub(super) struct ValidatedRequest<'a> {
+    request: &'a EditorialPlanV2Request,
+    budgets: &'a BudgetsV2,
+    seal: &'a SealV2,
+}
+
+impl<'a> ValidatedRequest<'a> {
+    pub(super) fn new(request: &'a EditorialPlanV2Request) -> Result<Self, EditorialPlanError> {
+        request.validate_compilable()?;
+        let budgets = request
+            .budgets
+            .as_ref()
+            .ok_or(EditorialPlanError::MissingSection("budgets"))?;
+        let seal = request
+            .seal
+            .as_ref()
+            .ok_or(EditorialPlanError::MissingSection("seal"))?;
+        Ok(Self {
+            request,
+            budgets,
+            seal,
+        })
+    }
+
+    /// The run budgets validation already required.
+    pub(super) fn budgets(&self) -> &'a BudgetsV2 {
+        self.budgets
+    }
+
+    /// The seal extent validation already required.
+    pub(super) fn seal(&self) -> &'a SealV2 {
+        self.seal
+    }
+}
+
+impl std::ops::Deref for ValidatedRequest<'_> {
+    type Target = EditorialPlanV2Request;
+
+    fn deref(&self) -> &Self::Target {
+        self.request
+    }
+}
 
 /// Validates the complete request, runs every phase in order and seals the
 /// final plan. There is no empty-plan fallback: a missing input is an error.
@@ -55,7 +102,7 @@ pub fn compile_plan(
     let mut projected_request = request.clone();
     super::projection::project_request(&mut projected_request);
     let request = &projected_request;
-    request.validate_compilable()?;
+    let validated = ValidatedRequest::new(request)?;
     let mut editorial = project_editorial_scenes(request)?;
     if request.chapters.is_some() {
         // Chapter bullets own the bullet slot on the scenes they cover. They
@@ -82,25 +129,15 @@ pub fn compile_plan(
     trim_maps(request, &mut candidates);
     let recap = build_recap_candidates(request)?;
     candidates.extend(recap.items);
-    // The first admission pass runs on the editorial/annotation candidates.
-    // Entity cards are merged after it and then pass the same final admission,
-    // exactly as the Go planner resolved cards after BuildPlan and before the
-    // final budget. Base items keep priority except at the per-scene ceiling,
-    // where a text entity card may displace a number of the same scene: a
-    // scene full of dates must not erase the named person card.
-    let intake = new_intake(request, &candidates);
-    let (mut items, mut intake) = admit(request, candidates, intake);
-    let cards = build_entity_card_candidates(request)?;
-    intake.candidates += cards.len() as i64;
-    for card in &cards {
-        *intake
-            .candidates_by_kind
-            .entry(card.kind.clone())
-            .or_default() += 1;
-    }
-    items.extend(cards);
-    let (mut items, mut intake) = admit(request, items, intake);
-    append_verified_intent_images(request, &mut items)?;
+    // Every lane — editorial, annotations, recap and the entity cards — is a
+    // candidate before admission. There is exactly one admission pass, so a
+    // card cannot bypass the budget and no second pass can re-admit a scene
+    // the first one already trimmed. `admit` ranks the candidates (entity
+    // image/map > still > text > number), so append order no longer decides
+    // which lane loses a full ceiling.
+    candidates.extend(build_entity_card_candidates(request)?);
+    let intake = new_intake(&validated, &candidates);
+    let (mut items, mut intake) = admit(&validated, candidates, intake);
     assign_entity_media(request, &mut items)?;
     // The short-phrase entrance is decided before coalescing: a phrase that
     // already carries a lane motion is chainable on its own terms, and the
@@ -204,13 +241,11 @@ pub fn compile_plan(
     // letting `validate_for` reject the whole plan after the fact.
     items = clip_items_to_scene_bounds(items, request);
     name_items_for_review(&mut items);
-    // Entity-card promotion is the planner's decision (CHAIN-SEGMENT v2): the
-    // request carries the promotable portraits, and a promoted chain segment
-    // seeds its preset with the fused chain id, exactly like the Go media plane
-    // it replaces. Running after naming keeps that seed identical.
-    items = promote_entity_cards(request, items);
+    // There is no post-plan promotion pass: a card that has a verified portrait
+    // was built as `entity_image` by `append_entity_cards` and passed the same
+    // admission, coalescing and clipping as every other item.
     finalize_intake(&mut intake, &items);
-    let plan = seal(request, items, intake, recap.placements);
+    let plan = seal(&validated, items, intake, recap.placements);
     let compiled = EditorialPlanV2Compiled {
         ok: true,
         schema_version: EDITORIAL_PLAN_V2_SCHEMA_VERSION.to_string(),
@@ -361,7 +396,7 @@ fn clamp_chain_segments(item: &mut PlanItemV2, scene_start: i64, scene_end: i64)
 }
 
 fn seal(
-    request: &EditorialPlanV2Request,
+    request: &ValidatedRequest<'_>,
     mut items: Vec<PlanItemV2>,
     intake: IntakeV2,
     recap_placements: i64,
@@ -371,7 +406,7 @@ fn seal(
     for item in &mut items {
         item.render_key.clear();
     }
-    let seal = request.seal.as_ref().expect("validated seal");
+    let seal = request.seal();
     let scene_end_ms = request
         .scenes
         .iter()

@@ -3,7 +3,7 @@
 **Data:** 2026-11-22
 **Priorità:** P1
 **Repo:** `BrainRust` (planner/estrazione) + `refactored` (lineage dell'audit)
-**Stato:** OPEN — contratto deciso qui, implementazione non iniziata
+**Stato:** PARTIAL (2026-11-23) — implementati il gate di estrazione (niente DATE/NUMBER/slug/UUID negli intenti entità), il join di lineage per identità canonica, l'ammissione planner di una card per identità canonica per scena e la fixture R30 ridotta; restano la concordanza `image_status`/lineage e la prova su un run Augias.
 
 ## Sintomo misurato
 
@@ -94,6 +94,37 @@ lettura compatibile con l'image contract già in produzione.
    entità e l'audit riporta `entity_card_not_in_policy` invece di
    `entity_not_planned`.
 
+## Implementazione 2026-11-23
+
+| Pezzo | Dove | Test |
+| --- | --- | --- |
+| Gate di ammissione: `DATE`/`TIME`/`NUMBER`/`MONEY`/`PERCENT` e slug/UUID non autorano intenti entità | `refactored/internal/capabilities/scripts/editing_timeline.go` (`entityIntentEligible`, applicato in `sceneEntityInput`) | `TestSceneEntityInputDropsNumericAndSlugIntentSources`, `TestEntityIntentEligibleRejectsNumericFamiliesAndSlugUUID` |
+| Join di lineage per identità: `CanonicalEntityID` confrontato con `OverlayItem.EntityID` e `EntityRef.CanonicalEntityID` prima del fallback per nome | `refactored/internal/capabilities/scripts/overlay_plan_freeze.go` (`intentMatchesEntityItem`) | `TestFreezeOverlayIntentsJoinsByCanonicalEntityID` |
+| Ammissione planner: una card per identità canonica per scena, con fallback all'`entity_id` quando il canonico è vuoto; le occorrenze restano span | `BrainRust/overlay-compiler/src/editorial_plan_v2/planner/media.rs` (`entity_card_identity`, `append_entity_cards`) | `r30_entity_cards_are_deduplicated_by_canonical_identity_per_scene` |
+
+Il gate usa `entitytype.Fold`, quindi `GPE`/`FAC`/`LOCATION` restano eleggibili e
+le famiglie numeriche sono escluse una volta sola. `PERSON`/`ORG`/`PLACE`/`EVENT`
+e le lane non numeriche già esistenti continuano a passare; nessun tipo nuovo
+viene inventato.
+
+Residuo non eseguibile da questo checkout:
+
+1. concordanza su R30 fra `image_status` e `overlay_timing.reasons` per lo
+   stesso `entity_id` e metrica `selected_entities` che non cresce con le
+   occorrenze;
+2. prova su un run Augias reale (`entity_not_planned` PERSON = 0), oggi
+   dipendente dal Master (CODEX-04) e dal render.
+
+Verifiche eseguite il 2026-11-23 sul tree `refactored`:
+
+| Comando | Esito |
+| --- | --- |
+| `go test ./internal/capabilities/scripts/ -run 'TestFreezeOverlayIntents\|TestSceneEntityInputDropsNumeric\|TestEntityIntentEligibleRejects' -count=1` | **PASS** |
+| `go test ./internal/capabilities/overlays/... ./internal/capabilities/scripts/ -count=1` | **PASS** — 3 package ok |
+| `go vet ./internal/capabilities/scripts/ ./internal/capabilities/overlays/...` | **rc 0** |
+| `cargo test -p overlay-compiler --locked` | **PASS** — 166 unit + 33 contract |
+| `cargo fmt --all -- --check` | **rc 0** |
+
 ## Criteri di accettazione
 
 - [ ] su un run Augias, `entity_not_planned` per PERSON = **0** (tutte le
@@ -101,15 +132,19 @@ lettura compatibile con l'image contract già in produzione.
       card)
 - [ ] `entity_not_planned` complessivo ≤ 8 e ogni residuo ha un motivo
       dichiarato (`entity_card_not_in_policy` per ORG/GPE fuori policy)
-- [ ] nessun intento entità con tipo `DATE`/`NUMBER`
-- [ ] nessuna entità che contenga `_` seguito da un UUID, nessun frammento
-      numerico di slug (`57`, `8-24`, `444`, `913`, `7088122`, `88`)
+- [x] nessun intento entità con tipo `DATE`/`NUMBER` — gate `entityIntentEligible`
+      applicato alla proiezione degli intenti; copre anche `TIME`/`MONEY`/`PERCENT`
+- [x] nessuna entità che contenga `_` seguito da un UUID, nessun frammento
+      numerico di slug (`57`, `8-24`, `444`, `913`, `7088122`, `88`) — regex UUID
+      nel gate; i frammenti numerici sono esclusi dalla famiglia `NUMBER`
 - [ ] due occorrenze della stessa entità nella stessa scena non producono due
-      asset distinti: `selected_entities` non cresce con le occorrenze
+      asset distinti: `selected_entities` non cresce con le occorrenze. Il
+      dedupe planner è coperto dal test Rust; manca la metrica su R30
 - [ ] `image_status` e `overlay_timing.reasons` concordano sullo stesso
       `entity_id` (nessun caso "planned" + "entity_not_planned")
-- [ ] fixture di contratto: R30 ridotto a `entity_id` + occorrenze, con il caso
-      Augias cross-scene come regressione
+- [x] fixture di contratto: R30 ridotto a `entity_id` + occorrenze, con il caso
+      Augias cross-scene come regressione — `tests/fixtures/r30-entity-admission.json`,
+      test `r30_entity_cards_are_deduplicated_by_canonical_identity_per_scene`
 
 ## Rischi / rollback
 

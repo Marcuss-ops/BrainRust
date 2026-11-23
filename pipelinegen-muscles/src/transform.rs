@@ -1,4 +1,4 @@
-use crate::artifact::{failed_response, publish_output};
+use crate::artifact::publish_output;
 use crate::protocol::{MediaMetadata, Operation, Request, Response};
 use std::fs;
 use std::io::Write;
@@ -39,6 +39,7 @@ pub(super) enum ExpectedInputs {
 /// messages, so the JSON wire format is unchanged.
 pub(super) fn checked_multi_inputs(
     request: &Request,
+    operation: Operation,
     expected: ExpectedInputs,
     missing_inputs_message: &str,
 ) -> Result<(Vec<String>, String), Box<Response>> {
@@ -48,13 +49,15 @@ pub(super) fn checked_multi_inputs(
         ExpectedInputs::Exactly(n) => inputs.len() == n,
     };
     if !count_ok {
-        return Err(Box::new(failed_response(
+        return Err(Box::new(Response::failure(
+            operation,
             None,
             missing_inputs_message.to_string(),
         )));
     }
     if let Some(path) = inputs.iter().find(|path| !Path::new(path).is_file()) {
-        return Err(Box::new(failed_response(
+        return Err(Box::new(Response::failure(
+            operation,
             Some(path.to_string()),
             format!("source file is not readable: {path}"),
         )));
@@ -62,7 +65,8 @@ pub(super) fn checked_multi_inputs(
     let output = match request.output_path.as_deref() {
         Some(path) if !path.is_empty() => path.to_string(),
         _ => {
-            return Err(Box::new(failed_response(
+            return Err(Box::new(Response::failure(
+                operation,
                 Some(inputs[0].clone()),
                 "output_path is required".to_string(),
             )));
@@ -70,7 +74,8 @@ pub(super) fn checked_multi_inputs(
     };
     if let Some(parent) = Path::new(&output).parent() {
         if let Err(error) = fs::create_dir_all(parent) {
-            return Err(Box::new(failed_response(
+            return Err(Box::new(Response::failure(
+                operation,
                 Some(inputs[0].clone()),
                 format!("create output directory: {error}"),
             )));
@@ -127,7 +132,7 @@ pub(super) fn write_concat_list(inputs: &[String], tag: &str) -> Result<PathBuf,
 /// shape. Error strings are byte-identical to the historical per-operation
 /// messages, so the JSON wire format is unchanged.
 pub(super) fn finish_run(
-    operation: &str,
+    operation: Operation,
     source: &str,
     part: &str,
     output: &str,
@@ -136,32 +141,27 @@ pub(super) fn finish_run(
 ) -> Response {
     match result {
         Ok(result) if result.status.success() => match publish_output(part, output) {
-            Ok(()) => Response {
-                ok: true,
-                operation: operation.to_string(),
-                source_path: Some(source.to_string()),
-                items: Vec::new(),
-                metadata,
-                preflight: None,
-                error: None,
-            },
-            Err(error) => failed_response(Some(source.to_string()), error),
+            Ok(()) => Response::success(operation, Some(source.to_string()), Vec::new(), metadata),
+            Err(error) => Response::failure(operation, Some(source.to_string()), error),
         },
         Ok(result) => {
             let _ = fs::remove_file(part);
-            failed_response(
+            Response::failure(
+                operation,
                 Some(source.to_string()),
                 format!(
-                    "{operation} failed: {}",
+                    "{} failed: {}",
+                    operation.as_str(),
                     String::from_utf8_lossy(&result.stderr).trim()
                 ),
             )
         }
         Err(error) => {
             let _ = fs::remove_file(part);
-            failed_response(
+            Response::failure(
+                operation,
                 Some(source.to_string()),
-                format!("{operation} failed to start: {error}"),
+                format!("{} failed to start: {error}", operation.as_str()),
             )
         }
     }
@@ -183,7 +183,8 @@ pub(crate) fn execute(request: Request, operation: Operation) -> Response {
         | Operation::RemuxHls
         | Operation::RemoveSilence
         | Operation::Trim => operations::execute(request, operation),
-        other => failed_response(
+        other => Response::failure(
+            other,
             request.source_path.clone(),
             format!("not a transform operation: {}", other.as_str()),
         ),

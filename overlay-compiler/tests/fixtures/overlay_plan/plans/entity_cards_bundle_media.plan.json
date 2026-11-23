@@ -3,8 +3,8 @@
   "schema_version": "editorial_plan.v2",
   "plan": {
     "schema_version": "editorial_plan.v2",
-    "plan_id": "cards-promotable-fixture",
-    "video_id": "video-cards-promotable",
+    "plan_id": "cards-bundle-fixture",
+    "video_id": "video-cards-bundle",
     "project_id": "project-fixture",
     "language": "it",
     "width": 1920,
@@ -14,7 +14,7 @@
     "duration_ms": 18000,
     "items": [
       {
-        "id": "static__ada-lovelace__mixed-chain__01",
+        "id": "static__s1-chain-image-0__image-chain__01",
         "scene_id": "s1",
         "kind": "image_chain",
         "start_ms": 500,
@@ -22,7 +22,6 @@
         "start_us": 500000,
         "duration_us": 5400000,
         "template_id": "IMAGE_CHAIN",
-        "preset_id": "image_fade_in",
         "caption_font_family": "playfair_display_italic",
         "caption_layout": "below",
         "asset_refs": [
@@ -44,8 +43,8 @@
           "chain_count": 2,
           "chain_gap_us": 400000,
           "chain_motions": [
-            "",
-            ""
+            "entity_soft_rise",
+            "entity_reveal_push"
           ],
           "chain_segments": [
             {
@@ -58,12 +57,29 @@
                   "url": "https://cdn.example/ada.jpg"
                 }
               ],
+              "caption_color": "#000000",
+              "caption_font_family": "playfair_display_italic",
+              "caption_layout": "below",
+              "caption_motion_id": "caption_fade",
               "duration_us": 2500000,
               "entity_caption": "Ada Lovelace",
               "entity_id": "person-ada",
+              "entity_style_id": "premium_below_random_v1",
               "image_preset_id": "image_scale_in",
               "kind": "entity_image",
-              "preset_id": "image_fade_in",
+              "motion_id": "entity_soft_rise",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "canonical_entity_id": "person:ada-lovelace",
+                "entity_type": "PERSON",
+                "height": 820.0,
+                "position_x": 0.0,
+                "position_y": 0.0,
+                "priority": 0.95,
+                "width": 820.0
+              },
               "start_us": 500000,
               "template_id": "image_popup"
             },
@@ -77,12 +93,29 @@
                   "url": "https://cdn.example/grace.jpg"
                 }
               ],
+              "caption_color": "#000000",
+              "caption_font_family": "playfair_display_italic",
+              "caption_layout": "below",
+              "caption_motion_id": "caption_rise",
               "duration_us": 2500000,
               "entity_caption": "Grace Hopper",
               "entity_id": "person-grace",
+              "entity_style_id": "premium_below_random_v1",
               "image_preset_id": "image_scale_in",
               "kind": "entity_image",
-              "preset_id": "image_fade_in",
+              "motion_id": "entity_reveal_push",
+              "motion_params": {
+                "enter_frames": 8
+              },
+              "params": {
+                "canonical_entity_id": "person:grace-hopper",
+                "entity_type": "PERSON",
+                "height": 820.0,
+                "position_x": 0.0,
+                "position_y": 0.0,
+                "priority": 0.93,
+                "width": 820.0
+              },
               "start_us": 3400000,
               "template_id": "image_popup"
             }
@@ -90,7 +123,7 @@
         }
       },
       {
-        "id": "static__alan-turing__entity_image__01",
+        "id": "entity-soft-rise__alan-turing__entity_image__01",
         "scene_id": "s2",
         "entity_id": "person-alan",
         "entity_ref": {
@@ -105,17 +138,17 @@
         "start_us": 12200000,
         "duration_us": 2500000,
         "template_id": "image_popup",
-        "preset_id": "image_scale_in",
         "image_preset_id": "image_scale_in",
-        "entity_caption": "Alan Turing",
-        "style": {
-          "fill": "#000000",
-          "font_family": "playfair_display_italic",
-          "font_size": 96.0,
-          "glow": {
-            "color": "#FFFFFF"
-          }
+        "motion_id": "entity_soft_rise",
+        "entity_style_id": "premium_below_random_v1",
+        "motion_params": {
+          "enter_frames": 8
         },
+        "entity_caption": "Alan Turing",
+        "caption_motion_id": "caption_fade",
+        "caption_font_family": "playfair_display_italic",
+        "caption_layout": "below",
+        "caption_color": "#000000",
         "asset_refs": [
           {
             "asset_id": "asset-alan",
@@ -123,7 +156,17 @@
             "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
             "media_type": "image/jpeg"
           }
-        ]
+        ],
+        "params": {
+          "canonical_entity_id": "person:alan-turing",
+          "caption_layout": "below",
+          "entity_type": "PERSON",
+          "height": 820.0,
+          "position_x": 0.0,
+          "position_y": 0.0,
+          "priority": 0.94,
+          "width": 820.0
+        }
       }
     ],
     "recap_placements": 0,
@@ -143,7 +186,7 @@
       },
       "candidates": 3,
       "candidates_by_kind": {
-        "entity_card": 3
+        "entity_image": 3
       },
       "planned": 2,
       "planned_by_kind": {
