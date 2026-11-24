@@ -27,6 +27,22 @@ file (38 commits in the last 150); `visualner/src/extractor/names.rs` (672 LOC)
 and `visualner/src/extractor/pipeline/names.rs` (659 LOC) are two large files
 with the same name in the same subsystem.
 
+## Addendum — 2026-11-23 audit
+
+The 2026-11-23 architectural audit measured three more production functions
+above the default cognitive-complexity threshold of 25:
+
+| File / function | CC | LOC | Note |
+| --- | ---: | ---: | --- |
+| `semantic-core/src/phrase_select.rs:89` `select_phrases` | 38 | 232 | also in the long-function list |
+| `visualner/src/extractor/phrases.rs:249` `noun_phrase_candidates` | 35 | 276 | also in the long-function list |
+| `visualner/src/extractor/values.rs:522` `value_candidates` | 29 | — | tabular; do not split without a corpus |
+
+The audit's own plan is explicit: extract `select_phrases` and
+`noun_phrase_candidates` only with a parity run on the existing corpus;
+`value_candidates` and `classify_type` are tabular and must not be split
+without a corpus. They are tracked here rather than in a duplicate ticket.
+
 ## Acceptance criteria
 
 - [ ] Each function above is split so every resulting function is **≤40 CC**

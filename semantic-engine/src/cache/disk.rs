@@ -8,8 +8,8 @@
 //! Key: SHA-256 over the canonical [`request_body`](crate::request_body) bytes
 //! (language, scenes, editorial options, safety cap), the analyzer versions and
 //! the [`cache_identity`](crate::cache_identity): embedded lexicon content,
-//! build hash, ICU major and UDPipe model identity (name and size) for the
-//! language. The
+//! build hash, ICU major and UDPipe model identity (name and content digest)
+//! for the language. The
 //! wire-visible `manifest.fingerprint` stays FNV-1a; widening the cache key
 //! does not change the contract.
 //!

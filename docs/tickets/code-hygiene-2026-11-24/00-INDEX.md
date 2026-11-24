@@ -20,8 +20,19 @@ a GPU or a live service is declared `BLOCKED` or `OPEN`, never `PASS`.
 | [BR-HOT-01](06-COMPLEXITY-HOTSPOTS.md) | P1 | OPEN | Eight complexity hotspots (CC 40–65, 114–311 LOC) |
 | [BR-LEGACY-01](07-LEGACY-BRANCHES-AND-ARGS.md) | P2 | OPEN | Legacy audio/chart/alias branches and nine `too_many_arguments` |
 | [BR-DRY-02](08-CLONE-STORM-AND-CORE-DUP.md) | P2 | OPEN | `.clone()` storm and duplicate tokenize/sentence/word primitives |
+| [BR-CI-01](09-CI-AUTONOMOUS.md) | P0 | CLOSED | Language-pack gate must not require the Go checkout |
+| [BR-CACHE-01](10-UDPIPE-CONTENT-DIGEST.md) | P1 | CLOSED | UDPipe model identity must be content-addressed |
+| [BR-PERF-01](11-SCENE-PARALLELISM.md) | P2 | OPEN | Scene analysis is sequential and unmeasured |
+| [BR-PUB-01](12-PUBLIC-READINESS.md) | P3 | OPEN | Public presentation, license and reproducible demo |
 
-**Counts:** 4 CLOSED · 1 PARTIAL · 3 OPEN.
+**Counts:** 6 CLOSED · 1 PARTIAL · 5 OPEN.
+
+The 2026-11-24 external review added BR-CI-01, BR-CACHE-01, BR-PERF-01 and
+BR-PUB-01. Independent semantic validation is already tracked by
+[TICKET-08](../TICKET-08-editorial-gold-set.md),
+[TICKET-10](../TICKET-10-multimodal-pgvector.md) and
+[TICKET-26](../TICKET-26-provider-precision-at-10.md); this wave does not
+duplicate those tickets.
 
 ## Execution order
 
@@ -63,12 +74,17 @@ ticket.
 | `cargo clippy -p semantic-core --lib --locked -- -D warnings` | RC 0 |
 | `git diff --check` | RC 0 |
 | `rustfmt --check` on the 11 touched files | RC 0 |
+| `python3 lexicon/tools/build_language_packs.py --check` in a standalone copy | RC 0; Go snapshot skipped |
+| `... --check --check-consumer` missing / present | RC 1 expected / RC 0 |
+| `cargo test -p semantic-engine --lib model_profile --locked` | 2 passed |
+| direct `semantic_engine-... cache` binary | 29 passed |
+| `rustfmt --check` on `semantic-engine/src/{lib.rs,cache/disk.rs}` | RC 0 |
 
-
-Not claimed: the `overlay-compiler --doc` doctest failed with `E0463`
-(`can't find crate for serde/semantic_core`) while another profile was building
-the same target; the full `visualner` suite exceeded the 600 s timeout under the
-shared lock. Both gates must be rerun in closeout when the worktree is quiet.
+Not claimed: the full `semantic-engine --lib` suite and its clippy did not
+finish inside the 600 s shared-target window; the workspace build was compiling
+`gliner25-rs`/`ort`. The targeted `model_profile` and cache tests passed from
+the built binary. The `overlay-compiler --doc` and full `visualner` gates remain
+as before: they must be rerun in closeout when the worktree is quiet.
 
 ## Remaining blockers
 
@@ -76,3 +92,7 @@ shared lock. Both gates must be rerun in closeout when the worktree is quiet.
 - **BR-HOT-01 / BR-LEGACY-01 / BR-DRY-02:** need dedicated equivalence tests or
   touch files already dirty in the concurrent workstream. They stay OPEN with
   the precise next step in each ticket.
+- **BR-PERF-01:** needs a reproducible baseline and byte-identical manifest
+  proof before parallelising scenes.
+- **BR-PUB-01:** the license choice is an owner decision; the demo and README
+  follow it.

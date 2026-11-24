@@ -39,12 +39,13 @@ positional parameter bag with a named struct, or split the function.
 
 ## Acceptance criteria
 
-- [ ] Every legacy branch above is removed, or carries a ticket link, owner and
+- [x] Every legacy branch above is removed, or carries a ticket link, owner and
       removal date in a comment plus a test.
-- [ ] No `#[allow(clippy::too_many_arguments)]` remains in production; each
-      site is refactored to a context struct or split.
-- [ ] No behavior change in the audio plan, chart series, overlay coalescing or
-      presentation handoff; existing tests stay green.
+- [x] No `#[allow(clippy::too_many_arguments)]` remains in production; each
+      site is refactored to a context struct or split. Resta solo il fixture
+      test-only `micro.rs::tests::fact`, documentato come tale.
+- [x] No behavior change in the audio plan, chart series, overlay coalescing or
+      presentation handoff; existing tests stay green (gate mirati sotto).
 - [ ] `cargo clippy --workspace --all-targets --locked -- -D warnings` is green.
 - [ ] `cargo test --workspace --locked` is green.
 
@@ -61,3 +62,53 @@ cargo test -p pipelinegen-muscles -p semantic-engine -p overlay-compiler --locke
 
 - Removing a legacy branch that still has a production consumer without a
   migration path.
+
+## Lavoro 2026-11-24
+
+### Refactor `too_many_arguments`
+
+Otto siti di produzione sono passati a struct di contesto, senza cambiare il
+corpo delle funzioni:
+
+| Funzione | Contesto |
+| --- | --- |
+| `project_scene` | `SceneProjection` |
+| `project_entity` | `EntityProjection` |
+| `scene_phrase` | `ScenePhraseInput` |
+| `cut_one` | `CutOneRequest` |
+| `resolve_value` | `ResolveValueContext` |
+| `cross_sentence_series` | `SeriesContext` |
+| `build_series_candidate` | `SeriesCandidateContext` |
+| `candidate` | `RecipeCandidate` |
+
+L'unico `#[allow(clippy::too_many_arguments)]` rimasto è il fixture
+`micro.rs::tests::fact`, dentro `#[cfg(test)]`: non è codice di produzione ed è
+commentato come tale.
+
+### Branch legacy
+
+Ogni branch ha ora owner, data di ritiro `2027-03-31`, link a questo ticket e un
+test che lo copre:
+
+- `render_audio_execution::layer_chains` — test `sources.rs` con piano
+  `background_music` non vuoto.
+- `charts::series::chart_measure` — nuovo test
+  `a_point_without_a_typed_quantity_uses_the_legacy_parser`.
+- `planner::coalesce` (`CHAIN_HANDOFF_US` e `chain_camera` 0) — test
+  `planner/tests/chains.rs` e `tests/overlay_plan_contract.rs`.
+- `planner::presentation::normalize_font_alias` (`playfair_display`) — test
+  `bullet_pin_tests.rs::legacy_playfair_alias_normalizes_but_other_families_survive`.
+
+### Verifica
+
+| Gate | Esito |
+| --- | --- |
+| `cargo check -p overlay-compiler -p pipelinegen-muscles -p semantic-engine --locked` | RC 0 |
+| `cargo test -p semantic-engine a_point_without_a_typed_quantity_uses_the_legacy_parser --locked` | 1/1 |
+| `cargo test -p overlay-compiler --lib --locked` | 169/169 |
+| `cargo test -p pipelinegen-muscles --lib --locked` | 153/153 |
+| `cargo clippy -p ... --lib --locked -- -D warnings` | RC 0 su tutti e tre |
+| `cargo fmt --all -- --check` | RC 0 |
+| `git diff --check` | RC 0 |
+| `cargo test --workspace --locked` | in corso / da completare |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | in corso / da completare |

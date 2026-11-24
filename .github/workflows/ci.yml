@@ -39,9 +39,9 @@ jobs:
         echo "RUST_ICU_MAJOR_VERSION_NUMBER=$got" >> "$GITHUB_ENV"
 
     # The language packs are generated data: a lexicon edit must regenerate
-    # them in the same change. `--check` also proves every language directory
-    # has a pack, so adding a language cannot silently produce an unpacked
-    # locale at runtime.
+    # them in the same change. This is a standalone checkout, so `--check`
+    # covers only BrainRust-owned files. The cross-repo PipelineGen job uses
+    # `--check --check-consumer` for the adjacent Go snapshot.
     - name: Language packs are current
       run: python3 lexicon/tools/build_language_packs.py --check
 

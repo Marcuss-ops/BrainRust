@@ -36,9 +36,12 @@ Outputs:
 Run from the BrainRust root:
   python3 lexicon/tools/build_language_packs.py
   python3 lexicon/tools/build_language_packs.py --check
+  python3 lexicon/tools/build_language_packs.py --check --check-consumer
 
-CI runs `--check` and fails when the generated files differ from the committed
-ones, so a data edit can never leave a stale pack behind.
+CI runs `--check` on the standalone BrainRust checkout and fails when a
+BrainRust-owned generated file differs from the committed one. The Go snapshot
+is checked only with `--check-consumer`, because it lives in the adjacent
+PipelineGen checkout.
 """
 from __future__ import annotations
 
@@ -673,9 +676,16 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="verify the committed packs match the sources; never writes",
+        help="verify the committed BrainRust packs match the sources; never writes",
+    )
+    parser.add_argument(
+        "--check-consumer",
+        action="store_true",
+        help="also verify the adjacent PipelineGen profiles.generated.json; requires --check",
     )
     args = parser.parse_args()
+    if args.check_consumer and not args.check:
+        parser.error("--check-consumer requires --check")
 
     auxiliary_errors = validate_auxiliary_lexicons()
     if auxiliary_errors:
@@ -684,10 +694,16 @@ def main() -> int:
         return 1
 
     languages, profile_languages, files = build()
+    consumer_content = files.pop(GO_PROFILES, None)
     stale = [
         path for path, content in files.items()
         if not path.is_file() or path.read_text(encoding="utf-8") != content
     ]
+    consumer_stale = consumer_content is not None and (
+        not GO_PROFILES.is_file()
+        or GO_PROFILES.read_text(encoding="utf-8") != consumer_content
+    )
+
     def display(path: Path) -> str:
         try:
             return str(path.relative_to(ROOT.parent))
@@ -700,9 +716,23 @@ def main() -> int:
             for path in stale:
                 print(f"  {display(path)}", file=sys.stderr)
             return 1
+        if args.check_consumer:
+            if consumer_stale:
+                print(
+                    "Go consumer snapshot is missing or stale; regenerate it from "
+                    "the PipelineGen workspace:",
+                    file=sys.stderr,
+                )
+                print(f"  {display(GO_PROFILES)}", file=sys.stderr)
+                return 1
+            consumer_status = "Go snapshot up to date"
+        else:
+            consumer_status = (
+                "Go snapshot skipped (standalone check; use --check-consumer)"
+            )
         print(
             f"language packs: {len(languages)} up to date -> {', '.join(languages)}; "
-            f"profiles: {len(profile_languages)}; Go snapshot up to date; "
+            f"profiles: {len(profile_languages)}; {consumer_status}; "
             "role lexicons valid (11 languages); event lexicons valid (11 languages); "
             "discourse reference lexicon valid (11 languages)"
         )
@@ -712,10 +742,15 @@ def main() -> int:
     for path, content in files.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+    if consumer_content is not None:
+        if GO_PROFILES.parent.is_dir():
+            GO_PROFILES.write_text(consumer_content, encoding="utf-8")
+            print(f"Go lexicon snapshot: {display(GO_PROFILES)}")
+        else:
+            print("Go lexicon snapshot: skipped (no adjacent PipelineGen checkout)")
     legal = sorted(path.stem for path in LEGAL.glob("*.json") if path.name != "index.json")
     print(f"language packs: {len(languages)} -> {', '.join(languages)}")
     print(f"language profiles: {len(profile_languages)} -> {', '.join(profile_languages)}")
-    print(f"Go lexicon snapshot: {display(GO_PROFILES)}")
     print(f"legal packs: {len(legal)} -> {', '.join(legal)}")
     return 0
 
