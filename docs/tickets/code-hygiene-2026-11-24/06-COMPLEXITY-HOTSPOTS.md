@@ -99,6 +99,9 @@ cargo clippy -p semantic-core -p pipelinegen-muscles -p visualner -p semantic-en
 - `pipelinegen-muscles/src/transform_manifest.rs::execute_projection` (CC 49,
   178 LOC) è ora un orchestratore; `projection_runs` valida artefatti, griglia,
   asset e entry e restituisce i run. Test muscles, clippy e rustfmt verdi.
+- `transform_manifest.rs::execute_window` (CC 50, 169 LOC) è diviso in
+  `window_inputs`, `validate_timeline_asset` e `plan_window_render`; il corpo
+  resta il solo render. Stessi test, clippy e rustfmt verdi.
 - Restano bloccati dal workstream concorrente i file `visualner`
   (`values/classify.rs`, `extractor/names.rs`, `extractor/phrases.rs`, `values.rs`).
   La scheda resta PARTIAL finché gli hotspot restanti non sono chiusi.

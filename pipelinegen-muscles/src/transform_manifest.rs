@@ -257,36 +257,10 @@ fn projection_runs(
 /// silent video segment. `source_path` is the artifact.
 pub(super) fn execute_window(request: Request) -> Response {
     let operation = Operation::ExtractTimelineWindow;
-    let artifact = match request.source_path.as_deref() {
-        Some(path) if !path.is_empty() && Path::new(path).is_file() => path.to_string(),
-        Some(path) => {
-            return Response::failure(
-                operation,
-                Some(path.to_string()),
-                format!("source file is not readable: {path}"),
-            );
-        }
-        None => return Response::failure(operation, None, "source_path is required".to_string()),
+    let (artifact, output) = match window_inputs(&request, operation) {
+        Ok(values) => values,
+        Err(response) => return *response,
     };
-    let output = match request.output_path.as_deref() {
-        Some(path) if !path.is_empty() => path.to_string(),
-        _ => {
-            return Response::failure(
-                operation,
-                Some(artifact),
-                "output_path is required".to_string(),
-            );
-        }
-    };
-    if let Some(parent) = Path::new(&output).parent() {
-        if let Err(error) = fs::create_dir_all(parent) {
-            return Response::failure(
-                operation,
-                Some(artifact),
-                format!("create output directory: {error}"),
-            );
-        }
-    }
     let manifest = match request.overlay_manifest.as_ref() {
         Some(manifest) => manifest,
         None => {
@@ -331,36 +305,16 @@ pub(super) fn execute_window(request: Request) -> Response {
             );
         }
     };
-    if matches!(
+    let wire_is_set = matches!(
         &request.overlay_manifest,
         Some(crate::protocol::OverlayManifestWire::Set(_))
-    ) {
+    );
+    if wire_is_set {
         if let Some(asset) = owner.and_then(|manifest| manifest.asset.as_ref()) {
-            match fs::metadata(&artifact) {
-                Ok(metadata) if metadata.len() == asset.size_bytes as u64 => {}
-                Ok(_) => {
-                    return Response::failure(
-                        operation,
-                        Some(artifact),
-                        "timeline artifact size mismatch".to_string(),
-                    )
-                }
-                Err(error) => {
-                    return Response::failure(operation, Some(artifact), error.to_string())
-                }
-            }
-            match sha256_file(&artifact) {
-                Ok(actual) if actual.eq_ignore_ascii_case(&asset.sha256) => {}
-                Ok(_) => {
-                    return Response::failure(
-                        operation,
-                        Some(artifact),
-                        "timeline artifact SHA-256 mismatch".to_string(),
-                    )
-                }
-                Err(error) => {
-                    return Response::failure(operation, Some(artifact), error.to_string())
-                }
+            if let Err(error) =
+                validate_timeline_asset(&artifact, asset.size_bytes as u64, &asset.sha256)
+            {
+                return Response::failure(operation, Some(artifact), error);
             }
         }
     }
@@ -374,55 +328,122 @@ pub(super) fn execute_window(request: Request) -> Response {
             entry.artifact_out_us.unwrap_or(entry.out_us),
         ),
     };
-    let profile = match request.media.profile() {
-        Ok(profile) => profile,
-        Err(error) => return Response::failure(operation, Some(artifact), error),
-    };
     let ffmpeg = request.ffmpeg_path.as_deref().unwrap_or("ffmpeg");
-    let ffprobe = ffprobe_path(ffmpeg);
-    let artifact_meta = match probe_file(&ffprobe, &artifact) {
-        Ok(meta) => meta,
-        Err(error) => return Response::failure(operation, Some(artifact), error),
+    let plan = match plan_window_render(&request, &artifact, ffmpeg, in_us, out_us) {
+        Ok(plan) => plan,
+        Err(error) => return Response::failure(operation, Some(artifact.clone()), error),
     };
-    if !artifact_meta.has_video {
-        return Response::failure(
-            operation,
-            Some(artifact),
-            "timeline window extraction requires a video artifact".to_string(),
-        );
-    }
-    let (fps_num, fps_den) = (artifact_meta.fps_num, artifact_meta.fps_den);
-    let artifact_frames = frame_count(&artifact_meta, fps_num, fps_den);
-    let start = us_to_frame_floor(in_us, fps_num, fps_den);
-    let end = us_to_frame_ceil(out_us, fps_num, fps_den);
-    if start >= artifact_frames {
-        return Response::failure(
-            operation,
-            Some(artifact),
-            format!(
-                "timeline window starts beyond the artifact (frame {start} of {artifact_frames})"
-            ),
-        );
-    }
-    let end = end.min(artifact_frames);
-    if end <= start {
-        return Response::failure(
-            operation,
-            Some(artifact),
-            "timeline window has an empty artifact range".to_string(),
-        );
-    }
 
     let part = part_path(&output);
     let mut command = FFmpegRunner::from_ffmpeg_path(ffmpeg).ffmpeg();
     command.args(["-hide_banner", "-loglevel", "error", "-y", "-i", &artifact]);
-    let filter = window_filter(start, end, &profile);
+    let filter = window_filter(plan.start, plan.end, &plan.profile);
     command.args(["-filter_complex", &filter, "-map", "[vout]", "-an"]);
     if let Err(error) = append_video_options(&mut command, &request) {
         return Response::failure(operation, Some(artifact), error);
     }
     command.arg(&part);
     finish_run(operation, &artifact, &part, &output, command.output(), None)
+}
+
+/// Resolve and create the window extraction paths.
+fn window_inputs(
+    request: &Request,
+    operation: Operation,
+) -> Result<(String, String), Box<Response>> {
+    let artifact = match request.source_path.as_deref() {
+        Some(path) if !path.is_empty() && Path::new(path).is_file() => path.to_string(),
+        Some(path) => {
+            return Err(Box::new(Response::failure(
+                operation,
+                Some(path.to_string()),
+                format!("source file is not readable: {path}"),
+            )));
+        }
+        None => {
+            return Err(Box::new(Response::failure(
+                operation,
+                None,
+                "source_path is required",
+            )))
+        }
+    };
+    let output = match request.output_path.as_deref() {
+        Some(path) if !path.is_empty() => path.to_string(),
+        _ => {
+            return Err(Box::new(Response::failure(
+                operation,
+                Some(artifact),
+                "output_path is required",
+            )));
+        }
+    };
+    if let Some(parent) = Path::new(&output).parent() {
+        if let Err(error) = fs::create_dir_all(parent) {
+            return Err(Box::new(Response::failure(
+                operation,
+                Some(artifact),
+                format!("create output directory: {error}"),
+            )));
+        }
+    }
+    Ok((artifact, output))
+}
+
+/// A multi-artifact manifest carries the certified artifact identity; verify
+/// both its size and its content hash before probing.
+fn validate_timeline_asset(artifact: &str, size_bytes: u64, sha256: &str) -> Result<(), String> {
+    match fs::metadata(artifact) {
+        Ok(metadata) if metadata.len() == size_bytes => {}
+        Ok(_) => return Err("timeline artifact size mismatch".to_string()),
+        Err(error) => return Err(error.to_string()),
+    }
+    match sha256_file(artifact) {
+        Ok(actual) if actual.eq_ignore_ascii_case(sha256) => Ok(()),
+        Ok(_) => Err("timeline artifact SHA-256 mismatch".to_string()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+struct WindowRenderPlan {
+    profile: crate::config::VideoProfile,
+    start: i64,
+    end: i64,
+}
+
+/// Probe the artifact and bound the requested microsecond window to its frame
+/// grid. The output is silent by contract; the caller renders the cut.
+fn plan_window_render(
+    request: &Request,
+    artifact: &str,
+    ffmpeg: &str,
+    in_us: i64,
+    out_us: i64,
+) -> Result<WindowRenderPlan, String> {
+    let profile = request.media.profile().map_err(|error| error.to_string())?;
+    let ffprobe = ffprobe_path(ffmpeg);
+    let artifact_meta = probe_file(&ffprobe, artifact).map_err(|error| error.to_string())?;
+    if !artifact_meta.has_video {
+        return Err("timeline window extraction requires a video artifact".to_string());
+    }
+    let (fps_num, fps_den) = (artifact_meta.fps_num, artifact_meta.fps_den);
+    let artifact_frames = frame_count(&artifact_meta, fps_num, fps_den);
+    let start = us_to_frame_floor(in_us, fps_num, fps_den);
+    let end = us_to_frame_ceil(out_us, fps_num, fps_den);
+    if start >= artifact_frames {
+        return Err(format!(
+            "timeline window starts beyond the artifact (frame {start} of {artifact_frames})"
+        ));
+    }
+    let end = end.min(artifact_frames);
+    if end <= start {
+        return Err("timeline window has an empty artifact range".to_string());
+    }
+    Ok(WindowRenderPlan {
+        profile,
+        start,
+        end,
+    })
 }
 
 /// Shared prologue for the projection: master + exactly one artifact input,
