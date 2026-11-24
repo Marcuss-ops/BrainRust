@@ -88,6 +88,17 @@ pub(crate) struct Automation {
 }
 
 pub(super) fn validate_plan(plan: &Plan) -> Result<(), MuscleError> {
+    validate_plan_version(plan)?;
+    validate_canonical_profile(plan)?;
+    let use_tracks = validate_tracks(plan)?;
+    validate_primary_events(plan, use_tracks)?;
+    validate_layers(plan)?;
+    validate_automation(plan)?;
+    Ok(())
+}
+
+/// Version acceptance and the v2 requirement that the plan carries tracks.
+fn validate_plan_version(plan: &Plan) -> Result<(), MuscleError> {
     if !plan.audio_plan_version.is_empty()
         && plan.audio_plan_version != "compiled-audio-plan.v1"
         && plan.audio_plan_version != "compiled-audio-plan.v2"
@@ -97,6 +108,11 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<(), MuscleError> {
     if plan.audio_plan_version == "compiled-audio-plan.v2" && plan.tracks.is_empty() {
         return Err("compiled-audio-plan.v2 requires tracks".into());
     }
+    Ok(())
+}
+
+/// The output contract is fixed: AAC-LC, canonical sample rate, stereo.
+fn validate_canonical_profile(plan: &Plan) -> Result<(), MuscleError> {
     if plan.duration_us <= 0
         || plan.canonical_audio_profile.codec != "aac"
         || plan.canonical_audio_profile.sample_rate != crate::config::CANONICAL_SAMPLE_RATE
@@ -110,8 +126,12 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<(), MuscleError> {
     {
         return Err("audio_plan violates canonical AAC-LC stereo contract".into());
     }
-    let use_tracks = !plan.tracks.is_empty();
-    let mut expected = 0;
+    Ok(())
+}
+
+/// Track ids, roles and event ids are one namespace across the plan.
+/// Returns whether the plan uses the v2 track representation.
+fn validate_tracks(plan: &Plan) -> Result<bool, MuscleError> {
     let mut event_ids = std::collections::HashSet::new();
     for track in &plan.tracks {
         if track.track_id.trim().is_empty()
@@ -134,6 +154,12 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<(), MuscleError> {
             }
         }
     }
+    Ok(!plan.tracks.is_empty())
+}
+
+/// Primary events must tile the canonical timeline and carry resolved assets.
+fn validate_primary_events(plan: &Plan, use_tracks: bool) -> Result<(), MuscleError> {
+    let mut expected = 0;
     for event in primary_events(plan) {
         if (!use_tracks && event.timeline_start_us != expected)
             || event.duration_us <= 0
@@ -174,6 +200,11 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<(), MuscleError> {
     if !use_tracks && expected != plan.duration_us {
         return Err("audio_plan duration does not equal event end".into());
     }
+    Ok(())
+}
+
+/// BGM/SFX layers use the same half-open, non-negative timeline as events.
+fn validate_layers(plan: &Plan) -> Result<(), MuscleError> {
     for layer in plan.background_music.iter().chain(plan.sfx.iter()) {
         if layer.asset_id.trim().is_empty()
             || layer.timeline_start_us < 0
@@ -183,6 +214,11 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<(), MuscleError> {
             return Err("audio layer is outside the canonical timeline".into());
         }
     }
+    Ok(())
+}
+
+/// Automation targets either a track id or a legacy layer name.
+fn validate_automation(plan: &Plan) -> Result<(), MuscleError> {
     for automation in &plan.automation {
         let target = if !automation.target_track_id.trim().is_empty() {
             automation.target_track_id.trim()

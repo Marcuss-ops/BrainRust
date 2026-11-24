@@ -70,3 +70,13 @@ cargo clippy -p semantic-core -p pipelinegen-muscles -p visualner -p semantic-en
 
 - Rewriting the algorithms; the ticket preserves the decisions and only
   extracts named phases.
+
+## Progresso 2026-11-24
+
+- `pipelinegen-muscles/src/render_audio_plan.rs::validate_plan` (CC 65, 114 LOC)
+  è stato diviso in sei fasi nominate: `validate_plan_version`,
+  `validate_canonical_profile`, `validate_tracks`, `validate_primary_events`,
+  `validate_layers`, `validate_automation`. Messaggi e ordine dei controlli
+  invariati; `cargo test -p pipelinegen-muscles --locked`, clippy `-D warnings`
+  e `rustfmt --check` verdi. La scheda resta PARTIAL finché gli altri hotspot
+  non sono chiusi.
