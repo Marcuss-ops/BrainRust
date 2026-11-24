@@ -85,94 +85,170 @@ pub(super) fn nearest_candidate<'a>(
     let trigger_token = tokens
         .iter()
         .find(|token| token.start == start && token.end == end);
-    if let Some(trigger_id) = trigger_token.and_then(|token| token.id) {
-        let expected = match position {
-            "subject" => &["nsubj", "csubj"][..],
-            "object" => &["obj", "iobj"][..],
-            "agent" => &["obl:agent", "nmod:agent", "agent"][..],
-            _ => &[][..],
-        };
-        let syntactic: Vec<&Candidate> = candidates
-            .iter()
-            .filter(|candidate| {
-                candidate.start_byte >= sentence.start_byte
-                    && candidate.end_byte <= sentence.end_byte
-                    && (matches!(
-                        candidate.kind.as_str(),
-                        "PERSON" | "ORG" | "ORGANIZATION" | "FACILITY" | "LOCATION" | "VEHICLE"
-                    ) || (matches!(candidate.kind.as_str(), "WORK" | "OBJECT" | "PRODUCT")
-                        && (position == "object" || (position == "subject" && allow_work_subject))))
-            })
-            .filter(|candidate| {
-                tokens.iter().any(|token| {
-                    let candidate_token = token.start >= candidate.start_byte
-                        && token.end <= candidate.end_byte
-                        && token.sentence_id
-                            == trigger_token.and_then(|trigger| trigger.sentence_id);
-                    let dependency_role = token.head == Some(trigger_id)
-                        && token.dependency.as_deref().is_some_and(|relation| {
-                            expected.iter().any(|prefix| {
-                                relation == *prefix || relation.starts_with(&format!("{prefix}:"))
-                            })
-                        });
-                    let participial_antecedent = position == "subject"
-                        && trigger_token.is_some_and(|trigger| {
-                            trigger.head == token.id
-                                && trigger.features.as_deref().is_some_and(|features| {
-                                    features
-                                        .split('|')
-                                        .any(|feature| feature == "VerbForm=Part")
-                                })
-                                && trigger.dependency.as_deref().is_some_and(|relation| {
-                                    relation == "acl" || relation.starts_with("acl:")
-                                })
-                        });
-                    candidate_token && (dependency_role || participial_antecedent)
-                })
-            })
-            .collect();
-        if syntactic.len() == 1 {
-            return syntactic.first().copied();
-        }
-        if position == "object" {
-            let work_objects: Vec<&Candidate> = candidates
-                .iter()
-                .filter(|candidate| {
-                    candidate.kind == "WORK"
-                        && candidate.start_byte >= end
-                        && candidate.start_byte >= sentence.start_byte
-                        && candidate.end_byte <= sentence.end_byte
-                })
-                .collect();
-            if work_objects.len() == 1 {
-                return work_objects.first().copied();
+    if let Some(trigger) = trigger_token {
+        if let Some(trigger_id) = trigger.id {
+            let syntactic = syntactic_candidates(
+                candidates,
+                tokens,
+                sentence,
+                trigger,
+                trigger_id,
+                position,
+                allow_work_subject,
+            );
+            if syntactic.len() == 1 {
+                return syntactic.first().copied();
             }
-        }
-        if position == "subject" && allow_work_subject {
-            let work_subjects: Vec<&Candidate> = candidates
-                .iter()
-                .filter(|candidate| {
-                    candidate.kind == "WORK"
-                        && candidate.end_byte <= start
-                        && candidate.start_byte >= sentence.start_byte
-                        && candidate.end_byte <= sentence.end_byte
-                })
-                .collect();
-            if work_subjects.len() == 1 {
-                return work_subjects.first().copied();
+            if position == "object" {
+                if let Some(candidate) = unique_work_object(candidates, sentence, start, end) {
+                    return Some(candidate);
+                }
             }
-        }
-        // A parsed sentence gives an explicit negative result; proximity
-        // must not silently attach the nearest unrelated name. Heuristic
-        // tokenizers may assign ids without dependencies, and those must not
-        // discard the model-free proximity fallback.
-        if tokens
-            .iter()
-            .any(|token| token.id.is_some() && token.dependency.is_some())
-        {
-            return None;
+            if position == "subject" && allow_work_subject {
+                if let Some(candidate) = unique_work_subject(candidates, sentence, start) {
+                    return Some(candidate);
+                }
+            }
+            // A parsed sentence gives an explicit negative result; proximity
+            // must not silently attach the nearest unrelated name. Heuristic
+            // tokenizers may assign ids without dependencies, and those must not
+            // discard the model-free proximity fallback.
+            if tokens
+                .iter()
+                .any(|token| token.id.is_some() && token.dependency.is_some())
+            {
+                return None;
+            }
         }
     }
+    proximity_fallback(
+        candidates,
+        sentence,
+        start,
+        end,
+        position,
+        allow_work_subject,
+    )
+}
+
+/// Dependency prefixes that can bind a participant for each position.
+fn expected_dependencies(position: &str) -> &'static [&'static str] {
+    match position {
+        "subject" => &["nsubj", "csubj"],
+        "object" => &["obj", "iobj"],
+        "agent" => &["obl:agent", "nmod:agent", "agent"],
+        _ => &[],
+    }
+}
+
+/// Participant kinds accepted for a position. WORK/OBJECT/PRODUCT are only
+/// accepted where the caller says the trigger can take them.
+fn eligible_participant(candidate: &Candidate, position: &str, allow_work_subject: bool) -> bool {
+    matches!(
+        candidate.kind.as_str(),
+        "PERSON" | "ORG" | "ORGANIZATION" | "FACILITY" | "LOCATION" | "VEHICLE"
+    ) || (matches!(candidate.kind.as_str(), "WORK" | "OBJECT" | "PRODUCT")
+        && (position == "object" || (position == "subject" && allow_work_subject)))
+}
+
+/// Candidates in the sentence that are syntactically linked to the trigger.
+fn syntactic_candidates<'a>(
+    candidates: &'a [Candidate],
+    tokens: &[visualner::AnalyzedToken],
+    sentence: &SentenceSpan,
+    trigger: &visualner::AnalyzedToken,
+    trigger_id: i32,
+    position: &str,
+    allow_work_subject: bool,
+) -> Vec<&'a Candidate> {
+    let expected = expected_dependencies(position);
+    candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.start_byte >= sentence.start_byte
+                && candidate.end_byte <= sentence.end_byte
+                && eligible_participant(candidate, position, allow_work_subject)
+        })
+        .filter(|candidate| {
+            tokens.iter().any(|token| {
+                let candidate_token = token.start >= candidate.start_byte
+                    && token.end <= candidate.end_byte
+                    && token.sentence_id == trigger.sentence_id;
+                let dependency_role = token.head == Some(trigger_id)
+                    && token.dependency.as_deref().is_some_and(|relation| {
+                        expected.iter().any(|prefix| {
+                            relation == *prefix || relation.starts_with(&format!("{prefix}:"))
+                        })
+                    });
+                let participial_antecedent = position == "subject"
+                    && trigger.head == token.id
+                    && trigger.features.as_deref().is_some_and(|features| {
+                        features
+                            .split('|')
+                            .any(|feature| feature == "VerbForm=Part")
+                    })
+                    && trigger
+                        .dependency
+                        .as_deref()
+                        .is_some_and(|relation| relation == "acl" || relation.starts_with("acl:"));
+                candidate_token && (dependency_role || participial_antecedent)
+            })
+        })
+        .collect()
+}
+
+/// A single WORK after the trigger is the object when no syntactic object won.
+fn unique_work_object<'a>(
+    candidates: &'a [Candidate],
+    sentence: &SentenceSpan,
+    start: usize,
+    end: usize,
+) -> Option<&'a Candidate> {
+    let work_objects: Vec<&Candidate> = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.kind == "WORK"
+                && candidate.start_byte >= end
+                && candidate.start_byte >= sentence.start_byte
+                && candidate.end_byte <= sentence.end_byte
+                && candidate.start_byte >= start
+        })
+        .collect();
+    (work_objects.len() == 1)
+        .then(|| work_objects.first().copied())
+        .flatten()
+}
+
+/// A single WORK before the trigger is the subject when explicitly allowed.
+fn unique_work_subject<'a>(
+    candidates: &'a [Candidate],
+    sentence: &SentenceSpan,
+    start: usize,
+) -> Option<&'a Candidate> {
+    let work_subjects: Vec<&Candidate> = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.kind == "WORK"
+                && candidate.end_byte <= start
+                && candidate.start_byte >= sentence.start_byte
+                && candidate.end_byte <= sentence.end_byte
+        })
+        .collect();
+    (work_subjects.len() == 1)
+        .then(|| work_subjects.first().copied())
+        .flatten()
+}
+
+/// Model-free fallback: the nearest eligible participant in the expected
+/// direction. Equal distance ties stay ambiguous.
+fn proximity_fallback<'a>(
+    candidates: &'a [Candidate],
+    sentence: &SentenceSpan,
+    start: usize,
+    end: usize,
+    position: &str,
+    allow_work_subject: bool,
+) -> Option<&'a Candidate> {
     let mut matches: Vec<(&Candidate, usize)> = candidates
         .iter()
         .filter(|candidate| {
@@ -180,13 +256,7 @@ pub(super) fn nearest_candidate<'a>(
                 && candidate.end_byte <= sentence.end_byte
                 && (candidate.end_byte <= start || candidate.start_byte >= end)
         })
-        .filter(|candidate| {
-            (matches!(
-                candidate.kind.as_str(),
-                "PERSON" | "ORG" | "ORGANIZATION" | "FACILITY" | "LOCATION" | "VEHICLE"
-            ) || (matches!(candidate.kind.as_str(), "WORK" | "OBJECT" | "PRODUCT")
-                && (position == "object" || (position == "subject" && allow_work_subject))))
-        })
+        .filter(|candidate| eligible_participant(candidate, position, allow_work_subject))
         .filter_map(|candidate| {
             let distance = match position {
                 "subject" if candidate.end_byte <= start => start - candidate.end_byte,
