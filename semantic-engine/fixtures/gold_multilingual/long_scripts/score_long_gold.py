@@ -28,6 +28,56 @@ OBJECT_TYPES = {"OBJECT", "VISUAL_CONCEPT"}
 # them instead of scoring a spelling difference as a miss.
 TYPE_ALIAS = {"ORGANIZATION": "ORG"}
 
+QUALITY_THRESHOLDS = {
+    "named_entities_recall": 0.95,
+    "visual_objects_surface_recall": 0.90,
+    "visual_objects_typed_recall": 0.90,
+    "grounding_errors": 0,
+}
+
+
+def quality_gate_failures(report: dict) -> list[str]:
+    """Return target failures for the editorial quality gate.
+
+    This is deliberately separate from certification: the draft scripts block
+    certification, but the extraction targets can still be measured.
+    """
+    overall = report.get("overall") or {}
+    failures: list[str] = []
+
+    def recall(label: str) -> float | None:
+        block = overall.get(label) or {}
+        value = block.get("recall")
+        return value if isinstance(value, (int, float)) else None
+
+    for label, threshold, name in (
+        ("named_entities", QUALITY_THRESHOLDS["named_entities_recall"], "entity recall"),
+        (
+            "visual_objects_surface_only",
+            QUALITY_THRESHOLDS["visual_objects_surface_recall"],
+            "surface object recall",
+        ),
+        (
+            "visual_objects_typed",
+            QUALITY_THRESHOLDS["visual_objects_typed_recall"],
+            "typed object recall",
+        ),
+    ):
+        value = recall(label)
+        if value is None:
+            failures.append(f"{name}: not measured (target >= {threshold:.3f})")
+        elif value < threshold:
+            failures.append(f"{name}: {value:.3f} < {threshold:.3f}")
+
+    grounding = overall.get("grounding_errors")
+    if grounding != QUALITY_THRESHOLDS["grounding_errors"]:
+        failures.append(
+            f"grounding errors: {grounding} != {QUALITY_THRESHOLDS['grounding_errors']}"
+        )
+    if overall.get("replay_identical") is not True:
+        failures.append("replay: manifests are not byte-identical")
+    return failures
+
 
 def type_of(raw: str | None) -> str | None:
     return TYPE_ALIAS.get(raw or "", raw)
@@ -462,6 +512,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker", type=Path, default=DEFAULT_WORKER)
     parser.add_argument("--report", type=Path, default=Path("/tmp/brainrust_long_gold_report.json"))
+    parser.add_argument(
+        "--check-thresholds",
+        action="store_true",
+        help="exit 1 when entity/object/grounding targets are not met",
+    )
     args = parser.parse_args()
     gold = json.loads((BASE / "gold.json").read_text(encoding="utf-8"))
     specs = gold["scripts"]
@@ -508,6 +563,13 @@ def main() -> int:
         "per_language": per_language(results),
         "chart_negative_set": chart_negative,
     }
+    gate_failures = quality_gate_failures(report)
+    report["quality_gate"] = {
+        "enforced": args.check_thresholds,
+        "pass": not gate_failures,
+        "thresholds": QUALITY_THRESHOLDS,
+        "failures": gate_failures,
+    }
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["corpus"], ensure_ascii=False))
     for language, block in report["per_language"].items():
@@ -539,8 +601,14 @@ def main() -> int:
               f"queries={row['contextual_queries']['found']}/{row['contextual_queries']['expected']} "
               f"charts={row['charts']['typed_matches']}/{row['charts']['positive_expected']} "
               f"grounding-errors={len(row['source_grounding_errors'])}")
+    print(f"quality gate ({'enforced' if args.check_thresholds else 'not enforced'}): "
+          f"{'PASS' if not gate_failures else 'FAIL'}")
+    for failure in gate_failures:
+        print(f"  GATE-FAIL {failure}")
     print(f"report: {args.report}")
-    return 0 if report["corpus"]["is_release_sized"] else 2
+    if not report["corpus"]["is_release_sized"]:
+        return 2
+    return 1 if args.check_thresholds and gate_failures else 0
 
 
 if __name__ == "__main__":
