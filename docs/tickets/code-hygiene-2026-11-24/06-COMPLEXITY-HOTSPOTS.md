@@ -78,5 +78,11 @@ cargo clippy -p semantic-core -p pipelinegen-muscles -p visualner -p semantic-en
   `validate_canonical_profile`, `validate_tracks`, `validate_primary_events`,
   `validate_layers`, `validate_automation`. Messaggi e ordine dei controlli
   invariati; `cargo test -p pipelinegen-muscles --locked`, clippy `-D warnings`
-  e `rustfmt --check` verdi. La scheda resta PARTIAL finché gli altri hotspot
-  non sono chiusi.
+  e `rustfmt --check` verdi.
+- `semantic-core/src/phrase_impact.rs::run_with_chapter_options` (CC 62, 311
+  LOC) è ora un orchestratore di ~70 righe; le fasi sono
+  `validate_chapter_options`, `validate_request_header`,
+  `validate_segment_alignment`, `resolve_scene_context`, `build_vectors`,
+  `rank_sentences` e `build_bullets`. I 66 test Phrase Impact passano,
+  clippy `-D warnings` e rustfmt sono verdi. La scheda resta PARTIAL finché gli
+  altri hotspot non sono chiusi.

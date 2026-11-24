@@ -435,6 +435,81 @@ pub fn run_with_chapter_options(
     scene_topics: &[String],
     chapter_options: &ChapterOptions,
 ) -> Result<ResultDocument, String> {
+    validate_chapter_options(chapter_options)?;
+    let total = Instant::now();
+    validate_request_header(&request)?;
+    let split_start = Instant::now();
+    let segments = split_sentences(&request.transcript, &request.language);
+    let split_ms = split_start.elapsed().as_secs_f64() * 1000.0;
+    if segments.is_empty() {
+        return Err("sentence splitter returned no sentences".into());
+    }
+    let (scene_starts, resolved_topics) =
+        resolve_scene_context(&request, scenes, scene_topics, &segments);
+    validate_segment_alignment(&request, segments.len())?;
+    let stopwords = phrase_stopwords(&request.stopwords);
+    let vectors = build_vectors(&request, &segments, &stopwords)?;
+    let RankedImpact {
+        source_order,
+        rank_indices,
+        heavy_sentences,
+        similarity_ms,
+        ranking_ms,
+    } = rank_sentences(&request, &segments, &vectors);
+
+    let summary_start = Instant::now();
+    let summary = extract_summary(&source_order, &vectors, &request.options.summary_length);
+    let summary_ms = summary_start.elapsed().as_secs_f64() * 1000.0;
+
+    let bullet_start = Instant::now();
+    let bullets = build_bullets(&request, &segments, &source_order, &rank_indices, &vectors)?;
+    let chapters = build_chapters(
+        &source_order,
+        &vectors,
+        &request.timings,
+        &scene_starts,
+        resolved_topics,
+        chapter_options,
+        &stopwords,
+    );
+    let mut timeline = heavy_sentences.clone();
+    timeline.sort_by(|a, b| match (a.start_sec, b.start_sec) {
+        (Some(start_a), Some(start_b)) => start_a.total_cmp(&start_b).then(a.index.cmp(&b.index)),
+        _ => a.index.cmp(&b.index),
+    });
+    let bullet_ms = bullet_start.elapsed().as_secs_f64() * 1000.0;
+    let mut ranked = source_order;
+    ranked.sort_by(|a, b| {
+        b.importance
+            .total_cmp(&a.importance)
+            .then(a.index.cmp(&b.index))
+    });
+    let elapsed_ms = total.elapsed().as_secs_f64() * 1000.0;
+    Ok(ResultDocument {
+        summary,
+        bullet_points: bullets,
+        heavy_sentences,
+        ranked,
+        timeline,
+        chapter_manifest: ChapterManifest {
+            schema_version: "chapter_manifest.v1".into(),
+            chapters,
+        },
+        scene_highlights: Vec::new(),
+        timings: StageTimings {
+            split_ms,
+            embedding_ms: request.embedding_ms,
+            similarity_ms,
+            ranking_ms,
+            summary_ms,
+            bullet_ms,
+            total_ms: elapsed_ms + request.embedding_ms,
+        },
+    })
+}
+
+/// Reject chapter weights and sentence bounds outside the documented ranges.
+fn validate_chapter_options(chapter_options: &ChapterOptions) -> Result<(), String> {
     if chapter_options.min_sentences == 0
         || chapter_options.max_sentences < chapter_options.min_sentences
         || chapter_options.max_sentences > 200
@@ -453,7 +528,11 @@ pub fn run_with_chapter_options(
     {
         return Err("invalid chapter options".into());
     }
-    let total = Instant::now();
+    Ok(())
+}
+
+/// Validate the request fields that do not depend on the split sentences.
+fn validate_request_header(request: &Request) -> Result<(), String> {
     if request.transcript.trim().is_empty() {
         return Err("transcript is empty".into());
     }
@@ -467,12 +546,47 @@ pub fn run_with_chapter_options(
     {
         return Err("top_fraction must be in [0,1]".into());
     }
-    let split_start = Instant::now();
-    let segments = split_sentences(&request.transcript, &request.language);
-    let split_ms = split_start.elapsed().as_secs_f64() * 1000.0;
-    if segments.is_empty() {
-        return Err("sentence splitter returned no sentences".into());
+    Ok(())
+}
+
+/// Validate the embedding and timing vectors against the split sentence count.
+fn validate_segment_alignment(request: &Request, segment_count: usize) -> Result<(), String> {
+    if request.lexical_only {
+        if !request.embeddings.is_empty() {
+            return Err("lexical_only cannot be combined with embeddings".into());
+        }
+    } else if request.embeddings.len() != segment_count {
+        return Err(format!(
+            "embedding count {} does not match sentence count {}",
+            request.embeddings.len(),
+            segment_count
+        ));
     }
+    if !request.timings.is_empty() && request.timings.len() != segment_count {
+        return Err("timing count does not match sentence count".into());
+    }
+    let mut previous_start = -1_i64;
+    for timing in &request.timings {
+        if timing.start_us < 0
+            || timing.end_us <= timing.start_us
+            || timing.start_us < previous_start
+        {
+            return Err("invalid/nonchronological sentence timing".into());
+        }
+        previous_start = timing.start_us;
+    }
+    Ok(())
+}
+
+/// Map sentence offsets to scene indices when the reconstructed scene text
+/// exactly matches the split transcript. Mismatched or partial metadata is
+/// dropped instead of shifting chapter labels.
+fn resolve_scene_context<'a>(
+    request: &Request,
+    scenes: &'a [String],
+    scene_topics: &'a [String],
+    segments: &[Segment],
+) -> (Vec<(usize, usize)>, &'a [String]) {
     let mut scene_starts = Vec::new();
     let mut resolved_scenes = scenes;
     let mut resolved_topics = scene_topics;
@@ -500,74 +614,67 @@ pub fn run_with_chapter_options(
         if reconstructed.len() != segments.len()
             || reconstructed
                 .iter()
-                .zip(&segments)
+                .zip(segments)
                 .any(|(a, b)| a != &b.text)
         {
             scene_starts.clear();
             resolved_topics = &[];
         }
     }
+    (scene_starts, resolved_topics)
+}
+
+/// Build lexical or caller-supplied vectors, normalizing every embedding row.
+fn build_vectors(
+    request: &Request,
+    segments: &[Segment],
+    stopwords: &HashSet<String>,
+) -> Result<Vec<Vec<f64>>, String> {
     if request.lexical_only {
-        if !request.embeddings.is_empty() {
-            return Err("lexical_only cannot be combined with embeddings".into());
-        }
-    } else if request.embeddings.len() != segments.len() {
-        return Err(format!(
-            "embedding count {} does not match sentence count {}",
-            request.embeddings.len(),
-            segments.len()
-        ));
-    }
-    if !request.timings.is_empty() && request.timings.len() != segments.len() {
-        return Err("timing count does not match sentence count".into());
-    }
-    let mut previous_start = -1_i64;
-    for timing in &request.timings {
-        if timing.start_us < 0
-            || timing.end_us <= timing.start_us
-            || timing.start_us < previous_start
-        {
-            return Err("invalid/nonchronological sentence timing".into());
-        }
-        previous_start = timing.start_us;
-    }
-    let stopwords = phrase_stopwords(&request.stopwords);
-    let similarity_start = Instant::now();
-    let vectors = if request.lexical_only {
-        if !request.embeddings.is_empty() {
-            return Err("lexical_only cannot be combined with embeddings".into());
-        }
-        segments
+        return Ok(segments
             .iter()
-            .map(|segment| lexical_vector(&segment.text, &stopwords))
-            .collect()
-    } else {
-        let dimension = request.embeddings.first().map(Vec::len).unwrap_or(0);
-        if dimension == 0 {
-            return Err("embedding dimension is zero".into());
+            .map(|segment| lexical_vector(&segment.text, stopwords))
+            .collect());
+    }
+    let dimension = request.embeddings.first().map(Vec::len).unwrap_or(0);
+    if dimension == 0 {
+        return Err("embedding dimension is zero".into());
+    }
+    let mut vectors = Vec::with_capacity(request.embeddings.len());
+    for (index, row) in request.embeddings.iter().enumerate() {
+        if row.len() != dimension {
+            return Err(format!("embedding {index} dimension mismatch"));
         }
-        let mut vectors = Vec::with_capacity(request.embeddings.len());
-        for (index, row) in request.embeddings.iter().enumerate() {
-            if row.len() != dimension {
-                return Err(format!("embedding {index} dimension mismatch"));
-            }
-            if row.iter().any(|value| !value.is_finite()) {
-                return Err(format!("embedding {index} is non-finite"));
-            }
-            let mut vector: Vec<f64> = row.iter().map(|value| *value as f64).collect();
-            let norm = vector.iter().map(|value| value * value).sum::<f64>().sqrt();
-            if norm <= f64::EPSILON {
-                return Err(format!("embedding {index} has zero norm"));
-            }
-            for value in &mut vector {
-                *value /= norm;
-            }
-            vectors.push(vector);
+        if row.iter().any(|value| !value.is_finite()) {
+            return Err(format!("embedding {index} is non-finite"));
         }
-        vectors
-    };
+        let mut vector: Vec<f64> = row.iter().map(|value| *value as f64).collect();
+        let norm = vector.iter().map(|value| value * value).sum::<f64>().sqrt();
+        if norm <= f64::EPSILON {
+            return Err(format!("embedding {index} has zero norm"));
+        }
+        for value in &mut vector {
+            *value /= norm;
+        }
+        vectors.push(vector);
+    }
+    Ok(vectors)
+}
+
+struct RankedImpact {
+    source_order: Vec<RankedSentence>,
+    rank_indices: Vec<usize>,
+    heavy_sentences: Vec<RankedSentence>,
+    similarity_ms: f64,
+    ranking_ms: f64,
+}
+
+/// Score and select sentences. Similarity and ranking are timed separately
+/// because the StageTimings contract exposes both.
+fn rank_sentences(request: &Request, segments: &[Segment], vectors: &[Vec<f64>]) -> RankedImpact {
     let n = segments.len();
-    let similarities = cosine_matrix(&vectors);
+    let similarity_start = Instant::now();
+    let similarities = cosine_matrix(vectors);
     let mut raw_novelty = vec![0.0; n];
     for i in 1..n {
         let begin = i.saturating_sub(LOCAL_CONTEXT);
@@ -614,23 +721,31 @@ pub fn run_with_chapter_options(
         .max(min_heavy)
         .min(max_heavy)
         .min(n);
-    let selected = select_diverse(&rank_indices, &source_order, &vectors, desired);
+    let selected = select_diverse(&rank_indices, &source_order, vectors, desired);
     let heavy_sentences: Vec<_> = selected
         .iter()
         .map(|&index| source_order[index].clone())
         .collect();
     let ranking_ms = ranking_start.elapsed().as_secs_f64() * 1000.0;
+    RankedImpact {
+        source_order,
+        rank_indices,
+        heavy_sentences,
+        similarity_ms,
+        ranking_ms,
+    }
+}
 
-    let summary_start = Instant::now();
-    let summary = extract_summary(&source_order, &vectors, &request.options.summary_length);
-    let summary_ms = summary_start.elapsed().as_secs_f64() * 1000.0;
-
-    let bullet_start = Instant::now();
+/// Build global bullets from ranked sentences. Semantic spans, when present,
+/// restrict the eligible set and contribute their salience to the order.
+fn build_bullets(
+    request: &Request,
+    segments: &[Segment],
+    source_order: &[RankedSentence],
+    rank_indices: &[usize],
+    vectors: &[Vec<f64>],
+) -> Result<Vec<BulletPoint>, String> {
     let bullet_limit = request.options.bullet_count.clamp(1, 10);
-    // Global bullets obey the same extraction contract as the scene and
-    // chapter surfaces: a bullet is a complete, substantive sentence — never a
-    // fragment and never a mid-sentence chunk of a sentence longer than
-    // MAX_SEGMENT_WORDS.
     let segment_texts: Vec<&str> = segments
         .iter()
         .map(|segment| segment.text.as_str())
@@ -638,7 +753,7 @@ pub fn run_with_chapter_options(
     let (allowed_semantic_bullets, semantic_bullet_scores) = match &request.semantic_bullet_spans {
         None => (None, HashMap::new()),
         Some(spans) => {
-            let mut allowed = std::collections::HashSet::new();
+            let mut allowed = HashSet::new();
             let mut scores: HashMap<usize, f32> = HashMap::new();
             for span in spans {
                 if span.start_byte >= span.end_byte
@@ -687,58 +802,17 @@ pub fn run_with_chapter_options(
             priority(b).total_cmp(&priority(a)).then(a.cmp(&b))
         });
     }
-    let bullets = select_diverse(&bullet_candidates, &source_order, &vectors, bullet_limit)
-        .into_iter()
-        .map(|index| BulletPoint {
-            sentence_index: source_order[index].index,
-            text: source_order[index].text.clone(),
-            start_sec: source_order[index].start_sec,
-            end_sec: source_order[index].end_sec,
-        })
-        .collect();
-    let chapters = build_chapters(
-        &source_order,
-        &vectors,
-        &request.timings,
-        &scene_starts,
-        resolved_topics,
-        chapter_options,
-        &stopwords,
-    );
-    let mut timeline = heavy_sentences.clone();
-    timeline.sort_by(|a, b| match (a.start_sec, b.start_sec) {
-        (Some(start_a), Some(start_b)) => start_a.total_cmp(&start_b).then(a.index.cmp(&b.index)),
-        _ => a.index.cmp(&b.index),
-    });
-    let bullet_ms = bullet_start.elapsed().as_secs_f64() * 1000.0;
-    let mut ranked = source_order;
-    ranked.sort_by(|a, b| {
-        b.importance
-            .total_cmp(&a.importance)
-            .then(a.index.cmp(&b.index))
-    });
-    let elapsed_ms = total.elapsed().as_secs_f64() * 1000.0;
-    Ok(ResultDocument {
-        summary,
-        bullet_points: bullets,
-        heavy_sentences,
-        ranked,
-        timeline,
-        chapter_manifest: ChapterManifest {
-            schema_version: "chapter_manifest.v1".into(),
-            chapters,
-        },
-        scene_highlights: Vec::new(),
-        timings: StageTimings {
-            split_ms,
-            embedding_ms: request.embedding_ms,
-            similarity_ms,
-            ranking_ms,
-            summary_ms,
-            bullet_ms,
-            total_ms: elapsed_ms + request.embedding_ms,
-        },
-    })
+    Ok(
+        select_diverse(&bullet_candidates, source_order, vectors, bullet_limit)
+            .into_iter()
+            .map(|index| BulletPoint {
+                sentence_index: source_order[index].index,
+                text: source_order[index].text.clone(),
+                start_sec: source_order[index].start_sec,
+                end_sec: source_order[index].end_sec,
+            })
+            .collect(),
+    )
 }
 
 #[cfg(test)]
