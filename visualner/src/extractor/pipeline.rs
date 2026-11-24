@@ -9,7 +9,8 @@ use super::location::{is_phrase_breaking_byte, mark_contextual_locations, starts
 use super::names::{is_heading_surface, is_known_place, is_name_particle, opens_organization_name};
 use super::phrases::{
     delimited_work_candidates, keeps_as_visual_candidate, noun_phrase_candidates,
-    object_lexicon_candidates, type_relation_introduced_people, work_title_candidates,
+    object_lexicon_candidates, type_object_head_nouns, type_relation_introduced_people,
+    work_title_candidates,
 };
 use super::pos::is_stop_token;
 use super::ranking::{entity_identity_key, named_entity_rank, score_entity};
@@ -164,6 +165,7 @@ fn build_candidate_pool(stage: &ExtractionStage<'_>) -> Result<CandidatePool, St
             candidates.push(object);
         }
     }
+    type_object_head_nouns(&mut candidates, tokens, language);
     candidates.extend(value_candidates(source_text));
     // A curated outlet domain is one whole token the noun-phrase pass cannot
     // see (the tokenizer splits at the dot). It joins after the model filters,
@@ -181,7 +183,20 @@ fn build_candidate_pool(stage: &ExtractionStage<'_>) -> Result<CandidatePool, St
         type_relation_introduced_people(&mut candidates, tokens, source_text, language);
         mark_contextual_locations(&mut candidates, tokens, source_text, language);
         mark_contextual_organizations(&mut candidates, tokens, language);
+        mark_subject_organizations(&mut candidates, tokens, source_text, language);
         split_organization_person_appositions(&mut candidates, tokens, source_text, language);
+        // A proper-name run can claim a facility before the facility classifier
+        // sees it ("Стадион Северный" is two `nsubj` tokens). Promote the run
+        // when the curated facility head plus a capitalized companion is
+        // stronger evidence than the person fallback.
+        for candidate in &mut candidates {
+            if candidate.entity_type.as_deref() == Some("PERSON")
+                && values::classify_value_type(&candidate.text, true, true, true, language)
+                    == "FACILITY"
+            {
+                candidate.entity_type = Some("FACILITY".to_string());
+            }
+        }
     }
     let organization_spans: Vec<(usize, usize)> = candidates
         .iter()

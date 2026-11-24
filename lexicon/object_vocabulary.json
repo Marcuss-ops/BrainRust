@@ -41,7 +41,9 @@
       "prototype",
       "battery",
       "aircraft",
-      "device"
+      "device",
+      "scaffolding",
+      "ladder"
     ],
     "it": [
       "pallone",
@@ -100,7 +102,13 @@
       "terminal",
       "telefono samsung",
       "maglietta",
-      "aeroplano"
+      "aeroplano",
+      "sensore",
+      "pompa",
+      "pannello",
+      "quadro",
+      "canaletta",
+      "cartello"
     ],
     "es": [
       "balón",
@@ -126,7 +134,8 @@
       "tren",
       "avión",
       "documento",
-      "sensor"
+      "sensor",
+      "cable"
     ],
     "fr": [
       "ballon",
@@ -152,7 +161,8 @@
       "train",
       "avion",
       "document",
-      "capteur"
+      "capteur",
+      "câble"
     ],
     "de": [
       "ball",
@@ -177,7 +187,8 @@
       "straßenbahn",
       "flugzeug",
       "dokument",
-      "manuskript"
+      "manuskript",
+      "kabel"
     ],
     "pt": [
       "bola",
@@ -202,7 +213,9 @@
       "trem",
       "avião",
       "documento",
-      "sensor"
+      "sensor",
+      "cabo",
+      "câmara"
     ],
     "pl": [
       "piłka",
@@ -222,7 +235,8 @@
       "samochód",
       "pociąg",
       "samolot",
-      "dokument"
+      "dokument",
+      "kabel"
     ],
     "ru": [
       "мяч",
@@ -242,7 +256,8 @@
       "машина",
       "поезд",
       "самолет",
-      "документ"
+      "документ",
+      "кабель"
     ],
     "tr": [
       "top",
@@ -282,7 +297,8 @@
       "mobil",
       "kereta",
       "pesawat",
-      "dokumen"
+      "dokumen",
+      "kabel"
     ]
   }
 }

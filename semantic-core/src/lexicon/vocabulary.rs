@@ -57,6 +57,15 @@ pub struct EntityGazetteer {
     /// evidence for ambiguous proper nouns, not a list of organization names.
     #[serde(default)]
     pub organization_context_verbs: BTreeMap<String, Vec<String>>,
+    /// Verb lemmas that take an organization as their `nsubj` (estimate,
+    /// expect, claim). Kept separate from complement verbs so a person subject
+    /// of "work" or "enter" is never promoted to an organization.
+    #[serde(default)]
+    pub organization_subject_verbs: BTreeMap<String, Vec<String>>,
+    /// Generic company nouns that introduce a name ("La empresa Agua Norte",
+    /// "Perusahaan Air Utara"). They are not part of the name itself.
+    #[serde(default)]
+    pub generic_company_nouns: BTreeMap<String, Vec<String>>,
     pub brands: Vec<String>,
     pub locations: Vec<String>,
     /// Explicit multiword names with a known semantic type. This outranks the

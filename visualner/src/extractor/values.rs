@@ -152,8 +152,8 @@ fn has_organization_marker(text: &str, proper_noun: bool, language: &str) -> boo
         .filter(|word| word.chars().next().is_some_and(char::is_uppercase))
         .count()
         >= 2;
+    let surface_words: Vec<&str> = head.split_whitespace().collect();
     !words.is_empty()
-        && (proper_noun || capitalized_name)
         && markers.iter().any(|marker| {
             let marker_words: Vec<String> = marker
                 .to_lowercase()
@@ -161,8 +161,20 @@ fn has_organization_marker(text: &str, proper_noun: bool, language: &str) -> boo
                 .filter(|word| !word.is_empty())
                 .map(str::to_string)
                 .collect();
-            !marker_words.is_empty()
-                && (words.starts_with(&marker_words) || words.ends_with(&marker_words))
+            if marker_words.is_empty() {
+                return false;
+            }
+            let at_start = words.starts_with(&marker_words);
+            let at_end = words.ends_with(&marker_words);
+            // A lowercase head ("estudio Bermejo") is name evidence only
+            // when a capitalized identity follows it. The common-noun use
+            // ("el estudio duró dos años") has no such identity.
+            let name_after_marker = at_start
+                && surface_words
+                    .iter()
+                    .skip(marker_words.len())
+                    .any(|word| word.chars().next().is_some_and(char::is_uppercase));
+            (at_start || at_end) && (proper_noun || capitalized_name || name_after_marker)
         })
 }
 

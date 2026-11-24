@@ -78,7 +78,11 @@
   ],
   "generic_visual_nouns": [
     "company",
-    "corporation"
+    "corporation",
+    "raport",
+    "laporan",
+    "отчёт",
+    "stellingen"
   ],
   "company_suffixes": [
     "inc",
@@ -932416,7 +932420,8 @@
       "genossenschaft",
       "zentrum",
       "verband",
-      "stadt"
+      "stadt",
+      "büro"
     ],
     "en": [
       "foundation",
@@ -932432,7 +932437,8 @@
       "cooperative",
       "centre",
       "center",
-      "consortium"
+      "consortium",
+      "studio"
     ],
     "es": [
       "fundación",
@@ -932447,7 +932453,8 @@
       "instituto",
       "cooperativa",
       "centro",
-      "consorcio"
+      "consorcio",
+      "estudio"
     ],
     "fr": [
       "fondation",
@@ -932462,7 +932469,8 @@
       "institut",
       "coopérative",
       "centre",
-      "consortium"
+      "consortium",
+      "bureau"
     ],
     "id": [
       "yayasan",
@@ -932477,7 +932485,8 @@
       "institut",
       "koperasi",
       "pusat",
-      "konsorsium"
+      "konsorsium",
+      "kantor"
     ],
     "it": [
       "fondazione",
@@ -932520,7 +932529,8 @@
       "instituut",
       "coöperatie",
       "centrum",
-      "consortium"
+      "consortium",
+      "bureau"
     ],
     "pl": [
       "fundacja",
@@ -932528,6 +932538,7 @@
       "rada",
       "komitet",
       "firma",
+      "biuro",
       "uniwersytet",
       "muzeum",
       "szpital",
@@ -932550,7 +932561,8 @@
       "instituto",
       "cooperativa",
       "centro",
-      "consórcio"
+      "consórcio",
+      "gabinete"
     ],
     "ru": [
       "фонд",
@@ -932565,7 +932577,8 @@
       "институт",
       "кооператив",
       "центр",
-      "консорциум"
+      "консорциум",
+      "бюро"
     ]
   },
   "organization_context_verbs": {
@@ -932581,6 +932594,73 @@
       "nominare",
       "uscire"
     ]
+  },
+  "organization_subject_verbs": {
+    "de": [
+      "angeben",
+      "erwarten",
+      "rechnen",
+      "schätzen"
+    ],
+    "es": [
+      "calcular",
+      "estimar",
+      "esperar",
+      "prever",
+      "reclamar"
+    ],
+    "fr": [
+      "annoncer",
+      "attendre",
+      "estimer",
+      "prévoir"
+    ],
+    "id": [
+      "harap",
+      "klaim",
+      "memperkirakan",
+      "menperkirakan",
+      "mengharapkan",
+      "mengklaim",
+      "perkira"
+    ],
+    "nl": [
+      "claimen",
+      "raam",
+      "ramen",
+      "verwachten"
+    ],
+    "pl": [
+      "oczekiwać",
+      "oszacować",
+      "podać",
+      "przewidywać"
+    ],
+    "pt": [
+      "estimar",
+      "esperar",
+      "prever",
+      "reclamar"
+    ],
+    "ru": [
+      "ожидать",
+      "оценивать",
+      "оценить",
+      "предполагать",
+      "заявлять"
+    ]
+  },
+  "generic_company_nouns": {
+    "de": ["unternehmen"],
+    "en": ["company", "corporation"],
+    "es": ["empresa", "sociedad"],
+    "fr": ["société", "entreprise"],
+    "id": ["perusahaan"],
+    "it": ["azienda", "società"],
+    "nl": ["bedrijf"],
+    "pl": ["firma", "spółka"],
+    "pt": ["empresa", "sociedade"],
+    "ru": ["компания", "фирма"]
   },
   "typed_entities": {
     "FACILITY": [

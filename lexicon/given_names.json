@@ -2,7 +2,7 @@
   "schema": "given_names.v1",
   "languages": {
     "de": {"feminine": ["Anna", "Maria", "Sophie"], "masculine": ["Hans", "Thomas"], "unknown": []},
-    "en": {"feminine": ["Emma", "Mary"], "masculine": ["John", "James"], "unknown": []},
+    "en": {"feminine": ["Emma", "Mary"], "masculine": ["John", "James", "Daniel"], "unknown": []},
     "es": {"feminine": ["María", "Ana"], "masculine": ["Juan", "José"], "unknown": []},
     "fr": {"feminine": ["Marie", "Sophie"], "masculine": ["Jean", "Pierre"], "unknown": []},
     "id": {"feminine": ["Siti", "Dewi"], "masculine": ["Budi", "Agus"], "unknown": []},

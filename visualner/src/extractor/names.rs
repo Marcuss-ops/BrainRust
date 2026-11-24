@@ -188,10 +188,11 @@ pub(crate) fn organization_name_runs(
         return Vec::new();
     };
     let mut runs = Vec::new();
-    for (start, token) in tokens.iter().enumerate() {
-        if !starts_uppercase(&token.text) {
-            continue;
-        }
+    for start in 0..tokens.len() {
+        // The head may be a lowercase common noun ("bureau Marchal"); the
+        // capitalized identity after it is the name evidence. A marker
+        // followed by a lowercase word is not a name, which the head check
+        // below enforces.
         for marker in markers {
             let marker_words: Vec<String> =
                 marker.split_whitespace().map(str::to_lowercase).collect();
@@ -214,9 +215,16 @@ pub(crate) fn organization_name_runs(
             if is_name_particle(&tokens[head].text, language) {
                 head += 1;
             }
+            // The marker supplies the organization evidence; the capitalized
+            // token after it supplies the identity. A curated place or a
+            // title word can be that identity ("бюро Заря", "biuro Wiślan"),
+            // so only function words are rejected here.
             if head >= tokens.len()
                 || !starts_uppercase(&tokens[head].text)
-                || is_stop_token(&tokens[head], language)
+                || matches!(
+                    tokens[head].upos.as_deref(),
+                    Some("DET" | "CCONJ" | "SCONJ" | "VERB" | "AUX" | "PUNCT" | "PRON")
+                )
             {
                 continue;
             }
@@ -654,6 +662,19 @@ mod tests {
             organization_name_runs(&words, source.as_bytes(), "it"),
             vec![(0, 2)]
         );
+    }
+
+    #[test]
+    fn a_lowercase_organization_head_keeps_the_capitalized_identity() {
+        let words = tokens(&[("estudio", Some("NOUN")), ("Bermejo", Some("PROPN"))]);
+        let source = source_of(&[("estudio", Some("NOUN")), ("Bermejo", Some("PROPN"))]);
+        assert_eq!(
+            organization_name_runs(&words, source.as_bytes(), "es"),
+            vec![(0, 2)]
+        );
+        let words = tokens(&[("estudio", Some("NOUN")), ("duró", Some("VERB"))]);
+        let source = source_of(&[("estudio", Some("NOUN")), ("duró", Some("VERB"))]);
+        assert!(organization_name_runs(&words, source.as_bytes(), "es").is_empty());
     }
 
     #[test]

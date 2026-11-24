@@ -9,7 +9,7 @@ fn embedded_tables_load_with_the_documented_shape() {
         .iter()
         .any(|p| p == "imagine"));
     assert_eq!(lexicon.object_terms("en").len(), 40);
-    assert_eq!(lexicon.object_terms("it").len(), 57);
+    assert_eq!(lexicon.object_terms("it").len(), 63);
     // BCP-47 subtags resolve to the base language.
     assert_eq!(
         lexicon.object_terms("pt-BR").len(),

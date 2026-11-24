@@ -35,12 +35,15 @@ cannot measure the promised 17 languages, 51 scripts, 85 scenes or 680 spans.
 - There is no 17-language long gold, no 51-script gold, and no native-gold
   corpus for the four profile-only languages.
 
-## Why this blocks the claim
+## Final 10-language evidence
 
-The 2026-11-24 run can support a **10-language** statement:
+The 2026-11-24 run supports a **10-language** statement:
 
-- short gold: recall 1.000, precision 0.991, leaks 0;
-- long gold: entity recall 0.758, typed object recall 0.629, grounding 0.
+- short gold: recall 1.000 (98/98), precision 0.991 (112/113), leaks 0;
+- long gold: entity recall 0.984 (122/124), typed object recall 0.905
+  (95/105), surface object recall 0.933 (98/105), contextual queries 19/20,
+  grounding 0, replay identical;
+- the enforced long-gold gate passes and exits 0.
 
 It cannot support a **17-language** statement. The four profile-only languages
 have no treebank, and the linked corpus does not contain the promised native

@@ -110,6 +110,7 @@ pub(crate) fn object_lexicon_candidates(
     let mut candidates = Vec::new();
     for start_index in 0..tokens.len() {
         let mut normalized = String::new();
+        let mut lemma_normalized = String::new();
         let max_end = (start_index + 3).min(tokens.len());
         for end_index in start_index..max_end {
             if end_index > start_index {
@@ -118,10 +119,13 @@ pub(crate) fn object_lexicon_candidates(
                     break;
                 }
                 normalized.push(' ');
+                lemma_normalized.push(' ');
             }
             normalized.push_str(&token_lower[end_index]);
+            lemma_normalized.push_str(&object_term_key(&tokens[end_index]));
             let mut object_start = tokens[start_index].start;
-            let lexicon_match = term_set.contains(normalized.as_str());
+            let lexicon_match = term_set.contains(normalized.as_str())
+                || term_set.contains(lemma_normalized.as_str());
             let elided_match = if start_index == end_index && !lexicon_match {
                 token_lower[start_index]
                     .rfind(['\'', '\u{2019}'])
@@ -162,6 +166,68 @@ pub(crate) fn object_lexicon_candidates(
     candidates
 }
 
+/// Dictionary key for an object token: UDPipe's lemma when present, otherwise
+/// the case-folded surface. The original source span is never rewritten.
+fn object_term_key(token: &Token) -> String {
+    token
+        .lemma
+        .as_deref()
+        .map(str::to_lowercase)
+        .filter(|lemma| !lemma.is_empty() && lemma != "_" && !lemma.contains(char::is_whitespace))
+        .unwrap_or_else(|| token.text.to_lowercase())
+}
+
+/// A multi-word noun phrase inherits OBJECT from its syntactic head. This
+/// covers Italian "sensori di umidità" and "pannelli fotovoltaici" without
+/// adding every combination to the vocabulary. The head is the span token
+/// whose UDPipe head is outside the span (or the root); without dependency
+/// data the candidate is left untouched.
+pub(crate) fn type_object_head_nouns(
+    candidates: &mut [Candidate],
+    tokens: &[Token],
+    language: &str,
+) {
+    let terms = semantic_core::lexicon::lexicon().object_terms(language);
+    if terms.is_empty() {
+        return;
+    }
+    for candidate in candidates.iter_mut() {
+        if !matches!(
+            candidate.entity_type.as_deref(),
+            None | Some("VISUAL_CONCEPT")
+        ) {
+            continue;
+        }
+        let span: Vec<&Token> = tokens
+            .iter()
+            .filter(|token| token.start >= candidate.start && token.end <= candidate.end)
+            .collect();
+        if span.len() < 2 {
+            continue;
+        }
+        let ids: std::collections::HashSet<i32> =
+            span.iter().filter_map(|token| token.id).collect();
+        let has_object_head = span.iter().any(|token| {
+            let Some(head) = token.head else {
+                return false;
+            };
+            if head != 0 && ids.contains(&head) {
+                return false;
+            }
+            if !matches!(token.upos.as_deref(), Some("NOUN" | "PROPN")) {
+                return false;
+            }
+            let lemma = object_term_key(token);
+            terms
+                .iter()
+                .any(|term| term == &lemma || term.eq_ignore_ascii_case(&token.text))
+        });
+        if has_object_head {
+            candidate.entity_type = Some("OBJECT".to_string());
+        }
+    }
+}
+
 /// noun_phrase_candidates groups adjacent non-stopword tokens into maximal
 /// noun phrases. A phrase is one or more consecutive tokens whose lowercase
 /// surface is not a stopword, AND that are separated only by whitespace
@@ -186,4 +252,85 @@ pub(crate) fn noun_phrase_candidates(
         language,
     ));
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn token(
+        text: &str,
+        start: usize,
+        upos: &str,
+        lemma: &str,
+        id: i32,
+        head: i32,
+    ) -> Token {
+        Token {
+            text: text.to_string(),
+            start,
+            end: start + text.len(),
+            upos: Some(upos.to_string()),
+            lemma: Some(lemma.to_string()),
+            features: None,
+            dependency: None,
+            id: Some(id),
+            head: Some(head),
+            sentence_id: Some(1),
+        }
+    }
+
+    #[test]
+    fn an_inflected_object_matches_its_lemma() {
+        let source = "Siatkę";
+        let tokens = vec![token(source, 0, "NOUN", "siatka", 1, 0)];
+        let candidates = object_lexicon_candidates(
+            &tokens,
+            &["siatkę".to_string()],
+            source,
+            "pl",
+        );
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].text, source);
+        assert_eq!(candidates[0].entity_type.as_deref(), Some("OBJECT"));
+    }
+
+    #[test]
+    fn a_multiword_object_inherits_the_type_of_its_head() {
+        let source = "sensori di umidità";
+        let tokens = vec![
+            token("sensori", 0, "NOUN", "sensore", 1, 99),
+            token("di", 8, "ADP", "di", 2, 1),
+            token("umidità", 11, "NOUN", "umidità", 3, 1),
+        ];
+        let mut candidates = vec![Candidate {
+            text: source.to_string(),
+            start: 0,
+            end: source.len(),
+            entity_type: Some("VISUAL_CONCEPT".to_string()),
+        }];
+        type_object_head_nouns(&mut candidates, &tokens, "it");
+        assert_eq!(candidates[0].entity_type.as_deref(), Some("OBJECT"));
+    }
+
+    #[test]
+    fn a_span_without_dependency_data_keeps_its_visual_type() {
+        let source = "sensori di umidità";
+        let tokens = vec![
+            token("sensori", 0, "NOUN", "sensore", 1, 1),
+            token("di", 8, "ADP", "di", 2, 1),
+            token("umidità", 11, "NOUN", "umidità", 3, 1),
+        ];
+        let mut candidates = vec![Candidate {
+            text: source.to_string(),
+            start: 0,
+            end: source.len(),
+            entity_type: Some("VISUAL_CONCEPT".to_string()),
+        }];
+        type_object_head_nouns(&mut candidates, &tokens, "it");
+        assert_eq!(
+            candidates[0].entity_type.as_deref(),
+            Some("VISUAL_CONCEPT")
+        );
+    }
 }

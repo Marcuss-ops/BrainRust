@@ -210,7 +210,7 @@ pub(super) fn is_canonical_person_surface(entity: &VisualEntity, context: &Scrip
 /// language lexicon supplies a work/affiliation verb and UDPipe links the
 /// name to that verb as an object or oblique argument.
 pub(super) fn mark_contextual_organizations(
-    candidates: &mut [Candidate],
+    candidates: &mut Vec<Candidate>,
     tokens: &[Token],
     language: &str,
 ) {
@@ -219,7 +219,7 @@ pub(super) fn mark_contextual_organizations(
     let Some(verbs) = lexicon.organization_context_verbs.get(base) else {
         return;
     };
-    for candidate in candidates {
+    for candidate in candidates.iter_mut() {
         if candidate.entity_type.as_deref() == Some(semantic_core::entity_type_terms::MEDIA_OUTLET)
         {
             continue;
@@ -253,6 +253,160 @@ pub(super) fn mark_contextual_organizations(
     }
 }
 
+/// Type a two-token subject as an organization when a dedicated
+/// estimate/expect/claim verb takes it as `nsubj`. The sequence must be
+/// contiguous, capitalized and not a curated given name, so "Daniel Frost"
+/// and "María Ferrer" stay people. This is syntactic evidence, not a
+/// per-company allowlist.
+fn mark_organization_span(
+    candidates: &mut Vec<Candidate>,
+    start: usize,
+    end: usize,
+    text: &str,
+) {
+    let mut replaced = false;
+    for candidate in candidates.iter_mut() {
+        if candidate.start == start && candidate.end == end {
+            candidate.entity_type = Some("ORG".to_string());
+            replaced = true;
+        }
+    }
+    if !replaced {
+        candidates.push(Candidate {
+            text: text.to_string(),
+            start,
+            end,
+            entity_type: Some("ORG".to_string()),
+        });
+    }
+}
+
+pub(super) fn mark_subject_organizations(
+    candidates: &mut Vec<Candidate>,
+    tokens: &[Token],
+    source_text: &str,
+    language: &str,
+) {
+    let base = language.split(['-', '_']).next().unwrap_or(language);
+    let lexicon = &semantic_core::lexicon::lexicon().gazetteer;
+    let Some(verbs) = lexicon.organization_subject_verbs.get(base) else {
+        return;
+    };
+    // A two-token subject sequence ("Agua Norte", "Energia Port") is a
+    // company when the language's estimate/expect/claim verb takes it as
+    // `nsubj`. The sequence must be contiguous, capitalized and not a curated
+    // given name, so "Daniel Frost" and "María Ferrer" stay people. This is
+    // syntactic evidence, not a per-company allowlist.
+    for (index, name) in tokens.iter().enumerate() {
+        if name.dependency.as_deref() != Some("nsubj") {
+            continue;
+        }
+        let Some(head) = name.head else {
+            continue;
+        };
+        let Some(verb) = tokens.iter().find(|token| {
+            token.id == Some(head) && token.sentence_id == name.sentence_id
+        }) else {
+            continue;
+        };
+        if !verb.lemma.as_deref().is_some_and(|lemma| {
+            verbs.iter().any(|known| known.eq_ignore_ascii_case(lemma))
+        }) {
+            continue;
+        }
+        let is_marker = lexicon
+            .organization_markers
+            .get(base)
+            .is_some_and(|markers| {
+                markers
+                    .iter()
+                    .any(|marker| marker.eq_ignore_ascii_case(&name.text))
+            });
+        // A generic company noun introduces the name but is not part of it:
+        // "La empresa Agua Norte" -> "Agua Norte". It is evidence even when
+        // the source keeps it lowercase ("La société Eau Nord").
+        let is_generic_company = lexicon
+            .generic_company_nouns
+            .get(base)
+            .is_some_and(|nouns| {
+                nouns
+                    .iter()
+                    .any(|noun| noun.eq_ignore_ascii_case(&name.text))
+            });
+        if !is_marker
+            && !is_generic_company
+            && !matches!(name.upos.as_deref(), Some("PROPN"))
+            && !name.text.chars().next().is_some_and(char::is_uppercase)
+        {
+            continue;
+        }
+        if semantic_core::lexicon::is_curated_given_name(language, &name.text) {
+            continue;
+        }
+        if is_generic_company {
+            let (Some(first), Some(second)) = (tokens.get(index + 1), tokens.get(index + 2))
+            else {
+                continue;
+            };
+            if first.sentence_id != name.sentence_id
+                || second.sentence_id != name.sentence_id
+                || !first.text.chars().next().is_some_and(char::is_uppercase)
+                || !second.text.chars().next().is_some_and(char::is_uppercase)
+                || matches!(
+                    first.upos.as_deref(),
+                    Some("DET" | "VERB" | "AUX" | "ADP" | "CCONJ" | "SCONJ" | "PUNCT")
+                )
+                || matches!(
+                    second.upos.as_deref(),
+                    Some("DET" | "VERB" | "AUX" | "ADP" | "CCONJ" | "SCONJ" | "PUNCT")
+                )
+            {
+                continue;
+            }
+            let Some(gap) = source_text.get(name.end..first.start) else {
+                continue;
+            };
+            if !gap.chars().all(char::is_whitespace) {
+                continue;
+            }
+            let Some(gap) = source_text.get(first.end..second.start) else {
+                continue;
+            };
+            if !gap.chars().all(char::is_whitespace) {
+                continue;
+            }
+            let Some(text) = source_text.get(first.start..second.end) else {
+                continue;
+            };
+            mark_organization_span(candidates, first.start, second.end, text);
+            continue;
+        }
+        let Some(next) = tokens.get(index + 1) else {
+            continue;
+        };
+        if next.sentence_id != name.sentence_id
+            || !next.text.chars().next().is_some_and(char::is_uppercase)
+            || matches!(
+                next.upos.as_deref(),
+                Some("DET" | "VERB" | "AUX" | "CCONJ" | "SCONJ" | "PUNCT")
+            )
+        {
+            continue;
+        }
+        let Some(gap) = source_text.get(name.end..next.start) else {
+            continue;
+        };
+        if !gap.chars().all(char::is_whitespace) {
+            continue;
+        }
+        let (start, end) = (name.start, next.end);
+        let Some(text) = source_text.get(start..end) else {
+            continue;
+        };
+        mark_organization_span(candidates, start, end, text);
+    }
+}
+
 /// Generic visual concepts are useful phrase inventory only when they form a
 /// complete noun phrase. A bare common noun is usually too broad to identify
 /// an image subject; model-backed nominal heads (for example "tifosi") are
@@ -260,6 +414,80 @@ pub(super) fn mark_contextual_organizations(
 /// lexicon-backed objects are handled by their own type and bypass this gate.
 /// The POS check also removes adverb-led fragments such as "ancora oggi parte"
 /// without maintaining a language-specific list of filler expressions.
+#[cfg(test)]
+mod organization_and_facility_regressions {
+    use super::*;
+
+    fn subject_type(language: &str, text: &str, span: &str) -> String {
+        let tokens = tokenize(text, language).expect("tokenize");
+        let start = text.find(span).expect("span");
+        let mut candidates = vec![Candidate {
+            text: span.to_string(),
+            start,
+            end: start + span.len(),
+            entity_type: Some("PERSON".to_string()),
+        }];
+        mark_subject_organizations(&mut candidates, &tokens, text, language);
+        candidates
+            .iter()
+            .find(|candidate| {
+                candidate.start == start && candidate.end == start + span.len()
+            })
+            .and_then(|candidate| candidate.entity_type.clone())
+            .expect("candidate type")
+    }
+
+    #[test]
+    fn facility_heads_accept_preposed_and_postposed_names() {
+        for (language, span) in [
+            ("en", "Central Stadium"),
+            ("en", "Harbour Stadium"),
+            ("pl", "Stadion Północny"),
+            ("ru", "Стадион Северный"),
+        ] {
+            assert_eq!(
+                values::classify_value_type(span, true, true, true, language),
+                "FACILITY",
+                "{language}: {span}"
+            );
+        }
+    }
+
+    #[test]
+    fn estimate_verbs_type_company_subjects() {
+        let cases = [
+            (
+                "nl",
+                "Water Noord raamde een besparing van 29%, terwijl Energie Haven 14% verwachtte.",
+                "Water Noord",
+            ),
+            (
+                "id",
+                "Perusahaan Air Utara memperkirakan penghematan 30%, sedangkan Energi Pelabuhan memperkirakan 15%.",
+                "Air Utara",
+            ),
+            (
+                "id",
+                "Perusahaan Air Utara memperkirakan penghematan 30%, sedangkan Energi Pelabuhan memperkirakan 15%.",
+                "Energi Pelabuhan",
+            ),
+            (
+                "pl",
+                "Biuro Halny oczekiwało oszczędności 27%, natomiast biuro Wiślan podało 42%.",
+                "biuro Wiślan",
+            ),
+            (
+                "ru",
+                "Бюро Волга ожидало экономию в 25%, а бюро Заря заявляло 41%.",
+                "бюро Заря",
+            ),
+        ];
+        for (language, text, span) in cases {
+            assert_eq!(subject_type(language, text, span), "ORG", "{language}: {span}");
+        }
+    }
+}
+
 pub(super) fn structurally_specific_visual_concept(
     entity: &VisualEntity,
     tokens: &[Token],

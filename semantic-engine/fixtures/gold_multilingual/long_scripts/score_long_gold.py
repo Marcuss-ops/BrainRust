@@ -319,6 +319,10 @@ def source_grounding(scene: dict, source: str) -> list[str]:
 def score_one(worker: Worker, script_id: str, spec: dict, default_authority: str) -> dict:
     source = (BASE / spec["file"]).read_text(encoding="utf-8").strip()
     request = {"operation": "analyze_script", "language": spec["language"],
+               # The extractor default safety cap is intentionally small; the
+               # editorial gold has more named/visual items than that cap. The
+               # gate measures typing quality, not top-N truncation.
+               "entity_safety_cap": 64,
                "scenes": [{"scene_id": script_id, "text": source}]}
     response = worker.request(request)
     if not response.get("ok"):

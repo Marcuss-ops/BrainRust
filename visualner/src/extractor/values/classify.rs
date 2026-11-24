@@ -92,13 +92,29 @@ pub(super) fn classify_type(
     {
         return "LOCATION".to_string();
     }
-    let facility_head = lexicon
-        .facility
-        .facility_nouns
-        .iter()
-        .any(|noun| lower.split_whitespace().next() == Some(noun.as_str()));
-    if facility_head && name_evidence && text.split_whitespace().count() >= 2 {
-        return "FACILITY".to_string();
+    // The facility noun can open the name ("Stadion Północny") or close it
+    // ("Central Stadium"). The other token may be a proper name or a
+    // capitalized adjective; requiring `name_evidence` alone made the
+    // adjective form fall through to PERSON under taggers that label
+    // "Północny"/"Северный" as ADJ.
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let facility_index = words.iter().position(|word| {
+        let word = word
+            .trim_matches(|ch: char| !ch.is_alphanumeric())
+            .to_lowercase();
+        lexicon
+            .facility
+            .facility_nouns
+            .iter()
+            .any(|noun| noun == &word)
+    });
+    if let Some(index) = facility_index {
+        let companion_capitalized = words.iter().enumerate().any(|(position, word)| {
+            position != index && word.chars().next().is_some_and(char::is_uppercase)
+        });
+        if words.len() >= 2 && (name_evidence || companion_capitalized) {
+            return "FACILITY".to_string();
+        }
     }
     if contains(&gazetteer.product_names, &lower)
         || gazetteer
