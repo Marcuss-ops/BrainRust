@@ -72,110 +72,21 @@ pub(super) fn execute_projection(request: Request) -> Response {
     }
     let (fps_num, fps_den) = (master_meta.fps_num, master_meta.fps_den);
     let master_frames = frame_count(&master_meta, fps_num, fps_den);
-    let mut runs = Vec::new();
-    for (index, (manifest, artifact)) in
-        manifest.manifests().into_iter().zip(&artifacts).enumerate()
-    {
-        if let Some(asset) = manifest.asset.as_ref().filter(|_| {
-            matches!(
-                &request.overlay_manifest,
-                Some(crate::protocol::OverlayManifestWire::Set(_))
-            )
-        }) {
-            match fs::metadata(artifact) {
-                Ok(metadata) if metadata.len() == asset.size_bytes as u64 => {}
-                Ok(_) => {
-                    return Response::failure(
-                        operation,
-                        Some(artifact.clone()),
-                        "overlay artifact size mismatch".to_string(),
-                    )
-                }
-                Err(error) => {
-                    return Response::failure(operation, Some(artifact.clone()), error.to_string())
-                }
-            }
-            match sha256_file(artifact) {
-                Ok(actual) if actual.eq_ignore_ascii_case(&asset.sha256) => {}
-                Ok(_) => {
-                    return Response::failure(
-                        operation,
-                        Some(artifact.clone()),
-                        "overlay artifact SHA-256 mismatch".to_string(),
-                    )
-                }
-                Err(error) => {
-                    return Response::failure(operation, Some(artifact.clone()), error.to_string())
-                }
-            }
-        } else if matches!(
-            &request.overlay_manifest,
-            Some(crate::protocol::OverlayManifestWire::Set(_))
-        ) {
-            return Response::failure(
-                operation,
-                Some(artifact.clone()),
-                "multi-artifact manifest requires certified asset".to_string(),
-            );
-        }
-        let meta = match probe_file(&ffprobe, artifact) {
-            Ok(meta) => meta,
-            Err(error) => return Response::failure(operation, Some(artifact.clone()), error),
-        };
-        if !meta.has_video {
-            return Response::failure(
-                operation,
-                Some(artifact.clone()),
-                "manifest artifact has no video".to_string(),
-            );
-        }
-        if let Err(error) = same_frame_grid(&master_meta, &meta) {
-            return Response::failure(operation, Some(artifact.clone()), error);
-        }
-        if matches!(
-            &request.overlay_manifest,
-            Some(crate::protocol::OverlayManifestWire::Set(_))
-        ) {
-            let Some(asset) = manifest.asset.as_ref() else {
-                return Response::failure(
-                    operation,
-                    Some(artifact.clone()),
-                    "multi-artifact manifest requires certified asset".to_string(),
-                );
-            };
-            if frame_count(&meta, fps_num, fps_den) != asset.frame_count {
-                return Response::failure(
-                    operation,
-                    Some(artifact.clone()),
-                    "overlay artifact frame count mismatch".to_string(),
-                );
-            }
-        }
-        let mut pieces = Vec::new();
-        for entry in &manifest.entries {
-            if entry.placement.is_some() {
-                return Response::failure(
-                    operation,
-                    Some(artifact.clone()),
-                    "spatial placement is unsupported".to_string(),
-                );
-            }
-            match resolve_entry(
-                entry,
-                fps_num,
-                fps_den,
-                frame_count(&meta, fps_num, fps_den),
-                master_frames,
-            ) {
-                Ok(piece) => pieces.push(piece),
-                Err(error) => return Response::failure(operation, Some(master), error),
-            }
-        }
-        match merge_pieces(pieces) {
-            Ok(pieces) => runs.extend(pieces.into_iter().map(|piece| (index + 1, piece))),
-            Err(error) => return Response::failure(operation, Some(master), error),
-        }
-    }
+    let wire_is_set = matches!(
+        &request.overlay_manifest,
+        Some(crate::protocol::OverlayManifestWire::Set(_))
+    );
+    let mut runs = match projection_runs(
+        manifest,
+        &artifacts,
+        &master_meta,
+        master_frames,
+        &ffprobe,
+        wire_is_set,
+    ) {
+        Ok(runs) => runs,
+        Err(response) => return *response,
+    };
     runs.sort_by_key(|(_, piece)| (piece.master_start, piece.master_end));
     if runs
         .windows(2)
@@ -214,6 +125,131 @@ pub(super) fn execute_projection(request: Request) -> Response {
     }
     command.arg(&part);
     finish_run(operation, &master, &part, &output, command.output(), None)
+}
+
+/// Validate every artifact against the manifest and merge its entries into
+/// disjoint projection runs. Each failure is already a complete Response.
+fn projection_runs(
+    manifest: &crate::protocol::OverlayManifestWire,
+    artifacts: &[String],
+    master_meta: &MediaMetadata,
+    master_frames: i64,
+    ffprobe: &str,
+    wire_is_set: bool,
+) -> Result<Vec<(usize, ProjectionPiece)>, Box<Response>> {
+    let operation = Operation::ProjectOverlayManifest;
+    let (fps_num, fps_den) = (master_meta.fps_num, master_meta.fps_den);
+    let mut runs = Vec::new();
+    for (index, (manifest, artifact)) in manifest.manifests().into_iter().zip(artifacts).enumerate()
+    {
+        if let Some(asset) = manifest.asset.as_ref().filter(|_| wire_is_set) {
+            match fs::metadata(artifact) {
+                Ok(metadata) if metadata.len() == asset.size_bytes as u64 => {}
+                Ok(_) => {
+                    return Err(Box::new(Response::failure(
+                        operation,
+                        Some(artifact.clone()),
+                        "overlay artifact size mismatch".to_string(),
+                    )))
+                }
+                Err(error) => {
+                    return Err(Box::new(Response::failure(
+                        operation,
+                        Some(artifact.clone()),
+                        error.to_string(),
+                    )))
+                }
+            }
+            match sha256_file(artifact) {
+                Ok(actual) if actual.eq_ignore_ascii_case(&asset.sha256) => {}
+                Ok(_) => {
+                    return Err(Box::new(Response::failure(
+                        operation,
+                        Some(artifact.clone()),
+                        "overlay artifact SHA-256 mismatch".to_string(),
+                    )))
+                }
+                Err(error) => {
+                    return Err(Box::new(Response::failure(
+                        operation,
+                        Some(artifact.clone()),
+                        error.to_string(),
+                    )))
+                }
+            }
+        } else if manifest.asset.is_none() && wire_is_set {
+            return Err(Box::new(Response::failure(
+                operation,
+                Some(artifact.clone()),
+                "multi-artifact manifest requires certified asset".to_string(),
+            )));
+        }
+        let meta = match probe_file(ffprobe, artifact) {
+            Ok(meta) => meta,
+            Err(error) => {
+                return Err(Box::new(Response::failure(
+                    operation,
+                    Some(artifact.clone()),
+                    error,
+                )))
+            }
+        };
+        if !meta.has_video {
+            return Err(Box::new(Response::failure(
+                operation,
+                Some(artifact.clone()),
+                "manifest artifact has no video".to_string(),
+            )));
+        }
+        if let Err(error) = same_frame_grid(master_meta, &meta) {
+            return Err(Box::new(Response::failure(
+                operation,
+                Some(artifact.clone()),
+                error,
+            )));
+        }
+        if wire_is_set {
+            let Some(asset) = manifest.asset.as_ref() else {
+                return Err(Box::new(Response::failure(
+                    operation,
+                    Some(artifact.clone()),
+                    "multi-artifact manifest requires certified asset".to_string(),
+                )));
+            };
+            if frame_count(&meta, fps_num, fps_den) != asset.frame_count {
+                return Err(Box::new(Response::failure(
+                    operation,
+                    Some(artifact.clone()),
+                    "overlay artifact frame count mismatch".to_string(),
+                )));
+            }
+        }
+        let mut pieces = Vec::new();
+        for entry in &manifest.entries {
+            if entry.placement.is_some() {
+                return Err(Box::new(Response::failure(
+                    operation,
+                    Some(artifact.clone()),
+                    "spatial placement is unsupported".to_string(),
+                )));
+            }
+            match resolve_entry(
+                entry,
+                fps_num,
+                fps_den,
+                frame_count(&meta, fps_num, fps_den),
+                master_frames,
+            ) {
+                Ok(piece) => pieces.push(piece),
+                Err(error) => return Err(Box::new(Response::failure(operation, None, error))),
+            }
+        }
+        match merge_pieces(pieces) {
+            Ok(pieces) => runs.extend(pieces.into_iter().map(|piece| (index + 1, piece))),
+            Err(error) => return Err(Box::new(Response::failure(operation, None, error))),
+        }
+    }
+    Ok(runs)
 }
 
 /// `extract_timeline_window`: cut one manifest entry's artifact window (or a
