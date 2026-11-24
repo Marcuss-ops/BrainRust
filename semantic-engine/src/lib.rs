@@ -387,99 +387,18 @@ use scene_facts::*;
 /// Analyses every scene of a script in one call.
 pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, String> {
     let language = request.language.trim();
-    if language.is_empty() {
-        return Err("language is required".to_string());
-    }
-    if request.scenes.is_empty() {
-        return Err("scenes must not be empty".to_string());
-    }
-    let mut ids = BTreeSet::new();
-    for scene in &request.scenes {
-        if !ids.insert(scene.scene_id.as_str()) {
-            return Err(format!("duplicate scene_id: {}", scene.scene_id));
-        }
-    }
-
-    let safety_cap = if request.entity_safety_cap == 0 {
-        DEFAULT_ENTITY_SAFETY_CAP
-    } else {
-        request.entity_safety_cap
-    };
+    let safety_cap = validate_script_request(request)?;
 
     // One registry for the whole script so identity is shared across scenes.
     let mut registry = IdentityRegistry::new();
-    let mut search_entries: Vec<SearchFeedbackEntry> = Vec::new();
-    let mut scenes: Vec<SceneManifest> = Vec::with_capacity(request.scenes.len());
-    let mut event_frames = Vec::new();
-    // Visual-context query seeds for the production planner. They are not
-    // part of the manifest contract and never leave this call.
-    let mut scene_query_seeds: Vec<(String, Vec<semantic_core::ContextualImageQuery>)> =
-        Vec::with_capacity(request.scenes.len());
-    // Script-wide name evidence: one tokenization pass over every scene, so a
-    // scene that says only a first name cannot turn it into a place.
-    let texts: Vec<&str> = request
-        .scenes
-        .iter()
-        .map(|scene| scene.text.as_str())
-        .collect();
-    let context = visualner::script_person_tokens(&texts, language);
-    for (scene_index, scene) in request.scenes.iter().enumerate() {
-        let analyzed = analyze_scene_with_search(
-            scene,
-            language,
-            safety_cap,
-            &mut registry,
-            &context,
-            request.reference_date.as_deref(),
-        );
-        let remaining_event_capacity = events::MAX_EVENT_FRAMES.saturating_sub(event_frames.len());
-        event_frames.extend(events::extract_bounded_with_tokens(
-            events::SceneEventInput {
-                scene_index,
-                scene_id: &scene.scene_id,
-                source: &scene.text,
-                language,
-                candidates: &analyzed.manifest.entities,
-                temporal_facts: &analyzed.manifest.temporal_facts,
-                places: &analyzed.manifest.places,
-            },
-            &analyzed.tokens,
-            remaining_event_capacity,
-        ));
-        scene_query_seeds.push((analyzed.manifest.scene_id.clone(), analyzed.query_seeds));
-        scenes.push(analyzed.manifest);
-        search_entries.extend(analyzed.search_feedback);
-    }
-    for event in &mut event_frames {
-        let participant_ids: HashSet<&str> = event
-            .participants
-            .iter()
-            .map(|participant| participant.entity_id.as_str())
-            .collect();
-        for scene in &scenes {
-            if !event.scene_ids.iter().any(|id| id == &scene.scene_id) {
-                continue;
-            }
-            for fact in &scene.entity_facts {
-                let has_event_participant = participant_ids
-                    .contains(fact.subject_entity_id.as_str())
-                    || fact
-                        .target_entity_id
-                        .as_deref()
-                        .is_some_and(|id| participant_ids.contains(id));
-                let evidence_overlaps = event.evidence.iter().any(|evidence| {
-                    evidence.scene_id == scene.scene_id
-                        && fact.evidence_start_byte >= evidence.start_byte
-                        && fact.evidence_end_byte <= evidence.end_byte
-                });
-                if has_event_participant && evidence_overlaps {
-                    event.source_fact_ids.push(fact.id.clone());
-                }
-            }
-        }
-        event.source_fact_ids.sort();
-        event.source_fact_ids.dedup();
-    }
+    let ScriptSceneBatch {
+        mut scenes,
+        mut event_frames,
+        search_entries,
+        query_seeds: scene_query_seeds,
+    } = analyze_scenes(request, language, safety_cap, &mut registry);
+
+    link_event_source_facts(&mut event_frames, &scenes);
     let discourse = discourse::build(language, &request.scenes, &scenes);
     event_frames = events::merge_cross_scene(event_frames, &discourse.threads);
     let cross_scene_routes = routes::merge_cross_scene_routes(&scenes);
@@ -514,26 +433,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
 
     let analyzers = analyzer_versions();
     let fingerprint = request_fingerprint(request, &analyzers);
-    let editorial = request
-        .editorial
-        .as_ref()
-        .map(|input| {
-            let mut editorial_request = input.request.clone();
-            if editorial_request.semantic_bullet_spans.is_none() {
-                if let Some(spans) =
-                    semantic_bullet_spans(&editorial_request.transcript, &input.scenes, &scenes)
-                {
-                    editorial_request.semantic_bullet_spans = Some(spans);
-                }
-            }
-            semantic_core::phrase_impact::run_with_scene_inputs(
-                editorial_request,
-                &input.scenes,
-                &input.chapter_options,
-            )
-        })
-        .transpose()?
-        .map(Into::into);
+    let editorial = build_editorial(request, &scenes)?;
 
     Ok(SemanticManifest {
         schema_version: SCHEMA_VERSION.to_string(),
@@ -553,6 +453,157 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         },
         editorial,
     })
+}
+
+/// Validate the script envelope and return the effective entity safety cap.
+fn validate_script_request(request: &ScriptRequest) -> Result<usize, String> {
+    let language = request.language.trim();
+    if language.is_empty() {
+        return Err("language is required".to_string());
+    }
+    if request.scenes.is_empty() {
+        return Err("scenes must not be empty".to_string());
+    }
+    let mut ids = BTreeSet::new();
+    for scene in &request.scenes {
+        if !ids.insert(scene.scene_id.as_str()) {
+            return Err(format!("duplicate scene_id: {}", scene.scene_id));
+        }
+    }
+    Ok(if request.entity_safety_cap == 0 {
+        DEFAULT_ENTITY_SAFETY_CAP
+    } else {
+        request.entity_safety_cap
+    })
+}
+
+struct ScriptSceneBatch {
+    scenes: Vec<SceneManifest>,
+    event_frames: Vec<semantic_core::EventFrame>,
+    search_entries: Vec<SearchFeedbackEntry>,
+    query_seeds: Vec<(String, Vec<ContextualImageQuery>)>,
+}
+
+/// Analyse every scene once, feeding the shared identity registry and keeping
+/// the per-scene event and query outputs in source order.
+fn analyze_scenes(
+    request: &ScriptRequest,
+    language: &str,
+    safety_cap: usize,
+    registry: &mut IdentityRegistry,
+) -> ScriptSceneBatch {
+    let texts: Vec<&str> = request
+        .scenes
+        .iter()
+        .map(|scene| scene.text.as_str())
+        .collect();
+    let context = visualner::script_person_tokens(&texts, language);
+    let mut scenes: Vec<SceneManifest> = Vec::with_capacity(request.scenes.len());
+    let mut event_frames = Vec::new();
+    let mut search_entries: Vec<SearchFeedbackEntry> = Vec::new();
+    // Visual-context query seeds for the production planner. They are not
+    // part of the manifest contract and never leave this call.
+    let mut scene_query_seeds: Vec<(String, Vec<semantic_core::ContextualImageQuery>)> =
+        Vec::with_capacity(request.scenes.len());
+    for (scene_index, scene) in request.scenes.iter().enumerate() {
+        let analyzed = analyze_scene_with_search(
+            scene,
+            language,
+            safety_cap,
+            registry,
+            &context,
+            request.reference_date.as_deref(),
+        );
+        let remaining_event_capacity = events::MAX_EVENT_FRAMES.saturating_sub(event_frames.len());
+        event_frames.extend(events::extract_bounded_with_tokens(
+            events::SceneEventInput {
+                scene_index,
+                scene_id: &scene.scene_id,
+                source: &scene.text,
+                language,
+                candidates: &analyzed.manifest.entities,
+                temporal_facts: &analyzed.manifest.temporal_facts,
+                places: &analyzed.manifest.places,
+            },
+            &analyzed.tokens,
+            remaining_event_capacity,
+        ));
+        scene_query_seeds.push((analyzed.manifest.scene_id.clone(), analyzed.query_seeds));
+        scenes.push(analyzed.manifest);
+        search_entries.extend(analyzed.search_feedback);
+    }
+    ScriptSceneBatch {
+        scenes,
+        event_frames,
+        search_entries,
+        query_seeds: scene_query_seeds,
+    }
+}
+
+/// Link each event frame to the entity facts that share a participant and
+/// overlap its evidence in the same scene.
+fn link_event_source_facts(
+    event_frames: &mut [semantic_core::EventFrame],
+    scenes: &[SceneManifest],
+) {
+    for event in event_frames {
+        let participant_ids: HashSet<&str> = event
+            .participants
+            .iter()
+            .map(|participant| participant.entity_id.as_str())
+            .collect();
+        for scene in scenes {
+            if !event.scene_ids.iter().any(|id| id == &scene.scene_id) {
+                continue;
+            }
+            for fact in &scene.entity_facts {
+                let has_event_participant = participant_ids
+                    .contains(fact.subject_entity_id.as_str())
+                    || fact
+                        .target_entity_id
+                        .as_deref()
+                        .is_some_and(|id| participant_ids.contains(id));
+                let evidence_overlaps = event.evidence.iter().any(|evidence| {
+                    evidence.scene_id == scene.scene_id
+                        && fact.evidence_start_byte >= evidence.start_byte
+                        && fact.evidence_end_byte <= evidence.end_byte
+                });
+                if has_event_participant && evidence_overlaps {
+                    event.source_fact_ids.push(fact.id.clone());
+                }
+            }
+        }
+        event.source_fact_ids.sort();
+        event.source_fact_ids.dedup();
+    }
+}
+
+/// Run the optional editorial planner after the scenes are complete, enriching
+/// the request with grounded bullet spans when the caller did not supply them.
+fn build_editorial(
+    request: &ScriptRequest,
+    scenes: &[SceneManifest],
+) -> Result<Option<semantic_core::manifest::EditorialManifest>, String> {
+    request
+        .editorial
+        .as_ref()
+        .map(|input| {
+            let mut editorial_request = input.request.clone();
+            if editorial_request.semantic_bullet_spans.is_none() {
+                if let Some(spans) =
+                    semantic_bullet_spans(&editorial_request.transcript, &input.scenes, scenes)
+                {
+                    editorial_request.semantic_bullet_spans = Some(spans);
+                }
+            }
+            semantic_core::phrase_impact::run_with_scene_inputs(
+                editorial_request,
+                &input.scenes,
+                &input.chapter_options,
+            )
+        })
+        .transpose()
+        .map(|editorial| editorial.map(Into::into))
 }
 
 /// Maps scene-local semantic bullet candidates to exact transcript spans.

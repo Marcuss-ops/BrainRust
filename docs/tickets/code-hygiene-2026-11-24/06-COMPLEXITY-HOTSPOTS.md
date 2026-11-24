@@ -92,6 +92,10 @@ cargo clippy -p semantic-core -p pipelinegen-muscles -p visualner -p semantic-en
   `SentenceFacts` con metodi separati per inaugurazione, capacità, proprietà e
   ubicazione (esplicita + fallback preposizionale). Test mirati e clippy
   `--no-deps` verdi.
+- `semantic-engine/src/lib.rs::analyze_script` (616 LOC di file) è ora un
+  orchestratore; `validate_script_request`, `analyze_scenes`,
+  `link_event_source_facts` e `build_editorial` separano le fasi. I 181 test
+  lib, clippy `--no-deps` e rustfmt sono verdi.
 - Restano bloccati dal workstream concorrente i file `visualner`
   (`values/classify.rs`, `extractor/names.rs`, `extractor/phrases.rs`, `values.rs`).
   La scheda resta PARTIAL finché gli hotspot restanti non sono chiusi.
