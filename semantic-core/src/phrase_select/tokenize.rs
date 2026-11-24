@@ -1,5 +1,7 @@
 //! Token and sentence boundary primitives for the phrase selector.
 
+use super::is_combining_mark;
+
 #[derive(Clone, Debug)]
 pub(super) struct Token {
     pub(super) lower: String,
@@ -63,15 +65,6 @@ pub(super) fn tokenize(text: &str) -> Vec<Token> {
 
 fn is_word_char(c: char) -> bool {
     c.is_alphabetic() || is_combining_mark(c)
-}
-
-fn is_combining_mark(c: char) -> bool {
-    matches!(c,
-        '\u{0300}'..='\u{036F}'
-        | '\u{1AB0}'..='\u{1AFF}'
-        | '\u{1DC0}'..='\u{1DFF}'
-        | '\u{20D0}'..='\u{20FF}'
-        | '\u{FE20}'..='\u{FE2F}')
 }
 
 fn phrase_boundary_between(gap: &str) -> bool {

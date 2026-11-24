@@ -23,7 +23,6 @@ const LEXICON_JSON: &str = include_str!("../../../lexicon/relative_time.json");
 
 #[derive(Debug, Deserialize)]
 struct RelativeLexicon {
-    #[allow(dead_code)]
     schema: String,
     languages: BTreeMap<String, LanguageRules>,
 }
@@ -66,7 +65,11 @@ struct NamedRule {
 fn lexicon() -> Option<&'static RelativeLexicon> {
     static LEXICON: OnceLock<Option<RelativeLexicon>> = OnceLock::new();
     LEXICON
-        .get_or_init(|| serde_json::from_str(LEXICON_JSON).ok())
+        .get_or_init(|| {
+            serde_json::from_str::<RelativeLexicon>(LEXICON_JSON)
+                .ok()
+                .filter(|lexicon| lexicon.schema == "relative_time.v1")
+        })
         .as_ref()
 }
 
@@ -717,6 +720,19 @@ fn tokenize(source: &str) -> Vec<Token> {
         });
     }
     tokens
+}
+
+#[cfg(test)]
+mod schema_tests {
+    use super::lexicon;
+
+    #[test]
+    fn embedded_relative_lexicon_has_the_expected_schema() {
+        assert_eq!(
+            lexicon().expect("embedded relative lexicon").schema,
+            "relative_time.v1"
+        );
+    }
 }
 
 #[cfg(test)]

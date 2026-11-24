@@ -241,19 +241,42 @@ pub(super) fn numeric_word(token: &str) -> Option<i64> {
     })
 }
 
+/// Month spellings from the CLDR table owned by `semantic-core`, so a date in
+/// any supported language is recognized by the projection. The table contains
+/// only alphabetic names; the alternation is escaped by construction.
+fn month_alternation() -> &'static str {
+    static ALTERNATION: OnceLock<String> = OnceLock::new();
+    ALTERNATION.get_or_init(|| {
+        let mut names: Vec<&str> = semantic_core::lexicon::Lexicon::global()
+            .month_date_scan_table
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect();
+        names.sort_unstable();
+        names.dedup();
+        names.join("|")
+    })
+}
+
 pub(super) fn date_pattern() -> &'static Regex {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
     PATTERN.get_or_init(|| {
-        Regex::new(r"(?i)\b(?:[0-9]{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+[0-9]{4}|[0-9]{4})\b")
-            .expect("date regex")
+        let months = month_alternation();
+        Regex::new(&format!(
+            r"(?i)\b(?:[0-9]{{1,2}}\s+(?:{months})\s+[0-9]{{4}}|[0-9]{{4}})\b"
+        ))
+        .expect("date regex")
     })
 }
 
 pub(super) fn date_identity_pattern() -> &'static Regex {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
     PATTERN.get_or_init(|| {
-        Regex::new(r"(?i)^([0-9]{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+([0-9]{4}))?$")
-            .expect("date identity regex")
+        let months = month_alternation();
+        Regex::new(&format!(
+            r"(?i)^([0-9]{{1,2}})\s+({months})(?:\s+([0-9]{{4}}))?$"
+        ))
+        .expect("date identity regex")
     })
 }
 
@@ -416,20 +439,11 @@ pub(super) fn dedupe_grounded_dates(numbers: Vec<TimedAnnotationV2>) -> Vec<Time
 }
 
 pub(super) fn date_tokens(text: &str) -> Option<BTreeSet<String>> {
-    let months = [
-        "gennaio",
-        "febbraio",
-        "marzo",
-        "aprile",
-        "maggio",
-        "giugno",
-        "luglio",
-        "agosto",
-        "settembre",
-        "ottobre",
-        "novembre",
-        "dicembre",
-    ];
+    let month_names: BTreeSet<&str> = semantic_core::lexicon::Lexicon::global()
+        .month_date_scan_table
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
     let tokens: Vec<String> = text
         .split_whitespace()
         .map(|token| token.to_lowercase())
@@ -439,7 +453,7 @@ pub(super) fn date_tokens(text: &str) -> Option<BTreeSet<String>> {
     }
     let mut out = BTreeSet::new();
     for token in tokens {
-        if months.contains(&token.as_str()) {
+        if month_names.iter().any(|name| *name == token.as_str()) {
             out.insert(token);
             continue;
         }
@@ -456,4 +470,28 @@ pub(super) fn date_tokens(text: &str) -> Option<BTreeSet<String>> {
 
 pub(super) fn subset(left: &BTreeSet<String>, right: &BTreeSet<String>) -> bool {
     !left.is_empty() && left.len() <= right.len() && left.iter().all(|token| right.contains(token))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn explicit_date_surfaces_are_multilingual() {
+        for text in ["13 January 2007", "13 janvier 2007", "13 marzo 2007"] {
+            assert_eq!(explicit_date_surfaces(text), vec![text.to_string()]);
+        }
+    }
+
+    #[test]
+    fn same_grounded_date_compares_the_month_across_languages() {
+        assert!(same_grounded_date("13 January 2007", "13 January 2007"));
+        assert!(!same_grounded_date("13 January 2007", "13 February 2007"));
+    }
+
+    #[test]
+    fn date_tokens_accepts_non_italian_months() {
+        assert!(date_tokens("13 janvier 2007").is_some());
+        assert!(date_tokens("not a date").is_none());
+    }
 }

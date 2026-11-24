@@ -12,6 +12,8 @@ use semantic_core::lexicon::given_name_gender;
 use semantic_core::narrative::DiscourseReference;
 use semantic_core::{SceneInput, SceneManifest, SentenceSpan};
 
+use crate::candidates::sentence_index_at;
+
 use super::references::{detect, in_quotes, DetectedReference};
 
 #[derive(Clone)]
@@ -560,22 +562,6 @@ fn is_referenceable_kind(kind: &str) -> bool {
             | "OBJECT"
             | "EVENT"
     )
-}
-
-fn sentence_index_at(sentences: &[SentenceSpan], offset: usize) -> usize {
-    let index = sentences.partition_point(|sentence| sentence.start_byte <= offset);
-    if let Some(sentence) = index
-        .checked_sub(1)
-        .and_then(|previous| sentences.get(previous))
-    {
-        if offset < sentence.end_byte {
-            return index - 1;
-        }
-    }
-    sentences
-        .iter()
-        .position(|sentence| offset >= sentence.start_byte && offset < sentence.end_byte)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

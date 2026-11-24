@@ -16,6 +16,8 @@ use std::sync::OnceLock;
 
 use sha2::{Digest, Sha256};
 
+use crate::text::lowercase_hex;
+
 /// SHA-256 over a deterministic set of named assets.
 ///
 /// Each entry contributes its name, its length and its bytes, and the entries
@@ -375,14 +377,6 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
         assets.push((format!("lexicon/legal/{language}.json"), body));
     }
     assets
-}
-
-fn lowercase_hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push_str(&format!("{byte:02x}"));
-    }
-    out
 }
 
 #[cfg(test)]

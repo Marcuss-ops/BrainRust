@@ -39,6 +39,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
+use semantic_core::text::lowercase_hex;
 use semantic_core::{AnalyzerVersions, ScriptRequest, SemanticManifest};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -334,16 +335,6 @@ fn touch(path: &Path) {
         return;
     };
     let _ = file.set_times(fs::FileTimes::new().set_modified(SystemTime::now()));
-}
-
-fn lowercase_hex(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push(HEX[(byte >> 4) as usize] as char);
-        out.push(HEX[(byte & 0x0f) as usize] as char);
-    }
-    out
 }
 
 #[cfg(test)]

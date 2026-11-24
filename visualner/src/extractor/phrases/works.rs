@@ -102,8 +102,9 @@ pub(crate) fn delimited_work_candidates(source: &str) -> Vec<Candidate> {
                 if opening.is_none() {
                     opening = Some(offset + ch.len_utf8());
                 } else if open == close {
-                    let start = opening.take().unwrap();
-                    spans.push((start, offset));
+                    if let Some(start) = opening.take() {
+                        spans.push((start, offset));
+                    }
                 }
             } else if ch == close && open != close {
                 if let Some(start) = opening.take() {

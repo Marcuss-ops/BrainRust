@@ -45,9 +45,25 @@ pub(crate) fn part_path(final_path: &str) -> String {
 /// generation is assigned when `part_path` is created, so a slow older render
 /// cannot replace a newer completed one. It is process-local by design: the
 /// worker is the unit that owns a final output path.
+const LATEST_CAP: usize = 4096;
+
 fn latest_published() -> &'static Mutex<HashMap<String, u64>> {
     static LATEST: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
     LATEST.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Keeps the map bounded without dropping the newest generations. A path that
+/// falls out of the retained window is old enough that no in-flight attempt
+/// from this process can still be racing it in practice.
+fn remember_latest(latest: &mut HashMap<String, u64>, final_path: &str, generation: u64) {
+    latest.insert(final_path.to_string(), generation);
+    if latest.len() <= LATEST_CAP {
+        return;
+    }
+    let mut generations: Vec<u64> = latest.values().copied().collect();
+    generations.sort_unstable();
+    let cutoff = generations[generations.len() - LATEST_CAP];
+    latest.retain(|_, value| *value >= cutoff);
 }
 
 fn part_generation(part_path: &str) -> Option<u64> {
@@ -80,16 +96,31 @@ pub(crate) fn publish_output(part_path: &str, final_path: &str) -> Result<(), Mu
     fs::rename(part_path, final_path)
         .map_err(|error| MuscleError::generic(format!("publish output: {error}")))?;
     if let Some(generation) = generation {
-        latest.insert(final_path.to_string(), generation);
+        remember_latest(&mut latest, final_path, generation);
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{part_path, publish_output};
-    use std::collections::HashSet;
+    use super::{part_path, publish_output, remember_latest, LATEST_CAP};
+    use std::collections::{HashMap, HashSet};
     use std::fs;
+
+    #[test]
+    fn latest_published_map_is_bounded() {
+        let mut latest = HashMap::new();
+        for generation in 0..(LATEST_CAP as u64 + 128) {
+            remember_latest(
+                &mut latest,
+                &format!("/tmp/final-{generation}.mp4"),
+                generation,
+            );
+        }
+        assert_eq!(latest.len(), LATEST_CAP);
+        assert!(!latest.contains_key("/tmp/final-0.mp4"));
+        assert!(latest.contains_key(&format!("/tmp/final-{}.mp4", LATEST_CAP as u64 + 127)));
+    }
 
     #[test]
     fn part_paths_are_unique_for_the_same_final_path() {

@@ -21,6 +21,17 @@ use scoring::{is_function_word, resolved_limit, resolved_policy};
 use selection::{fragment_candidates, select_ranked, selected_phrase, sentence_candidates};
 use tokenize::tokenize;
 
+/// True for Unicode combining marks that belong to the preceding base
+/// character. Shared by the phrase selector and visualner's spellout scanner.
+pub fn is_combining_mark(character: char) -> bool {
+    matches!(character,
+        '\u{0300}'..='\u{036F}'
+        | '\u{1AB0}'..='\u{1AFF}'
+        | '\u{1DC0}'..='\u{1DFF}'
+        | '\u{20D0}'..='\u{20FF}'
+        | '\u{FE20}'..='\u{FE2F}')
+}
+
 /// Phrase policy values mirroring the Go `PhraseExtractionPolicy`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PhraseExtractionPolicy {

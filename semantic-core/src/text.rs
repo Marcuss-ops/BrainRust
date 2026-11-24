@@ -128,6 +128,18 @@ pub fn is_edge_punctuation(character: char) -> bool {
         )
 }
 
+/// Lowercase hexadecimal encoding. The lookup table avoids one heap allocation
+/// per byte; the content fingerprint and the persistent cache key share it.
+pub fn lowercase_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,6 +207,11 @@ mod tests {
         );
         // A non-breaking hyphen is a separator, not word content.
         assert_eq!(phrase_tokens("d\u{2011}accordo"), vec!["d", "accordo"]);
+    }
+
+    #[test]
+    fn lowercase_hex_matches_the_standard_encoding() {
+        assert_eq!(lowercase_hex(&[0x00, 0x0f, 0xa5, 0xff]), "000fa5ff");
     }
 
     #[test]

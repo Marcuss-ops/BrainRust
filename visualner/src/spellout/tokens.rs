@@ -1,5 +1,7 @@
 //! UTF-8 token spans used by the spellout scanner.
 
+use semantic_core::phrase_select::is_combining_mark;
+
 #[derive(Debug, Clone)]
 pub(super) struct WordToken {
     pub(super) start: usize,
@@ -40,10 +42,4 @@ pub(super) fn word_tokens(source: &str) -> Vec<WordToken> {
         });
     }
     tokens
-}
-
-fn is_combining_mark(character: char) -> bool {
-    matches!(character as u32,
-        0x0300..=0x036F | 0x1AB0..=0x1AFF | 0x1DC0..=0x1DFF |
-        0x20D0..=0x20FF | 0xFE20..=0xFE2F)
 }

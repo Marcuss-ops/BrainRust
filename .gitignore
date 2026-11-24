@@ -18,6 +18,5 @@ __pycache__/
 /dist-icu72/
 /dist-v0.3.7/
 
-# `imagecatalog` is a standalone workspace (excluded from the root).
-/imagecatalog/target/
-/imagecatalog/Cargo.lock
+# Local build scratch left by release scripts.
+/.tmp-build/
