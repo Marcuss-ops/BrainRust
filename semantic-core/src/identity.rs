@@ -307,11 +307,10 @@ impl IdentityRegistry {
         self.register_mention(kind, surface, surface, scene_id, start_byte, end_byte)
     }
 
-    /// Registers one mention whose `surface` is an alias of the canonical
-    /// `canonical_surface` ("Stasi" for "Alberto Stasi"). The identity is keyed
-    /// and displayed by the canonical surface, while the mention keeps the
-    /// text that is actually in the scene, so evidence stays grounded and a
-    /// surname never becomes a second person.
+    /// Registers one mention whose `surface` may be an alias or inflected form
+    /// of `canonical_surface` ("Stasi" for "Alberto Stasi", or Polish
+    /// "pokoju" for "pokój"). Identity keys and ids use the canonical form;
+    /// the public canonical surface stays the first grounded source mention.
     pub fn register_mention(
         &mut self,
         kind: &str,
@@ -332,7 +331,7 @@ impl IdentityRegistry {
                 self.identities.push(CanonicalIdentity {
                     id: format!("{prefix}_{:02}", index + 1),
                     canonical_id,
-                    canonical_surface: canonical_surface.to_string(),
+                    canonical_surface: surface.to_string(),
                     kind: kind.to_string(),
                     mentions: Vec::new(),
                 });
@@ -464,6 +463,23 @@ mod tests {
         let identities = registry.identities();
         assert_eq!(identities.len(), 1);
         assert_eq!(identities[0].mentions.len(), 2);
+    }
+
+    #[test]
+    fn identity_key_uses_lemma_but_surface_remains_grounded() {
+        let mut registry = IdentityRegistry::new();
+        let id = registry.register_mention("VISUAL_CONCEPT", "pokój", "pokoju", "s1", 0, 6);
+
+        assert_eq!(id, "entity_01");
+        let identity = &registry.identities()[0];
+        assert_eq!(
+            identity.canonical_id,
+            format!("entity:{}", stable_slug("pokój"))
+        );
+        assert_eq!(identity.canonical_surface, "pokoju");
+        assert_eq!(identity.mentions[0].surface, "pokoju");
+        assert_eq!(identity.mentions[0].start_byte, 0);
+        assert_eq!(identity.mentions[0].end_byte, 6);
     }
 
     #[test]

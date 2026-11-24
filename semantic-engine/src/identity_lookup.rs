@@ -44,10 +44,11 @@ impl IdentityLookup {
                         );
                     }
                 }
-                // The mention keeps the source span; the identity publishes
-                // the language's dictionary form when one is certified
+                // Use a certified dictionary form for stable identity matching
                 // (Polish oblique nouns, feminine adjective surnames and
-                // curated place aliases). Every other language is unchanged.
+                // curated place aliases). IdentityRegistry keeps `entity.text`
+                // as the public first-seen surface while deriving its key and
+                // canonical id from this normalized form.
                 let canonical =
                     visualner::canonical_surface(&entity.text, language, &entity.r#type);
                 registry.register_mention(

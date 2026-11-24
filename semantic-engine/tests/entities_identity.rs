@@ -84,6 +84,29 @@ fn same_person_in_two_scenes_keeps_one_canonical_id() {
 }
 
 #[test]
+fn polish_identity_surfaces_remain_grounded_when_matching_uses_lemmas() {
+    let text = "Proszę zamknąć drzwi w pokoju po zakończeniu nagrania.";
+    let value = manifest_value_for("pl", vec![scene("pokoju", text)]);
+    let identities = value["scenes"][0]["identities"]
+        .as_array()
+        .expect("identities array");
+    assert!(!identities.is_empty(), "fixture should produce identities");
+
+    for identity in identities {
+        let canonical = identity["canonical_surface"]
+            .as_str()
+            .expect("canonical surface");
+        let mentions = identity["mentions"].as_array().expect("mentions array");
+        assert!(
+            mentions
+                .iter()
+                .any(|mention| mention["surface"] == canonical),
+            "canonical surface {canonical:?} must be a grounded source mention: {identity}"
+        );
+    }
+}
+
+#[test]
 fn distinct_persons_get_distinct_canonical_ids() {
     let text = "Alberto Stasi e Andrea Sempio sono due procedimenti distinti.";
     let value = manifest_value(vec![scene("distinti", text)]);
