@@ -4,8 +4,11 @@ Canonical status for the 2026-11-15 architecture audit and its roadmap.
 Detailed acceptance evidence lives in each ticket. This file is the only status
 matrix; `ACCEPTANCE_TODO.md` remains the historical gate evidence.
 
-Last verified: 2026-11-23 (working tree). **46 DONE/CLOSED, 0 PARTIAL, 1 OPEN,
-3 BLOCKED (08, 10, 26).** TICKET-50 is DONE: `EntityKind::fold_entity_kind` in
+Last verified: 2026-11-24 (working tree). **47 DONE/CLOSED, 0 PARTIAL, 0 OPEN,
+3 BLOCKED (08, 10, 26).** TICKET-49 is DONE (bound/Rust): the extraction gate,
+one card per identity, cross-scene coverage, `entity_concordance` and the
+ORG/GPE policy are in the tree; only the real Augias run remains external.
+TICKET-50 is DONE: `EntityKind::fold_entity_kind` in
 `semantic-core` is the only entity spelling→family table (overlay-compiler's
 private `fold_entity_type`/`entity_card_kind` are gone, `MEDIA_OUTLET` cards
 and binds its verified asset), `Response::failure`/`success` take a typed
@@ -135,8 +138,62 @@ Status vocabulary:
 | [46](TICKET-46-visual-recipes-wiring-and-cleanup.md) | P1 | DONE (2026-11-22) | One `EntityCapabilities` table replaces five taxonomy copies; `MEDIA_OUTLET` is exact-matched in 11 languages and folded to `Org` in Go; `quote_attribution` and `source_highlight` join existing manifest data; the planner lowers five recipes onto `METRIC_STAT_CARD`, `LOWER_THIRD`, `QUOTE`, `IMPORTANT_PHRASE` and `MAP` without new item kinds; Go forwards `visual_recipe`/`visual_payload` verbatim. 8 + 1 + 6 + 12 Rust tests, the 8-recipe protocol fixture and the targeted Go suites pass. |
 | [47](TICKET-47-multi-recipe-scenes-and-outlet-coverage.md) | P2 | DONE (2026-11-22) | Additive `visual_recipes` list (legacy field first, max 8, empty omitted) with planner dedupe; Go forwards every supported recipe in priority order. Measured 21 missed outlet surfaces in 1,173 archived scenes, so curated domains plus unambiguous article-dropped aliases were added (no suffix matching); `role_of` keeps the narrower policy, adds `MEDIA_OUTLET` and pins the difference from the SSOT. 16 planner + contract + Go wire tests pass. |
 | [48](TICKET-48-unrendered-recipe-layouts.md) | P3 | DONE (2026-11-22) | Measured `relationship_graph` 3, `lifespan_timeline` 1, `choropleth_value_map` 0 in 1,173 scenes. Option 2 chosen for all three: validated-but-inert, still not forwarded by Go; no new layout or `ItemKind` added. |
-| [49](TICKET-49-entity-intent-admission.md) | P1 | OPEN (2026-11-22) | Run R30: 36 `entity_not_planned` su 88 intenti. 23 dei 36 sono date/numeri (di cui 8 frammenti di uno slug+UUID), 8 sono persone/org reali. Decisione: una card per `entity_id` per scena con le occorrenze come span, non una card per occorrenza (budget 25 vs 54 intenti, stesso volto ripetuto); lineage deve risolvere per identità, non per testo. Criterio: 0 per PERSON e `image_status`/`reasons` concordi. |
+| [49](TICKET-49-entity-intent-admission.md) | P1 | DONE (bound/Rust) (2026-11-24) | Run R30: 36 `entity_not_planned` su 88 intenti. Chiusi nel codice: gate di estrazione (niente DATE/NUMBER/slug/UUID), una card per identità canonica per scena con le occorrenze come span, lineage per `entity_id`, copertura cross-scene (`covered_intents`), metrica `entity_concordance` con `mismatched` e policy ORG/GPE (tutte le famiglie con card sono eleggibili). Resta esterno il run Augias reale (`entity_not_planned` PERSON = 0). |
 | [50](TICKET-50-entity-kind-ssot-and-envelope.md) | P2 | DONE (2026-11-23) | `EntityKind::fold_entity_kind` is the single spelling→family table: `overlay-compiler` dropped its private fold/card table, `MEDIA_OUTLET` now cards, binds its verified asset, is recovered when dropped and ranks as an organization. `Response::failure/success` take a typed `Operation` (112 failure call sites plus the success envelopes converted, dispatcher patch deleted) and every production `48000` derives from `CANONICAL_SAMPLE_RATE`. `README` documents the unified planner worker; `encode_ms` states that it mirrors `ffmpeg_ms`. 259 semantic-core, 172+33 overlay, 152+12 muscles and 175 semantic-engine tests pass; fmt and Clippy are clean. |
+
+## Decisioni e chiusure — 2026-11-24
+
+- **TICKET-49 DONE (bound/Rust).** `selected_entities` conta identità canoniche,
+  non occorrenze (`auditEntityImageGroupKey`); un intento entità è `covered`
+  quando la stessa identità ha una card in un'altra scena
+  (`entityIntentCoveredByIdentity`); l'audit pubblica
+  `entity_concordance.checked/mismatched` e i test
+  `TestOverlayIntentLineageCoversIdentityReusedAcrossScenes` /
+  `TestEntityConcordanceFlagsPlannedImageWithUnplannedIntent` passano. Un'ORG o
+  una GPE non è fuori policy: `entity_card_kind` copre PERSON, ORG, PLACE,
+  CONCEPT ed EVENT, quindi `entity_card_not_in_policy` non viene emesso e un
+  residuo è una perdita di ammissione contata in `intake.dropped_by_reason`.
+- **ROADMAP §4 DONE.** `FinalPlanV2.decisions` è additivo e tipizzato
+  (`stage`, `outcome`, `reason_code`), con 7 codici per la lane entità, 5 per
+  l'ammissione e 2 per il layout; due golden rigenerati dal planner reale,
+  166 lib test + 34 contract verdi, `every_decision_is_typed_and_names_its_candidate`
+  sull'intera matrice.
+- **GLiNER: doppio percorso mantenuto.** Il ramo `if !model_active` (~300
+  righe) resta: cancellarlo renderebbe GLiNER obbligatorio e toglierebbe il gate
+  CI model-free, che è un requisito operativo. La decisione è esplicita, non un
+  rinvio: le soglie per classe (`BRAINRUST_NER_THRESHOLD`,
+  `..._ORG_THRESHOLD`, `..._LOCATION_THRESHOLD`) restano documentate e il
+  modello resta opt-in.
+- **`meten` non è più un concetto visivo.** Regola generale, non eccezione di
+  fixture: una superficie `NOUN` che è esattamente il proprio lemma più un
+  suffisso infinitivo certificato è un predicato
+  (`surface_is_infinitive_of_lemma`); `huizen`/`huis` resta un concetto. Test
+  `dutch_infinitive_mislabelled_as_noun_is_a_predicate`.
+- **Parallelismo scene: decisione esplicita di non avviarlo.** Misura 2026-11-24
+  sul worker di release (20 long script, modelli attivi): 40,34–51,95 s di
+  parete, **90–97% di un core**, RSS ~1,46 GiB, replay identico. Il
+  registry condiviso rende il `par_iter` un cambio di semantica delle identità;
+  i criteri 1-vs-N byte-identico e CPU>1 core restano non soddisfatti per
+  decisione, con la baseline registrata nel ROADMAP §2.
+- **Superficie identità: grounded, forma dizionario dal registro.** La modifica
+  che rende `canonical_surface` la prima menzione grounded è ora nel commit
+  `116c8d4` (una sessione concorrente l'ha committata mentre questa analisi era
+  in corso), insieme al fallback di `3bc8654`. Il long gold al HEAD mostra
+  `pl` a entità 8/12 e oggetti 4/10 contro 11/12 e 9/10 del report precedente:
+  la causa è di **misura**, non di motore — `manifest.entities` pubblica la
+  superficie grounded (`pokoju`), mentre la forma dizionario (`pokój`) resta in
+  `scenes[].identities[].canonical_id`. Lo scorer ora legge anche il registro
+  identità (`identity_candidates`), quindi il campo grounded e il match
+  linguistico non sono più in conflitto: dopo la correzione `pl` torna a
+  **11/12 entità e 9/10 oggetti**, il totale è **94/124 entità**, oggetti
+  97/105 surface, frasi 82/82, query 20/20, chart 20/20, sequenze 80/80, 0
+  errori di grounding, replay identico. Report aggiornato:
+  `semantic-engine/fixtures/gold_multilingual/reports/long_gold_report_2026-11-24.json`.
+- **Release.** Il pin resta `v0.3.8` (`a4ab4cb`) mentre HEAD è
+  `v0.3.8-27-g46c36d3`: `make verify-rust-binary` rende il drift visibile e
+  `make build-rust-local` produce un binario tracciabile dal worktree. Il taglio
+  e la pubblicazione di un tag nuovo richiedono push e restano fuori da questa
+  sessione.
 
 ## Verification — 2026-11-20 (status audit, open and blocked tickets)
 

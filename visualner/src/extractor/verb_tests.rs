@@ -79,6 +79,22 @@ fn clitic_plus_verb_is_one_predicate() {
 }
 
 #[test]
+fn dutch_infinitive_mislabelled_as_noun_is_a_predicate() {
+    // UDPipe tags the Dutch infinitive `meten` NOUN with the stem `met` as
+    // lemma. The certified suffix table says the surface is `lemma + en`, so it
+    // is a predicate. `huizen` (lemma `huis`) is a plural noun, not the stem
+    // plus the suffix, and must keep its concept reading.
+    let words = tokens(&[("meten", Some("NOUN"), Some("met"))]);
+    assert!(is_verbal_predicate(&words, 0, 1, "nl"));
+    let words = tokens(&[("huizen", Some("NOUN"), Some("huis"))]);
+    assert!(!is_verbal_predicate(&words, 0, 1, "nl"));
+    // The rule is gated by the language profile: Dutch-only data must not
+    // filter the same surface in a language without the certified suffixes.
+    let words = tokens(&[("meten", Some("NOUN"), Some("met"))]);
+    assert!(!is_verbal_predicate(&words, 0, 1, "en"));
+}
+
+#[test]
 fn nominal_lemma_keeps_the_concept_reading() {
     // "La guarda del castello": the noun's lemma equals its surface.
     let words = tokens(&[

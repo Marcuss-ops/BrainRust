@@ -65,7 +65,34 @@ pub(super) fn is_verbal_continuation(tokens: &[Token], index: usize, language: &
 /// its surface (`guarda` -> `guarda`, `università` -> `università`) is never a
 /// predicate, which is why the suffix list is no longer needed.
 fn is_verb_token(token: &Token, language: &str) -> bool {
-    matches!(token.upos.as_deref(), Some("VERB" | "AUX")) || lemma_is_infinitive(token, language)
+    matches!(token.upos.as_deref(), Some("VERB" | "AUX"))
+        || lemma_is_infinitive(token, language)
+        || surface_is_infinitive_of_lemma(token, language)
+}
+
+/// The tagger can label an infinitive NOUN while its lemma is the stem: Dutch
+/// `meten` is tagged NOUN with lemma `met`. A surface that is exactly its own
+/// lemma plus one certified infinitive suffix is that mislabelled infinitive,
+/// not a noun: a Dutch plural (`huizen` -> `huis`) has a different stem, so it
+/// never matches. The suffix list is the per-language data, not a word
+/// exception.
+fn surface_is_infinitive_of_lemma(token: &Token, language: &str) -> bool {
+    if token.upos.as_deref() != Some("NOUN") {
+        return false;
+    }
+    let (Some(lemma), text) = (token.lemma.as_deref(), token.text.as_str()) else {
+        return false;
+    };
+    let lemma = lemma.to_lowercase();
+    let surface = text.to_lowercase();
+    if lemma.is_empty() || lemma == surface {
+        return false;
+    }
+    lexicon()
+        .language_profiles
+        .infinitive_suffixes(language)
+        .iter()
+        .any(|suffix| surface.strip_suffix(suffix.as_str()) == Some(lemma.as_str()))
 }
 
 fn lemma_is_infinitive(token: &Token, language: &str) -> bool {

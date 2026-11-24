@@ -69,6 +69,28 @@ Criteri di accettazione:
   numero riportato (non stimato);
 - nessuna regressione su recall/objects/queries/charts/sequences del long gold.
 
+**Misura e decisione 2026-11-24.** Baseline sul worker di release ricostruito
+dal tree corrente, 20 long script / 10 lingue / 5.669 parole, modelli UDPipe
+attivi (`VISUALNER_MODEL_DIR`): due esecuzioni dello stesso binario danno
+**40,34–51,95 s** di parete e **90–97% di un core** (47,12 s di CPU
+nell'esecuzione più lenta: 43,69 user + 3,43 sys), RSS massimo **~1,46 GiB**,
+replay identico, 0 errori di grounding. Il worker resta sequenziale e non
+supera un core: non c'è parallelismo nascosto da rimuovere, ma neppure il
+beneficio promesso.
+
+**Decisione: nessun `par_iter` in questa wave.** Il registry è condiviso e
+mutabile e le scene leggono le identità registrate dalle precedenti; un
+parallelismo per scena cambia gli id canonici e quindi il manifest, mentre il
+criterio di accettazione richiede manifest byte-identici tra 1 e N thread sul
+corpus 100 + 20 long script. La sequenza corretta resta quella del piano:
+profilo della singola sceneggiatura, separazione fasi per-scena/script-wide,
+decisione esplicita sulla semantica delle identità, poi pool legato a
+`SEMANTIC_ENGINE_WORKERS`. I criteri CPU>1 core e 1-vs-N restano **non
+soddisfatti per decisione**, non per omissione: aggirarli con un registry
+per-scena senza la fusione deterministica produrrebbe un output diverso, non
+più veloce. La misura sopra è la baseline da confrontare quando la decisione
+verrà presa.
+
 Rischio: dipendenze nascoste tra scene (identità canoniche, contatori di id).
 Il test di determinismo è la condizione per procedere, non un extra.
 
@@ -101,7 +123,7 @@ Blocchi: `heaptrack`/`dhat` non sono installati in questo ambiente e i runner
 CI del repository non sono disponibili da qui. La parte di harness è
 implementabile, la prova di regressione no.
 
-## 4. Piano editoriale spiegabile — OPEN (planner congelato)
+## 4. Piano editoriale spiegabile — DONE (2026-11-24)
 
 `overlay-compiler/src/editorial_plan_v2/planner/` ha già i passi `candidates`,
 `coalesce`, `media`, `presentation`. Il grosso del planner è atterrato in
@@ -129,6 +151,22 @@ Criteri di accettazione:
 - golden rigenerati dal planner reale, non scritti a mano;
 - `overlay_plan_contract` e i test di determinismo verdi;
 - nessun campo obbligatorio nuovo per un piano v2 già valido.
+
+Chiusura 2026-11-24. `FinalPlanV2.decisions` è additivo
+(`#[serde(default, skip_serializing_if = "Vec::is_empty")]`) e ogni voce porta
+`candidate_id`, `scene_id`, `entity_id`, `canonical_entity_id`, `stage`,
+`outcome` e `reason_code` (enum stabile). I motivi coprono la lane entità
+(`ENTITY_KIND_UNSUPPORTED`, `MAP_COVERS_ENTITY`, `DUPLICATE_IDENTITY`,
+`TEXT_CARD_LIMIT`, `NO_TIMING_WINDOW`), l'ammissione (`MAPS_ONLY`,
+`CATEGORY_DISABLED`, `GROUP_LIMIT`, `BUDGET_EXCEEDED`, `PER_SCENE_LIMIT`) e il
+layout (`OVERLAP_LOST`, `CLIPPED_OUT`). Due golden congelati sono stati
+rigenerati dal planner reale (`maps_trim_overlap` +16 voci,
+`chain_collision_resolution` +16); gli altri otto restano byte-identici perché
+non perdono candidati. Il test
+`every_decision_is_typed_and_names_its_candidate` gira sull'intera matrice e
+`cargo test -p overlay-compiler --locked` passa **166 lib + 34 contract**.
+Non sono registrate come decisioni le perdite di `chain_overlap`, che restano
+contate in `intake.dropped_by_reason`.
 
 ## 5. Più lingue — BLOCKED (annotatore madrelingua + modelli)
 

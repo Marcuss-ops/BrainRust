@@ -3,7 +3,7 @@
 **Data:** 2026-11-22
 **Priorità:** P1
 **Repo:** `BrainRust` (planner/estrazione) + `refactored` (lineage dell'audit)
-**Stato:** PARTIAL (2026-11-23) — implementati il gate di estrazione (niente DATE/NUMBER/slug/UUID negli intenti entità), il join di lineage per identità canonica, l'ammissione planner di una card per identità canonica per scena e la fixture R30 ridotta; restano la concordanza `image_status`/lineage e la prova su un run Augias.
+**Stato:** DONE (bound/Rust) (2026-11-24) — implementati il gate di estrazione (niente DATE/NUMBER/slug/UUID negli intenti entità), il join di lineage per identità canonica, l'ammissione planner di una card per identità canonica per scena, la metrica di concordanza `image_status`/`overlay_timing`, il conteggio per identità e la policy ORG/GPE. Resta esterno solo il criterio che richiede un run Augias reale (Master/render).
 
 ## Sintomo misurato
 
@@ -131,20 +131,42 @@ Verifiche eseguite il 2026-11-23 sul tree `refactored`:
       occorrenze di Augias/Pesce/Mancuso risolte, anche fuori dalla scena della
       card)
 - [ ] `entity_not_planned` complessivo ≤ 8 e ogni residuo ha un motivo
-      dichiarato (`entity_card_not_in_policy` per ORG/GPE fuori policy)
+      dichiarato. Decisione 2026-11-24: PERSON, ORG, PLACE (GPE/FAC), CONCEPT ed
+      EVENT sono **tutti** nella lane card del planner
+      (`entity_card_kind`), quindi nessuna identità è fuori policy e
+      `entity_card_not_in_policy` non viene emesso; un residuo ORG/GPE è una
+      perdita di ammissione, contata in `intake.dropped_by_reason`.
 - [x] nessun intento entità con tipo `DATE`/`NUMBER` — gate `entityIntentEligible`
       applicato alla proiezione degli intenti; copre anche `TIME`/`MONEY`/`PERCENT`
 - [x] nessuna entità che contenga `_` seguito da un UUID, nessun frammento
       numerico di slug (`57`, `8-24`, `444`, `913`, `7088122`, `88`) — regex UUID
       nel gate; i frammenti numerici sono esclusi dalla famiglia `NUMBER`
-- [ ] due occorrenze della stessa entità nella stessa scena non producono due
-      asset distinti: `selected_entities` non cresce con le occorrenze. Il
-      dedupe planner è coperto dal test Rust; manca la metrica su R30
-- [ ] `image_status` e `overlay_timing.reasons` concordano sullo stesso
-      `entity_id` (nessun caso "planned" + "entity_not_planned")
+- [x] due occorrenze della stessa entità nella stessa scena non producono due
+      asset distinti: `selected_entities` raggruppa per identità canonica
+      (`auditEntityImageGroupKey`), non per occorrenza. Coperto da
+      `TestOverlayIntentLineageCoversIdentityReusedAcrossScenes` e dal dedupe
+      planner `r30_entity_cards_are_deduplicated_by_canonical_identity_per_scene`
+- [x] `image_status` e `overlay_timing.reasons` concordano sullo stesso
+      `entity_id`: l'audit pubblica `entity_concordance.checked/mismatched` e
+      un intento con card altrove è `covered`, non non risolto. Coperto da
+      `TestEntityConcordanceFlagsPlannedImageWithUnplannedIntent`
 - [x] fixture di contratto: R30 ridotto a `entity_id` + occorrenze, con il caso
       Augias cross-scene come regressione — `tests/fixtures/r30-entity-admission.json`,
       test `r30_entity_cards_are_deduplicated_by_canonical_identity_per_scene`
+
+## Implementazione 2026-11-24 — concordanza, metrica e policy
+
+| Pezzo | Dove | Test |
+| --- | --- | --- |
+| Copertura run-level: un intento entità è risolto se la stessa identità canonica ha una card in un'altra scena (la card è riusata, il timing resta della sua scena) | `refactored/internal/capabilities/scripts/overlay_plan_freeze.go` (`entityIntentCoveredByIdentity`, `Covered`) | `TestOverlayIntentLineageCoversIdentityReusedAcrossScenes` |
+| Metrica di concordanza `entity_concordance` con `checked`, `mismatched` e l'elenco dei conflitti; un'immagine `planned` più un intento non risolto sulla stessa identità è un errore di misura | `refactored/internal/capabilities/scripts/overlay_audit.go` (`buildOverlayAuditEntityConcordance`) | `TestEntityConcordanceFlagsPlannedImageWithUnplannedIntent` |
+| `selected_entities` conta identità, non occorrenze: la chiave di gruppo preferisce `canonical_entity_id` | `refactored/internal/capabilities/scripts/overlay_audit_images.go` (`auditEntityImageGroupKey`) | test cross-scene sopra (una sola promise per due occorrenze) |
+| Contratto additivo: `covered_intents`, `entity_id`/`canonical_entity_id` sugli item non risolti, `entity_concordance` | `refactored/internal/capabilities/scripts/contract/overlay_audit*.go` | round-trip JSON dei campi nel pacchetto `scripts` |
+| Policy ORG/GPE: tutte le famiglie con card (`PERSON`, `ORG`, `PLACE`, `CONCEPT`, `EVENT`) sono eleggibili; nessun `entity_card_not_in_policy` | `BrainRust/overlay-compiler/src/editorial_plan_v2/planner/media.rs` (`entity_card_kind`) | `TestOverlayIntentLineageCoversIdentityReusedAcrossScenes` (ORG coperta) |
+
+Verifica: `go vet ./internal/capabilities/scripts/` → **rc 0**;
+`go test ./internal/capabilities/scripts/ -count=1` → **PASS** (24,3 s), inclusi i
+test mirati `TestOverlayIntentLineageCovers|TestEntityConcordance|TestFreezeOverlayIntents|TestEntityIntentEligible|TestSceneEntityInput`.
 
 ## Rischi / rollback
 

@@ -56,6 +56,30 @@ def unique_candidates(items: list[dict]) -> list[dict]:
     return output
 
 
+def identity_candidates(manifest: dict, allowed_types: set[str]) -> list[dict]:
+    """Dictionary forms from the identity registry.
+
+    `manifest.entities` publishes the grounded surface (`pokoju`), while the
+    same identity keeps its lemma in `canonical_id` (`entity:pokój`). Scoring
+    only the grounded projection made every inflected Polish name/object a
+    miss; the registry is the dictionary authority, the surface stays the
+    evidence. Only identities whose dictionary form differs from the grounded
+    surface are added, so the candidate set does not grow with duplicates.
+    """
+    output = []
+    for scene in manifest.get("scenes", []):
+        for identity in scene.get("identities", []):
+            if type_of(identity.get("type")) not in allowed_types:
+                continue
+            canonical_id = str(identity.get("canonical_id") or "")
+            dictionary = canonical_id.split(":", 1)[1].replace("-", " ") if ":" in canonical_id else ""
+            surface = identity.get("canonical_surface") or ""
+            text = dictionary or surface
+            if text and normalize(text) != normalize(surface):
+                output.append({"text": text, "type": identity.get("type")})
+    return output
+
+
 def category_score(expected: list[dict], actual: list[dict], *, typed: bool = True) -> dict:
     matches = []
     used = set()
@@ -267,6 +291,7 @@ def score_one(worker: Worker, script_id: str, spec: dict, default_authority: str
             "type": entity.get("entity_type")}
            for entity in manifest.get("entities", [])
            if entity.get("entity_type") in NAMED_TYPES]
+        + identity_candidates(manifest, NAMED_TYPES)
     )
     objects = unique_candidates(
         [x for x in scene.get("entities", []) if x.get("type") in OBJECT_TYPES]
@@ -274,6 +299,7 @@ def score_one(worker: Worker, script_id: str, spec: dict, default_authority: str
             "type": entity.get("entity_type")}
            for entity in manifest.get("entities", [])
            if entity.get("entity_type") in OBJECT_TYPES]
+        + identity_candidates(manifest, OBJECT_TYPES)
     )
     phrases = []
     for field in ("short_phrases", "long_phrases", "important_segments"):
