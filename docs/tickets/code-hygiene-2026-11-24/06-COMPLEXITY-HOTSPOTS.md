@@ -84,5 +84,14 @@ cargo clippy -p semantic-core -p pipelinegen-muscles -p visualner -p semantic-en
   `validate_chapter_options`, `validate_request_header`,
   `validate_segment_alignment`, `resolve_scene_context`, `build_vectors`,
   `rank_sentences` e `build_bullets`. I 66 test Phrase Impact passano,
-  clippy `-D warnings` e rustfmt sono verdi. La scheda resta PARTIAL finché gli
-  altri hotspot non sono chiusi.
+  clippy `-D warnings` e rustfmt sono verdi.
+- `semantic-engine/src/events/proximity.rs::nearest_candidate` (CC 56, 140 LOC)
+  è diviso in `syntactic_candidates`, `unique_work_object`,
+  `unique_work_subject` e `proximity_fallback`; i 28 test eventi passano.
+- `semantic-engine/src/facts.rs::extract_entity_facts` (CC 40, 297 LOC) usa ora
+  `SentenceFacts` con metodi separati per inaugurazione, capacità, proprietà e
+  ubicazione (esplicita + fallback preposizionale). Test mirati e clippy
+  `--no-deps` verdi.
+- Restano bloccati dal workstream concorrente i file `visualner`
+  (`values/classify.rs`, `extractor/names.rs`, `extractor/phrases.rs`, `values.rs`).
+  La scheda resta PARTIAL finché gli hotspot restanti non sono chiusi.

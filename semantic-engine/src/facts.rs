@@ -288,19 +288,65 @@ pub(crate) fn extract_entity_facts(
         };
         let normalized_sentence = evidence.to_lowercase();
         let subject_entity_id = identities.id_of(entity_index);
-        for fact in temporal_facts {
-            if fact.start_byte < sentence.start_byte || fact.end_byte > sentence.end_byte {
+        let facts = SentenceFacts {
+            source,
+            sentence_index,
+            sentence,
+            evidence,
+            normalized: &normalized_sentence,
+            entity_index,
+            subject_entity_id: &subject_entity_id,
+            entities,
+            numeric_facts,
+            temporal_facts,
+            identities,
+        };
+        facts.push_inauguration(&mut out);
+        facts.push_capacity(&mut out);
+        facts.push_ownership(&mut out);
+        facts.push_location(&mut out);
+    }
+    out
+}
+
+/// Everything one sentence needs to attribute facts to its facility. Keeping
+/// the references together lets each fact family live in its own method.
+struct SentenceFacts<'a> {
+    source: &'a str,
+    sentence_index: usize,
+    sentence: &'a semantic_core::SentenceSpan,
+    evidence: &'a str,
+    normalized: &'a str,
+    entity_index: usize,
+    subject_entity_id: &'a str,
+    entities: &'a [VisualEntity],
+    numeric_facts: &'a [semantic_core::NumericFact],
+    temporal_facts: &'a [TemporalFact],
+    identities: &'a IdentityLookup,
+}
+
+impl SentenceFacts<'_> {
+    /// Inauguration facts require a temporal fact and an explicit marker in the
+    /// same sentence.
+    fn push_inauguration(&self, out: &mut Vec<EntityFact>) {
+        for fact in self.temporal_facts {
+            if fact.start_byte < self.sentence.start_byte || fact.end_byte > self.sentence.end_byte
+            {
                 continue;
             }
             if !contains_any(
-                &normalized_sentence,
+                self.normalized,
                 &lexicon::lexicon().facility.inauguration_markers,
             ) {
                 continue;
             }
             out.push(EntityFact {
-                id: format!("{}_inaugurated_{:02}", subject_entity_id, out.len() + 1),
-                subject_entity_id: subject_entity_id.clone(),
+                id: format!(
+                    "{}_inaugurated_{:02}",
+                    self.subject_entity_id,
+                    out.len() + 1
+                ),
+                subject_entity_id: self.subject_entity_id.to_string(),
                 predicate: "inaugurated_year".to_string(),
                 value: fact.surface.clone(),
                 value_type: "DATE".to_string(),
@@ -309,21 +355,26 @@ pub(crate) fn extract_entity_facts(
                 target_entity_id: None,
                 unit: None,
                 operator: None,
-                status: fact_status(&normalized_sentence),
-                sentence_index,
-                evidence: evidence.to_string(),
+                status: fact_status(self.normalized),
+                sentence_index: self.sentence_index,
+                evidence: self.evidence.to_string(),
                 start_byte: fact.start_byte,
                 end_byte: fact.end_byte,
-                evidence_start_byte: sentence.start_byte,
-                evidence_end_byte: sentence.end_byte,
+                evidence_start_byte: self.sentence.start_byte,
+                evidence_end_byte: self.sentence.end_byte,
                 importance: 0.0,
                 visual_concept_ids: Vec::new(),
             });
         }
-        for fact in numeric_facts {
-            if fact.start_byte < sentence.start_byte
-                || fact.end_byte > sentence.end_byte
-                || temporal_facts.iter().any(|date| {
+    }
+
+    /// Capacity facts require a numeric fact, a capacity marker and, when one
+    /// of the lexical units is present, the `seats` unit.
+    fn push_capacity(&self, out: &mut Vec<EntityFact>) {
+        for fact in self.numeric_facts {
+            if fact.start_byte < self.sentence.start_byte
+                || fact.end_byte > self.sentence.end_byte
+                || self.temporal_facts.iter().any(|date| {
                     date.start_byte == fact.start_byte && date.end_byte == fact.end_byte
                 })
             {
@@ -332,9 +383,9 @@ pub(crate) fn extract_entity_facts(
             // Overlapping numeric spans ("oltre 10.000 posti" and "10.000")
             // describe ONE value: keep the widest grounded surface so a
             // capacity fact is never emitted twice with different text.
-            if numeric_facts.iter().any(|other| {
-                other.start_byte >= sentence.start_byte
-                    && other.end_byte <= sentence.end_byte
+            if self.numeric_facts.iter().any(|other| {
+                other.start_byte >= self.sentence.start_byte
+                    && other.end_byte <= self.sentence.end_byte
                     && other.start_byte <= fact.start_byte
                     && other.end_byte >= fact.end_byte
                     && (other.end_byte - other.start_byte) > (fact.end_byte - fact.start_byte)
@@ -342,10 +393,10 @@ pub(crate) fn extract_entity_facts(
                 continue;
             }
             let facility = &lexicon::lexicon().facility;
-            if !contains_any(&normalized_sentence, &facility.capacity_markers) {
+            if !contains_any(self.normalized, &facility.capacity_markers) {
                 continue;
             }
-            let unit = if contains_any(&normalized_sentence, &facility.capacity_unit_markers) {
+            let unit = if contains_any(self.normalized, &facility.capacity_unit_markers) {
                 Some("seats")
             } else {
                 None
@@ -353,11 +404,11 @@ pub(crate) fn extract_entity_facts(
             let operator = facility
                 .operators
                 .iter()
-                .find(|operator| contains_any(&normalized_sentence, &operator.markers))
+                .find(|operator| contains_any(self.normalized, &operator.markers))
                 .map(|operator| operator.symbol.as_str());
             out.push(EntityFact {
-                id: format!("{}_capacity_{:02}", subject_entity_id, out.len() + 1),
-                subject_entity_id: subject_entity_id.clone(),
+                id: format!("{}_capacity_{:02}", self.subject_entity_id, out.len() + 1),
+                subject_entity_id: self.subject_entity_id.to_string(),
                 predicate: "capacity".to_string(),
                 value: fact.surface.clone(),
                 value_type: fact.kind.clone(),
@@ -366,32 +417,37 @@ pub(crate) fn extract_entity_facts(
                 target_entity_id: None,
                 unit: unit.map(str::to_string),
                 operator: operator.map(str::to_string),
-                status: fact_status(&normalized_sentence),
-                sentence_index,
-                evidence: evidence.to_string(),
+                status: fact_status(self.normalized),
+                sentence_index: self.sentence_index,
+                evidence: self.evidence.to_string(),
                 start_byte: fact.start_byte,
                 end_byte: fact.end_byte,
-                evidence_start_byte: sentence.start_byte,
-                evidence_end_byte: sentence.end_byte,
+                evidence_start_byte: self.sentence.start_byte,
+                evidence_end_byte: self.sentence.end_byte,
                 importance: 0.0,
                 visual_concept_ids: Vec::new(),
             });
         }
+    }
+
+    /// Ownership requires an explicit marker followed by a grounded PERSON/ORG.
+    fn push_ownership(&self, out: &mut Vec<EntityFact>) {
         for (marker, predicate, target_kind) in [
             ("di proprietà", "owned_by", "owner"),
             ("owned by", "owned_by", "owner"),
         ] {
-            let Some(marker_offset) = normalized_sentence.find(marker) else {
+            let Some(marker_offset) = self.normalized.find(marker) else {
                 continue;
             };
-            let target_after = sentence.start_byte + marker_offset + marker.len();
-            let target = entities
+            let target_after = self.sentence.start_byte + marker_offset + marker.len();
+            let target = self
+                .entities
                 .iter()
                 .enumerate()
                 .find(|(candidate_index, candidate)| {
-                    *candidate_index != entity_index
+                    *candidate_index != self.entity_index
                         && candidate.start >= target_after
-                        && candidate.end <= sentence.end_byte
+                        && candidate.end <= self.sentence.end_byte
                         && candidate.r#type != "FACILITY"
                         && if target_kind == "LOCATION" {
                             candidate.r#type == "LOCATION"
@@ -402,10 +458,15 @@ pub(crate) fn extract_entity_facts(
             let Some((target_index, target)) = target else {
                 continue;
             };
-            let target_entity_id = identities.id_of(target_index);
+            let target_entity_id = self.identities.id_of(target_index);
             out.push(EntityFact {
-                id: format!("{}_{}_{:02}", subject_entity_id, predicate, out.len() + 1),
-                subject_entity_id: subject_entity_id.clone(),
+                id: format!(
+                    "{}_{}_{:02}",
+                    self.subject_entity_id,
+                    predicate,
+                    out.len() + 1
+                ),
+                subject_entity_id: self.subject_entity_id.to_string(),
                 predicate: predicate.to_string(),
                 value: target.text.clone(),
                 value_type: "ENTITY".to_string(),
@@ -414,31 +475,43 @@ pub(crate) fn extract_entity_facts(
                 target_entity_id: Some(target_entity_id),
                 unit: None,
                 operator: None,
-                status: relation_fact_status(&normalized_sentence, marker_offset),
-                sentence_index,
-                evidence: evidence.to_string(),
+                status: relation_fact_status(self.normalized, marker_offset),
+                sentence_index: self.sentence_index,
+                evidence: self.evidence.to_string(),
                 start_byte: target.start,
                 end_byte: target.end,
-                evidence_start_byte: sentence.start_byte,
-                evidence_end_byte: sentence.end_byte,
+                evidence_start_byte: self.sentence.start_byte,
+                evidence_end_byte: self.sentence.end_byte,
                 importance: 0.0,
                 visual_concept_ids: Vec::new(),
             });
         }
+    }
+
+    fn push_location(&self, out: &mut Vec<EntityFact>) {
+        if !self.push_explicit_location(out) {
+            self.push_bare_location(out);
+        }
+    }
+
+    /// An explicit locative marker wins over the bare-preposition fallback.
+    /// Returns true only when a located_in fact was actually emitted.
+    fn push_explicit_location(&self, out: &mut Vec<EntityFact>) -> bool {
         for marker in &lexicon::lexicon().facility.location_relation_markers {
-            let Some(marker_offset) = normalized_sentence.find(marker) else {
+            let Some(marker_offset) = self.normalized.find(marker) else {
                 continue;
             };
-            let target_after = sentence.start_byte + marker_offset + marker.len();
-            let local_target = entities
-                .iter()
-                .enumerate()
-                .find(|(candidate_index, candidate)| {
-                    *candidate_index != entity_index
-                        && candidate.start >= target_after
-                        && candidate.end <= sentence.end_byte
-                        && candidate.r#type == "LOCATION"
-                });
+            let target_after = self.sentence.start_byte + marker_offset + marker.len();
+            let local_target =
+                self.entities
+                    .iter()
+                    .enumerate()
+                    .find(|(candidate_index, candidate)| {
+                        *candidate_index != self.entity_index
+                            && candidate.start >= target_after
+                            && candidate.end <= self.sentence.end_byte
+                            && candidate.r#type == "LOCATION"
+                    });
             let target_span = local_target
                 .map(|(target_index, target)| {
                     (target_index, target.text.clone(), target.start, target.end)
@@ -448,29 +521,32 @@ pub(crate) fn extract_entity_facts(
                     // canonical place. After an explicit locative predicate, a
                     // later exact spelling of that already typed place is still
                     // grounded evidence and can supply this sentence's span.
-                    let tail_start = target_after.max(sentence.start_byte);
-                    let tail = source.get(tail_start..sentence.end_byte)?;
-                    entities.iter().enumerate().find_map(|(index, candidate)| {
-                        if candidate.r#type != "LOCATION" {
-                            return None;
-                        }
-                        let relative = tail.find(&candidate.text)?;
-                        let start = tail_start + relative;
-                        Some((
-                            index,
-                            candidate.text.clone(),
-                            start,
-                            start + candidate.text.len(),
-                        ))
-                    })
+                    let tail_start = target_after.max(self.sentence.start_byte);
+                    let tail = self.source.get(tail_start..self.sentence.end_byte)?;
+                    self.entities
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, candidate)| {
+                            if candidate.r#type != "LOCATION" {
+                                return None;
+                            }
+                            let relative = tail.find(&candidate.text)?;
+                            let start = tail_start + relative;
+                            Some((
+                                index,
+                                candidate.text.clone(),
+                                start,
+                                start + candidate.text.len(),
+                            ))
+                        })
                 });
             let Some((target_index, target_text, target_start, target_end)) = target_span else {
                 continue;
             };
-            let target_entity_id = identities.id_of(target_index);
+            let target_entity_id = self.identities.id_of(target_index);
             out.push(EntityFact {
-                id: format!("{}_located_in_{:02}", subject_entity_id, out.len() + 1),
-                subject_entity_id: subject_entity_id.clone(),
+                id: format!("{}_located_in_{:02}", self.subject_entity_id, out.len() + 1),
+                subject_entity_id: self.subject_entity_id.to_string(),
                 predicate: "located_in".to_string(),
                 value: target_text,
                 value_type: "ENTITY".to_string(),
@@ -479,71 +555,75 @@ pub(crate) fn extract_entity_facts(
                 target_entity_id: Some(target_entity_id),
                 unit: None,
                 operator: None,
-                status: relation_fact_status(&normalized_sentence, marker_offset),
-                sentence_index,
-                evidence: evidence.to_string(),
+                status: relation_fact_status(self.normalized, marker_offset),
+                sentence_index: self.sentence_index,
+                evidence: self.evidence.to_string(),
                 start_byte: target_start,
                 end_byte: target_end,
-                evidence_start_byte: sentence.start_byte,
-                evidence_end_byte: sentence.end_byte,
+                evidence_start_byte: self.sentence.start_byte,
+                evidence_end_byte: self.sentence.end_byte,
                 importance: 0.0,
                 visual_concept_ids: Vec::new(),
             });
             break;
         }
-        // "lo stadio di Torino": a bare prepositional phrase is enough when
-        // the subject is the scene's facility and the target is a grounded
-        // LOCATION mention. An explicit marker above wins over this fallback.
+        true
+    }
+
+    /// "lo stadio di Torino": a bare prepositional phrase is enough when the
+    /// subject is the scene's facility and the target is a grounded LOCATION.
+    fn push_bare_location(&self, out: &mut Vec<EntityFact>) {
         let has_location = out.iter().any(|fact| {
-            fact.subject_entity_id == subject_entity_id && fact.predicate == "located_in"
+            fact.subject_entity_id == self.subject_entity_id && fact.predicate == "located_in"
         });
-        if !has_location {
-            let target = entities.iter().enumerate().find(|(index, candidate)| {
-                *index != entity_index
+        if has_location {
+            return;
+        }
+        let target = self.entities.iter().enumerate().find(|(index, candidate)| {
+            *index != self.entity_index
                     && candidate.r#type == "LOCATION"
                         // A city embedded in another proper name earlier in
                         // the sentence ("Comune di Torino ... Stadio Aurora")
                         // is not evidence that the facility itself is there.
-                        && candidate.start >= entities[entity_index].end
-                    && candidate.end <= sentence.end_byte
+                        && candidate.start >= self.entities[self.entity_index].end
+                    && candidate.end <= self.sentence.end_byte
                     && location_cue_precedes(
-                        source,
-                        sentence.start_byte,
+                        self.source,
+                        self.sentence.start_byte,
                         candidate.start,
                         &lexicon::lexicon().facility.bare_location_prepositions,
                     )
-            });
-            if let Some((target_index, target)) = target {
-                out.push(EntityFact {
-                    id: format!(
-                        "{}_{}_{:02}",
-                        subject_entity_id,
-                        "located_in",
-                        out.len() + 1
-                    ),
-                    subject_entity_id: subject_entity_id.clone(),
-                    predicate: "located_in".to_string(),
-                    value: target.text.clone(),
-                    value_type: "ENTITY".to_string(),
-                    normalized_value: None,
-                    normalized_date: None,
-                    target_entity_id: Some(identities.id_of(target_index)),
-                    unit: None,
-                    operator: None,
-                    status: fact_status(&normalized_sentence),
-                    sentence_index,
-                    evidence: evidence.to_string(),
-                    start_byte: target.start,
-                    end_byte: target.end,
-                    evidence_start_byte: sentence.start_byte,
-                    evidence_end_byte: sentence.end_byte,
-                    importance: 0.0,
-                    visual_concept_ids: Vec::new(),
-                });
-            }
-        }
+        });
+        let Some((target_index, target)) = target else {
+            return;
+        };
+        out.push(EntityFact {
+            id: format!(
+                "{}_{}_{:02}",
+                self.subject_entity_id,
+                "located_in",
+                out.len() + 1
+            ),
+            subject_entity_id: self.subject_entity_id.to_string(),
+            predicate: "located_in".to_string(),
+            value: target.text.clone(),
+            value_type: "ENTITY".to_string(),
+            normalized_value: None,
+            normalized_date: None,
+            target_entity_id: Some(self.identities.id_of(target_index)),
+            unit: None,
+            operator: None,
+            status: fact_status(self.normalized),
+            sentence_index: self.sentence_index,
+            evidence: self.evidence.to_string(),
+            start_byte: target.start,
+            end_byte: target.end,
+            evidence_start_byte: self.sentence.start_byte,
+            evidence_end_byte: self.sentence.end_byte,
+            importance: 0.0,
+            visual_concept_ids: Vec::new(),
+        });
     }
-    out
 }
 
 /// True when the word immediately before `target_start` is a locative
