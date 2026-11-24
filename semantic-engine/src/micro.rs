@@ -360,6 +360,8 @@ mod tests {
         )
     }
 
+    // Test-only fixture helper. The production `too_many_arguments` sites were
+    // replaced by context structs; this one is not compiled into the binary.
     #[allow(clippy::too_many_arguments)]
     fn fact(
         id: &str,

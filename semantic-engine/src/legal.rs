@@ -151,20 +151,20 @@ pub fn extract(
                     let Some(subject_index) = subject_index else {
                         continue;
                     };
-                    let Some(resolved) = resolve_value(
+                    let Some(resolved) = resolve_value(ResolveValueContext {
                         source,
-                        sentence.start_byte,
-                        sentence.end_byte,
+                        sentence_start: sentence.start_byte,
+                        sentence_end: sentence.end_byte,
                         marker_start,
                         marker_end,
                         pattern,
                         entities,
                         entity_ids,
-                        &in_sentence,
+                        in_sentence: in_sentence.as_slice(),
                         subject_index,
                         temporal_facts,
                         numeric_facts,
-                    ) else {
+                    }) else {
                         continue;
                     };
                     let ResolvedValue {
@@ -355,21 +355,38 @@ struct ResolvedValue {
     target: Option<String>,
 }
 
-#[allow(clippy::too_many_arguments)]
-fn resolve_value(
-    source: &str,
+/// All context needed to resolve the value side of one legal fact. The struct
+/// keeps the former twelve positional parameters named at the call site.
+struct ResolveValueContext<'a> {
+    source: &'a str,
     sentence_start: usize,
     sentence_end: usize,
     marker_start: usize,
     marker_end: usize,
-    pattern: &LegalPattern,
-    entities: &[VisualEntity],
-    entity_ids: &[String],
-    in_sentence: &[usize],
+    pattern: &'a LegalPattern,
+    entities: &'a [VisualEntity],
+    entity_ids: &'a [String],
+    in_sentence: &'a [usize],
     subject_index: usize,
-    temporal_facts: &[TemporalFact],
-    numeric_facts: &[NumericFact],
-) -> Option<ResolvedValue> {
+    temporal_facts: &'a [TemporalFact],
+    numeric_facts: &'a [NumericFact],
+}
+
+fn resolve_value(input: ResolveValueContext<'_>) -> Option<ResolvedValue> {
+    let ResolveValueContext {
+        source,
+        sentence_start,
+        sentence_end,
+        marker_start,
+        marker_end,
+        pattern,
+        entities,
+        entity_ids,
+        in_sentence,
+        subject_index,
+        temporal_facts,
+        numeric_facts,
+    } = input;
     match pattern.value_kind() {
         ValueKind::Date => {
             let in_sentence: Vec<&TemporalFact> = temporal_facts

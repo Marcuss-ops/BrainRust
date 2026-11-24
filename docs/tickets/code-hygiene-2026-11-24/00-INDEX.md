@@ -18,14 +18,14 @@ a GPU or a live service is declared `BLOCKED` or `OPEN`, never `PASS`.
 | [BR-STATE-01](04-UNBOUNDED-GLOBAL-STATE.md) | P1 | CLOSED | Unbounded `LATEST` map and unvalidated `schema` field |
 | [BR-ERR-01](05-IGNORED-ERRORS-AND-PANICS.md) | P1 | CLOSED | Discarded `Result`s, production `unwrap`/`expect` and one `panic!` |
 | [BR-HOT-01](06-COMPLEXITY-HOTSPOTS.md) | P1 | OPEN | Eight complexity hotspots (CC 40–65, 114–311 LOC) |
-| [BR-LEGACY-01](07-LEGACY-BRANCHES-AND-ARGS.md) | P2 | OPEN | Legacy audio/chart/alias branches and nine `too_many_arguments` |
+| [BR-LEGACY-01](07-LEGACY-BRANCHES-AND-ARGS.md) | P2 | PARTIAL | Legacy audio/chart/alias branches and eight production `too_many_arguments` (+1 test-only) |
 | [BR-DRY-02](08-CLONE-STORM-AND-CORE-DUP.md) | P2 | OPEN | `.clone()` storm and duplicate tokenize/sentence/word primitives |
 | [BR-CI-01](09-CI-AUTONOMOUS.md) | P0 | CLOSED | Language-pack gate must not require the Go checkout |
 | [BR-CACHE-01](10-UDPIPE-CONTENT-DIGEST.md) | P1 | CLOSED | UDPipe model identity must be content-addressed |
 | [BR-PERF-01](11-SCENE-PARALLELISM.md) | P2 | OPEN | Scene analysis is sequential and unmeasured |
 | [BR-PUB-01](12-PUBLIC-READINESS.md) | P3 | OPEN | Public presentation, license and reproducible demo |
 
-**Counts:** 6 CLOSED · 1 PARTIAL · 5 OPEN.
+**Counts:** 6 CLOSED · 2 PARTIAL · 4 OPEN.
 
 The 2026-11-24 external review added BR-CI-01, BR-CACHE-01, BR-PERF-01 and
 BR-PUB-01. Independent semantic validation is already tracked by
@@ -59,10 +59,10 @@ workstream, record the blocked gate instead of claiming a pass.
 
 ## Worktree rule
 
-`BrainRust` currently has 14 modified/untracked files from another workstream
-(`overlay-compiler/src/editorial_plan_v2/planner/*`, `visualner/src/extractor/verb*`).
-This wave must not stage or revert them. Commit only the paths listed in the
-ticket.
+`BrainRust` currently has modified/untracked files from several concurrent
+workstreams (lexicon, `semantic-core`, `visualner`, `overlay-compiler` and
+docs). This wave must not stage or revert them. Commit only the paths listed in
+the ticket.
 
 ## Verification (2026-11-24)
 
@@ -88,10 +88,15 @@ as before: they must be rerun in closeout when the worktree is quiet.
 
 ## Remaining blockers
 
-- **BR-HYG-01:** `target/` removal deferred while other profiles are compiling.
-- **BR-HOT-01 / BR-LEGACY-01 / BR-DRY-02:** need dedicated equivalence tests or
-  touch files already dirty in the concurrent workstream. They stay OPEN with
-  the precise next step in each ticket.
+- **BR-HYG-01 (PARTIAL):** `target/` removal deferred while other profiles are
+  compiling; the other artifacts are gone.
+- **BR-HOT-01 / BR-DRY-02:** need dedicated equivalence tests or touch files
+  already dirty in the concurrent workstream. They stay OPEN with the precise
+  next step in each ticket.
+- **BR-LEGACY-01 (PARTIAL):** eight production `too_many_arguments` are
+  refactored and the legacy branches are documented/tested; the workspace test
+  is blocked only by the `semantic-engine` doctest E0463. Re-run when the
+  workspace is quiet.
 - **BR-PERF-01:** needs a reproducible baseline and byte-identical manifest
   proof before parallelising scenes.
 - **BR-PUB-01:** the license choice is an owner decision; the demo and README

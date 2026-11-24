@@ -10,6 +10,14 @@ use crate::editorial_plan_v2::is_chain_kind;
 /// Default handoff between two chain segments. It is a real gap in the plan:
 /// the previous segment has ended, the next one has not started yet.
 /// `animation_counts.chain_handoff_ms` overrides it (0 makes segments abut).
+///
+/// Owner: `overlay-compiler` planner. Removal: 2027-03-31, once every producer
+/// sets `chain_handoff_ms`. Ticket:
+/// `docs/tickets/code-hygiene-2026-11-24/07-LEGACY-BRANCHES-AND-ARGS.md`.
+/// Covered by `planner/tests/chains.rs::general_chain_handoff_can_be_removed`,
+/// `general_chain_handoff_is_configurable`,
+/// `chain_camera_knob_selects_a_camera_pan_for_image_chains_only` (legacy text
+/// handoff) and `tests/overlay_plan_contract.rs` (400 ms handoff).
 pub(super) const CHAIN_HANDOFF_US: i64 = 400_000;
 
 /// A card needs this long to read its caption even when the scene is about to
@@ -37,6 +45,10 @@ pub(super) fn coalesce_chained_overlays(
     // `chain_camera` is the run-level choreography knob: 0 (default) keeps the
     // legacy per-segment fly-under handoff; 1..4 select the four certified
     // camera-pan directions. Only image chains consume it.
+    // Owner: `overlay-compiler` planner. Removal: 2027-03-31. Ticket:
+    // `docs/tickets/code-hygiene-2026-11-24/07-LEGACY-BRANCHES-AND-ARGS.md`.
+    // Covered by
+    // `planner/tests/chains.rs::chain_camera_knob_selects_a_camera_pan_for_image_chains_only`.
     let chain_camera = chain_camera_direction(&request.canvas.animation_counts);
     if items.len() < 2 {
         return items;

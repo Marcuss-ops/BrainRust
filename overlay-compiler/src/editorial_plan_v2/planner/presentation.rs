@@ -223,6 +223,12 @@ fn is_chain_kind(kind: &str) -> bool {
 /// choice and must survive this pass. Go projects the run-level
 /// `overlay_style` after sealing, so rewriting a family here created a second
 /// writer and made the payload look ignored.
+///
+/// Owner: `overlay-compiler` planner presentation pass.
+/// Removal: 2027-03-31, once every producer emits the runtime family.
+/// Ticket: `docs/tickets/code-hygiene-2026-11-24/07-LEGACY-BRANCHES-AND-ARGS.md`.
+/// Covered by
+/// `planner/bullet_pin_tests.rs::legacy_playfair_alias_normalizes_but_other_families_survive`.
 fn normalize_font_alias(font: &str) -> Option<String> {
     let font = font.trim();
     if font.is_empty() {

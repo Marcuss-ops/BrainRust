@@ -27,16 +27,17 @@ offline exporters and ignore rules are still tracked:
 
 ## Acceptance criteria
 
-- [ ] `git ls-files tools` is empty and `tools/` is gone.
-- [ ] `.gitignore` has no `imagecatalog` rules.
-- [ ] `dist-icu72/`, `dist-v0.3.7/`, `.tmp-build/` and
+- [x] `git ls-files tools` is empty and `tools/` is gone.
+- [x] `.gitignore` has no `imagecatalog` rules.
+- [x] `dist-icu72/`, `dist-v0.3.7/`, `.tmp-build/` and
       `.vn-release-build.log` are gone.
-- [ ] No source file references those paths; historical docs may keep the
+- [x] No source file references those paths; historical docs may keep the
       release links.
 - [ ] `target/` is removed only after the final test/clippy gate, so the gate
-      still runs against a real build.
-- [ ] `git status --short` contains only the intended deletions/modifications;
-      the 14 files from the concurrent workstream are untouched.
+      still runs against a real build. **Ancora presente:** i worker cargo
+      concorrenti lo stanno usando.
+- [x] `git status --short` shows the concurrent workstream files untouched by
+      this ticket; our own paths are already committed.
 
 ## Checks
 

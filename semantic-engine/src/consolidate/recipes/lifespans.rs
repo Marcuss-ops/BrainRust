@@ -266,24 +266,24 @@ pub(super) fn emit_lifespan_candidates(
                 "end_byte": point.end,
             })).collect::<Vec<_>>(),
         });
-        if let Some(candidate) = candidate(
-            "lifespan_timeline",
-            &anchor.scene_id,
+        if let Some(candidate) = candidate(RecipeCandidate {
+            recipe: "lifespan_timeline",
+            scene_id: anchor.scene_id.as_str(),
             text,
-            anchor.start,
-            anchor.end,
-            format!("{label} — timeline"),
-            "timeline",
-            0.78,
-            vec![person_id.clone()],
-            person_points
+            start: anchor.start,
+            end: anchor.end,
+            title: format!("{label} — timeline"),
+            suggested_visual: "timeline",
+            priority: 0.78,
+            entity_ids: vec![person_id.clone()],
+            covered_fact_ids: person_points
                 .iter()
                 .filter_map(|point| point.event_id.clone())
                 .collect(),
             payload,
-            format!("lifespan_timeline:{person_id}"),
-            "one grounded person with at least two distinct dated life events",
-        ) {
+            dedup_key: format!("lifespan_timeline:{person_id}"),
+            rationale: "one grounded person with at least two distinct dated life events",
+        }) {
             candidates.push(candidate);
         }
     }

@@ -47,16 +47,16 @@ pub(crate) fn project_request(request: &mut EditorialPlanV2Request) {
             .as_ref()
             .map(|annotations| annotations.images.clone())
             .unwrap_or_default();
-        let mut projected = project_scene(
+        let mut projected = project_scene(SceneProjection {
             scene,
-            &raw,
-            &canvas,
-            &lexicon,
-            &heavy,
-            &language,
-            &source_language,
-            entity_timeline.as_ref(),
-        );
+            raw: &raw,
+            canvas: &canvas,
+            lexicon: &lexicon,
+            heavy: &heavy,
+            language: &language,
+            source_language: &source_language,
+            timeline: entity_timeline.as_ref(),
+        });
         projected.images = if image_plan.is_some() {
             images_by_scene.get(&scene.id).cloned().unwrap_or_default()
         } else {

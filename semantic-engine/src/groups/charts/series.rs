@@ -3,6 +3,11 @@ use super::*;
 /// Uses the semantic quantity attached to this exact numeric span when one is
 /// available. The legacy chart parser remains a compatibility fallback for
 /// chart points that have no recognized typed unit.
+///
+/// Owner: `semantic-engine` chart proposal builder.
+/// Removal: 2027-03-31, once every chart point carries a typed quantity.
+/// Ticket: `docs/tickets/code-hygiene-2026-11-24/07-LEGACY-BRANCHES-AND-ARGS.md`.
+/// Covered by `a_point_without_a_typed_quantity_uses_the_legacy_parser`.
 pub(super) fn chart_measure(
     sentence: &str,
     start: usize,
@@ -50,17 +55,39 @@ pub(super) fn chart_measure(
 /// items; the emitted evidence is one exact source slice spanning all included
 /// sentences. A grounded `Quantity` predicate and unit take precedence over the
 /// lexical stem fallback.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn cross_sentence_series(
-    source: &str,
-    entities: &[VisualEntity],
-    bullets: &[Bullet],
-    chart_points: &[ChartPoint],
-    quantities: &[Quantity],
-    identities: &IdentityLookup,
-    language: &str,
-    out: &mut Vec<VisualCandidate>,
-) {
+/// Inputs for the cross-sentence chart-series pass.
+pub(super) struct SeriesContext<'a> {
+    pub(super) source: &'a str,
+    pub(super) entities: &'a [VisualEntity],
+    pub(super) bullets: &'a [Bullet],
+    pub(super) chart_points: &'a [ChartPoint],
+    pub(super) quantities: &'a [Quantity],
+    pub(super) identities: &'a IdentityLookup,
+    pub(super) language: &'a str,
+}
+
+/// Inputs for one candidate assembled from an already-selected chain.
+struct SeriesCandidateContext<'a, 'b> {
+    source: &'a str,
+    entities: &'a [VisualEntity],
+    bullets: &'a [Bullet],
+    ordered: &'a [&'b ChartPoint],
+    chain: &'a [usize],
+    quantities: &'a [Quantity],
+    identities: &'a IdentityLookup,
+    language: &'a str,
+}
+
+pub(super) fn cross_sentence_series(input: SeriesContext<'_>, out: &mut Vec<VisualCandidate>) {
+    let SeriesContext {
+        source,
+        entities,
+        bullets,
+        chart_points,
+        quantities,
+        identities,
+        language,
+    } = input;
     let mut ordered: Vec<&ChartPoint> = chart_points.iter().collect();
     ordered.sort_by_key(|point| (point.start, point.end));
     let mut used = vec![false; ordered.len()];
@@ -82,9 +109,16 @@ pub(super) fn cross_sentence_series(
         if chain.len() < 2 {
             continue;
         }
-        let Some(candidate) = build_series_candidate(
-            source, entities, bullets, &ordered, &chain, quantities, identities, language,
-        ) else {
+        let Some(candidate) = build_series_candidate(SeriesCandidateContext {
+            source,
+            entities,
+            bullets,
+            ordered: &ordered,
+            chain: &chain,
+            quantities,
+            identities,
+            language,
+        }) else {
             continue;
         };
         // A single sentence-local chart already covering these exact values
@@ -254,17 +288,17 @@ pub(super) fn series_metric_match(
         .cloned()
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn build_series_candidate(
-    source: &str,
-    entities: &[VisualEntity],
-    bullets: &[Bullet],
-    ordered: &[&ChartPoint],
-    chain: &[usize],
-    quantities: &[Quantity],
-    identities: &IdentityLookup,
-    language: &str,
-) -> Option<VisualCandidate> {
+fn build_series_candidate(input: SeriesCandidateContext<'_, '_>) -> Option<VisualCandidate> {
+    let SeriesCandidateContext {
+        source,
+        entities,
+        bullets,
+        ordered,
+        chain,
+        quantities,
+        identities,
+        language,
+    } = input;
     let points: Vec<&ChartPoint> = chain.iter().map(|index| ordered[*index]).collect();
     let first = *points.first()?;
     let last = *points.last()?;
@@ -355,4 +389,28 @@ pub(super) fn build_series_candidate(
         start: evidence_start,
         end: evidence_end,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_point_without_a_typed_quantity_uses_the_legacy_parser() {
+        let point = ChartPoint {
+            text: "42".to_string(),
+            kind: "count".to_string(),
+            value: 42.0,
+            label: "42".to_string(),
+            sentence_index: 0,
+            start: 0,
+            end: 2,
+            entity: None,
+        };
+        let fallback = chart_measure("42", 0, 2, &point, &[]);
+        let expected = crate::chart_rules::chart_unit("42", 0, 2, 42.0, "count");
+        assert_eq!(fallback.kind, expected.kind);
+        assert_eq!(fallback.signature, expected.signature);
+        assert_eq!(fallback.value, expected.value);
+    }
 }

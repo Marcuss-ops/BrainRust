@@ -1,11 +1,8 @@
-# BR-LEGACY-01 — Legacy audio/chart/alias branches and nine `too_many_arguments`
+# BR-LEGACY-01 — Legacy audio/chart/alias branches and eight production `too_many_arguments` (+1 test-only)
 
-- **Status:** OPEN — blocked by the worktree rule. Most of the nine
-  `too_many_arguments` sites (`scenes.rs`, `editorial.rs`, `cut.rs`, `legal.rs`,
-  `groups/charts/series.rs`, `consolidate/recipes.rs`) are in files already
-  modified by another profile; the user explicitly asked not to touch them.
-  Resume after that workstream lands; `micro.rs` can be the first isolated
-  change.
+- **Status:** PARTIAL (2026-11-24) — codice e gate mirati verdi; il gate
+  workspace resta da confermare (doctest `semantic-engine` E0463). Gli otto
+  siti di produzione sono rifattorizzati; il nono è un fixture test-only.
 - **Priority:** P2
 - **Owner:** `pipelinegen-muscles`, `semantic-engine`, `overlay-compiler`
 - **Evidence date:** 2026-11-24
@@ -15,14 +12,15 @@
 - `pipelinegen-muscles/src/render_audio_execution/render_context.rs:55-206`:
   legacy `background_music` / `sfx` layer handling.
 - `semantic-engine/src/groups/charts/series.rs:4`: legacy chart fallback.
-- `overlay-compiler/src/editorial_plan_v2/planner/coalesce.rs:38-218` and
-  `planner/presentation.rs:221`: `playfair_display` alias and legacy 400 ms
-  handoff.
+- `overlay-compiler/src/editorial_plan_v2/planner/coalesce.rs:38-218`: legacy
+  400 ms handoff (`CHAIN_HANDOFF_US` / `chain_camera` fallback).
+- `overlay-compiler/src/editorial_plan_v2/planner/presentation.rs:221`:
+  `playfair_display` legacy alias.
 
 Each branch needs one of two outcomes: a named owner and removal date, or a
 test that proves it is still the production path.
 
-## `too_many_arguments` (9 sites)
+## `too_many_arguments` (9 sites: 8 production + 1 test-only)
 
 At least:
 
@@ -33,6 +31,9 @@ At least:
 - `semantic-engine/src/groups/charts/series.rs:53,257`
 - `semantic-engine/src/micro.rs:363`
 - `semantic-engine/src/consolidate/recipes.rs:29`
+
+`semantic-engine/src/micro.rs` is the test-only fixture; the other eight are
+production code.
 
 Each is a missing context struct or a function doing two jobs. Replace the
 positional parameter bag with a named struct, or split the function.
@@ -46,8 +47,12 @@ positional parameter bag with a named struct, or split the function.
       test-only `micro.rs::tests::fact`, documentato come tale.
 - [x] No behavior change in the audio plan, chart series, overlay coalescing or
       presentation handoff; existing tests stay green (gate mirati sotto).
-- [ ] `cargo clippy --workspace --all-targets --locked -- -D warnings` is green.
-- [ ] `cargo test --workspace --locked` is green.
+- [x] `cargo clippy --workspace --all-targets --locked -- -D warnings` is green.
+- [ ] `cargo test --workspace --locked` is green. **Bloccato:** le 60 suite
+      non-doctest sono verdi; il comando combinato fallisce solo sul doctest
+      `semantic-engine` (`E0463: can't find crate for visualner`). Il rerun
+      isolato non ha restituito un esito perché il target dir era conteso da
+      altri worker cargo.
 
 ## Checks
 
@@ -110,5 +115,10 @@ test che lo copre:
 | `cargo clippy -p ... --lib --locked -- -D warnings` | RC 0 su tutti e tre |
 | `cargo fmt --all -- --check` | RC 0 |
 | `git diff --check` | RC 0 |
-| `cargo test --workspace --locked` | in corso / da completare |
-| `cargo clippy --workspace --all-targets --locked -- -D warnings` | in corso / da completare |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | RC 0 |
+| `cargo test --workspace --locked` | 60/60 suite non-doctest verdi; RC 1 solo sul doctest `semantic-engine` E0463 |
+
+Il doctest isolato è stato ritentato più volte, ma il target dir era conteso
+dai worker cargo concorrenti e il comando non ha restituito un esito. La scheda
+resta **PARTIAL**: il codice e tutti i gate mirati sono verdi, mentre il gate
+workspace va rilanciato quando il workspace è fermo.

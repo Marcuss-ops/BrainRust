@@ -187,13 +187,15 @@ pub(super) fn build(
     }
     comparison_deltas(source, quantities, chart_input.comparisons, out);
     cross_sentence_series(
-        source,
-        entities,
-        bullets,
-        chart_points,
-        quantities,
-        identities,
-        language,
+        SeriesContext {
+            source,
+            entities,
+            bullets,
+            chart_points,
+            quantities,
+            identities,
+            language,
+        },
         out,
     );
 }

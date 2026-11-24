@@ -111,8 +111,15 @@ impl<'a> RenderContext<'a> {
         Ok(chains)
     }
 
-    /// The legacy `background_music`/`sfx` layers, kept on the same chain
-    /// contract as the compiled events.
+    /// Legacy `background_music`/`sfx` compatibility lane, kept on the same
+    /// chain contract as the compiled events.
+    ///
+    /// Owner: `pipelinegen-muscles` audio renderer.
+    /// Removal: 2027-03-31, once every producer emits compiled audio tracks.
+    /// Ticket: `docs/tickets/code-hygiene-2026-11-24/07-LEGACY-BRANCHES-AND-ARGS.md`.
+    /// Covered by `sources.rs::tests::a_measured_bgm_is_stored_and_the_next_render_reads_it_back`
+    /// and `an_unmeasured_path_fails_open_without_a_trim`, which build a plan
+    /// with a non-empty `background_music` lane.
     fn layer_chains(&self, sources: &mut SourceCaches) -> Result<Vec<ChainSpec>, RenderError> {
         let mut chains = Vec::new();
         for (layer_name, layers) in [

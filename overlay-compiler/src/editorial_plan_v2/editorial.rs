@@ -147,16 +147,16 @@ pub fn project_editorial_scenes(
             {
                 if valid_title_source(&editorial.title_source) && grounded(text, title) {
                     if let Some((start_us, end_us)) = locate_phrase(timing, title) {
-                        if let Some(phrase) = scene_phrase(
-                            title,
+                        if let Some(phrase) = scene_phrase(ScenePhraseInput {
+                            text: title,
                             start_us,
                             end_us,
                             window_start,
                             window_end,
-                            1.0,
-                            "scene_title",
-                            "title",
-                        ) {
+                            score: 1.0,
+                            presentation_role: "scene_title",
+                            candidate: "title",
+                        }) {
                             phrases.push(phrase);
                         }
                     }
@@ -189,16 +189,16 @@ pub fn project_editorial_scenes(
                     }
                 }
                 if let Some((start_us, end_us)) = locate_phrase(timing, bullet_text) {
-                    if let Some(phrase) = scene_phrase(
-                        bullet_text,
+                    if let Some(phrase) = scene_phrase(ScenePhraseInput {
+                        text: bullet_text,
                         start_us,
                         end_us,
                         window_start,
                         window_end,
-                        0.99,
-                        "scene_bullet",
-                        "bullet",
-                    ) {
+                        score: 0.99,
+                        presentation_role: "scene_bullet",
+                        candidate: "bullet",
+                    }) {
                         phrases.push(phrase);
                     }
                 }
@@ -237,17 +237,29 @@ fn grounded(scene_text: &str, phrase: &str) -> bool {
     !phrase.is_empty() && scene_text.to_lowercase().contains(&phrase.to_lowercase())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn scene_phrase(
-    text: &str,
+/// One candidate phrase plus the scene window it must stay inside.
+struct ScenePhraseInput<'a> {
+    text: &'a str,
     start_us: i64,
     end_us: i64,
     window_start: i64,
     window_end: i64,
     score: f64,
-    presentation_role: &str,
-    candidate: &str,
-) -> Option<ScenePhraseV2> {
+    presentation_role: &'a str,
+    candidate: &'a str,
+}
+
+fn scene_phrase(input: ScenePhraseInput<'_>) -> Option<ScenePhraseV2> {
+    let ScenePhraseInput {
+        text,
+        start_us,
+        end_us,
+        window_start,
+        window_end,
+        score,
+        presentation_role,
+        candidate,
+    } = input;
     let clipped_start = window_start.saturating_add(start_us);
     let clipped_end = window_start.saturating_add(end_us);
     if clipped_end <= clipped_start || clipped_start < window_start || clipped_end > window_end {

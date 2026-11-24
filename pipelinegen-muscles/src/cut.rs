@@ -79,17 +79,17 @@ fn cut_batch(request: Request) -> Response {
                 .iter()
                 .map(|job| {
                     scope.spawn(|| {
-                        cut_one(
-                            &ffmpeg,
+                        cut_one(CutOneRequest {
+                            ffmpeg: &ffmpeg,
                             source,
                             job,
-                            &encoder,
-                            profile.clone(),
-                            request.no_audio.unwrap_or(false),
-                            &ffprobe,
+                            encoder: &encoder,
+                            profile: profile.clone(),
+                            no_audio: request.no_audio.unwrap_or(false),
+                            ffprobe: &ffprobe,
                             gpu_cut,
                             decode_accelerator,
-                        )
+                        })
                     })
                 })
                 .collect::<Vec<_>>();
@@ -131,18 +131,32 @@ fn cut_batch(request: Request) -> Response {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn cut_one(
-    ffmpeg: &str,
-    source: &str,
-    job: &CutJob,
-    encoder: &config::EncoderPolicy,
+/// Everything one cut worker needs. The struct replaces the former
+/// nine-positional-argument signature without changing the work performed.
+struct CutOneRequest<'a> {
+    ffmpeg: &'a str,
+    source: &'a str,
+    job: &'a CutJob,
+    encoder: &'a config::EncoderPolicy,
     profile: config::VideoProfile,
     no_audio: bool,
-    ffprobe: &str,
+    ffprobe: &'a str,
     gpu_cut: bool,
     decode_accelerator: Option<crate::gpu::DecodeAccelerator>,
-) -> CutItem {
+}
+
+fn cut_one(request: CutOneRequest<'_>) -> CutItem {
+    let CutOneRequest {
+        ffmpeg,
+        source,
+        job,
+        encoder,
+        profile,
+        no_audio,
+        ffprobe,
+        gpu_cut,
+        decode_accelerator,
+    } = request;
     let failed = |message: String| CutItem {
         job_id: job.job_id.clone(),
         output_path: None,

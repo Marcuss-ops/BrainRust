@@ -108,17 +108,30 @@ pub(super) fn first_sentence(text: &str) -> String {
     trimmed[..end].trim().to_string()
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn project_scene(
-    scene: &SceneV2,
-    raw: &RawSceneV2,
-    canvas: &CanvasV2,
-    lexicon: &NumericLexiconV2,
-    heavy: &[HeavySentenceV2],
-    language: &str,
-    source_language: &str,
-    timeline: Option<&EntityTimelineV2>,
-) -> SceneAnnotationsV2 {
+/// Inputs for one scene projection. The struct keeps the call site named and
+/// avoids a positional parameter bag; every field borrows request data.
+pub(super) struct SceneProjection<'a> {
+    pub(super) scene: &'a SceneV2,
+    pub(super) raw: &'a RawSceneV2,
+    pub(super) canvas: &'a CanvasV2,
+    pub(super) lexicon: &'a NumericLexiconV2,
+    pub(super) heavy: &'a [HeavySentenceV2],
+    pub(super) language: &'a str,
+    pub(super) source_language: &'a str,
+    pub(super) timeline: Option<&'a EntityTimelineV2>,
+}
+
+pub(super) fn project_scene(input: SceneProjection<'_>) -> SceneAnnotationsV2 {
+    let SceneProjection {
+        scene,
+        raw,
+        canvas,
+        lexicon,
+        heavy,
+        language,
+        source_language,
+        timeline,
+    } = input;
     let mut out = SceneAnnotationsV2 {
         end_us: scene.timeline_start_us.saturating_add(scene.duration_us),
         ..SceneAnnotationsV2::default()
@@ -156,14 +169,16 @@ pub(super) fn project_scene(
     {
         project_entity(
             &mut out,
-            scene,
             entity,
-            timing,
-            timeline,
-            lexicon,
-            language,
-            source_language,
-            &raw.source_numeric_values,
+            EntityProjection {
+                scene,
+                timing,
+                timeline,
+                lexicon,
+                language,
+                source_language,
+                source_numeric_values: &raw.source_numeric_values,
+            },
         );
     }
 
@@ -267,18 +282,32 @@ pub(super) fn project_scene(
     out
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Inputs shared by every entity in one scene. `source_numeric_values` is the
+/// scene-level numeric vocabulary used by the grounding guard.
+pub(super) struct EntityProjection<'a> {
+    pub(super) scene: &'a SceneV2,
+    pub(super) timing: Option<&'a crate::editorial_plan_v2::request::TimingV2>,
+    pub(super) timeline: Option<&'a EntityTimelineV2>,
+    pub(super) lexicon: &'a NumericLexiconV2,
+    pub(super) language: &'a str,
+    pub(super) source_language: &'a str,
+    pub(super) source_numeric_values: &'a [String],
+}
+
 pub(super) fn project_entity(
     out: &mut SceneAnnotationsV2,
-    scene: &SceneV2,
     entity: &RawEntityV2,
-    timing: Option<&crate::editorial_plan_v2::request::TimingV2>,
-    timeline: Option<&EntityTimelineV2>,
-    lexicon: &NumericLexiconV2,
-    language: &str,
-    source_language: &str,
-    source_numeric_values: &[String],
+    input: EntityProjection<'_>,
 ) {
+    let EntityProjection {
+        scene,
+        timing,
+        timeline,
+        lexicon,
+        language,
+        source_language,
+        source_numeric_values,
+    } = input;
     let kind = entity_kind(&entity.entity_type);
     let score = if entity.confidence > 0.0 {
         entity.confidence

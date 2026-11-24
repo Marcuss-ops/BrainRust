@@ -26,22 +26,41 @@ fn grounded(text: &str, start: usize, end: usize) -> Option<&str> {
     text.get(start..end)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn candidate(
-    recipe: &str,
-    scene_id: &str,
-    text: &str,
+/// Named inputs for one visual-recipe candidate. The previous positional
+/// signature had thirteen parameters; the struct keeps each call site
+/// self-describing without changing the produced candidate.
+struct RecipeCandidate<'a> {
+    recipe: &'a str,
+    scene_id: &'a str,
+    text: &'a str,
     start: usize,
     end: usize,
     title: String,
-    suggested_visual: &str,
+    suggested_visual: &'a str,
     priority: f32,
     entity_ids: Vec<String>,
     covered_fact_ids: Vec<String>,
     payload: serde_json::Value,
     dedup_key: String,
-    rationale: &str,
-) -> Option<ProductionCandidate> {
+    rationale: &'a str,
+}
+
+fn candidate(input: RecipeCandidate<'_>) -> Option<ProductionCandidate> {
+    let RecipeCandidate {
+        recipe,
+        scene_id,
+        text,
+        start,
+        end,
+        title,
+        suggested_visual,
+        priority,
+        entity_ids,
+        covered_fact_ids,
+        payload,
+        dedup_key,
+        rationale,
+    } = input;
     let evidence = grounded(text, start, end)?.to_string();
     Some(ProductionCandidate {
         id: String::new(),
@@ -164,21 +183,21 @@ fn push_relationship_graphs(
             "subjects": subjects.iter().map(|(id, label)| json!({"entity_id": id, "label": label})).collect::<Vec<_>>(),
             "edges": edges,
         });
-        if let Some(candidate) = candidate(
-            "relationship_graph",
-            &scene.scene_id,
+        if let Some(candidate) = candidate(RecipeCandidate {
+            recipe: "relationship_graph",
+            scene_id: scene.scene_id.as_str(),
             text,
             start,
             end,
-            "Relationship graph".to_string(),
-            "investigation_board",
-            0.82,
-            entity_ids.into_iter().collect(),
-            covered,
+            title: "Relationship graph".to_string(),
+            suggested_visual: "investigation_board",
+            priority: 0.82,
+            entity_ids: entity_ids.into_iter().collect(),
+            covered_fact_ids: covered,
             payload,
-            format!("relationship_graph:{}:{start}:{end}", scene.scene_id),
-            "asserted person relations with two grounded subjects",
-        ) {
+            dedup_key: format!("relationship_graph:{}:{start}:{end}", scene.scene_id),
+            rationale: "asserted person relations with two grounded subjects",
+        }) {
             candidates.push(candidate);
         }
     }
@@ -232,21 +251,21 @@ fn push_role_lower_thirds(
             if let Some(organization_id) = &role.organization_id {
                 entity_ids.push(organization_id.clone());
             }
-            if let Some(candidate) = candidate(
-                "role_lower_third",
-                &scene.scene_id,
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "role_lower_third",
+                scene_id: scene.scene_id.as_str(),
                 text,
-                role.start_byte,
-                role.end_byte,
-                format!("{person} — {}", role.role_surface),
-                "role_lower_third",
-                0.8,
+                start: role.start_byte,
+                end: role.end_byte,
+                title: format!("{person} — {}", role.role_surface),
+                suggested_visual: "role_lower_third",
+                priority: 0.8,
                 entity_ids,
-                vec![role.id.clone()],
+                covered_fact_ids: vec![role.id.clone()],
                 payload,
-                format!("role_lower_third:{}:{}", scene.scene_id, role.id),
-                "asserted person role with a grounded person and role slot",
-            ) {
+                dedup_key: format!("role_lower_third:{}:{}", scene.scene_id, role.id),
+                rationale: "asserted person role with a grounded person and role slot",
+            }) {
                 candidates.push(candidate);
             }
         }
@@ -311,21 +330,21 @@ fn push_route_maps(
                 "straight_line_km": route.straight_line_km,
                 "stops": stops,
             });
-            if let Some(candidate) = candidate(
-                "route_map",
-                &scene.scene_id,
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "route_map",
+                scene_id: scene.scene_id.as_str(),
                 text,
-                route.start_byte,
-                route.end_byte,
-                "Route map".to_string(),
-                "route_map",
-                0.86,
-                entity_ids.into_iter().collect(),
-                vec![route.id.clone()],
+                start: route.start_byte,
+                end: route.end_byte,
+                title: "Route map".to_string(),
+                suggested_visual: "route_map",
+                priority: 0.86,
+                entity_ids: entity_ids.into_iter().collect(),
+                covered_fact_ids: vec![route.id.clone()],
                 payload,
-                format!("route_map:{}:{}", scene.scene_id, route.id),
-                "route has at least two linked waypoints with coordinates",
-            ) {
+                dedup_key: format!("route_map:{}:{}", scene.scene_id, route.id),
+                rationale: "route has at least two linked waypoints with coordinates",
+            }) {
                 candidates.push(candidate);
             }
         }
@@ -422,21 +441,21 @@ fn push_choropleths(
             "recipe": "choropleth_value_map",
             "items": items,
         });
-        if let Some(candidate) = candidate(
-            "choropleth_value_map",
-            &scene.scene_id,
+        if let Some(candidate) = candidate(RecipeCandidate {
+            recipe: "choropleth_value_map",
+            scene_id: scene.scene_id.as_str(),
             text,
             start,
             end,
-            "Choropleth".to_string(),
-            "choropleth_value_map",
-            0.84,
-            entity_ids.into_iter().collect(),
-            covered,
+            title: "Choropleth".to_string(),
+            suggested_visual: "choropleth_value_map",
+            priority: 0.84,
+            entity_ids: entity_ids.into_iter().collect(),
+            covered_fact_ids: covered,
             payload,
-            format!("choropleth_value_map:{}:{start}:{end}", scene.scene_id),
-            "at least two coordinate-bound quantities outside a chart",
-        ) {
+            dedup_key: format!("choropleth_value_map:{}:{start}:{end}", scene.scene_id),
+            rationale: "at least two coordinate-bound quantities outside a chart",
+        }) {
             candidates.push(candidate);
         }
     }
@@ -517,21 +536,21 @@ fn push_counter_odometers(
                 "period": quantity.period,
                 "quantity_id": quantity.id,
             });
-            if let Some(candidate) = candidate(
-                "counter_odometer",
-                &scene.scene_id,
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "counter_odometer",
+                scene_id: scene.scene_id.as_str(),
                 text,
-                quantity.start_byte,
-                quantity.end_byte,
-                subject.clone(),
-                "counter_odometer",
-                0.8,
-                vec![subject_id.clone()],
-                vec![quantity.id.clone()],
+                start: quantity.start_byte,
+                end: quantity.end_byte,
+                title: subject.clone(),
+                suggested_visual: "counter_odometer",
+                priority: 0.8,
+                entity_ids: vec![subject_id.clone()],
+                covered_fact_ids: vec![quantity.id.clone()],
                 payload,
-                format!("counter_odometer:{}:{}", scene.scene_id, quantity.id),
-                "single asserted KPI with a grounded unit and subject",
-            ) {
+                dedup_key: format!("counter_odometer:{}:{}", scene.scene_id, quantity.id),
+                rationale: "single asserted KPI with a grounded unit and subject",
+            }) {
                 candidates.push(candidate);
             }
         }

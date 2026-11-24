@@ -88,21 +88,21 @@ pub(super) fn push_quote_attributions(
                 "author_type": author.kind,
                 "role_surface": role_surface,
             });
-            if let Some(candidate) = candidate(
-                "quote_attribution",
-                &scene.scene_id,
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "quote_attribution",
+                scene_id: scene.scene_id.as_str(),
                 text,
-                quote.start_byte,
-                quote.end_byte,
-                format!("{author_label} — {}", quote.text),
-                "quote_attribution",
-                0.7,
-                vec![author.id.clone()],
-                Vec::new(),
+                start: quote.start_byte,
+                end: quote.end_byte,
+                title: format!("{author_label} — {}", quote.text),
+                suggested_visual: "quote_attribution",
+                priority: 0.7,
+                entity_ids: vec![author.id.clone()],
+                covered_fact_ids: Vec::new(),
                 payload,
-                format!("quote_attribution:{}:{}", scene.scene_id, quote.id),
-                "quote grounded in the source and credited to a same-sentence identity",
-            ) {
+                dedup_key: format!("quote_attribution:{}:{}", scene.scene_id, quote.id),
+                rationale: "quote grounded in the source and credited to a same-sentence identity",
+            }) {
                 candidates.push(candidate);
             }
         }
@@ -183,21 +183,21 @@ pub(super) fn push_source_highlights(
                 "highlight_kind": highlight_kind,
                 "highlight_text": highlight_text,
             });
-            if let Some(candidate) = candidate(
-                "source_highlight",
-                &scene.scene_id,
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "source_highlight",
+                scene_id: scene.scene_id.as_str(),
                 text,
                 start,
                 end,
-                format!("{source_label} — source"),
-                "source_highlight",
-                0.74,
-                vec![source.id.clone()],
-                Vec::new(),
+                title: format!("{source_label} — source"),
+                suggested_visual: "source_highlight",
+                priority: 0.74,
+                entity_ids: vec![source.id.clone()],
+                covered_fact_ids: Vec::new(),
                 payload,
-                format!("source_highlight:{}:{}", scene.scene_id, source.id),
-                "attributed claim and a same-sentence media outlet",
-            ) {
+                dedup_key: format!("source_highlight:{}:{}", scene.scene_id, source.id),
+                rationale: "attributed claim and a same-sentence media outlet",
+            }) {
                 candidates.push(candidate);
             }
         }
