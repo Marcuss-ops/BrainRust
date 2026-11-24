@@ -1,9 +1,9 @@
 # BR-DRY-02 — `.clone()` storm and duplicate tokenize/sentence/word primitives
 
-- **Status:** OPEN — needs a cross-crate ownership decision for
-  tokenize/split_sentences/word_count and a clone-by-clone review of
-  `producers.rs`; this is not a mechanical change. Deferred until the
-  concurrent workstream releases the shared files.
+- **Status:** PARTIAL (2026-11-24) — ownership table e clone policy scritte in
+  `DRY-02-OWNERSHIP.md`; nessuna primitiva è stata fusa perché i contratti
+  divergono. Restano da rilanciare i gate workspace quando il cantiere
+  concorrente su `visualner`/`lexicon` sarà chiuso.
 - **Priority:** P2
 - **Owner:** `semantic-engine`, `semantic-core`, `visualner`, `overlay-compiler`, `script-qa`
 - **Evidence date:** 2026-11-24

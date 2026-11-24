@@ -1,5 +1,11 @@
 //! Production candidate producers: reference numbers, charts, multiple-
 //! entity compositions and named-entity candidates.
+//!
+//! Clone policy (BR-DRY-02): every `.clone()` here owns a contract field
+//! (`ProductionCandidate`, `ReferenceNumber`, `ChartItem`), an evidence string,
+//! or a set/map key that outlives the source scene. None is a borrow that can be
+//! replaced without changing the public contract; the ownership table lives in
+//! `docs/tickets/code-hygiene-2026-11-24/DRY-02-OWNERSHIP.md`.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
