@@ -23,13 +23,15 @@ use super::request::{
     MapCandidateV2, MediaV2, SceneV2, SealV2, TimedAnnotationV2,
 };
 use super::response::{
-    EditorialPlanV2Compiled, EntityRefV2, FinalPlanV2, IntakeBudgetV2, IntakeV2, PlanItemV2,
+    EditorialPlanV2Compiled, EntityRefV2, FinalPlanV2, IntakeBudgetV2, IntakeV2, PlanDecisionV2,
+    PlanItemV2,
 };
 use super::EDITORIAL_PLAN_V2_SCHEMA_VERSION;
 
 mod admission;
 mod candidates;
 mod coalesce;
+mod decisions;
 mod map_groups;
 mod media;
 mod presentation;
@@ -38,6 +40,7 @@ mod visual_recipes;
 use admission::*;
 use candidates::*;
 use coalesce::*;
+use decisions::*;
 use media::*;
 use presentation::*;
 
@@ -125,6 +128,7 @@ pub fn compile_plan(
         }
         editorial.covered_scenes = chapters.covered_scenes;
     }
+    let mut decisions = Vec::new();
     let mut candidates = build_base_candidates(request, &editorial)?;
     trim_maps(request, &mut candidates);
     let recap = build_recap_candidates(request)?;
@@ -135,9 +139,9 @@ pub fn compile_plan(
     // the first one already trimmed. `admit` ranks the candidates (entity
     // image/map > still > text > number), so append order no longer decides
     // which lane loses a full ceiling.
-    candidates.extend(build_entity_card_candidates(request)?);
+    candidates.extend(build_entity_card_candidates(request, &mut decisions)?);
     let intake = new_intake(&validated, &candidates);
-    let (mut items, mut intake) = admit(&validated, candidates, intake);
+    let (mut items, mut intake) = admit(&validated, candidates, intake, &mut decisions);
     assign_entity_media(request, &mut items)?;
     // The short-phrase entrance is decided before coalescing: a phrase that
     // already carries a lane motion is chainable on its own terms, and the
@@ -158,7 +162,7 @@ pub fn compile_plan(
     // instead of re-deriving one downstream.
     items = map_groups::group_map_items(items, request);
     let before_overlap = items.len();
-    items = resolve_overlaps(request, items);
+    items = resolve_overlaps(request, items, &mut decisions);
     record_drops(&mut intake, "overlap", before_overlap, items.len());
     let scene_ends = request
         .scenes
@@ -239,13 +243,13 @@ pub fn compile_plan(
     // its scene window (a fused chain lays segments out sequentially). The
     // seal is the last owner of the scene invariant, so clamp here instead of
     // letting `validate_for` reject the whole plan after the fact.
-    items = clip_items_to_scene_bounds(items, request);
+    items = clip_items_to_scene_bounds(items, request, &mut decisions);
     name_items_for_review(&mut items);
     // There is no post-plan promotion pass: a card that has a verified portrait
     // was built as `entity_image` by `append_entity_cards` and passed the same
     // admission, coalescing and clipping as every other item.
     finalize_intake(&mut intake, &items);
-    let plan = seal(&validated, items, intake, recap.placements);
+    let plan = seal(&validated, items, intake, recap.placements, decisions);
     let compiled = EditorialPlanV2Compiled {
         ok: true,
         schema_version: EDITORIAL_PLAN_V2_SCHEMA_VERSION.to_string(),
@@ -258,6 +262,7 @@ pub fn compile_plan(
 fn clip_items_to_scene_bounds(
     items: Vec<PlanItemV2>,
     request: &EditorialPlanV2Request,
+    decisions: &mut Vec<PlanDecisionV2>,
 ) -> Vec<PlanItemV2> {
     let windows: BTreeMap<&str, (i64, i64)> = request
         .scenes
@@ -294,6 +299,7 @@ fn clip_items_to_scene_bounds(
             let clipped_start = start_us.max(scene_start);
             let clipped_end = end_us.min(allowed_end);
             if clipped_end <= clipped_start {
+                push_decision(decisions, STAGE_CLIP, REASON_CLIPPED_OUT, &item);
                 return None;
             }
             item.start_us = clipped_start;
@@ -301,6 +307,7 @@ fn clip_items_to_scene_bounds(
             item.start_ms = clipped_start / 1_000;
             item.end_ms = (clipped_end + 999) / 1_000;
             if !clamp_chain_segments(&mut item, scene_start, scene_end) {
+                push_decision(decisions, STAGE_CLIP, REASON_CLIPPED_OUT, &item);
                 return None;
             }
             Some(item)
@@ -400,6 +407,7 @@ fn seal(
     mut items: Vec<PlanItemV2>,
     intake: IntakeV2,
     recap_placements: i64,
+    decisions: Vec<PlanDecisionV2>,
 ) -> FinalPlanV2 {
     // Render keys are derived state, never planner input. The seal clears
     // them; Go recomputes a SHA-256 key from the finished document.
@@ -440,6 +448,7 @@ fn seal(
             .filter(|scene| scene.duration_us > 0)
             .count() as i64,
         intake,
+        decisions,
         output_profile_id: seal.output_profile_id.clone(),
     }
 }

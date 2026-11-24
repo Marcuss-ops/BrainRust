@@ -35,7 +35,7 @@ fn chain_drops_a_tail_below_the_readable_minimum() {
             (2_000_000, 1_000_000),
         ],
     );
-    let clipped = clip_items_to_scene_bounds(vec![chain], &request);
+    let clipped = clip_items_to_scene_bounds(vec![chain], &request, &mut Vec::new());
     assert_eq!(1, clipped.len());
     let item = &clipped[0];
     assert_eq!((0, 2_000_000), item.window_us());
@@ -54,7 +54,7 @@ fn chain_without_two_readable_segments_is_dropped() {
         2_000_000,
         &[(0, 1_500_000), (1_500_000, 500_000)],
     );
-    let clipped = clip_items_to_scene_bounds(vec![chain], &request);
+    let clipped = clip_items_to_scene_bounds(vec![chain], &request, &mut Vec::new());
     assert!(clipped.is_empty());
 }
 
@@ -691,9 +691,9 @@ fn general_chain_keeps_a_text_card_textual_and_the_portrait_with_its_owner() {
         segments[0]["assets"][0]["asset_id"].as_str().unwrap()
     );
     assert!(
-        segments[1].get("assets").is_none_or(|assets| assets
-            .as_array()
-            .is_none_or(|assets| assets.is_empty())),
+        segments[1]
+            .get("assets")
+            .is_none_or(|assets| assets.as_array().is_none_or(|assets| assets.is_empty())),
         "the text card stays text inside the chain: {:?}",
         segments[1]
     );

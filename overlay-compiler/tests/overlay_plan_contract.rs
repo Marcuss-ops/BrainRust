@@ -203,6 +203,55 @@ fn every_fixture_compiles_to_its_frozen_golden() {
     }
 }
 
+/// ROADMAP 2026-11-19 §4: every discarded candidate carries a decision with a
+/// stable stage and reason code, and no decision is anonymous. The test runs
+/// the whole fixture matrix, so a new lane that drops silently fails here.
+#[test]
+fn every_decision_is_typed_and_names_its_candidate() {
+    let stages = ["candidates", "admission", "overlap", "clip"];
+    let reasons = [
+        "ENTITY_KIND_UNSUPPORTED",
+        "MAP_COVERS_ENTITY",
+        "DUPLICATE_IDENTITY",
+        "TEXT_CARD_LIMIT",
+        "NO_TIMING_WINDOW",
+        "MAPS_ONLY",
+        "CATEGORY_DISABLED",
+        "GROUP_LIMIT",
+        "BUDGET_EXCEEDED",
+        "PER_SCENE_LIMIT",
+        "OVERLAP_LOST",
+        "CLIPPED_OUT",
+    ];
+    for entry in FIXTURES {
+        let plan = compile(entry.name).plan;
+        for decision in &plan.decisions {
+            assert!(
+                !decision.candidate_id.trim().is_empty(),
+                "{}: a decision must name its candidate",
+                entry.name
+            );
+            assert!(
+                stages.contains(&decision.stage.as_str()),
+                "{}: unknown decision stage {:?}",
+                entry.name,
+                decision.stage
+            );
+            assert!(
+                reasons.contains(&decision.reason_code.as_str()),
+                "{}: unknown reason code {:?}",
+                entry.name,
+                decision.reason_code
+            );
+            assert_eq!(
+                "dropped", decision.outcome,
+                "{}: only the dropped outcome exists today",
+                entry.name
+            );
+        }
+    }
+}
+
 #[test]
 fn compilation_is_deterministic() {
     for entry in FIXTURES {

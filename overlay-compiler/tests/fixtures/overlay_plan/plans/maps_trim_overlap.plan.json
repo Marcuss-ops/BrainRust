@@ -102,6 +102,56 @@
         "overlap": 3
       }
     },
+    "decisions": [
+      {
+        "candidate_id": "overlay-s1-place:milano",
+        "scene_id": "s1",
+        "entity_id": "place:milano",
+        "canonical_entity_id": "place:milano",
+        "stage": "candidates",
+        "outcome": "dropped",
+        "reason_code": "MAP_COVERS_ENTITY"
+      },
+      {
+        "candidate_id": "overlay-s1-place:roma",
+        "scene_id": "s1",
+        "entity_id": "place:roma",
+        "canonical_entity_id": "place:roma",
+        "stage": "candidates",
+        "outcome": "dropped",
+        "reason_code": "MAP_COVERS_ENTITY"
+      },
+      {
+        "candidate_id": "overlay-s2-place:torino",
+        "scene_id": "s2",
+        "entity_id": "place:torino",
+        "canonical_entity_id": "place:torino",
+        "stage": "candidates",
+        "outcome": "dropped",
+        "reason_code": "MAP_COVERS_ENTITY"
+      },
+      {
+        "candidate_id": "s1-word-0",
+        "scene_id": "s1",
+        "stage": "overlap",
+        "outcome": "dropped",
+        "reason_code": "OVERLAP_LOST"
+      },
+      {
+        "candidate_id": "s1-image-0",
+        "scene_id": "s1",
+        "stage": "overlap",
+        "outcome": "dropped",
+        "reason_code": "OVERLAP_LOST"
+      },
+      {
+        "candidate_id": "s1-image-1",
+        "scene_id": "s1",
+        "stage": "overlap",
+        "outcome": "dropped",
+        "reason_code": "OVERLAP_LOST"
+      }
+    ],
     "output_profile_id": "assemblyready.alpha.v1"
   }
 }

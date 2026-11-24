@@ -279,7 +279,15 @@ mod entity_window_sequencing_tests {
         ))
         .expect("R30 fixture request");
         let mut items = Vec::new();
-        append_entity_cards(&mut items, &request).expect("entity cards");
+        let mut decisions = Vec::new();
+        append_entity_cards(&mut items, &request, &mut decisions).expect("entity cards");
+        assert!(
+            decisions.iter().any(|decision| {
+                decision.reason_code == super::decisions::REASON_DUPLICATE_IDENTITY
+                    && decision.scene_id == "scene-1"
+            }),
+            "the second Augias occurrence in scene-1 must carry a typed decision: {decisions:#?}"
+        );
         assert_eq!(2, items.len(), "one card per scene, not per occurrence");
         assert_eq!("scene-1", items[0].scene_id);
         assert_eq!("ent_augias_s1a", items[0].entity_id);

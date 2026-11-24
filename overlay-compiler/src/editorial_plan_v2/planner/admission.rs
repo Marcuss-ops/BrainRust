@@ -57,6 +57,7 @@ pub(super) fn admit(
     request: &ValidatedRequest<'_>,
     candidates: Vec<PlanItemV2>,
     mut intake: IntakeV2,
+    decisions: &mut Vec<PlanDecisionV2>,
 ) -> (Vec<PlanItemV2>, IntakeV2) {
     let budgets = request.budgets();
     let max_per_scene = if budgets.max_per_scene > 0 {
@@ -76,38 +77,38 @@ pub(super) fn admit(
     for index in order {
         let item = &candidates[index];
         if request.canvas.maps_only && !is_map(item) {
-            drop_reason(&mut intake, "maps_only");
+            drop_candidate(&mut intake, decisions, "maps_only", item);
             continue;
         }
         if category_disabled(request, item) {
-            drop_reason(&mut intake, "category");
+            drop_candidate(&mut intake, decisions, "category", item);
             continue;
         }
         let group = group_for(item);
         if request.canvas.group_limits.get(group).is_some_and(|limit| {
             *limit > 0 && group_counts.get(group).copied().unwrap_or(0) >= *limit
         }) {
-            drop_reason(&mut intake, "group");
+            drop_candidate(&mut intake, decisions, "group", item);
             continue;
         }
         if item.kind == "text_phrase" {
             if budgets.phrase_overlays > 0 && phrases >= budgets.phrase_overlays {
-                drop_reason(&mut intake, "budget");
+                drop_candidate(&mut intake, decisions, "budget", item);
                 continue;
             }
             if role(item) == "scene_bullet" && budgets.bullet > 0 && bullets >= budgets.bullet {
-                drop_reason(&mut intake, "budget");
+                drop_candidate(&mut intake, decisions, "budget", item);
                 continue;
             }
         }
         if is_image(item) && budgets.image_overlays > 0 && images >= budgets.image_overlays {
             // Verified portraits were considered first, so a generic still
             // that reaches this branch lost the ceiling to them.
-            drop_reason(&mut intake, "budget");
+            drop_candidate(&mut intake, decisions, "budget", item);
             continue;
         }
         if is_map(item) && budgets.map_overlays > 0 && maps >= budgets.map_overlays {
-            drop_reason(&mut intake, "budget");
+            drop_candidate(&mut intake, decisions, "budget", item);
             continue;
         }
         if max_per_scene > 0
@@ -119,7 +120,7 @@ pub(super) fn admit(
         {
             // A named card was considered first, so a date that reaches this
             // branch lost its slot to the identity, not to another date.
-            drop_reason(&mut intake, "per_scene");
+            drop_candidate(&mut intake, decisions, "per_scene", item);
             continue;
         }
         keep[index] = true;
@@ -149,12 +150,28 @@ pub(super) fn admit(
     intake.planned = selected.len() as i64;
     (selected, intake)
 }
-
 fn drop_reason(intake: &mut IntakeV2, reason: &str) {
     *intake
         .dropped_by_reason
         .entry(reason.to_string())
         .or_default() += 1;
+}
+
+/// Drops one candidate and records both the run-level count and the typed
+/// per-candidate decision, so the two projections cannot disagree.
+fn drop_candidate(
+    intake: &mut IntakeV2,
+    decisions: &mut Vec<PlanDecisionV2>,
+    reason: &str,
+    item: &PlanItemV2,
+) {
+    drop_reason(intake, reason);
+    push_decision(
+        decisions,
+        STAGE_ADMISSION,
+        admission_reason_code(reason),
+        item,
+    );
 }
 
 pub(super) fn role(item: &PlanItemV2) -> &str {
@@ -284,6 +301,7 @@ pub(super) fn cascade(items: &mut [PlanItemV2], request: &EditorialPlanV2Request
 pub(super) fn resolve_overlaps(
     request: &EditorialPlanV2Request,
     items: Vec<PlanItemV2>,
+    decisions: &mut Vec<PlanDecisionV2>,
 ) -> Vec<PlanItemV2> {
     if items.is_empty() {
         return items;
@@ -323,6 +341,7 @@ pub(super) fn resolve_overlaps(
     let mut resolved = Vec::with_capacity(items.len());
     for (index, edit) in edits.into_iter().enumerate() {
         if !edit.keep {
+            push_decision(decisions, STAGE_OVERLAP, REASON_OVERLAP_LOST, &items[index]);
             continue;
         }
         let mut item = items[index].clone();

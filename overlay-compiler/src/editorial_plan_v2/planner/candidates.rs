@@ -134,9 +134,10 @@ pub(super) fn build_recap_candidates(
 
 pub(super) fn build_entity_card_candidates(
     request: &EditorialPlanV2Request,
+    decisions: &mut Vec<PlanDecisionV2>,
 ) -> Result<Vec<PlanItemV2>, EditorialPlanError> {
     let mut items = Vec::new();
-    append_entity_cards(&mut items, request)?;
+    append_entity_cards(&mut items, request, decisions)?;
     Ok(items)
 }
 

@@ -63,8 +63,30 @@ pub struct FinalPlanV2 {
     pub timed_scenes: i64,
     #[serde(default)]
     pub intake: IntakeV2,
+    // Additive decision log (ROADMAP 2026-11-19 §4): every candidate the
+    // planner discarded carries one entry with a stable reason code. An empty
+    // log is omitted, so a v2 consumer that knows nothing about it decodes the
+    // same document it decoded before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decisions: Vec<PlanDecisionV2>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub output_profile_id: String,
+}
+
+/// One planner decision. `reason_code` is a stable enum spelling, never free
+/// text, so tests and consumers can match it deterministically.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct PlanDecisionV2 {
+    pub candidate_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub scene_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub entity_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub canonical_entity_id: String,
+    pub stage: String,
+    pub outcome: String,
+    pub reason_code: String,
 }
 
 /// One final overlay item. The typed fields are the ones the planner decides;

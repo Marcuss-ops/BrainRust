@@ -62,6 +62,22 @@
         "overlap": 2
       }
     },
+    "decisions": [
+      {
+        "candidate_id": "s1-phrase-0",
+        "scene_id": "s1",
+        "stage": "overlap",
+        "outcome": "dropped",
+        "reason_code": "OVERLAP_LOST"
+      },
+      {
+        "candidate_id": "s1-phrase-1",
+        "scene_id": "s1",
+        "stage": "overlap",
+        "outcome": "dropped",
+        "reason_code": "OVERLAP_LOST"
+      }
+    ],
     "output_profile_id": "assemblyready.alpha.v1"
   }
 }

@@ -139,6 +139,7 @@ pub(super) fn append_map(
 pub(super) fn append_entity_cards(
     items: &mut Vec<PlanItemV2>,
     request: &EditorialPlanV2Request,
+    decisions: &mut Vec<PlanDecisionV2>,
 ) -> Result<(), EditorialPlanError> {
     let timeline = request
         .entity_timeline
@@ -188,12 +189,27 @@ pub(super) fn append_entity_cards(
             let Some(entity) = entity_scene.entities.get(entity_index) else {
                 continue;
             };
+            let candidate_id = entity_overlay_id(&entity_scene.scene_id, entity);
             let Some((kind, template)) = entity_card_kind(&entity.entity_type) else {
+                push_entity_decision(
+                    decisions,
+                    REASON_ENTITY_KIND_UNSUPPORTED,
+                    &candidate_id,
+                    &entity_scene.scene_id,
+                    entity,
+                );
                 continue;
             };
             if scene_has_map_for(scene, entity) {
                 // A grounded place already renders as a map pin. Emitting a
                 // location card as well would render the same entity twice.
+                push_entity_decision(
+                    decisions,
+                    REASON_MAP_COVERS_ENTITY,
+                    &candidate_id,
+                    &entity_scene.scene_id,
+                    entity,
+                );
                 continue;
             }
             let identity = entity_card_identity(entity);
@@ -201,6 +217,13 @@ pub(super) fn append_entity_cards(
                 // One card per identity per scene. Two occurrences of the same
                 // person are spans of one card, not two portraits competing
                 // for the same image budget.
+                push_entity_decision(
+                    decisions,
+                    REASON_DUPLICATE_IDENTITY,
+                    &candidate_id,
+                    &entity_scene.scene_id,
+                    entity,
+                );
                 continue;
             }
             let assets = if images_disabled {
@@ -210,16 +233,30 @@ pub(super) fn append_entity_cards(
             };
             if assets.is_empty() {
                 if text_cards >= 2 {
+                    push_entity_decision(
+                        decisions,
+                        REASON_TEXT_CARD_LIMIT,
+                        &candidate_id,
+                        &entity_scene.scene_id,
+                        entity,
+                    );
                     continue;
                 }
                 text_cards += 1;
             }
             let Some((start_us, duration_us)) = entity_window(scene, entity) else {
+                push_entity_decision(
+                    decisions,
+                    REASON_NO_TIMING_WINDOW,
+                    &candidate_id,
+                    &entity_scene.scene_id,
+                    entity,
+                );
                 continue;
             };
             let name = entity_name(entity);
             let mut item = scene_item(
-                entity_overlay_id(&entity_scene.scene_id, entity),
+                candidate_id,
                 scene,
                 if assets.is_empty() {
                     kind

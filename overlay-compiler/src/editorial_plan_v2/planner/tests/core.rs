@@ -47,7 +47,7 @@ fn seal_clips_items_and_chain_segments_to_the_scene_end() {
         })),
         ..PlanItemV2::default()
     };
-    let clipped = clip_items_to_scene_bounds(vec![item], &request);
+    let clipped = clip_items_to_scene_bounds(vec![item], &request, &mut Vec::new());
     assert_eq!(1, clipped.len());
     assert_eq!(2_000_000, clipped[0].duration_us);
     assert_eq!(2_000, clipped[0].end_ms);
@@ -133,11 +133,7 @@ fn explicit_image_budget_is_a_run_ceiling() {
         .items
         .iter()
         .any(|item| item.kind == "entity_image"));
-    assert!(!compiled
-        .plan
-        .items
-        .iter()
-        .any(|item| item.kind == "image"));
+    assert!(!compiled.plan.items.iter().any(|item| item.kind == "image"));
     assert_eq!(1, compiled.plan.intake.dropped_by_reason["budget"]);
 }
 
@@ -458,11 +454,11 @@ fn text_entity_card_wins_the_per_scene_ceiling_over_a_number() {
         overlay_item("number-1", "number", "DATE", 100_000, 400_000),
         overlay_item("number-2", "number", "DATE", 600_000, 400_000),
     ];
-    let cards = super::build_entity_card_candidates(&request).expect("cards");
+    let cards = super::build_entity_card_candidates(&request, &mut Vec::new()).expect("cards");
     assert_eq!(1, cards.len());
     candidates.extend(cards);
     let intake = super::new_intake(&validated, &candidates);
-    let (items, intake) = super::admit(&validated, candidates, intake);
+    let (items, intake) = super::admit(&validated, candidates, intake, &mut Vec::new());
 
     let kinds: Vec<&str> = items.iter().map(|item| item.kind.as_str()).collect();
     assert_eq!(2, items.len(), "{kinds:?}");
@@ -714,12 +710,7 @@ fn dense_six_scene_plan_reaches_forty_effective_moments() {
 fn media_outlet_request() -> EditorialPlanV2Request {
     let mut request = request();
     {
-        let entity = &mut request
-            .entity_timeline
-            .as_mut()
-            .expect("timeline")
-            .scenes[0]
-            .entities[0];
+        let entity = &mut request.entity_timeline.as_mut().expect("timeline").scenes[0].entities[0];
         entity.entity_type = "MEDIA_OUTLET".to_string();
         entity.name = "la Repubblica".to_string();
         entity.entity_id = "outlet-repubblica".to_string();
