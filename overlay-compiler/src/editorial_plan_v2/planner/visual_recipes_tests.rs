@@ -425,3 +425,162 @@ fn layout_only_recipes_stay_validated_but_inert() {
         assert_eq!(items[0].text, "12%", "{recipe_name} must not mutate items");
     }
 }
+
+#[test]
+fn relative_time_jump_enriches_the_existing_date_card() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "relative_time_jump",
+        json!({
+            "schema": "visual_recipe.v1",
+            "recipe": "relative_time_jump",
+            "surface": "Nike",
+            "delta_label": "+3 ANNI",
+            "resolved_date": "2021",
+        }),
+    );
+    let mut items = vec![PlanItemV2 {
+        id: "scene-1-number-date".to_string(),
+        scene_id: "scene-1".to_string(),
+        kind: "number".to_string(),
+        template_id: "TIMELINE_DATE_CARD".to_string(),
+        text: "2021".to_string(),
+        ..PlanItemV2::default()
+    }];
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert_eq!(
+        items.len(),
+        1,
+        "the recipe must reuse the date card: {items:?}"
+    );
+    assert_eq!(items[0].text, "2021\n+3 ANNI");
+    assert_eq!(items[0].template_id, "TIMELINE_DATE_CARD");
+    assert!(!items[0].motion_id.is_empty(), "the card keeps an entrance");
+}
+
+#[test]
+fn relative_time_jump_without_a_date_item_appends_one_on_the_spoken_surface() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "relative_time_jump",
+        json!({
+            "schema": "visual_recipe.v1",
+            "recipe": "relative_time_jump",
+            "surface": "Nike",
+            "delta_label": "+3 ANNI",
+            "resolved_date": "2021",
+        }),
+    );
+    let mut items = Vec::new();
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert_eq!(items.len(), 1, "{items:?}");
+    assert_eq!(items[0].kind, "number");
+    assert_eq!(items[0].template_id, "TIMELINE_DATE_CARD");
+    assert_eq!(items[0].text, "2021\n+3 ANNI");
+    assert_eq!(items[0].start_us, 100_000, "anchored on the spoken surface");
+}
+
+#[test]
+fn cause_effect_card_appends_one_two_slot_phrase() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "cause_effect_card",
+        json!({
+            "schema": "visual_recipe.v1",
+            "recipe": "cause_effect_card",
+            "cause_text": "Nike",
+            "effect_text": "museo",
+            "cause_evidence": "Nike",
+            "effect_evidence": "al museo",
+        }),
+    );
+    let mut items = Vec::new();
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert_eq!(items.len(), 1, "{items:?}");
+    assert_eq!(items[0].kind, "text_phrase");
+    assert_eq!(items[0].text, "CAUSA: Nike\n→ EFFETTO: museo");
+    assert_eq!(items[0].start_us, 100_000);
+    assert!(!items[0].motion_id.is_empty());
+}
+
+#[test]
+fn cause_effect_card_is_a_no_op_when_the_phrase_already_names_both_slots() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "cause_effect_card",
+        json!({
+            "schema": "visual_recipe.v1",
+            "recipe": "cause_effect_card",
+            "cause_text": "Nike",
+            "effect_text": "museo",
+            "cause_evidence": "Nike",
+        }),
+    );
+    let mut items = vec![PlanItemV2 {
+        id: "scene-1-phrase".to_string(),
+        scene_id: "scene-1".to_string(),
+        kind: "text_phrase".to_string(),
+        template_id: "IMPORTANT_PHRASE".to_string(),
+        text: "Nike corre al museo.".to_string(),
+        ..PlanItemV2::default()
+    }];
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert_eq!(items.len(), 1, "no duplicate card: {items:?}");
+    assert_eq!(items[0].text, "Nike corre al museo.");
+}
+
+#[test]
+fn process_stepper_appends_each_grounded_step_in_source_order() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "process_stepper",
+        json!({
+            "schema": "visual_recipe.v1",
+            "recipe": "process_stepper",
+            "steps": [
+                {"index": 1, "text": "Nike", "evidence": "Nike"},
+                {"index": 2, "text": "museo", "evidence": "museo"}
+            ],
+        }),
+    );
+    let mut items = Vec::new();
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert_eq!(items.len(), 2, "{items:?}");
+    assert_eq!(items[0].text, "1. Nike");
+    assert_eq!(items[1].text, "2. museo");
+    assert_eq!(items[0].start_us, 100_000);
+    assert_eq!(items[1].start_us, 1_000_000);
+    assert!(items
+        .iter()
+        .all(|item| item.template_id == "IMPORTANT_PHRASE" && !item.motion_id.is_empty()));
+}
+
+#[test]
+fn process_stepper_drops_steps_without_certified_word_timing() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "process_stepper",
+        json!({
+            "schema": "visual_recipe.v1",
+            "recipe": "process_stepper",
+            "steps": [
+                {"index": 1, "text": "Nike", "evidence": "Nike"},
+                {"index": 2, "text": "parole mai pronunciate", "evidence": "parole mai pronunciate"}
+            ],
+        }),
+    );
+    let mut items = Vec::new();
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert_eq!(
+        items.len(),
+        1,
+        "only the grounded step is placed: {items:?}"
+    );
+    assert_eq!(items[0].text, "1. Nike");
+}

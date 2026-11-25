@@ -275,3 +275,54 @@ fn event_heads_pageants_and_lowercase_city_homographs_stay_non_person_non_gpe() 
         "LOCATION"
     );
 }
+
+#[test]
+fn four_digit_numbers_become_years_only_with_temporal_context() {
+    let year_and_quantity = [
+        ("it", "Nel 2015 ha venduto 1500 dischi."),
+        ("en", "In 2015 Aurora sold 1500 units."),
+        ("de", "Im Jahr 2015 verkaufte Aurora 1500 Stück."),
+        ("tr", "2015'te Aurora 1500 adet sattı."),
+        ("pl", "W 2015 roku Aurora sprzedała 1500 sztuk."),
+        ("ru", "В 2015 году Aurora продала 1500 штук."),
+    ];
+    for (language, source) in year_and_quantity {
+        let candidates = value_candidates(source);
+        let year = candidates
+            .iter()
+            .find(|candidate| candidate.text.contains("2015"))
+            .unwrap_or_else(|| panic!("{language}: no year candidate: {candidates:?}"));
+        assert_eq!(
+            year.entity_type.as_deref(),
+            Some("DATE"),
+            "{language}: temporal context must type 2015 as DATE: {candidates:?}"
+        );
+        let quantity = candidates
+            .iter()
+            .find(|candidate| candidate.text.contains("1500"))
+            .unwrap_or_else(|| panic!("{language}: no quantity candidate: {candidates:?}"));
+        assert_eq!(
+            quantity.entity_type.as_deref(),
+            Some("NUMBER"),
+            "{language}: 1500 is a quantity, not a year: {candidates:?}"
+        );
+    }
+
+    for source in [
+        "Mario 1500, Luca 1800, Marco 1200.",
+        "Il codice è 1500, la password è 1800.",
+        "1500 dischi sono stati venduti.",
+        "Nel 2015 1.500 dischi, nel 2016 1200.",
+    ] {
+        let candidates = value_candidates(source);
+        assert!(
+            candidates.iter().any(|candidate| {
+                matches!(candidate.entity_type.as_deref(), Some("NUMBER"))
+                    && (candidate.text.contains("1500")
+                        || candidate.text.contains("1.500")
+                        || candidate.text.contains("1800"))
+            }),
+            "a four-digit quantity must survive year detection: {source}: {candidates:?}"
+        );
+    }
+}

@@ -363,8 +363,13 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
             {
                 // Short spellings such as "one"/"zero" are ambiguous in
                 // prose and durations, but a typed quantity such as "one
-                // percent" is meaningful evidence.
-                continue;
+                // percent" is meaningful evidence. `zero` in an ordered
+                // series ("poi zero, poi trenta") is a grounded value.
+                let zero_in_series = magnitude == 0.0
+                    && semantic_core::chart_cues::ordered_series_cue_near(source, start, end, 48);
+                if !zero_in_series {
+                    continue;
+                }
             }
 
             let (candidate_end, classified_type) =
@@ -387,6 +392,7 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
             // adds one half of the scale that was just consumed.
             let (candidate_end, value) =
                 extend_additive_fraction(source, start, end, candidate_end, value, rules);
+            let number_start = start;
             let start = approximator_start(source, &tokens, start_index, rules).unwrap_or(start);
             // A list of idioms that must never become a number. The window
             // covers two words before and three after the candidate so
@@ -409,6 +415,7 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
                 && suffix.is_none()
                 && value.fract() == 0.0
                 && (1000.0..=2099.0).contains(&value)
+                && semantic_core::chart_cues::year_context(source, number_start, end, value as u32)
             {
                 "DATE"
             } else {

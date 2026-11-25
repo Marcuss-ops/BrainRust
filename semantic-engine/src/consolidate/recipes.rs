@@ -558,6 +558,7 @@ fn push_counter_odometers(
 }
 
 pub(super) fn push_visual_recipes(
+    language: &str,
     sources: &[SceneInput],
     scenes: &[SceneManifest],
     events: &[EventFrame],
@@ -577,4 +578,284 @@ pub(super) fn push_visual_recipes(
     push_choropleths(scenes, &texts, &covered_chart, candidates);
     push_lifespans(scenes, events, identities, sources, &texts, candidates);
     push_counter_odometers(scenes, identities, &texts, &covered_chart, candidates);
+    push_relative_time_jumps(language, scenes, &texts, candidates);
+    push_cause_effect_cards(scenes, &texts, &covered_chart, candidates);
+    push_process_steppers(scenes, &texts, &covered_chart, candidates);
+}
+
+/// `+3 ANNI` / `-48 ORE`: the display form of a resolved relative date. The
+/// engine owns the arithmetic; this label only makes the payload renderable
+/// without re-parsing the source surface downstream.
+fn relative_delta_label(language: &str, direction: &str, amount: i64, unit: &str) -> String {
+    let sign = match direction {
+        "after" => "+",
+        "before" => "-",
+        _ => "",
+    };
+    let singular = amount == 1;
+    let unit = match (language, unit, singular) {
+        ("it", "day", true) => "GIORNO",
+        ("it", "day", false) => "GIORNI",
+        ("it", "week", true) => "SETTIMANA",
+        ("it", "week", false) => "SETTIMANE",
+        ("it", "month", true) => "MESE",
+        ("it", "month", false) => "MESI",
+        ("it", "year", true) => "ANNO",
+        ("it", "year", false) => "ANNI",
+        ("it", "decade", true) => "DECENNIO",
+        ("it", "decade", false) => "DECENNI",
+        ("it", "century", true) => "SECOLO",
+        ("it", "century", false) => "SECOLI",
+        ("en", "day", true) => "DAY",
+        ("en", "day", false) => "DAYS",
+        ("en", "week", true) => "WEEK",
+        ("en", "week", false) => "WEEKS",
+        ("en", "month", true) => "MONTH",
+        ("en", "month", false) => "MONTHS",
+        ("en", "year", true) => "YEAR",
+        ("en", "year", false) => "YEARS",
+        ("en", "decade", true) => "DECADE",
+        ("en", "decade", false) => "DECADES",
+        ("en", "century", true) => "CENTURY",
+        ("en", "century", false) => "CENTURIES",
+        (_, "day", true) => "DAY",
+        (_, "day", false) => "DAYS",
+        (_, "week", true) => "WEEK",
+        (_, "week", false) => "WEEKS",
+        (_, "month", true) => "MONTH",
+        (_, "month", false) => "MONTHS",
+        (_, "year", true) => "YEAR",
+        (_, "year", false) => "YEARS",
+        (_, "decade", true) => "DECADE",
+        (_, "decade", false) => "DECADES",
+        (_, "century", true) => "CENTURY",
+        (_, "century", false) => "CENTURIES",
+        _ => return format!("{sign}{} {}", amount.abs(), unit.to_uppercase()),
+    };
+    format!("{sign}{} {unit}", amount.abs())
+}
+
+/// Relative dates are already resolved by the semantic-core analyzer. This
+/// recipe carries the resolved ISO value and the spoken delta, so a planner can
+/// render a time jump without re-deriving either.
+fn push_relative_time_jumps(
+    language: &str,
+    scenes: &[SceneManifest],
+    texts: &HashMap<&str, &str>,
+    candidates: &mut Vec<ProductionCandidate>,
+) {
+    for scene in scenes {
+        let Some(text) = texts.get(scene.scene_id.as_str()) else {
+            continue;
+        };
+        for fact in &scene.temporal_facts {
+            let Some(relative) = fact.relative.as_ref() else {
+                continue;
+            };
+            let Some(resolved) = fact.normalized.as_deref() else {
+                continue;
+            };
+            let payload = json!({
+                "schema": RECIPE_SCHEMA,
+                "recipe": "relative_time_jump",
+                "surface": fact.surface,
+                "delta_label": relative_delta_label(
+                    language,
+                    relative.direction.as_str(),
+                    relative.amount,
+                    relative.unit.as_str(),
+                ),
+                "resolved_date": resolved,
+                "direction": relative.direction,
+                "amount": relative.amount,
+                "unit": relative.unit,
+                "start_byte": fact.start_byte,
+                "end_byte": fact.end_byte,
+            });
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "relative_time_jump",
+                scene_id: scene.scene_id.as_str(),
+                text,
+                start: fact.start_byte,
+                end: fact.end_byte,
+                title: "Salto temporale".to_string(),
+                suggested_visual: "relative_time_jump",
+                priority: 0.78,
+                entity_ids: Vec::new(),
+                covered_fact_ids: Vec::new(),
+                payload,
+                dedup_key: format!(
+                    "relative_time_jump:{}:{}:{}",
+                    scene.scene_id, fact.start_byte, fact.end_byte
+                ),
+                rationale: "resolved relative date with a grounded source surface",
+            }) {
+                candidates.push(candidate);
+            }
+        }
+    }
+}
+
+/// A cause-effect group is exactly two grounded members; a single missing slot
+/// is no card. The chart span guard keeps the sentence card from covering a
+/// chart that already represents the same numbers.
+fn push_cause_effect_cards(
+    scenes: &[SceneManifest],
+    texts: &HashMap<&str, &str>,
+    chart_spans: &HashMap<String, Vec<(usize, usize)>>,
+    candidates: &mut Vec<ProductionCandidate>,
+) {
+    for scene in scenes {
+        let Some(text) = texts.get(scene.scene_id.as_str()) else {
+            continue;
+        };
+        let empty = Vec::new();
+        let covered_chart = chart_spans.get(&scene.scene_id).unwrap_or(&empty);
+        for group in &scene.semantic_groups {
+            if group.group_type != "cause_effect" || group.members.len() != 2 {
+                continue;
+            }
+            if group
+                .members
+                .iter()
+                .any(|member| !member.scene_id.is_empty() && member.scene_id != scene.scene_id)
+            {
+                continue;
+            }
+            let start = group
+                .members
+                .iter()
+                .map(|member| member.start_byte)
+                .min()
+                .unwrap_or(0);
+            let end = group
+                .members
+                .iter()
+                .map(|member| member.end_byte)
+                .max()
+                .unwrap_or(start);
+            if overlaps(covered_chart, start, end) {
+                continue;
+            }
+            let cause = &group.members[0];
+            let effect = &group.members[1];
+            let payload = json!({
+                "schema": RECIPE_SCHEMA,
+                "recipe": "cause_effect_card",
+                "cause_text": cause.text,
+                "effect_text": effect.text,
+                "cause_evidence": cause.evidence,
+                "effect_evidence": effect.evidence,
+                "cause_start_byte": cause.start_byte,
+                "cause_end_byte": cause.end_byte,
+                "effect_start_byte": effect.start_byte,
+                "effect_end_byte": effect.end_byte,
+                "start_byte": start,
+                "end_byte": end,
+            });
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "cause_effect_card",
+                scene_id: scene.scene_id.as_str(),
+                text,
+                start,
+                end,
+                title: group.title.clone(),
+                suggested_visual: "cause_effect_card",
+                priority: 0.8,
+                entity_ids: Vec::new(),
+                covered_fact_ids: Vec::new(),
+                payload,
+                dedup_key: format!("cause_effect_card:{}:{}", scene.scene_id, group.id),
+                rationale: "asserted causal relation with a grounded cause and effect",
+            }) {
+                candidates.push(candidate);
+            }
+        }
+    }
+}
+
+/// Process and step-sequence groups already carry ordered, grounded members.
+/// The stepper recipe forwards that order verbatim; it never invents a step.
+fn push_process_steppers(
+    scenes: &[SceneManifest],
+    texts: &HashMap<&str, &str>,
+    chart_spans: &HashMap<String, Vec<(usize, usize)>>,
+    candidates: &mut Vec<ProductionCandidate>,
+) {
+    for scene in scenes {
+        let Some(text) = texts.get(scene.scene_id.as_str()) else {
+            continue;
+        };
+        let empty = Vec::new();
+        let covered_chart = chart_spans.get(&scene.scene_id).unwrap_or(&empty);
+        for group in &scene.semantic_groups {
+            if !matches!(group.group_type.as_str(), "process" | "step_sequence")
+                || !(2..=6).contains(&group.members.len())
+            {
+                continue;
+            }
+            // A cross-scene process is anchored in its first scene; its later
+            // members speak in other scenes and cannot be timed here.
+            if group
+                .members
+                .iter()
+                .any(|member| !member.scene_id.is_empty() && member.scene_id != scene.scene_id)
+            {
+                continue;
+            }
+            let start = group
+                .members
+                .iter()
+                .map(|member| member.start_byte)
+                .min()
+                .unwrap_or(0);
+            let end = group
+                .members
+                .iter()
+                .map(|member| member.end_byte)
+                .max()
+                .unwrap_or(start);
+            if overlaps(covered_chart, start, end) {
+                continue;
+            }
+            let steps: Vec<serde_json::Value> = group
+                .members
+                .iter()
+                .enumerate()
+                .map(|(index, member)| {
+                    json!({
+                        "index": index + 1,
+                        "text": member.text,
+                        "evidence": member.evidence,
+                        "start_byte": member.start_byte,
+                        "end_byte": member.end_byte,
+                    })
+                })
+                .collect();
+            let payload = json!({
+                "schema": RECIPE_SCHEMA,
+                "recipe": "process_stepper",
+                "start_byte": start,
+                "end_byte": end,
+                "steps": steps,
+            });
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "process_stepper",
+                scene_id: scene.scene_id.as_str(),
+                text,
+                start,
+                end,
+                title: group.title.clone(),
+                suggested_visual: "process_stepper",
+                priority: 0.79,
+                entity_ids: Vec::new(),
+                covered_fact_ids: Vec::new(),
+                payload,
+                dedup_key: format!("process_stepper:{}:{}", scene.scene_id, group.id),
+                rationale: "ordered grounded process with at least two members",
+            }) {
+                candidates.push(candidate);
+            }
+        }
+    }
 }

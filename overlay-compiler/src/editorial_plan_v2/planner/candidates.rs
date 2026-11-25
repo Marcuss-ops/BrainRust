@@ -308,6 +308,120 @@ pub(super) fn assign_long_phrase_motions(
     }
 }
 
+/// Rotates the certified date and metric presentation pools for every numeric
+/// card. The three certified families (classic, didone, typewriter) are
+/// interleaved, so a short run samples a typewriter gesture within its first
+/// few cards, and a plan-wide used set prevents repeating a motion until that
+/// lane's pool is exhausted. Selection is seeded by the run's `motion_seed`,
+/// so a replay reproduces the same order while each new run rotates.
+pub(super) fn assign_numeric_motions(items: &mut [PlanItemV2], request: &EditorialPlanV2Request) {
+    // The request's motion_seed is shared by runs that pin one entropy value.
+    // Mixing in the plan id keeps that pin from freezing the numeric entrances
+    // across different plans, while a replay of the same plan stays identical.
+    let seed = format!("{}\x00{}", motion_seed(request), request.plan.plan_id);
+    let seed = seed.as_str();
+    let mut used: BTreeMap<&'static str, BTreeSet<String>> = BTreeMap::new();
+    // A lane cursor walks the interleaved pool in reading order. A per-item
+    // hash alone could land three times in the classic block before reaching
+    // the typewriter family; the cursor guarantees one family per round.
+    let mut cursors: BTreeMap<&'static str, usize> = BTreeMap::new();
+    for item in items.iter_mut() {
+        let lane = match item.template_id.as_str() {
+            "TIMELINE_DATE_CARD" => NumericLane::Date,
+            "METRIC_STAT_CARD" => NumericLane::Metric,
+            _ => continue,
+        };
+        let Some((counts_key, family_key)) = lane.motion_lane() else {
+            continue;
+        };
+        let mut pool = lane.motion_pool(request);
+        if pool.is_empty() {
+            continue;
+        }
+        let limit = request
+            .canvas
+            .animation_counts
+            .get(counts_key)
+            .copied()
+            .unwrap_or(0)
+            .max(0) as usize;
+        if limit > 0 && limit < pool.len() {
+            pool = limited_shuffled_pool(
+                &pool,
+                limit,
+                &format!("{seed}\x00{}\x00{family_key}", request.plan.plan_id),
+            );
+        }
+        let ordered = ordered_numeric_motion_pool(&pool, seed, family_key);
+        if ordered.is_empty() {
+            continue;
+        }
+        // Start on a family round boundary. A random offset inside the flat
+        // list could land in the classic tail (classic owns 20 of the 39/40
+        // motions), so three cards in a row could never reach typewriter.
+        // The seed already rotates every family and the family order itself.
+        let cursor = *cursors.entry(family_key).or_insert(0);
+        let lane_used = used.entry(family_key).or_default();
+        let motion_index = (0..ordered.len())
+            .map(|step| (cursor + step) % ordered.len())
+            .find(|index| !lane_used.contains(ordered[*index]))
+            .unwrap_or(cursor % ordered.len());
+        let motion = ordered[motion_index];
+        lane_used.insert(motion.to_string());
+        cursors.insert(family_key, (motion_index + 1) % ordered.len());
+        item.motion_id = motion.to_string();
+    }
+}
+
+/// Interleaves classic, didone and typewriter members so a three-card run owns
+/// one entrance from each family instead of three neighbours from the same
+/// family. Each family keeps its registry order, rotated by the run seed.
+fn ordered_numeric_motion_pool<'a>(pool: &[&'a str], seed: &str, lane: &str) -> Vec<&'a str> {
+    let mut families: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+    for id in pool.iter().copied() {
+        families
+            .entry(numeric_motion_family(id).to_string())
+            .or_default()
+            .push(id);
+    }
+    for (family, motions) in families.iter_mut() {
+        if let Some(offset) = seeded_index(seed, "", lane, family, motions.len()) {
+            motions.rotate_left(offset);
+        }
+    }
+    let names: Vec<String> = families.keys().cloned().collect();
+    let family_offset =
+        seeded_index(seed, "", lane, "numeric_family_order", names.len()).unwrap_or(0);
+    let mut ordered = Vec::with_capacity(pool.len());
+    let mut indexes = vec![0; names.len()];
+    loop {
+        let mut added = false;
+        for step in 0..names.len() {
+            let index = (family_offset + step) % names.len();
+            let motions = &families[&names[index]];
+            if indexes[index] < motions.len() {
+                ordered.push(motions[indexes[index]]);
+                indexes[index] += 1;
+                added = true;
+            }
+        }
+        if !added {
+            break;
+        }
+    }
+    ordered
+}
+
+fn numeric_motion_family(id: &str) -> &str {
+    if id.starts_with("date_didone_") || id.starts_with("metric_didone_") {
+        "didone"
+    } else if id.starts_with("date_typewriter_") || id.starts_with("metric_typewriter_") {
+        "typewriter"
+    } else {
+        "classic"
+    }
+}
+
 /// A bullet pin that names a motion is authoritative; `apply_editorial_bullet_pins`
 /// writes it after this phase. A pin that only carries font/size does not
 /// choose an entrance, so the item still rotates the certified pool.

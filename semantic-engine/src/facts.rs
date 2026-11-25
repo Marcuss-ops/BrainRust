@@ -565,9 +565,9 @@ impl SentenceFacts<'_> {
                 importance: 0.0,
                 visual_concept_ids: Vec::new(),
             });
-            break;
+            return true;
         }
-        true
+        false
     }
 
     /// "lo stadio di Torino": a bare prepositional phrase is enough when the

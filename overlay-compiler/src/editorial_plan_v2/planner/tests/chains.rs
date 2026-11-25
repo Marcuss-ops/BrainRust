@@ -698,3 +698,86 @@ fn general_chain_keeps_a_text_card_textual_and_the_portrait_with_its_owner() {
         segments[1]
     );
 }
+
+#[test]
+fn general_chain_segments_stay_chronological_for_shuffled_input() {
+    // The planner must not inherit the caller's item order: coalescing sorts
+    // before fuse, and every emitted chain segment must remain chronological
+    // for the Go seal and the renderer.
+    let items = vec![
+        chain_phrase("late", "late", 2_000_000, 500_000, "motion_late"),
+        chain_phrase("early", "early", 100_000, 500_000, "motion_early"),
+        chain_phrase("middle", "middle", 1_000_000, 500_000, "motion_middle"),
+    ];
+    let fused = super::coalesce_chained_overlays(
+        items,
+        &chain_request(&[("chain_enabled", 1)]),
+        &chain_ends(10_000_000),
+    );
+    assert_eq!(1, fused.len());
+    let segments = fused[0].params.as_ref().expect("params")["chain_segments"]
+        .as_array()
+        .expect("segments");
+    let starts = segments
+        .iter()
+        .map(|segment| segment["start_us"].as_i64().expect("start_us"))
+        .collect::<Vec<_>>();
+    assert_eq!(starts, vec![100_000, 1_000_000, 1_900_000]);
+    assert!(starts.windows(2).all(|pair| pair[0] <= pair[1]));
+}
+
+#[test]
+fn chain_text_split_and_scene_clamp_stay_chronological() {
+    let long = "parola ".repeat(120); // 840 runes: forces the 180-rune split
+    let mut item = PlanItemV2 {
+        id: "chronological-chain".to_string(),
+        scene_id: "scene-1".to_string(),
+        kind: "mixed_chain".to_string(),
+        start_us: 0,
+        duration_us: 12_000_000,
+        params: Some(serde_json::json!({
+            "chain_segments": [
+                {
+                    "kind": "text_phrase",
+                    "text": long,
+                    "start_us": 0,
+                    "duration_us": 8_000_000
+                },
+                {
+                    "kind": "entity_image",
+                    "start_us": 8_000_000,
+                    "duration_us": 4_000_000
+                }
+            ]
+        })),
+        ..Default::default()
+    };
+    super::split_long_chain_text(&mut item);
+    let mut request = request();
+    request.scenes[0].duration_us = 12_000_000;
+    request.scenes[0].duration_ms = 12_000;
+    let clipped = clip_items_to_scene_bounds(vec![item], &request, &mut Vec::new());
+    assert_eq!(1, clipped.len());
+    let segments = clipped[0].params.as_ref().expect("params")["chain_segments"]
+        .as_array()
+        .expect("segments");
+    let starts = segments
+        .iter()
+        .map(|segment| segment["start_us"].as_i64().expect("start_us"))
+        .collect::<Vec<_>>();
+    assert!(
+        starts.windows(2).all(|pair| pair[0] <= pair[1]),
+        "chain segments must stay chronological: {starts:?}"
+    );
+    assert!(
+        segments
+            .iter()
+            .all(|segment| segment["duration_us"].as_i64().is_some_and(|duration| duration > 0)),
+        "every kept segment needs a readable window"
+    );
+    let total: i64 = segments
+        .iter()
+        .map(|segment| segment["duration_us"].as_i64().expect("duration_us"))
+        .sum();
+    assert_eq!(12_000_000, total, "split and clamp must conserve the window");
+}

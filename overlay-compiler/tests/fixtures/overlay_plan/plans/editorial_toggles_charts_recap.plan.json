@@ -78,7 +78,7 @@
         }
       },
       {
-        "id": "metric-debt-flip__42-per-cento__date_number__01",
+        "id": "metric-typewriter-backspace-settle__42-per-cento__date_number__01",
         "scene_id": "s1",
         "kind": "number",
         "start_ms": 1050,
@@ -86,7 +86,7 @@
         "start_us": 1050000,
         "duration_us": 650000,
         "template_id": "METRIC_STAT_CARD",
-        "motion_id": "metric_debt_flip",
+        "motion_id": "metric_typewriter_backspace_settle",
         "motion_params": {
           "enter_frames": 15
         },

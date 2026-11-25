@@ -188,7 +188,14 @@ pub fn build(
 
     push_charts(scenes, &identities, &reference_keys, &mut candidates);
     push_ranking_bars(sources, scenes, &mut candidates);
-    push_visual_recipes(sources, scenes, events, &identities, &mut candidates);
+    push_visual_recipes(
+        language,
+        sources,
+        scenes,
+        events,
+        &identities,
+        &mut candidates,
+    );
     push_multiple_entities(scenes, &identities, &mut candidates);
     push_named_entities(scenes, &identities, &mut candidates);
     push_visual_concepts(language, scenes, &identities, &mut candidates);

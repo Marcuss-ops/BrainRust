@@ -276,7 +276,10 @@ fn numeric_facts(
         // tecnici" names no unit. Only a candidate that carries a unit
         // ("sedici anni") or is followed by an open-class noun ("cinque
         // consulenze", "five reports") enters the numeric projection.
-        if candidate.entity_type == "NUMBER" && !candidate.has_unit {
+        if candidate.entity_type == "NUMBER"
+            && !candidate.has_unit
+            && !near_ordered_series_cue(source_text, candidate.start, candidate.end)
+        {
             continue;
         }
         // A spelled date component ("ventiquattro" in "ventiquattro maggio")
@@ -287,6 +290,12 @@ fn numeric_facts(
             .iter()
             .any(|fact| candidate.start >= fact.start_byte && candidate.end <= fact.end_byte)
         {
+            continue;
+        }
+        // A spelled day number immediately before a month ("ventiquattro
+        // maggio") belongs to the date projection, even when the month cue
+        // also looks like an ordered-series cue.
+        if followed_by_month_name(source_text, candidate.end) {
             continue;
         }
         let Some(surface) = source_text.get(candidate.start..candidate.end) else {
@@ -559,6 +568,7 @@ fn chart_points(
                     .surface
                     .chars()
                     .any(|character| character.is_ascii_digit())
+                || near_ordered_series_cue(source_text, fact.start_byte, fact.end_byte)
         })
         .filter_map(|fact| {
             let value = fact
@@ -581,6 +591,28 @@ fn chart_points(
             })
         })
         .collect()
+}
+
+/// A spelled value (`millecinquecento`, `zero`) is not a measurement by
+/// itself, but an adjacent ordering cue (`poi`, `prima`, `infine`, an ordinal
+/// or a month) makes it a series point. The window is small and bounded so an
+/// unrelated number in a long paragraph cannot claim the cue.
+fn near_ordered_series_cue(source: &str, start: usize, end: usize) -> bool {
+    semantic_core::chart_cues::ordered_series_cue_near(source, start, end, 48)
+}
+
+fn followed_by_month_name(source: &str, end: usize) -> bool {
+    let tail = source.get(end..).unwrap_or_default().trim_start();
+    let word = tail
+        .split(|ch: char| !ch.is_alphanumeric())
+        .find(|word| !word.is_empty())
+        .unwrap_or("")
+        .to_lowercase();
+    !word.is_empty()
+        && semantic_core::lexicon::lexicon()
+            .month_typing_names
+            .iter()
+            .any(|month| month == &word)
 }
 
 fn same_surface(a: &VisualEntity, b: &VisualEntity) -> bool {

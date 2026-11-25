@@ -75,6 +75,11 @@ fn apply_visual_recipe(
         "quote_attribution" => apply_quote_attribution(items, payload, first),
         "source_highlight" => apply_source_highlight(items, payload, first),
         "route_map" => apply_route_order(items, payload, first),
+        "relative_time_jump" => {
+            apply_relative_time_jump(items, scene, payload, request, first);
+        }
+        "cause_effect_card" => append_cause_effect_card(items, scene, payload),
+        "process_stepper" => append_process_stepper(items, scene, payload),
         // TICKET-48 decision: these three stay validated-but-inert. Each needs
         // a layout the renderer does not certify, they fired in 3, 1 and 0 of
         // the 1,173 archived scenes, and rejecting them at validation would
@@ -82,6 +87,212 @@ fn apply_visual_recipe(
         "relationship_graph" | "choropleth_value_map" | "lifespan_timeline" => {}
         // Unreachable for a validated request; validation owns the closed set.
         _ => {}
+    }
+}
+
+/// Word window for a payload surface. The planner has certified word timing,
+/// so a recipe can anchor its card without the producer inventing a window.
+fn phrase_window(scene: &SceneV2, phrase: &str) -> Option<(i64, i64)> {
+    let timing = scene.voiceover.as_ref()?.timing.as_ref()?;
+    let query: Vec<String> = normalize(phrase)
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    if query.is_empty() {
+        return None;
+    }
+    let mut tokens: Vec<(String, usize)> = Vec::new();
+    for (index, word) in timing.words.iter().enumerate() {
+        for token in normalize(&word.text).split_whitespace() {
+            tokens.push((token.to_string(), index));
+        }
+    }
+    if query.len() > tokens.len() {
+        return None;
+    }
+    for start in 0..=tokens.len().saturating_sub(query.len()) {
+        if query
+            .iter()
+            .enumerate()
+            .all(|(offset, token)| tokens[start + offset].0 == *token)
+        {
+            let first = &timing.words[tokens[start].1];
+            let last = &timing.words[tokens[start + query.len() - 1].1];
+            return Some((
+                scene.timeline_start_us + first.start_us,
+                scene.timeline_start_us + last.end_us,
+            ));
+        }
+    }
+    None
+}
+
+/// `relative_time_jump`: a resolved date plus its spoken delta. It enriches the
+/// date card the numeric lane already built, and only appends a card when the
+/// scene has no date item at all. The second line is bounded like
+/// `counter_odometer`, so a malformed label cannot become a wall of text.
+fn apply_relative_time_jump(
+    items: &mut Vec<PlanItemV2>,
+    scene: &SceneV2,
+    payload: &Value,
+    request: &EditorialPlanV2Request,
+    first: usize,
+) {
+    let delta = text(payload, "delta_label");
+    let resolved = text(payload, "resolved_date");
+    if delta.is_empty() || resolved.is_empty() {
+        return;
+    }
+    if delta.chars().count() > 18 || resolved.chars().count() > 24 {
+        return;
+    }
+    let resolved_norm = normalize(resolved);
+    let year_norm = normalize(resolved.get(..4).unwrap_or(resolved));
+    let surface_norm = normalize(text(payload, "surface"));
+    let existing = items.iter_mut().skip(first).find(|item| {
+        if item.kind != "number" {
+            return false;
+        }
+        let value = normalize(&item.text);
+        value == resolved_norm
+            || (!resolved_norm.is_empty() && value.contains(&resolved_norm))
+            || (year_norm.len() == 4 && value.contains(&year_norm))
+            || (!surface_norm.is_empty() && value == surface_norm)
+    });
+    if let Some(item) = existing {
+        if item.text.contains('\n') || item.text.trim().is_empty() {
+            return;
+        }
+        item.text = format!("{}\n{delta}", item.text.trim());
+        item.template_id = "TIMELINE_DATE_CARD".to_string();
+        if item.motion_id.trim().is_empty() {
+            item.motion_id = seeded_preset(
+                &request.plan.plan_id,
+                &scene.id,
+                &item.id,
+                "recipe_relative_time_jump",
+                DATE_MOTIONS,
+            )
+            .unwrap_or_default();
+        }
+        return;
+    }
+    let Some((start_us, end_us)) = phrase_window(scene, text(payload, "surface")) else {
+        return;
+    };
+    let duration = (end_us - start_us).max(2_200_000);
+    let mut item = scene_item(
+        format!("{}-recipe-relative-time", scene.id),
+        scene,
+        "number",
+        "TIMELINE_DATE_CARD",
+        start_us,
+        duration,
+        format!("{resolved}\n{delta}"),
+    );
+    item.params = Some(json!({"position": "center", "style": "date"}));
+    item.motion_id = seeded_preset(
+        &request.plan.plan_id,
+        &scene.id,
+        &item.id,
+        "recipe_relative_time_jump",
+        DATE_MOTIONS,
+    )
+    .unwrap_or_default();
+    items.push(item);
+}
+
+/// `cause_effect_card`: one certified phrase card with both grounded slots.
+/// The card is skipped when an existing phrase already names both members, so
+/// the recipe never duplicates the sentence it explains.
+fn append_cause_effect_card(items: &mut Vec<PlanItemV2>, scene: &SceneV2, payload: &Value) {
+    let cause = text(payload, "cause_text");
+    let effect = text(payload, "effect_text");
+    if cause.is_empty() || effect.is_empty() {
+        return;
+    }
+    if cause.chars().count() > 48 || effect.chars().count() > 48 {
+        return;
+    }
+    let cause_norm = normalize(cause);
+    let effect_norm = normalize(effect);
+    if items.iter().any(|item| {
+        item.kind == "text_phrase"
+            && normalize(&item.text).contains(&cause_norm)
+            && normalize(&item.text).contains(&effect_norm)
+    }) {
+        return;
+    }
+    let evidence = text(payload, "cause_evidence");
+    let Some((start_us, end_us)) =
+        phrase_window(scene, evidence).or_else(|| phrase_window(scene, cause))
+    else {
+        return;
+    };
+    let mut item = scene_item(
+        format!("{}-recipe-cause-effect", scene.id),
+        scene,
+        "text_phrase",
+        "IMPORTANT_PHRASE",
+        start_us,
+        (end_us - start_us).max(2_500_000),
+        format!("CAUSA: {cause}\n→ EFFETTO: {effect}"),
+    );
+    item.motion_id = "short_phrase_editorial_focus_resolve".to_string();
+    item.params = Some(json!({"priority": 0.8, "presentation_role": "cause_effect"}));
+    items.push(item);
+}
+
+/// `process_stepper`: one numbered phrase per grounded step, each anchored to
+/// the words that state it. A step with no certified window is dropped rather
+/// than placed on an invented beat; the existing coalescer can fuse the cards
+/// into the certified `PHRASE_CHAIN` when they are close enough.
+fn append_process_stepper(items: &mut Vec<PlanItemV2>, scene: &SceneV2, payload: &Value) {
+    let Some(steps) = payload.get("steps").and_then(Value::as_array) else {
+        return;
+    };
+    if !(2..=6).contains(&steps.len()) {
+        return;
+    }
+    for (index, step) in steps.iter().enumerate() {
+        let label = step
+            .get("text")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
+        let evidence = step
+            .get("evidence")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(label);
+        if label.is_empty() {
+            continue;
+        }
+        let label: String = label.chars().take(64).collect();
+        if items
+            .iter()
+            .any(|item| item.kind == "text_phrase" && normalize(&item.text) == normalize(&label))
+        {
+            continue;
+        }
+        let Some((start_us, end_us)) =
+            phrase_window(scene, evidence).or_else(|| phrase_window(scene, &label))
+        else {
+            continue;
+        };
+        let mut item = scene_item(
+            format!("{}-recipe-step-{}", scene.id, index + 1),
+            scene,
+            "text_phrase",
+            "IMPORTANT_PHRASE",
+            start_us,
+            (end_us - start_us).max(1_800_000),
+            format!("{}. {label}", index + 1),
+        );
+        item.motion_id = "short_phrase_editorial_focus_resolve".to_string();
+        item.params = Some(json!({"priority": 0.79, "presentation_role": "process_step"}));
+        items.push(item);
     }
 }
 

@@ -153,6 +153,49 @@ pub(super) fn chart_claim_bounds(bullet: &Bullet, points: &[&ChartPoint]) -> (us
     (bullet.start + left, bullet.start + right)
 }
 
+/// The nearest month or ordered-sequence cue before a point is a grounded
+/// category for an implicit series ("a gennaio 100", "prima 1500",
+/// "il primo giorno 20"). Only source words are returned, never synthesized
+/// labels.
+fn month_or_sequence_label(
+    source: &str,
+    bullet: &Bullet,
+    point: &ChartPoint,
+    scope_start: usize,
+) -> Option<String> {
+    let lower_limit = scope_start.saturating_sub(80);
+    let mut month: Option<(usize, String)> = None;
+    let mut sequence: Option<(usize, String)> = None;
+    for word in semantic_core::discourse::word_spans(&bullet.text) {
+        let start = bullet.start + word.start;
+        let end = bullet.start + word.end;
+        if end > point.start || start < lower_limit {
+            continue;
+        }
+        let Some(surface) = source.get(start..end) else {
+            continue;
+        };
+        if semantic_core::lexicon::lexicon()
+            .month_typing_names
+            .iter()
+            .any(|name| name == &word.lowered)
+        {
+            if month.as_ref().is_none_or(|(last, _)| end > *last) {
+                month = Some((end, surface.to_string()));
+            }
+        }
+        if semantic_core::chart_cues::global()
+            .series_label_cues
+            .iter()
+            .any(|cue| cue == &word.lowered)
+            && sequence.as_ref().is_none_or(|(last, _)| end > *last)
+        {
+            sequence = Some((end, surface.to_string()));
+        }
+    }
+    month.or(sequence).map(|(_, label)| label)
+}
+
 pub(super) fn chart_claim_evidence(
     source: &str,
     bullet: &Bullet,
@@ -176,7 +219,9 @@ pub(super) fn chart_subject_label(
     bullet: &Bullet,
     scope_start: usize,
     scope_end: usize,
+    language: &str,
 ) -> String {
+    let prepositions = &semantic_core::chart_cues::language_cues(language).label_prepositions;
     let point_start = point.start;
     let point_end = point.end;
     let years = year_spans(&bullet.text, bullet.start);
@@ -191,6 +236,9 @@ pub(super) fn chart_subject_label(
             return year.clone();
         }
     }
+    if let Some(label) = month_or_sequence_label(source, bullet, point, scope_start) {
+        return label;
+    }
     let entity_candidate = entities
         .iter()
         .filter(|entity| {
@@ -202,6 +250,9 @@ pub(super) fn chart_subject_label(
                     entity.r#type.as_str(),
                     "NUMBER" | "PERCENT" | "MONEY" | "DATE"
                 )
+                && !prepositions
+                    .iter()
+                    .any(|preposition| preposition.eq_ignore_ascii_case(&entity.text))
         })
         .min_by_key(|entity| span_distance(entity.start, entity.end, point_start, point_end))
         .and_then(|entity| source.get(entity.start..entity.end).map(str::to_string));
@@ -261,6 +312,9 @@ pub(super) fn chart_subject_label(
                     .subject_stopwords
                     .iter()
                     .any(|stopword| stopword == &word.lowered)
+                || prepositions
+                    .iter()
+                    .any(|preposition| preposition == &word.lowered)
             {
                 return None;
             }
@@ -306,7 +360,12 @@ pub(super) fn chart_subject_label(
             .collect();
         let descriptor = descriptor.join(" ");
         let descriptor = descriptor.trim_matches(|ch: char| !ch.is_alphanumeric());
-        if !descriptor.is_empty() {
+        let descriptor_lower = descriptor.to_lowercase();
+        if !descriptor.is_empty()
+            && !prepositions
+                .iter()
+                .any(|preposition| preposition == &descriptor_lower)
+        {
             return descriptor.to_string();
         }
     }

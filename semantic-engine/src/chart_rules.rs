@@ -60,14 +60,17 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
     if let Some(last) = words.last() {
         let last_word = last.lowered.as_str();
         let cues = semantic_core::chart_cues::global();
-        if words.len() >= 2 {
-            let previous = words[words.len() - 2].lowered.as_str();
-            if cues
-                .approximator_pairs
+        for pair in &cues.approximator_pairs {
+            if pair.is_empty() || words.len() < pair.len() {
+                continue;
+            }
+            let window = &words[words.len() - pair.len()..];
+            if window
                 .iter()
-                .any(|pair| pair.len() == 2 && pair[0] == previous && pair[1] == last_word)
+                .zip(pair)
+                .all(|(word, cue)| &word.lowered == cue)
             {
-                return (words[words.len() - 2].start, end);
+                return (window[0].start, end);
             }
         }
         if cues.approximators.iter().any(|cue| cue == last_word) {
@@ -118,6 +121,51 @@ pub(crate) fn qualified_numeric_span(sentence: &str, start: usize, end: usize) -
     (display_start, display_end)
 }
 
+/// Grounded qualifier fallback for a numeric point whose quantity metadata is
+/// absent. Multiword approximators such as `più o meno` mark the value as
+/// approximate; the display span already absorbs the same phrase.
+pub(crate) fn numeric_qualifier(sentence: &str, start: usize, _end: usize) -> Option<String> {
+    if start > sentence.len() || !sentence.is_char_boundary(start) {
+        return None;
+    }
+    let words = semantic_core::discourse::word_spans(&sentence[..start]);
+    let cues = semantic_core::chart_cues::global();
+    for phrase in cues
+        .approximator_pairs
+        .iter()
+        .filter(|pair| pair.len() >= 3)
+    {
+        if words.len() < phrase.len() {
+            continue;
+        }
+        let window = &words[words.len() - phrase.len()..];
+        if window
+            .iter()
+            .zip(phrase)
+            .all(|(word, cue)| &word.lowered == cue)
+        {
+            return Some("approximate".to_string());
+        }
+    }
+    let last = words.last()?.lowered.as_str();
+    let approximate_words = [
+        "circa",
+        "about",
+        "approximately",
+        "approx",
+        "around",
+        "roughly",
+        "quasi",
+        "etwa",
+        "ungefähr",
+        "aproximadamente",
+        "cerca",
+    ];
+    approximate_words
+        .contains(&last)
+        .then(|| "approximate".to_string())
+}
+
 /// Fallback for real same-metric series that have no explicit comparison
 /// operator. It is deliberately context-gated to avoid charting arbitrary
 /// pairs of numbers from one sentence.
@@ -142,6 +190,14 @@ pub(crate) fn has_series_context(sentence: &str, point_count: usize, language: &
             return true;
         }
         return same_metric_across_semicolon(sentence, language);
+    }
+
+    if cues
+        .ordered_sequence_cues
+        .iter()
+        .any(|cue| contains_cue_phrase(&lower, cue))
+    {
+        return true;
     }
 
     if language_cues
@@ -367,6 +423,66 @@ fn same_metric_across_semicolon(sentence: &str, language: &str) -> bool {
         .any(|stem| parts.iter().filter(|part| part.contains(stem)).count() >= 2)
 }
 
+/// True when the numeric points mix an asserted result with a forecast or
+/// hypothetical value. A chart whose points are all conditional is allowed
+/// (`scenario_split`); a chart that plots a realized figure beside a hoped-for
+/// figure is not a comparison of like observations.
+pub(crate) fn mixed_forecast_claims(sentence: &str, spans: &[(usize, usize)]) -> bool {
+    if spans.len() < 2 {
+        return false;
+    }
+    let cues = &semantic_core::chart_cues::global().forecast_cues;
+    let mut saw_forecast = false;
+    let mut saw_asserted = false;
+    for (start, end) in spans {
+        if *start > *end || *end > sentence.len() {
+            continue;
+        }
+        let left = sentence[..*start]
+            .char_indices()
+            .filter(|(_, ch)| matches!(ch, ',' | ';' | ':' | '.' | '!' | '?' | '\n'))
+            .map(|(index, ch)| index + ch.len_utf8())
+            .next_back()
+            .unwrap_or(0);
+        let right = sentence[*end..]
+            .char_indices()
+            .find(|(_, ch)| matches!(ch, ',' | ';' | ':' | '.' | '!' | '?' | '\n'))
+            .map(|(index, _)| end + index)
+            .unwrap_or(sentence.len());
+        let clause = sentence.get(left..right).unwrap_or_default().to_lowercase();
+        if cues.iter().any(|cue| contains_cue_phrase(&clause, cue)) {
+            saw_forecast = true;
+        } else {
+            saw_asserted = true;
+        }
+    }
+    saw_forecast && saw_asserted
+}
+
+fn contains_cue_phrase(haystack: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return false;
+    }
+    let mut from = 0;
+    while let Some(index) = haystack[from..].find(needle) {
+        let start = from + index;
+        let end = start + needle.len();
+        let before_ok = haystack[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|ch| !ch.is_alphanumeric());
+        let after_ok = haystack[end..]
+            .chars()
+            .next()
+            .is_none_or(|ch| !ch.is_alphanumeric());
+        if before_ok && after_ok {
+            return true;
+        }
+        from = start + needle.chars().next().map_or(1, char::len_utf8);
+    }
+    false
+}
+
 fn normalize_words(text: &str) -> Vec<String> {
     semantic_core::discourse::word_spans(text)
         .into_iter()
@@ -418,6 +534,37 @@ mod tests {
         assert!(!chart_point_is_eligible(text, denied, denied + 3));
         assert!(chart_point_is_eligible(text, first_fact, first_fact + 3));
         assert!(chart_point_is_eligible(text, second_fact, second_fact + 3));
+    }
+
+    #[test]
+    fn ordered_sequence_cues_enable_unitless_series() {
+        for text in [
+            "Prima erano 1500, poi 1800, infine 2100.",
+            "A gennaio 100, a febbraio 200, a marzo 350.",
+            "Il primo giorno 20, il secondo 40, il terzo 90.",
+            "Siamo passati da 100 a 500 e poi a 900.",
+        ] {
+            assert!(has_series_context(text, 3, "it"), "{text}");
+        }
+    }
+
+    #[test]
+    fn forecast_and_asserted_values_are_never_one_chart() {
+        let mixed = "Nel 2020 ha venduto 1500 copie, spera di venderne 3000 nel 2027.";
+        let first = mixed.find("1500").unwrap();
+        let second = mixed.find("3000").unwrap();
+        assert!(mixed_forecast_claims(
+            mixed,
+            &[(first, first + 4), (second, second + 4)]
+        ));
+
+        let conditional = "Secondo lo scenario, i ricavi potrebbero arrivare a 30 milioni, mentre quello prudente ipotizza 18 milioni.";
+        let first = conditional.find("30").unwrap();
+        let second = conditional.find("18").unwrap();
+        assert!(!mixed_forecast_claims(
+            conditional,
+            &[(first, first + 2), (second, second + 2)]
+        ));
     }
 
     #[test]

@@ -43,6 +43,24 @@ pub struct NumericFact {
 /// convention, so a chart never plots a guessed value.
 pub fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
     let mut rest = text.trim().to_lowercase();
+    let mut negative = false;
+    for prefix in [
+        "meno ",
+        "minus ",
+        "negative ",
+        "negatif ",
+        "negativo ",
+        "negativa ",
+        "menos ",
+        "moins ",
+        "-",
+    ] {
+        if let Some(stripped) = rest.strip_prefix(prefix) {
+            negative = true;
+            rest = stripped.trim_start().to_string();
+            break;
+        }
+    }
     let mut suffixes: Vec<&str> = crate::lexicon::lexicon()
         .scale_words
         .percentage_words
@@ -106,7 +124,8 @@ pub fn parse_unambiguous_value(text: &str, language: &str) -> Option<f64> {
         Some(frac) => format!("{int_digits}.{frac}"),
         None => int_digits,
     };
-    number.parse::<f64>().ok()
+    let value = number.parse::<f64>().ok()?;
+    Some(if negative { -value } else { value })
 }
 
 /// Parses a chartable scaled quantity such as `20 milioni` or `1.2 billion`.
@@ -215,6 +234,14 @@ mod tests {
             parse_scaled_value("1.2 billion", "en"),
             Some(1_200_000_000.0)
         );
+    }
+
+    #[test]
+    fn signed_values_parse_without_weakening_unsigned_rules() {
+        assert_eq!(parse_unambiguous_value("meno 20", "it"), Some(-20.0));
+        assert_eq!(parse_unambiguous_value("-20", "it"), Some(-20.0));
+        assert_eq!(parse_unambiguous_value("minus 1,200", "en"), Some(-1200.0));
+        assert_eq!(parse_unambiguous_value("20", "it"), Some(20.0));
     }
 
     #[test]

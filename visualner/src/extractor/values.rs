@@ -58,16 +58,15 @@ pub(super) fn classify_value_type(
     }
     if text.chars().any(|c| c.is_ascii_digit()) {
         let lower = text.to_lowercase();
-        let year = text
-            .trim()
-            .parse::<u32>()
-            .ok()
-            .is_some_and(|year| (1000..=2099).contains(&year));
         let has_month = semantic_core::lexicon::lexicon()
             .month_typing_names
             .iter()
             .any(|month| lower.contains(month.as_str()));
-        if year || has_month || text.contains('/') {
+        // A bare four-digit number is not a date by itself. The contextual
+        // pass in `value_candidates` decides year-versus-quantity from the
+        // source span; only an explicit calendar marker (month name or a
+        // delimited date) types a surface as DATE here.
+        if has_month || text.contains('/') {
             return "DATE".to_string();
         }
         return "NUMBER".to_string();
@@ -435,15 +434,16 @@ fn calendar_span(
     let mut end = end;
     let mut kind = kind;
     let number = &source_text[number_start..number_end];
-    if kind == "NUMBER" && number.len() == 4 {
-        if let Ok(year) = number.parse::<u32>() {
-            if (1000..=2099).contains(&year) {
-                kind = "DATE";
-            }
-        }
+    if kind == "NUMBER" && is_contextual_year(source_text, number_start, number_end) {
+        kind = "DATE";
     }
     let is_year_date = kind == "DATE" && number.len() == 4;
-    if kind == "NUMBER" || is_year_date {
+    // A number after a month is a day only when it can be a day of month. A
+    // month label followed by a quantity ("a gennaio 100") is not a date.
+    let day_candidate = number
+        .parse::<u32>()
+        .is_ok_and(|value| (1..=31).contains(&value));
+    if (kind == "NUMBER" || is_year_date) && (day_candidate || is_year_date) {
         if let Some(month_start) = month_before_day(source_text, number_start) {
             start = month_start;
             kind = "DATE";
@@ -460,12 +460,67 @@ fn calendar_span(
                         + year_len;
                 }
             }
-        } else if let Some(month_end) = month_after_day(source_text, number_end) {
-            end = month_end;
-            kind = "DATE";
+        } else if day_candidate {
+            if let Some(month_end) = month_after_day(source_text, number_end) {
+                end = month_end;
+                kind = "DATE";
+            }
         }
     }
     (start, end, kind)
+}
+
+/// True when a four-digit number is used as a calendar year. The shared
+/// chart-cue context decides from the surrounding source, so `1500 dischi`
+/// stays a quantity while `nel 2015` stays a year.
+fn is_contextual_year(source_text: &str, number_start: usize, number_end: usize) -> bool {
+    let number = &source_text[number_start..number_end];
+    if number.len() != 4 || !number.bytes().all(|byte| byte.is_ascii_digit()) {
+        return false;
+    }
+    let Ok(year) = number.parse::<u32>() else {
+        return false;
+    };
+    semantic_core::chart_cues::year_context(source_text, number_start, number_end, year)
+}
+
+/// A negative sign or word immediately before the number joins its span, so
+/// the grounded surface (`meno 20`, `-20`) parses as a negative value.
+fn signed_number_start(source_text: &str, number_start: usize) -> usize {
+    let prefix = &source_text[..number_start];
+    let trimmed = prefix.trim_end();
+    if trimmed.ends_with('-') {
+        return trimmed.len() - 1;
+    }
+    let lower = trimmed.to_lowercase();
+    // "più o meno" means approximately; the trailing "meno" is not a sign.
+    if [
+        "più o meno",
+        "piu o meno",
+        "more or less",
+        "plus ou moins",
+        "más o menos",
+        "mas o menos",
+    ]
+    .iter()
+    .any(|phrase| lower.ends_with(phrase))
+    {
+        return number_start;
+    }
+    let word_start = trimmed
+        .char_indices()
+        .rev()
+        .find(|(_, ch)| !ch.is_alphabetic())
+        .map(|(index, ch)| index + ch.len_utf8())
+        .unwrap_or(0);
+    let word = trimmed[word_start..].to_lowercase();
+    if matches!(
+        word.as_str(),
+        "meno" | "minus" | "negative" | "negativo" | "negativa" | "negatif" | "moins" | "menos"
+    ) {
+        return word_start;
+    }
+    number_start
 }
 
 /// Builds one number candidate and reports whether the caller must advance
@@ -476,7 +531,9 @@ fn quantity_candidate(
     number_end: usize,
 ) -> (Candidate, bool) {
     let bytes = source_text.as_bytes();
-    let (start, kind) = currency_prefix(source_text, bytes, number_start);
+    let signed_start = signed_number_start(source_text, number_start);
+    let (currency_start, kind) = currency_prefix(source_text, bytes, number_start);
+    let start = signed_start.min(currency_start);
     let (end, kind) = quantity_suffix(source_text, bytes, number_end, kind);
     let (start, end, kind) = calendar_span(source_text, number_start, number_end, start, end, kind);
     let month_first = kind == "DATE" && start < number_start;

@@ -151,6 +151,11 @@ pub fn compile_plan(
     // rule is the same: the motion is decided before coalescing so the chain
     // segments that reach the renderer each carry their own entrance.
     assign_long_phrase_motions(&mut items, request);
+    // Date and metric cards rotate the same three certified families and use
+    // the same plan-wide no-repeat rule. Without this pass each card was an
+    // independent hash: two dates could show the same gesture and a short run
+    // could never reach the typewriter family.
+    assign_numeric_motions(&mut items, request);
     cascade(&mut items, request);
     // Overlap resolution is the last layout phase: it must see the final
     // admitted and cascaded set, never the pre-budget candidates. A map can

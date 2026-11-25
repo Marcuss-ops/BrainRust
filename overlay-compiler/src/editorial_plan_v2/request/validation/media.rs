@@ -67,6 +67,9 @@ pub(super) fn is_supported_visual_recipe(recipe: &str) -> bool {
             | "counter_odometer"
             | "quote_attribution"
             | "source_highlight"
+            | "relative_time_jump"
+            | "cause_effect_card"
+            | "process_stepper"
     )
 }
 

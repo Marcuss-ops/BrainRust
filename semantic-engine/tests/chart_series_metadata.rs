@@ -243,3 +243,48 @@ fn ranked_quantities_emit_a_ranking_bar_without_a_chart_proposal() {
     let end = ranking["end_byte"].as_u64().unwrap() as usize;
     assert_eq!(text.get(start..end), ranking["evidence"].as_str());
 }
+
+#[test]
+fn series_labels_never_reuse_a_bare_preposition() {
+    let cases: &[(&str, &str, &[&str])] = &[
+        ("de", "Von 1500 auf 1800 stieg der Absatz.", &["von", "auf"]),
+        (
+            "nl",
+            "Van 1500 naar 1800 steeg de verkoop.",
+            &["van", "naar"],
+        ),
+        ("en", "From 1500 to 1800 sales rose.", &["from", "to"]),
+    ];
+    let mut failures = Vec::new();
+    for (language, text, prepositions) in cases {
+        let manifest = manifest_value_for(language, vec![scene("preposition-label", text)]);
+        let charts = proposals_of(&manifest["scenes"][0], "chart");
+        if charts.len() != 1 {
+            failures.push(format!(
+                "{language}: expected one chart, found {}; {}",
+                charts.len(),
+                manifest["scenes"][0]["visual_proposals"]
+            ));
+            continue;
+        }
+        let labels: Vec<&str> = charts[0]["chart_items"]
+            .as_array()
+            .expect("chart items")
+            .iter()
+            .filter_map(|item| item["label"].as_str())
+            .collect();
+        if labels.len() != 2 {
+            failures.push(format!("{language}: expected two labels, found {labels:?}"));
+            continue;
+        }
+        for label in labels {
+            let lower = label.trim().to_lowercase();
+            if lower.is_empty() || prepositions.contains(&lower.as_str()) {
+                failures.push(format!(
+                    "{language}: preposition-only or empty chart label {label:?} for {text:?}"
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}

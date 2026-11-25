@@ -74,6 +74,18 @@ pub(super) fn build(
         if points.len() < 2 {
             continue;
         }
+        let relative_spans: Vec<(usize, usize)> = points
+            .iter()
+            .filter_map(|point| {
+                Some((
+                    point.start.checked_sub(bullet.start)?,
+                    point.end.checked_sub(bullet.start)?,
+                ))
+            })
+            .collect();
+        if crate::chart_rules::mixed_forecast_claims(&bullet.text, &relative_spans) {
+            continue;
+        }
         let mut measures: Vec<crate::chart_rules::ChartUnit> = points
             .iter()
             .filter_map(|point| {
@@ -126,6 +138,7 @@ pub(super) fn build(
                         bullet,
                         subject_start,
                         subject_end,
+                        language,
                     ),
                     text: text.to_string(),
                     kind: measure.kind.clone(),
@@ -134,7 +147,14 @@ pub(super) fn build(
                     end_byte: bullet.start + qualified_end,
                     qualifier: quantity
                         .map(|quantity| quantity.qualifier.clone())
-                        .filter(|value| !value.is_empty()),
+                        .filter(|value| !value.is_empty())
+                        .or_else(|| {
+                            crate::chart_rules::numeric_qualifier(
+                                &bullet.text,
+                                relative_start,
+                                relative_end,
+                            )
+                        }),
                     period: quantity
                         .and_then(|quantity| quantity.period.as_ref())
                         .map(|period| period.year.to_string()),
@@ -153,8 +173,18 @@ pub(super) fn build(
         // Equal units and a shared sentence are not enough to prove that two
         // values belong in one chart. Require either an explicit comparison
         // cue or the conservative repeated-series context checked below.
+        let lower_bullet = bullet.text.to_lowercase();
+        let ranked_context = semantic_core::chart_cues::global()
+            .rank_veto_cues
+            .iter()
+            .any(|cue| lower_bullet.contains(&cue.to_lowercase()));
+        let subject_bound =
+            !ranked_context && subject_comparison_binds_values(entities, &points, bullet);
+        let percentage_distribution = !ranked_context && percentage_distribution_points(&points);
         if !comparison_cue_binds_values(bullet, chart_points, sentence, language)
             && !crate::chart_rules::has_series_context(&bullet.text, items.len(), language)
+            && !subject_bound
+            && !percentage_distribution
         {
             continue;
         }
@@ -314,6 +344,68 @@ fn comparison_deltas(
 #[path = "charts/series.rs"]
 mod series;
 use series::*;
+
+/// True when at least two distinct subject entities are each bound to a
+/// grounded value. This is the unit-independent comparison shape
+/// ("Mario 1500, Luca 1800, Marco 1200") that no explicit comparison word
+/// marks. Non-subject phrases ("codice", "password") never qualify.
+fn subject_comparison_binds_values(
+    entities: &[VisualEntity],
+    points: &[&ChartPoint],
+    bullet: &Bullet,
+) -> bool {
+    let mut subjects = std::collections::BTreeSet::new();
+    for point in points {
+        let nearest = entities
+            .iter()
+            .enumerate()
+            .filter(|(_, entity)| entity.start >= bullet.start && entity.end <= bullet.end)
+            .filter(|(_, entity)| entity.end <= point.start && point.start - entity.end <= 80)
+            .filter(|(_, entity)| {
+                semantic_core::entity_capabilities::entity_capabilities(&entity.r#type)
+                    .co_mention_subject
+            })
+            .max_by_key(|(_, entity)| entity.end);
+        if let Some((index, _)) = nearest {
+            subjects.insert(index);
+        }
+    }
+    if subjects.len() >= 2 {
+        return true;
+    }
+    // Some taggers do not emit a PERSON entity for a bare first name. A
+    // capitalized subject token bound to each value is still grounded
+    // evidence; stopwords and sentence-initial articles are excluded.
+    let stopwords = &semantic_core::chart_cues::global().subject_stopwords;
+    let mut proper = std::collections::BTreeSet::new();
+    for point in points {
+        let nearest = semantic_core::discourse::word_spans(&bullet.text)
+            .into_iter()
+            .filter(|word| {
+                let end = bullet.start + word.end;
+                end <= point.start && point.start - end <= 80
+            })
+            .filter(|word| {
+                let surface = &bullet.text[word.start..word.end];
+                surface.chars().next().is_some_and(char::is_uppercase)
+                    && surface.chars().filter(|ch| ch.is_alphabetic()).count() >= 2
+                    && !stopwords.iter().any(|stop| stop == &word.lowered)
+            })
+            .max_by_key(|word| word.end);
+        if let Some(word) = nearest {
+            proper.insert(word.lowered.clone());
+        }
+    }
+    proper.len() >= 2
+}
+
+/// A three-or-more-part percentage breakdown that covers the whole (about
+/// 100%) is a distribution even without an explicit share word.
+fn percentage_distribution_points(points: &[&ChartPoint]) -> bool {
+    points.len() >= 3
+        && points.iter().all(|point| point.kind == "PERCENT")
+        && (95.0..=100.5).contains(&points.iter().map(|point| point.value).sum::<f64>())
+}
 
 /// Picks the layout the grounded values support. The default stays
 /// `bar_comparison`; `timeline_growth` needs ordered year labels;

@@ -345,6 +345,18 @@ pub(super) fn denominator_fractions(
         if spec.additive {
             continue;
         }
+        // "il terzo 90" is an ordinal list label, not one third. A numeric
+        // token immediately after the fraction word is the value it labels.
+        if let Some(next) = tokens.get(index + 1) {
+            let next_word = source[next.start..next.end].to_lowercase();
+            if next_word
+                .chars()
+                .any(|character| character.is_ascii_digit())
+                || parse_complete(&next_word, formatter).is_some()
+            {
+                continue;
+            }
+        }
         let mut numerator = 1.0;
         let mut start = token.start;
         if let Some(previous) = index.checked_sub(1).and_then(|index| tokens.get(index)) {

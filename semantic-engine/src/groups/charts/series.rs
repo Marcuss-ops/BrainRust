@@ -109,6 +109,16 @@ pub(super) fn cross_sentence_series(input: SeriesContext<'_>, out: &mut Vec<Visu
         if chain.len() < 2 {
             continue;
         }
+        let spans: Vec<(usize, usize)> = chain
+            .iter()
+            .map(|index| {
+                let point = ordered[*index];
+                (point.start, point.end)
+            })
+            .collect();
+        if crate::chart_rules::mixed_forecast_claims(source, &spans) {
+            continue;
+        }
         let Some(candidate) = build_series_candidate(SeriesCandidateContext {
             source,
             entities,
@@ -208,17 +218,24 @@ pub(super) fn next_series_point(
         if !compatible_measures(&left_measure, &right_measure) {
             continue;
         }
-        if series_metric_match(
+        let metric = series_metric_match(
             &left_bullet.text,
             &right_bullet.text,
             quantities,
             left,
             right,
             language,
-        )
-        .is_none()
-        {
-            continue;
+        );
+        if metric.is_none() {
+            // A repeated four-digit year anchor is itself the shared
+            // dimension: unitless values under consecutive years form a time
+            // series even when the sentence names no metric noun.
+            let unitless = |measure: &crate::chart_rules::ChartUnit| {
+                measure.kind == "NUMBER" && measure.signature == measure.kind
+            };
+            if !(unitless(&left_measure) && unitless(&right_measure)) {
+                continue;
+            }
         }
         return Some(index);
     }
@@ -344,7 +361,15 @@ fn build_series_candidate(input: SeriesCandidateContext<'_, '_>) -> Option<Visua
         // A cross-sentence annual series names each year once, so the single
         // year in the sentence is the correct category for that point.
         let label = single_year_label(&bullet.text).unwrap_or_else(|| {
-            chart_subject_label(source, entities, point, bullet, bullet.start, bullet.end)
+            chart_subject_label(
+                source,
+                entities,
+                point,
+                bullet,
+                bullet.start,
+                bullet.end,
+                language,
+            )
         });
         let quantity =
             chart_point_quantity(quantities, point.sentence_index, point.start, point.end);
@@ -357,7 +382,8 @@ fn build_series_candidate(input: SeriesCandidateContext<'_, '_>) -> Option<Visua
             end_byte: bullet.start + display_end,
             qualifier: quantity
                 .map(|quantity| quantity.qualifier.clone())
-                .filter(|value| !value.is_empty()),
+                .filter(|value| !value.is_empty())
+                .or_else(|| crate::chart_rules::numeric_qualifier(&bullet.text, start, end)),
             period: quantity
                 .and_then(|quantity| quantity.period.as_ref())
                 .map(|period| period.year.to_string()),

@@ -176,7 +176,7 @@ impl NumericLane {
     }
 
     /// `(animation_counts key, seed family)` for the seeded motion sampler.
-    fn motion_lane(self) -> Option<(&'static str, &'static str)> {
+    pub(crate) fn motion_lane(self) -> Option<(&'static str, &'static str)> {
         match self {
             Self::Date => Some(("timeline_date", "date_presentation")),
             Self::Metric => Some(("metric_stat", "metric_presentation")),
@@ -184,7 +184,7 @@ impl NumericLane {
         }
     }
 
-    fn motion_pool(self, request: &EditorialPlanV2Request) -> Vec<&'static str> {
+    pub(crate) fn motion_pool(self, request: &EditorialPlanV2Request) -> Vec<&'static str> {
         match self {
             Self::Date => date_motion_pool(request),
             Self::Metric => METRIC_MOTIONS.to_vec(),
@@ -204,7 +204,7 @@ pub(crate) fn number_item(
     scene: &SceneV2,
     _index: usize,
     annotation: &TimedAnnotationV2,
-    request: &EditorialPlanV2Request,
+    _request: &EditorialPlanV2Request,
 ) -> Option<PlanItemV2> {
     let lane = NumericLane::classify(&annotation.annotation_type);
     let scene_end = scene.timeline_start_us.saturating_add(scene.duration_us);
@@ -222,27 +222,9 @@ pub(crate) fn number_item(
         annotation.duration_us.max(0),
         annotation.text.clone(),
     );
-    if let Some((counts_key, family_key)) = lane.motion_lane() {
-        let pool = lane.motion_pool(request);
-        let limit = request
-            .canvas
-            .animation_counts
-            .get(counts_key)
-            .copied()
-            .unwrap_or(0)
-            .max(0) as usize;
-        let pool = if limit > 0 {
-            limited_shuffled_pool(
-                &pool,
-                limit,
-                &format!("{}\x00{}", request.plan.plan_id, family_key),
-            )
-        } else {
-            pool
-        };
-        item.motion_id = seeded_preset(&request.plan.plan_id, &scene.id, &id, family_key, &pool)
-            .unwrap_or_default();
-    }
+    // Motion selection is a plan-wide rotation (see assign_numeric_motions):
+    // choosing it here, one item at a time, let two date cards repeat the same
+    // gesture and never guaranteed a typewriter entrance in a short run.
     if lane == NumericLane::Date {
         item.duration_us = item
             .duration_us

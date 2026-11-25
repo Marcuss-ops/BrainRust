@@ -282,6 +282,99 @@ fn repeated_dates_and_metrics_rotate_their_motion_pools() {
 }
 
 #[test]
+fn date_and_metric_cards_interleave_all_three_families() {
+    let build = |seed: &str, plan_id: &str| {
+        let mut request = request();
+        request.plan.motion_seed = seed.to_string();
+        request.plan.plan_id = plan_id.to_string();
+        let scene_duration_us = 20_000_000_i64;
+        request.seal.as_mut().expect("seal").audio_duration_us = scene_duration_us;
+        request.scenes[0].duration_us = scene_duration_us;
+        request.scenes[0].duration_ms = scene_duration_us / 1000;
+        request
+            .scene_windows
+            .insert("scene-1".to_string(), [0, scene_duration_us]);
+        request.scenes[0].annotations = Some(
+            serde_json::from_value(serde_json::json!({
+                "numbers": [
+                    {"text": "13 agosto 2007", "type": "DATE", "start_us": 0, "duration_us": 400000},
+                    {"text": "4 luglio 2010", "type": "DATE", "start_us": 7000000, "duration_us": 400000},
+                    {"text": "2 giugno 2020", "type": "DATE", "start_us": 14000000, "duration_us": 400000},
+                    {"text": "42", "type": "NUMBER", "start_us": 2000000, "duration_us": 300000},
+                    {"text": "67", "type": "NUMBER", "start_us": 4000000, "duration_us": 300000},
+                    {"text": "91", "type": "NUMBER", "start_us": 9000000, "duration_us": 300000}
+                ]
+            }))
+            .expect("annotations"),
+        );
+        request.budgets.as_mut().expect("budgets").max_per_scene = 20;
+        let compiled = compile_plan(&request).expect("plan");
+        let motions = |template: &str| -> Vec<String> {
+            compiled
+                .plan
+                .items
+                .iter()
+                .filter(|item| item.template_id == template)
+                .map(|item| item.motion_id.clone())
+                .collect()
+        };
+        (motions("TIMELINE_DATE_CARD"), motions("METRIC_STAT_CARD"))
+    };
+
+    let (dates, metrics) = build("seed-1", "plan-1");
+    assert!(dates.len() >= 3, "expected date cards, got {dates:?}");
+    assert!(metrics.len() >= 3, "expected metric cards, got {metrics:?}");
+    assert!(
+        dates.iter().all(|motion| super::DATE_MOTIONS.contains(&motion.as_str())),
+        "date motion outside the certified pool: {dates:?}"
+    );
+    assert!(
+        metrics
+            .iter()
+            .all(|motion| super::METRIC_MOTIONS.contains(&motion.as_str())),
+        "metric motion outside the certified pool: {metrics:?}"
+    );
+    assert!(
+        dates
+            .iter()
+            .any(|motion| motion.starts_with("date_typewriter_")),
+        "a three-date run must reach the typewriter family: {dates:?}"
+    );
+    assert!(
+        metrics
+            .iter()
+            .any(|motion| motion.starts_with("metric_typewriter_")),
+        "a three-metric run must reach the typewriter family: {metrics:?}"
+    );
+    assert_eq!(
+        dates.iter().collect::<std::collections::BTreeSet<_>>().len(),
+        dates.len(),
+        "date cards must not repeat a gesture: {dates:?}"
+    );
+    assert_eq!(
+        metrics
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        metrics.len(),
+        "metric cards must not repeat a gesture: {metrics:?}"
+    );
+
+    let (other_dates, other_metrics) = build("seed-2", "plan-1");
+    assert_ne!(
+        (dates.clone(), metrics.clone()),
+        (other_dates, other_metrics),
+        "a different run seed must rotate the numeric entrances"
+    );
+    let (third_dates, third_metrics) = build("seed-1", "plan-3");
+    assert_ne!(
+        (dates, metrics),
+        (third_dates, third_metrics),
+        "a shared motion_seed must not freeze the selection across plans"
+    );
+}
+
+#[test]
 fn seeded_number_motion_matches_the_go_sampler() {
     assert_eq!(
         "s1-number-42-per-cento",
