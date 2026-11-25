@@ -307,12 +307,8 @@ pub(crate) fn assign_short_phrase_motions(
 ) {
     let canvas = &request.canvas;
     let pin = canvas.short_phrase_motion.trim();
-    // One cursor per word-count bucket plus one plan-wide used set. The old
-    // independent hash per item could pick the same gesture twice (and never
-    // guaranteed that the ten certified typewriter gestures appeared at all).
-    // Order is still deterministic: the bucket rotates from a plan-stable
-    // offset, and the used set only skips a gesture already on screen.
-    let mut next_index: BTreeMap<usize, usize> = BTreeMap::new();
+    // Sample independently for each phrase from the run seed and item identity.
+    // The used set prevents repeats until the available pool is exhausted.
     let mut used: BTreeSet<String> = BTreeSet::new();
     for item in items.iter_mut() {
         if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
@@ -337,26 +333,31 @@ pub(crate) fn assign_short_phrase_motions(
         if bucket.is_empty() {
             continue;
         }
-        let ordered = ordered_short_phrase_pool(&bucket, &request.plan.plan_id, words);
-        let start = *next_index.entry(words).or_insert(0);
-        let mut chosen = None;
-        for step in 0..ordered.len() {
-            let index = (start + step) % ordered.len();
-            let candidate = ordered[index];
-            if !used.contains(candidate) {
-                chosen = Some((index, candidate.to_string()));
-                break;
-            }
-        }
-        // Every candidate was already used in this plan (a pool smaller than
-        // the phrase count): keep rotating deterministically instead of
-        // leaving the renderer without an entrance.
-        let (index, motion) = chosen.unwrap_or_else(|| {
-            let index = start % ordered.len();
-            (index, ordered[index].to_string())
-        });
+        let filtered: Vec<&str> = bucket
+            .iter()
+            .copied()
+            .filter(|id| family_matches(id, &canvas.phrase_motion_family))
+            .collect();
+        let eligible = if filtered.is_empty() {
+            &bucket
+        } else {
+            &filtered
+        };
+        let ordered = ordered_short_phrase_pool(eligible, motion_seed(request), words);
+        let start = seeded_index(
+            motion_seed(request),
+            &item.scene_id,
+            &item.id,
+            &format!("short_phrase_{words}"),
+            ordered.len(),
+        )
+        .unwrap_or(0);
+        let motion = (0..ordered.len())
+            .map(|step| ordered[(start + step) % ordered.len()])
+            .find(|candidate| !used.contains(*candidate))
+            .unwrap_or(ordered[start])
+            .to_string();
         used.insert(motion.clone());
-        next_index.insert(words, index + 1);
         item.motion_id = motion;
     }
 }

@@ -132,6 +132,10 @@ pub struct CanvasV2 {
     /// entrance every long phrase used to share.
     #[serde(default)]
     pub long_phrase_motions: Vec<String>,
+    /// Optional selector for a certified phrase-motion family. Empty keeps
+    /// every supplied short and long phrase candidate available.
+    #[serde(default)]
+    pub phrase_motion_family: String,
     #[serde(default)]
     pub image_motions: Vec<String>,
     #[serde(default)]

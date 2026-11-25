@@ -143,38 +143,104 @@ pub(super) fn build_entity_card_candidates(
 
 mod editorial;
 pub(crate) use editorial::*;
-/// Orders one short-phrase bucket for an actual run of phrases.
-///
-/// The certified typewriter family leads the rotation, so the first ten short
-/// phrases of a plan really show the ten distinct gestures the catalog and the
-/// runtime both certify. The legacy short gestures stay in the pool and appear
-/// after the typewriter block, so this narrows no capability. The typewriter
-/// block is rotated by a plan-stable offset: every run starts on a different
-/// gesture, but replaying the same plan reproduces the same order.
-fn ordered_short_phrase_pool<'a>(pool: &[&'a str], plan_id: &str, words: usize) -> Vec<&'a str> {
-    let mut typewriter: Vec<&str> = pool
-        .iter()
-        .copied()
-        .filter(|id| id.starts_with("typewriter_"))
-        .collect();
-    let typewriter_count = typewriter.len();
-    if typewriter_count > 0 {
-        let offset = seeded_index(
-            plan_id,
-            "",
-            &words.to_string(),
-            "short_phrase_typewriter_rotation",
-            typewriter_count,
-        )
-        .unwrap_or(0);
-        typewriter.rotate_left(offset % typewriter_count);
+/// Interleaves the certified motion families so short runs sample more than
+/// the first family in the registry. Every family and member order is stable.
+fn ordered_short_phrase_pool<'a>(pool: &[&'a str], seed: &str, words: usize) -> Vec<&'a str> {
+    let mut families: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+    for id in pool.iter().copied() {
+        families
+            .entry(phrase_motion_family(id).to_string())
+            .or_default()
+            .push(id);
     }
-    typewriter.extend(
-        pool.iter()
-            .copied()
-            .filter(|id| !id.starts_with("typewriter_")),
-    );
-    typewriter
+    for (family, motions) in families.iter_mut() {
+        if let Some(offset) = seeded_index(seed, "", &words.to_string(), family, motions.len()) {
+            motions.rotate_left(offset);
+        }
+    }
+    let names: Vec<String> = families.keys().cloned().collect();
+    let family_offset = seeded_index(
+        seed,
+        "",
+        &words.to_string(),
+        "short_phrase_family_order",
+        names.len(),
+    )
+    .unwrap_or(0);
+    let mut ordered = Vec::with_capacity(pool.len());
+    let mut indexes = vec![0; names.len()];
+    loop {
+        let mut added = false;
+        for step in 0..names.len() {
+            let index = (family_offset + step) % names.len();
+            let motions = &families[&names[index]];
+            if indexes[index] < motions.len() {
+                ordered.push(motions[indexes[index]]);
+                indexes[index] += 1;
+                added = true;
+            }
+        }
+        if !added {
+            break;
+        }
+    }
+    ordered
+}
+
+fn phrase_motion_family(id: &str) -> &str {
+    [
+        "typewriter",
+        "short_phrase_web",
+        "short_phrase_product",
+        "short_phrase_editorial",
+        "classic_playfair",
+        "doc",
+        "phrase_apple_clean",
+        "text_3d",
+        "brush_phrase",
+    ]
+    .into_iter()
+    .find(|prefix| id.starts_with(prefix))
+    .unwrap_or("other")
+}
+
+fn family_matches(id: &str, requested: &str) -> bool {
+    let requested = requested.trim().to_ascii_lowercase();
+    if requested.is_empty() || requested == "auto" {
+        return true;
+    }
+    let family = phrase_motion_family(id);
+    let alias = if requested.contains("product") {
+        "short_phrase_product"
+    } else if requested.contains("apple") {
+        "phrase_apple_clean"
+    } else if requested.contains("typewriter") {
+        "typewriter"
+    } else if requested.contains("web") {
+        "short_phrase_web"
+    } else if requested.contains("editorial") {
+        "short_phrase_editorial"
+    } else if requested.contains("playfair") {
+        "classic_playfair"
+    } else if requested.contains("doc") {
+        "doc"
+    } else if requested.contains("3d") {
+        "text_3d"
+    } else if requested.contains("brush") {
+        "brush_phrase"
+    } else {
+        requested.as_str()
+    };
+    family == alias
+}
+
+fn motion_seed(request: &EditorialPlanV2Request) -> &str {
+    let seed = request.plan.motion_seed.trim();
+    if seed.is_empty() {
+        &request.plan.plan_id
+    } else {
+        seed
+    }
 }
 
 /// Rotates the long-phrase entrance pool for every 6+ word phrase. The long
@@ -187,15 +253,34 @@ pub(super) fn assign_long_phrase_motions(
     items: &mut [PlanItemV2],
     request: &EditorialPlanV2Request,
 ) {
-    let pool: Vec<&str> = request
+    let all_pool: Vec<&str> = request
         .canvas
         .long_phrase_motions
         .iter()
         .map(String::as_str)
         .collect();
-    if pool.is_empty() {
+    if all_pool.is_empty() {
         return;
     }
+    let filtered: Vec<&str> = all_pool
+        .iter()
+        .copied()
+        .filter(|id| family_matches(id, &request.canvas.phrase_motion_family))
+        .collect();
+    let pool = if filtered.is_empty() {
+        all_pool
+    } else {
+        filtered
+    };
+    let mut ordered = Vec::with_capacity(pool.len());
+    let mut seen = BTreeSet::new();
+    for motion in pool {
+        if seen.insert(motion) {
+            ordered.push(motion);
+        }
+    }
+    let seed = motion_seed(request);
+    let mut used = BTreeSet::new();
     for item in items.iter_mut() {
         if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
             continue;
@@ -206,15 +291,20 @@ pub(super) fn assign_long_phrase_motions(
         if word_count(&item.text) < 6 {
             continue;
         }
-        if let Some(motion) = seeded_preset(
-            &request.plan.plan_id,
+        let start = seeded_index(
+            seed,
             &item.scene_id,
             &item.id,
-            "long_phrase_presentation",
-            &pool,
-        ) {
-            item.motion_id = motion;
-        }
+            "long_phrase_motion",
+            ordered.len(),
+        )
+        .unwrap_or(0);
+        let motion = (0..ordered.len())
+            .map(|step| ordered[(start + step) % ordered.len()])
+            .find(|candidate| !used.contains(candidate))
+            .unwrap_or(ordered[start]);
+        used.insert(motion);
+        item.motion_id = motion.to_string();
     }
 }
 

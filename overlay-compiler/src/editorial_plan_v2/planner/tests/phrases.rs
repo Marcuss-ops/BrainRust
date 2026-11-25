@@ -152,7 +152,7 @@ fn short_phrase_pin_wins_over_the_bucket() {
 }
 
 #[test]
-fn short_phrase_rotation_covers_every_typewriter_gesture_without_repeats() {
+fn short_phrase_sampling_uses_all_families_without_repeats() {
     let mut request = request();
     let typewriters = [
         "typewriter_glyph_drift_short",
@@ -186,12 +186,6 @@ fn short_phrase_rotation_covers_every_typewriter_gesture_without_repeats() {
         build(),
         "replaying the same plan must pick the same rotation"
     );
-    for motion in &motions[..10] {
-        assert!(
-            typewriters.contains(&motion.as_str()),
-            "the first ten phrases must show the typewriter family, got {motion:?}"
-        );
-    }
     let unique: std::collections::BTreeSet<&str> = motions.iter().map(String::as_str).collect();
     assert_eq!(
         unique.len(),
@@ -199,8 +193,52 @@ fn short_phrase_rotation_covers_every_typewriter_gesture_without_repeats() {
         "a twelve-phrase run must not repeat a gesture: {motions:?}"
     );
     assert!(
-        motions[10..].iter().any(|id| id.starts_with("legacy_")),
-        "legacy short gestures must still be reachable after the typewriter block"
+        motions[..10].iter().any(|id| id.starts_with("legacy_"))
+            && motions[..10]
+                .iter()
+                .any(|id| typewriters.contains(&id.as_str())),
+        "a short run must sample both legacy and typewriter motions: {motions:?}"
+    );
+}
+
+#[test]
+fn phrase_motion_family_filters_short_and_long_pools() {
+    let mut request = request();
+    request.canvas.phrase_motion_family = "typewriter".to_string();
+    request.canvas.short_phrase_motions_by_word = std::collections::BTreeMap::from([(
+        "3".to_string(),
+        vec![
+            "typewriter_glyph_drift_short".to_string(),
+            "legacy_first".to_string(),
+        ],
+    )]);
+    request.canvas.long_phrase_motions = vec![
+        "typewriter_glyph_wrap_long".to_string(),
+        "doc_01_yellow_marker_sweep".to_string(),
+    ];
+    let mut short_items: Vec<PlanItemV2> = (0..4)
+        .map(|index| phrase_item(&format!("s{index}"), "tre parole qui", None))
+        .collect();
+    assign_short_phrase_motions(&mut short_items, &request);
+    assert!(
+        short_items
+            .iter()
+            .all(|item| item.motion_id == "typewriter_glyph_drift_short"),
+        "a requested family must filter foreign short motions: {:?}",
+        short_items
+            .iter()
+            .map(|item| item.motion_id.as_str())
+            .collect::<Vec<_>>()
+    );
+    let mut long_items = vec![phrase_item(
+        "long",
+        "una frase di sei parole esatte qui adesso",
+        None,
+    )];
+    assign_long_phrase_motions(&mut long_items, &request);
+    assert_eq!(
+        long_items[0].motion_id, "typewriter_glyph_wrap_long",
+        "the requested family must also filter the long pool"
     );
 }
 
