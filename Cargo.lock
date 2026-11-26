@@ -1381,6 +1381,7 @@ version = "0.1.0"
 dependencies = [
  "ndjson-stdio",
  "overlay-compiler",
+ "rayon",
  "script-qa",
  "semantic-core",
  "serde",

@@ -22,7 +22,7 @@
 //! always the exact sentence surface.
 
 /// One trimmed sentence span inside the source text.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SentenceSpan {
     /// Inclusive UTF-8 byte offset where the sentence begins.
     pub start_byte: usize,

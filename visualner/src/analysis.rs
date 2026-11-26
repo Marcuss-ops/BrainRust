@@ -13,10 +13,10 @@ use crate::types::{ExtractOptions, VisualEntity};
 use semantic_core::bullets::{generate_with_sentences, BulletSignal};
 use semantic_core::numbers::parse_unambiguous_value;
 use semantic_core::sentences::{split_sentences, SentenceSpan};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Full analysis of one segment of source text.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Analysis {
     pub entities: Vec<VisualEntity>,
     /// Tagged source tokens shared with semantic event extraction. This is an
@@ -51,7 +51,7 @@ pub struct Analysis {
 /// `visualner::analysis::NumericFact` path stable for callers.
 pub use semantic_core::numbers::NumericFact;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EntityRelation {
     pub source: usize,
     pub target: usize,
@@ -59,7 +59,7 @@ pub struct EntityRelation {
     pub evidence: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LowerThird {
     pub entity: usize,
     pub title: String,
@@ -70,7 +70,7 @@ pub struct LowerThird {
     pub end: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Bullet {
     pub sentence_index: usize,
     pub text: String,
@@ -82,7 +82,7 @@ pub struct Bullet {
     pub score: f32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChartPoint {
     /// Exact numeric surface (e.g. `"25%"`).
     pub text: String,

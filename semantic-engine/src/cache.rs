@@ -11,6 +11,7 @@
 pub mod disk;
 mod fingerprint;
 mod identity;
+pub mod scene;
 
 pub(crate) use fingerprint::request_body;
 pub use fingerprint::request_fingerprint;

@@ -41,6 +41,9 @@ use grouping::*;
 use proposals::*;
 
 #[cfg(test)]
+#[path = "analysis_equivalence_tests.rs"]
+mod analysis_equivalence_tests;
+#[cfg(test)]
 mod quote_candidates_tests;
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -118,10 +121,10 @@ pub fn analyze_scene(
 /// A scene the extractor refused, materialized as the same empty manifest a
 /// successful path would produce. Keeping the literal out of the orchestration
 /// makes the rejection contract explicit and testable on its own.
-fn rejected_scene(scene: &SceneInput, reason: String) -> SceneAnalysis {
+fn rejected_scene(scene_id: &str, reason: String) -> SceneAnalysis {
     SceneAnalysis {
         manifest: SceneManifest {
-            scene_id: scene.scene_id.clone(),
+            scene_id: scene_id.to_string(),
             status: "rejected".to_string(),
             reason: Some(reason),
             entities: Vec::new(),
@@ -314,6 +317,17 @@ mod scene_facts;
 use scene_facts::*;
 /// Analyses every scene of a script in one call.
 pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, String> {
+    let scene_cache = cache::scene::SceneCache::from_env();
+    analyze_script_with_scene_cache(request, scene_cache.as_ref())
+}
+
+/// Analysis with an explicit scene cache. `None` disables phase-1 caching, so
+/// the 1-thread/N-thread equivalence gate and unit tests never depend on the
+/// process environment.
+fn analyze_script_with_scene_cache(
+    request: &ScriptRequest,
+    scene_cache: Option<&cache::scene::SceneCache>,
+) -> Result<SemanticManifest, String> {
     let language = request.language.trim();
     let safety_cap = validate_script_request(request)?;
 
@@ -324,7 +338,7 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
         mut event_frames,
         search_entries,
         query_seeds: scene_query_seeds,
-    } = analyze_scenes(request, language, safety_cap, &mut registry);
+    } = analyze_scenes(request, language, safety_cap, &mut registry, scene_cache);
 
     link_event_source_facts(&mut event_frames, &scenes);
     let discourse = discourse::build(language, &request.scenes, &scenes);
@@ -414,11 +428,18 @@ struct ScriptSceneBatch {
 
 /// Analyse every scene once, feeding the shared identity registry and keeping
 /// the per-scene event and query outputs in source order.
+///
+/// Phase 1 is pure and scene-local, so it runs in parallel and may be served
+/// from the per-scene cache. Phase 2 consumes the drafts strictly in source
+/// order: identity ids, coreference, event framing and every cross-scene
+/// product must not depend on scheduling. `par_iter().collect()` preserves
+/// order, so the finalize loop sees exactly the 0..N-1 sequence.
 fn analyze_scenes(
     request: &ScriptRequest,
     language: &str,
     safety_cap: usize,
     registry: &mut IdentityRegistry,
+    cache: Option<&crate::cache::scene::SceneCache>,
 ) -> ScriptSceneBatch {
     let texts: Vec<&str> = request
         .scenes
@@ -426,6 +447,25 @@ fn analyze_scenes(
         .map(|scene| scene.text.as_str())
         .collect();
     let context = visualner::script_person_tokens(&texts, language);
+    let analyzers = analyzer_versions();
+
+    use rayon::prelude::*;
+    let local_scenes: Vec<LocalSceneResult> = request
+        .scenes
+        .par_iter()
+        .map(|scene| {
+            analyze_local_scene(
+                scene,
+                language,
+                safety_cap,
+                &context,
+                request.reference_date.as_deref(),
+                &analyzers,
+                cache,
+            )
+        })
+        .collect();
+
     let mut scenes: Vec<SceneManifest> = Vec::with_capacity(request.scenes.len());
     let mut event_frames = Vec::new();
     let mut search_entries: Vec<SearchFeedbackEntry> = Vec::new();
@@ -433,15 +473,13 @@ fn analyze_scenes(
     // part of the manifest contract and never leave this call.
     let mut scene_query_seeds: Vec<(String, Vec<semantic_core::ContextualImageQuery>)> =
         Vec::with_capacity(request.scenes.len());
-    for (scene_index, scene) in request.scenes.iter().enumerate() {
-        let analyzed = analyze_scene_with_search(
-            scene,
-            language,
-            safety_cap,
-            registry,
-            &context,
-            request.reference_date.as_deref(),
-        );
+    for (scene_index, (scene, local)) in request.scenes.iter().zip(local_scenes).enumerate() {
+        let analyzed = match local {
+            LocalSceneResult::Rejected { scene_id, reason } => rejected_scene(&scene_id, reason),
+            LocalSceneResult::Draft(draft) => {
+                finalize_scene_with_search(*draft, scene, language, safety_cap, registry, &context)
+            }
+        };
         let remaining_event_capacity = events::MAX_EVENT_FRAMES.saturating_sub(event_frames.len());
         event_frames.extend(events::extract_bounded_with_tokens(
             events::SceneEventInput {

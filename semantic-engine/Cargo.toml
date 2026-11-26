@@ -24,6 +24,9 @@ serde_json = { workspace = true }
 # SHA-256 for the persistent cache content address. The wire fingerprint stays
 # FNV-1a; this wider hash only names on-disk entries.
 sha2 = "0.10"
+# Scene-local pure analysis runs in parallel; the identity registry and every
+# cross-scene pass stay sequential and deterministic.
+rayon = "1"
 
 [build-dependencies]
 # Build identity for the persistent cache key (see build.rs).

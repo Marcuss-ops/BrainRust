@@ -160,17 +160,34 @@ pub(super) struct SceneContent {
     pub(crate) rejected_candidates: usize,
 }
 
-/// Same analysis, also returning the asset-search entries the script-level
-/// manifest aggregates and the production-candidate seeds for the visual
-/// context queries. Retrieval never happens here: every entry is `pending`.
-pub(super) fn analyze_scene_with_search(
+/// One scene's phase-1 outcome. A refusal is kept as a reason + id so the
+/// ordered finalize phase can materialize the same rejected manifest without
+/// re-running the extractor.
+pub(super) enum LocalSceneResult {
+    Draft(Box<crate::cache::scene::LocalSceneDraft>),
+    Rejected { scene_id: String, reason: String },
+}
+
+/// Phase 1: pure scene-local analysis. No identity registry, no cross-scene
+/// state, so scenes can run in parallel and a cache hit is safe. Everything
+/// that depends on earlier scenes is deferred to [`finalize_scene_with_search`].
+pub(super) fn analyze_local_scene(
     scene: &SceneInput,
     language: &str,
     safety_cap: usize,
-    registry: &mut IdentityRegistry,
     context: &visualner::ScriptContext,
     reference_date: Option<&str>,
-) -> SceneAnalysis {
+    analyzers: &semantic_core::AnalyzerVersions,
+    cache: Option<&crate::cache::scene::SceneCache>,
+) -> LocalSceneResult {
+    let key = cache.map(|_| crate::cache::scene::SceneCache::key(&scene.text, language, analyzers));
+    if let (Some(cache), Some(key)) = (cache, key.as_deref()) {
+        if let Some(mut draft) = cache.load(key, language) {
+            // Scene ids are positional and not part of the cache key.
+            draft.scene_id = scene.scene_id.clone();
+            return LocalSceneResult::Draft(Box::new(draft));
+        }
+    }
     let options = ExtractOptions {
         language: language.to_string(),
         // The extractor keeps every grounded entity up to the safety cap; the
@@ -184,14 +201,51 @@ pub(super) fn analyze_scene_with_search(
         reference_date,
     ) {
         Ok(analysis) => analysis,
-        Err(reason) => return rejected_scene(scene, reason),
+        Err(reason) => {
+            return LocalSceneResult::Rejected {
+                scene_id: scene.scene_id.clone(),
+                reason,
+            }
+        }
     };
 
-    let source = scene.text.as_str();
     // One canonical segmentation per scene. Every downstream builder consumes
     // these spans instead of re-splitting the source (the previous per-entity
     // split made analysis O(entities x text)).
-    let sentence_spans = semantic_core::split_sentences(source, language, None);
+    let sentence_spans = semantic_core::split_sentences(&scene.text, language, None);
+    let temporal_facts =
+        retain_grounded_temporal(&scene.text, std::mem::take(&mut analysis.temporal_facts));
+    let draft = crate::cache::scene::LocalSceneDraft {
+        scene_id: scene.scene_id.clone(),
+        analysis,
+        temporal_facts,
+        sentence_spans,
+    };
+    if let (Some(cache), Some(key)) = (cache, key.as_deref()) {
+        cache.store(key, language, &draft);
+    }
+    LocalSceneResult::Draft(Box::new(draft))
+}
+
+/// Phase 2: ordered, deterministic finalization. Registers this scene's
+/// identities in the shared registry and derives every cross-scene-aware
+/// fact, then returns the same asset-search entries and production seeds as
+/// before. Retrieval never happens here: every entry is `pending`.
+pub(super) fn finalize_scene_with_search(
+    draft: crate::cache::scene::LocalSceneDraft,
+    scene: &SceneInput,
+    language: &str,
+    safety_cap: usize,
+    registry: &mut IdentityRegistry,
+    context: &visualner::ScriptContext,
+) -> SceneAnalysis {
+    let crate::cache::scene::LocalSceneDraft {
+        mut analysis,
+        temporal_facts,
+        sentence_spans,
+        ..
+    } = draft;
+    let source = scene.text.as_str();
     let (entities, rejected_entities) = prepare_entities(
         source,
         language,
@@ -200,8 +254,6 @@ pub(super) fn analyze_scene_with_search(
         registry,
         &mut analysis,
     );
-    let temporal_facts =
-        retain_grounded_temporal(source, std::mem::take(&mut analysis.temporal_facts));
     let identities = IdentityLookup::build(registry, &scene.scene_id, &entities, context, language);
     let entity_ids: Vec<String> = (0..entities.len())
         .map(|index| identities.id_of(index))
@@ -264,5 +316,32 @@ pub(super) fn analyze_scene_with_search(
         search_feedback: content.search_feedback,
         query_seeds: content.contextual.production_seeds,
         tokens: analysis.tokens,
+    }
+}
+
+/// Single-scene compatibility path used by `analyze_scene`. Production batches
+/// use the two phases directly so phase 1 can run in parallel and be cached.
+pub(super) fn analyze_scene_with_search(
+    scene: &SceneInput,
+    language: &str,
+    safety_cap: usize,
+    registry: &mut IdentityRegistry,
+    context: &visualner::ScriptContext,
+    reference_date: Option<&str>,
+) -> SceneAnalysis {
+    let analyzers = crate::analyzer_versions();
+    match analyze_local_scene(
+        scene,
+        language,
+        safety_cap,
+        context,
+        reference_date,
+        &analyzers,
+        None,
+    ) {
+        LocalSceneResult::Rejected { scene_id, reason } => rejected_scene(&scene_id, reason),
+        LocalSceneResult::Draft(draft) => {
+            finalize_scene_with_search(*draft, scene, language, safety_cap, registry, context)
+        }
     }
 }

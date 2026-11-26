@@ -92,11 +92,15 @@ fn analyze_in_new_process(cache_dir: &Path) -> serde_json::Value {
     finish(spawn_worker(cache_dir, None))
 }
 
+/// Manifest entries only. The same directory also holds the per-scene
+/// phase-1 cache under `scenes/`; that store has its own tests and must not
+/// change how many MANIFESTS a worker wrote.
 fn entries(cache_dir: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(cache_dir)
         .expect("cache dir")
         .flatten()
         .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .filter(|name| name.starts_with("manifest-"))
         .collect();
     names.sort();
     names
