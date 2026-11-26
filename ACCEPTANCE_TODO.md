@@ -1,5 +1,12 @@
 # BrainRust acceptance checklist
 
+> **Archived evidence (DEMOL-10/BR-04, 2026-11-26).** The historical gold
+> reports under `semantic-engine/fixtures/gold_multilingual/reports/` were
+> archived out of Git with a hash-verified manifest to
+> `data/archive/brainrust-gold-reports-2026-11-26/` in the workspace root
+> (`ops/tools/archive_tracked.py --verify ...`). The paths below name the
+> archived copy.
+
 > Audit/ticket status is maintained in [`docs/tickets/README.md`](docs/tickets/README.md)
 > (last verified 2026-11-18: 24 DONE, 0 PARTIAL, 4 BLOCKED — 08, 10,
 > 26, 27; 22 is DONE and committed; 27 is the unpublished release). This file
