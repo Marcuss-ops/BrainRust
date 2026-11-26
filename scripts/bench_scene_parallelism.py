@@ -202,7 +202,11 @@ def multi_scene_request(path: Path, language: str, scenes: int = 6) -> dict:
 
 
 def run_corpus_multi_scene(
-    binary: Path, scripts: list[tuple[str, str, Path]], threads: int, sentences_per_scene: int
+    binary: Path,
+    scripts: list[tuple[str, str, Path]],
+    threads: int,
+    sentences_per_scene: int,
+    warm_models: bool = False,
 ) -> dict:
     """The same 5,669-word corpus, split into production-shaped scenes.
 
@@ -211,11 +215,28 @@ def run_corpus_multi_scene(
     it can only measure the sequential path. This section feeds the identical
     words as multi-scene documents, which is how a real 5,669-word script
     arrives, and is the workload phase 1 parallelises.
+
+    `warm_models` loads every language's UDPipe model before the timed pass.
+    Without it the first script of each language pays ~2.5 s of one-time model
+    loading inside the measurement, which is startup cost, not scene work.
     """
     worker = NDJSONWorker(binary, worker_env(threads, None))
     per_script: list[dict] = []
-    started = time.monotonic()
+    started = 0.0
     try:
+        if warm_models:
+            for language in sorted({language for _, language, _ in scripts}):
+                response = worker.request(
+                    {
+                        "operation": "analyze_script",
+                        "language": language,
+                        "scenes": [{"scene_id": "warm", "text": "Il comitato ha approvato il piano."}],
+                    }
+                )
+                if not response.get("ok"):
+                    raise RuntimeError(f"model warmup refused for {language}")
+        # Time the corpus only: the warmup is one-time startup cost.
+        started = time.monotonic()
         for script_id, language, path in scripts:
             text = path.read_text(encoding="utf-8").strip()
             scenes = scenes_from_text(text, sentences_per_scene)
@@ -249,6 +270,7 @@ def run_corpus_multi_scene(
     return {
         "threads": threads,
         "sentences_per_scene": sentences_per_scene,
+        "model_warmup": warm_models,
         "total_seconds": round(total, 4),
         "words": sum(row["words"] for row in per_script),
         "scenes": sum(row["scenes"] for row in per_script),
@@ -314,6 +336,11 @@ def main() -> int:
     parser.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     parser.add_argument("--threads", default="1,4")
     parser.add_argument("--sentences-per-scene", type=int, default=4)
+    parser.add_argument(
+        "--warm-models",
+        action="store_true",
+        help="load every language's UDPipe model before the multi-scene timed pass",
+    )
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
 
@@ -348,7 +375,9 @@ def main() -> int:
     multi_scene_runs: list[dict] = []
     for threads in thread_counts:
         for repetition in range(REPETITIONS):
-            run = run_corpus_multi_scene(args.worker, scripts, threads, args.sentences_per_scene)
+            run = run_corpus_multi_scene(
+                args.worker, scripts, threads, args.sentences_per_scene, args.warm_models
+            )
             run["repetition"] = repetition + 1
             multi_scene_runs.append(run)
             print(
@@ -406,6 +435,7 @@ def main() -> int:
             "baseline_threads": baseline_threads,
             "parallel_threads": parallel_threads,
             "sentences_per_scene": args.sentences_per_scene,
+            "model_warmup": args.warm_models,
             "baseline_min_seconds": round(multi_baseline, 4),
             "parallel_min_seconds": round(multi_parallel, 4),
             "speedup": round(multi_baseline / multi_parallel, 2) if multi_parallel else None,
