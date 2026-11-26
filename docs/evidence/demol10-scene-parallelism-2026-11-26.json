@@ -1,0 +1,1275 @@
+{
+  "ticket": "DEMOL-10",
+  "date": "2026-11-26T18:29:11Z",
+  "host": {
+    "platform": "Linux-5.15.0-204-generic-x86_64-with-glibc2.35",
+    "cpu_count": 24,
+    "worker_sha": "16bb076cce8c994448bb3b38e462ec10fc64621e"
+  },
+  "corpus": {
+    "path": "semantic-engine/fixtures/gold_multilingual/long_scripts",
+    "scripts": 20,
+    "words": 5669
+  },
+  "cold": {
+    "repetitions": 2,
+    "baseline_threads": 1,
+    "parallel_threads": 4,
+    "baseline_min_seconds": 35.4527,
+    "parallel_min_seconds": 38.0758,
+    "speedup": 0.93,
+    "note": "one scene per request, the ROADMAP baseline shape: no scene-local parallelism to expose",
+    "runs": [
+      {
+        "threads": 1,
+        "cache": "off",
+        "total_seconds": 35.4527,
+        "wall_seconds_sum": 35.2141,
+        "words": 5669,
+        "words_per_second": 159.9,
+        "p50_script_seconds": 1.5454,
+        "p95_script_seconds": 3.9762,
+        "cached_responses": 0,
+        "scripts": [
+          {
+            "script_id": "de_stadion_nord",
+            "language": "de",
+            "words": 266,
+            "seconds": 3.9762,
+            "cached": false
+          },
+          {
+            "script_id": "de_stadion_sued",
+            "language": "de",
+            "words": 273,
+            "seconds": 0.7233,
+            "cached": false
+          },
+          {
+            "script_id": "en_stadium_central",
+            "language": "en",
+            "words": 284,
+            "seconds": 2.0396,
+            "cached": false
+          },
+          {
+            "script_id": "en_stadium_harbour",
+            "language": "en",
+            "words": 286,
+            "seconds": 0.6622,
+            "cached": false
+          },
+          {
+            "script_id": "es_estadio_norte",
+            "language": "es",
+            "words": 281,
+            "seconds": 3.2445,
+            "cached": false
+          },
+          {
+            "script_id": "es_estadio_sur",
+            "language": "es",
+            "words": 259,
+            "seconds": 0.4627,
+            "cached": false
+          },
+          {
+            "script_id": "fr_stade_nord",
+            "language": "fr",
+            "words": 280,
+            "seconds": 2.7873,
+            "cached": false
+          },
+          {
+            "script_id": "fr_stade_sud",
+            "language": "fr",
+            "words": 264,
+            "seconds": 0.5835,
+            "cached": false
+          },
+          {
+            "script_id": "id_stadion_selatan",
+            "language": "id",
+            "words": 252,
+            "seconds": 1.7846,
+            "cached": false
+          },
+          {
+            "script_id": "id_stadion_utara",
+            "language": "id",
+            "words": 271,
+            "seconds": 0.4901,
+            "cached": false
+          },
+          {
+            "script_id": "it_stadio_porto",
+            "language": "it",
+            "words": 273,
+            "seconds": 2.4838,
+            "cached": false
+          },
+          {
+            "script_id": "it_stadium",
+            "language": "it",
+            "words": 584,
+            "seconds": 1.3063,
+            "cached": false
+          },
+          {
+            "script_id": "nl_stadion_noord",
+            "language": "nl",
+            "words": 265,
+            "seconds": 2.0901,
+            "cached": false
+          },
+          {
+            "script_id": "nl_stadion_zuid",
+            "language": "nl",
+            "words": 292,
+            "seconds": 0.5845,
+            "cached": false
+          },
+          {
+            "script_id": "pl_stadion_polnocny",
+            "language": "pl",
+            "words": 250,
+            "seconds": 3.0636,
+            "cached": false
+          },
+          {
+            "script_id": "pl_stadion_poludniowy",
+            "language": "pl",
+            "words": 259,
+            "seconds": 0.5436,
+            "cached": false
+          },
+          {
+            "script_id": "pt_estadio_norte",
+            "language": "pt",
+            "words": 265,
+            "seconds": 1.9515,
+            "cached": false
+          },
+          {
+            "script_id": "pt_estadio_sul",
+            "language": "pt",
+            "words": 251,
+            "seconds": 0.4987,
+            "cached": false
+          },
+          {
+            "script_id": "ru_stadion_severny",
+            "language": "ru",
+            "words": 250,
+            "seconds": 5.3915,
+            "cached": false
+          },
+          {
+            "script_id": "ru_stadion_yuzhny",
+            "language": "ru",
+            "words": 264,
+            "seconds": 0.5465,
+            "cached": false
+          }
+        ],
+        "repetition": 1
+      },
+      {
+        "threads": 1,
+        "cache": "off",
+        "total_seconds": 37.7534,
+        "wall_seconds_sum": 37.5232,
+        "words": 5669,
+        "words_per_second": 150.2,
+        "p50_script_seconds": 1.6677,
+        "p95_script_seconds": 3.8389,
+        "cached_responses": 0,
+        "scripts": [
+          {
+            "script_id": "de_stadion_nord",
+            "language": "de",
+            "words": 266,
+            "seconds": 3.8389,
+            "cached": false
+          },
+          {
+            "script_id": "de_stadion_sued",
+            "language": "de",
+            "words": 273,
+            "seconds": 0.7658,
+            "cached": false
+          },
+          {
+            "script_id": "en_stadium_central",
+            "language": "en",
+            "words": 284,
+            "seconds": 2.2434,
+            "cached": false
+          },
+          {
+            "script_id": "en_stadium_harbour",
+            "language": "en",
+            "words": 286,
+            "seconds": 0.706,
+            "cached": false
+          },
+          {
+            "script_id": "es_estadio_norte",
+            "language": "es",
+            "words": 281,
+            "seconds": 3.5341,
+            "cached": false
+          },
+          {
+            "script_id": "es_estadio_sur",
+            "language": "es",
+            "words": 259,
+            "seconds": 0.5437,
+            "cached": false
+          },
+          {
+            "script_id": "fr_stade_nord",
+            "language": "fr",
+            "words": 280,
+            "seconds": 3.1036,
+            "cached": false
+          },
+          {
+            "script_id": "fr_stade_sud",
+            "language": "fr",
+            "words": 264,
+            "seconds": 0.6498,
+            "cached": false
+          },
+          {
+            "script_id": "id_stadion_selatan",
+            "language": "id",
+            "words": 252,
+            "seconds": 1.905,
+            "cached": false
+          },
+          {
+            "script_id": "id_stadion_utara",
+            "language": "id",
+            "words": 271,
+            "seconds": 0.5166,
+            "cached": false
+          },
+          {
+            "script_id": "it_stadio_porto",
+            "language": "it",
+            "words": 273,
+            "seconds": 2.6564,
+            "cached": false
+          },
+          {
+            "script_id": "it_stadium",
+            "language": "it",
+            "words": 584,
+            "seconds": 1.4304,
+            "cached": false
+          },
+          {
+            "script_id": "nl_stadion_noord",
+            "language": "nl",
+            "words": 265,
+            "seconds": 2.303,
+            "cached": false
+          },
+          {
+            "script_id": "nl_stadion_zuid",
+            "language": "nl",
+            "words": 292,
+            "seconds": 0.5719,
+            "cached": false
+          },
+          {
+            "script_id": "pl_stadion_polnocny",
+            "language": "pl",
+            "words": 250,
+            "seconds": 3.3396,
+            "cached": false
+          },
+          {
+            "script_id": "pl_stadion_poludniowy",
+            "language": "pl",
+            "words": 259,
+            "seconds": 0.6146,
+            "cached": false
+          },
+          {
+            "script_id": "pt_estadio_norte",
+            "language": "pt",
+            "words": 265,
+            "seconds": 2.0958,
+            "cached": false
+          },
+          {
+            "script_id": "pt_estadio_sul",
+            "language": "pt",
+            "words": 251,
+            "seconds": 0.5994,
+            "cached": false
+          },
+          {
+            "script_id": "ru_stadion_severny",
+            "language": "ru",
+            "words": 250,
+            "seconds": 5.5621,
+            "cached": false
+          },
+          {
+            "script_id": "ru_stadion_yuzhny",
+            "language": "ru",
+            "words": 264,
+            "seconds": 0.5431,
+            "cached": false
+          }
+        ],
+        "repetition": 2
+      },
+      {
+        "threads": 4,
+        "cache": "off",
+        "total_seconds": 38.0758,
+        "wall_seconds_sum": 37.8386,
+        "words": 5669,
+        "words_per_second": 148.9,
+        "p50_script_seconds": 1.6544,
+        "p95_script_seconds": 3.9547,
+        "cached_responses": 0,
+        "scripts": [
+          {
+            "script_id": "de_stadion_nord",
+            "language": "de",
+            "words": 266,
+            "seconds": 3.9547,
+            "cached": false
+          },
+          {
+            "script_id": "de_stadion_sued",
+            "language": "de",
+            "words": 273,
+            "seconds": 0.732,
+            "cached": false
+          },
+          {
+            "script_id": "en_stadium_central",
+            "language": "en",
+            "words": 284,
+            "seconds": 2.343,
+            "cached": false
+          },
+          {
+            "script_id": "en_stadium_harbour",
+            "language": "en",
+            "words": 286,
+            "seconds": 0.6346,
+            "cached": false
+          },
+          {
+            "script_id": "es_estadio_norte",
+            "language": "es",
+            "words": 281,
+            "seconds": 3.4471,
+            "cached": false
+          },
+          {
+            "script_id": "es_estadio_sur",
+            "language": "es",
+            "words": 259,
+            "seconds": 0.5336,
+            "cached": false
+          },
+          {
+            "script_id": "fr_stade_nord",
+            "language": "fr",
+            "words": 280,
+            "seconds": 3.0399,
+            "cached": false
+          },
+          {
+            "script_id": "fr_stade_sud",
+            "language": "fr",
+            "words": 264,
+            "seconds": 0.6362,
+            "cached": false
+          },
+          {
+            "script_id": "id_stadion_selatan",
+            "language": "id",
+            "words": 252,
+            "seconds": 1.9082,
+            "cached": false
+          },
+          {
+            "script_id": "id_stadion_utara",
+            "language": "id",
+            "words": 271,
+            "seconds": 0.5628,
+            "cached": false
+          },
+          {
+            "script_id": "it_stadio_porto",
+            "language": "it",
+            "words": 273,
+            "seconds": 2.7089,
+            "cached": false
+          },
+          {
+            "script_id": "it_stadium",
+            "language": "it",
+            "words": 584,
+            "seconds": 1.4007,
+            "cached": false
+          },
+          {
+            "script_id": "nl_stadion_noord",
+            "language": "nl",
+            "words": 265,
+            "seconds": 2.2932,
+            "cached": false
+          },
+          {
+            "script_id": "nl_stadion_zuid",
+            "language": "nl",
+            "words": 292,
+            "seconds": 0.6015,
+            "cached": false
+          },
+          {
+            "script_id": "pl_stadion_polnocny",
+            "language": "pl",
+            "words": 250,
+            "seconds": 3.3775,
+            "cached": false
+          },
+          {
+            "script_id": "pl_stadion_poludniowy",
+            "language": "pl",
+            "words": 259,
+            "seconds": 0.6315,
+            "cached": false
+          },
+          {
+            "script_id": "pt_estadio_norte",
+            "language": "pt",
+            "words": 265,
+            "seconds": 2.1666,
+            "cached": false
+          },
+          {
+            "script_id": "pt_estadio_sul",
+            "language": "pt",
+            "words": 251,
+            "seconds": 0.5488,
+            "cached": false
+          },
+          {
+            "script_id": "ru_stadion_severny",
+            "language": "ru",
+            "words": 250,
+            "seconds": 5.7534,
+            "cached": false
+          },
+          {
+            "script_id": "ru_stadion_yuzhny",
+            "language": "ru",
+            "words": 264,
+            "seconds": 0.5644,
+            "cached": false
+          }
+        ],
+        "repetition": 1
+      },
+      {
+        "threads": 4,
+        "cache": "off",
+        "total_seconds": 41.5949,
+        "wall_seconds_sum": 41.3716,
+        "words": 5669,
+        "words_per_second": 136.3,
+        "p50_script_seconds": 1.8466,
+        "p95_script_seconds": 4.6108,
+        "cached_responses": 0,
+        "scripts": [
+          {
+            "script_id": "de_stadion_nord",
+            "language": "de",
+            "words": 266,
+            "seconds": 4.6108,
+            "cached": false
+          },
+          {
+            "script_id": "de_stadion_sued",
+            "language": "de",
+            "words": 273,
+            "seconds": 0.7651,
+            "cached": false
+          },
+          {
+            "script_id": "en_stadium_central",
+            "language": "en",
+            "words": 284,
+            "seconds": 2.6126,
+            "cached": false
+          },
+          {
+            "script_id": "en_stadium_harbour",
+            "language": "en",
+            "words": 286,
+            "seconds": 0.7353,
+            "cached": false
+          },
+          {
+            "script_id": "es_estadio_norte",
+            "language": "es",
+            "words": 281,
+            "seconds": 3.8043,
+            "cached": false
+          },
+          {
+            "script_id": "es_estadio_sur",
+            "language": "es",
+            "words": 259,
+            "seconds": 0.5937,
+            "cached": false
+          },
+          {
+            "script_id": "fr_stade_nord",
+            "language": "fr",
+            "words": 280,
+            "seconds": 3.4247,
+            "cached": false
+          },
+          {
+            "script_id": "fr_stade_sud",
+            "language": "fr",
+            "words": 264,
+            "seconds": 0.6599,
+            "cached": false
+          },
+          {
+            "script_id": "id_stadion_selatan",
+            "language": "id",
+            "words": 252,
+            "seconds": 2.0482,
+            "cached": false
+          },
+          {
+            "script_id": "id_stadion_utara",
+            "language": "id",
+            "words": 271,
+            "seconds": 0.6171,
+            "cached": false
+          },
+          {
+            "script_id": "it_stadio_porto",
+            "language": "it",
+            "words": 273,
+            "seconds": 2.889,
+            "cached": false
+          },
+          {
+            "script_id": "it_stadium",
+            "language": "it",
+            "words": 584,
+            "seconds": 1.645,
+            "cached": false
+          },
+          {
+            "script_id": "nl_stadion_noord",
+            "language": "nl",
+            "words": 265,
+            "seconds": 2.5748,
+            "cached": false
+          },
+          {
+            "script_id": "nl_stadion_zuid",
+            "language": "nl",
+            "words": 292,
+            "seconds": 0.6055,
+            "cached": false
+          },
+          {
+            "script_id": "pl_stadion_polnocny",
+            "language": "pl",
+            "words": 250,
+            "seconds": 3.4265,
+            "cached": false
+          },
+          {
+            "script_id": "pl_stadion_poludniowy",
+            "language": "pl",
+            "words": 259,
+            "seconds": 0.903,
+            "cached": false
+          },
+          {
+            "script_id": "pt_estadio_norte",
+            "language": "pt",
+            "words": 265,
+            "seconds": 2.6462,
+            "cached": false
+          },
+          {
+            "script_id": "pt_estadio_sul",
+            "language": "pt",
+            "words": 251,
+            "seconds": 0.604,
+            "cached": false
+          },
+          {
+            "script_id": "ru_stadion_severny",
+            "language": "ru",
+            "words": 250,
+            "seconds": 5.6732,
+            "cached": false
+          },
+          {
+            "script_id": "ru_stadion_yuzhny",
+            "language": "ru",
+            "words": 264,
+            "seconds": 0.5327,
+            "cached": false
+          }
+        ],
+        "repetition": 2
+      }
+    ]
+  },
+  "cold_multi_scene": {
+    "repetitions": 2,
+    "baseline_threads": 1,
+    "parallel_threads": 4,
+    "sentences_per_scene": 4,
+    "baseline_min_seconds": 37.2717,
+    "parallel_min_seconds": 29.5442,
+    "speedup": 1.26,
+    "runs": [
+      {
+        "threads": 1,
+        "sentences_per_scene": 4,
+        "total_seconds": 38.6276,
+        "words": 5669,
+        "scenes": 91,
+        "words_per_second": 146.8,
+        "p50_script_seconds": 1.6957,
+        "p95_script_seconds": 4.244,
+        "scripts": [
+          {
+            "script_id": "de_stadion_nord",
+            "language": "de",
+            "words": 266,
+            "scenes": 4,
+            "seconds": 4.244
+          },
+          {
+            "script_id": "de_stadion_sued",
+            "language": "de",
+            "words": 273,
+            "scenes": 4,
+            "seconds": 0.7665
+          },
+          {
+            "script_id": "en_stadium_central",
+            "language": "en",
+            "words": 284,
+            "scenes": 4,
+            "seconds": 2.2655
+          },
+          {
+            "script_id": "en_stadium_harbour",
+            "language": "en",
+            "words": 286,
+            "scenes": 4,
+            "seconds": 0.7537
+          },
+          {
+            "script_id": "es_estadio_norte",
+            "language": "es",
+            "words": 281,
+            "scenes": 4,
+            "seconds": 3.7588
+          },
+          {
+            "script_id": "es_estadio_sur",
+            "language": "es",
+            "words": 259,
+            "scenes": 4,
+            "seconds": 0.5345
+          },
+          {
+            "script_id": "fr_stade_nord",
+            "language": "fr",
+            "words": 280,
+            "scenes": 4,
+            "seconds": 3.2607
+          },
+          {
+            "script_id": "fr_stade_sud",
+            "language": "fr",
+            "words": 264,
+            "scenes": 4,
+            "seconds": 0.6518
+          },
+          {
+            "script_id": "id_stadion_selatan",
+            "language": "id",
+            "words": 252,
+            "scenes": 5,
+            "seconds": 1.9449
+          },
+          {
+            "script_id": "id_stadion_utara",
+            "language": "id",
+            "words": 271,
+            "scenes": 5,
+            "seconds": 0.5135
+          },
+          {
+            "script_id": "it_stadio_porto",
+            "language": "it",
+            "words": 273,
+            "scenes": 4,
+            "seconds": 2.6993
+          },
+          {
+            "script_id": "it_stadium",
+            "language": "it",
+            "words": 584,
+            "scenes": 8,
+            "seconds": 1.4464
+          },
+          {
+            "script_id": "nl_stadion_noord",
+            "language": "nl",
+            "words": 265,
+            "scenes": 4,
+            "seconds": 2.281
+          },
+          {
+            "script_id": "nl_stadion_zuid",
+            "language": "nl",
+            "words": 292,
+            "scenes": 5,
+            "seconds": 0.5592
+          },
+          {
+            "script_id": "pl_stadion_polnocny",
+            "language": "pl",
+            "words": 250,
+            "scenes": 5,
+            "seconds": 3.3049
+          },
+          {
+            "script_id": "pl_stadion_poludniowy",
+            "language": "pl",
+            "words": 259,
+            "scenes": 5,
+            "seconds": 0.6145
+          },
+          {
+            "script_id": "pt_estadio_norte",
+            "language": "pt",
+            "words": 265,
+            "scenes": 4,
+            "seconds": 2.1416
+          },
+          {
+            "script_id": "pt_estadio_sul",
+            "language": "pt",
+            "words": 251,
+            "scenes": 4,
+            "seconds": 0.5417
+          },
+          {
+            "script_id": "ru_stadion_severny",
+            "language": "ru",
+            "words": 250,
+            "scenes": 5,
+            "seconds": 5.5067
+          },
+          {
+            "script_id": "ru_stadion_yuzhny",
+            "language": "ru",
+            "words": 264,
+            "scenes": 5,
+            "seconds": 0.6443
+          }
+        ],
+        "repetition": 1
+      },
+      {
+        "threads": 1,
+        "sentences_per_scene": 4,
+        "total_seconds": 37.2717,
+        "words": 5669,
+        "scenes": 91,
+        "words_per_second": 152.1,
+        "p50_script_seconds": 1.708,
+        "p95_script_seconds": 3.8824,
+        "scripts": [
+          {
+            "script_id": "de_stadion_nord",
+            "language": "de",
+            "words": 266,
+            "scenes": 4,
+            "seconds": 3.8824
+          },
+          {
+            "script_id": "de_stadion_sued",
+            "language": "de",
+            "words": 273,
+            "scenes": 4,
+            "seconds": 0.723
+          },
+          {
+            "script_id": "en_stadium_central",
+            "language": "en",
+            "words": 284,
+            "scenes": 4,
+            "seconds": 2.2492
+          },
+          {
+            "script_id": "en_stadium_harbour",
+            "language": "en",
+            "words": 286,
+            "scenes": 4,
+            "seconds": 0.6151
+          },
+          {
+            "script_id": "es_estadio_norte",
+            "language": "es",
+            "words": 281,
+            "scenes": 4,
+            "seconds": 3.4824
+          },
+          {
+            "script_id": "es_estadio_sur",
+            "language": "es",
+            "words": 259,
+            "scenes": 4,
+            "seconds": 0.5272
+          },
+          {
+            "script_id": "fr_stade_nord",
+            "language": "fr",
+            "words": 280,
+            "scenes": 4,
+            "seconds": 3.0346
+          },
+          {
+            "script_id": "fr_stade_sud",
+            "language": "fr",
+            "words": 264,
+            "scenes": 4,
+            "seconds": 0.5804
+          },
+          {
+            "script_id": "id_stadion_selatan",
+            "language": "id",
+            "words": 252,
+            "scenes": 5,
+            "seconds": 1.9655
+          },
+          {
+            "script_id": "id_stadion_utara",
+            "language": "id",
+            "words": 271,
+            "scenes": 5,
+            "seconds": 0.5048
+          },
+          {
+            "script_id": "it_stadio_porto",
+            "language": "it",
+            "words": 273,
+            "scenes": 4,
+            "seconds": 2.5835
+          },
+          {
+            "script_id": "it_stadium",
+            "language": "it",
+            "words": 584,
+            "scenes": 8,
+            "seconds": 1.4505
+          },
+          {
+            "script_id": "nl_stadion_noord",
+            "language": "nl",
+            "words": 265,
+            "scenes": 4,
+            "seconds": 2.2987
+          },
+          {
+            "script_id": "nl_stadion_zuid",
+            "language": "nl",
+            "words": 292,
+            "scenes": 5,
+            "seconds": 0.5572
+          },
+          {
+            "script_id": "pl_stadion_polnocny",
+            "language": "pl",
+            "words": 250,
+            "scenes": 5,
+            "seconds": 3.3084
+          },
+          {
+            "script_id": "pl_stadion_poludniowy",
+            "language": "pl",
+            "words": 259,
+            "scenes": 5,
+            "seconds": 0.614
+          },
+          {
+            "script_id": "pt_estadio_norte",
+            "language": "pt",
+            "words": 265,
+            "scenes": 4,
+            "seconds": 2.1053
+          },
+          {
+            "script_id": "pt_estadio_sul",
+            "language": "pt",
+            "words": 251,
+            "scenes": 4,
+            "seconds": 0.5444
+          },
+          {
+            "script_id": "ru_stadion_severny",
+            "language": "ru",
+            "words": 250,
+            "scenes": 5,
+            "seconds": 5.4288
+          },
+          {
+            "script_id": "ru_stadion_yuzhny",
+            "language": "ru",
+            "words": 264,
+            "scenes": 5,
+            "seconds": 0.5775
+          }
+        ],
+        "repetition": 2
+      },
+      {
+        "threads": 4,
+        "sentences_per_scene": 4,
+        "total_seconds": 29.5442,
+        "words": 5669,
+        "scenes": 91,
+        "words_per_second": 191.9,
+        "p50_script_seconds": 1.0613,
+        "p95_script_seconds": 3.4881,
+        "scripts": [
+          {
+            "script_id": "de_stadion_nord",
+            "language": "de",
+            "words": 266,
+            "scenes": 4,
+            "seconds": 3.4881
+          },
+          {
+            "script_id": "de_stadion_sued",
+            "language": "de",
+            "words": 273,
+            "scenes": 4,
+            "seconds": 0.2255
+          },
+          {
+            "script_id": "en_stadium_central",
+            "language": "en",
+            "words": 284,
+            "scenes": 4,
+            "seconds": 1.9478
+          },
+          {
+            "script_id": "en_stadium_harbour",
+            "language": "en",
+            "words": 286,
+            "scenes": 4,
+            "seconds": 0.2647
+          },
+          {
+            "script_id": "es_estadio_norte",
+            "language": "es",
+            "words": 281,
+            "scenes": 4,
+            "seconds": 3.0337
+          },
+          {
+            "script_id": "es_estadio_sur",
+            "language": "es",
+            "words": 259,
+            "scenes": 4,
+            "seconds": 0.1978
+          },
+          {
+            "script_id": "fr_stade_nord",
+            "language": "fr",
+            "words": 280,
+            "scenes": 4,
+            "seconds": 2.6864
+          },
+          {
+            "script_id": "fr_stade_sud",
+            "language": "fr",
+            "words": 264,
+            "scenes": 4,
+            "seconds": 0.2214
+          },
+          {
+            "script_id": "id_stadion_selatan",
+            "language": "id",
+            "words": 252,
+            "scenes": 5,
+            "seconds": 1.6679
+          },
+          {
+            "script_id": "id_stadion_utara",
+            "language": "id",
+            "words": 271,
+            "scenes": 5,
+            "seconds": 0.1746
+          },
+          {
+            "script_id": "it_stadio_porto",
+            "language": "it",
+            "words": 273,
+            "scenes": 4,
+            "seconds": 2.202
+          },
+          {
+            "script_id": "it_stadium",
+            "language": "it",
+            "words": 584,
+            "scenes": 8,
+            "seconds": 0.4546
+          },
+          {
+            "script_id": "nl_stadion_noord",
+            "language": "nl",
+            "words": 265,
+            "scenes": 4,
+            "seconds": 1.961
+          },
+          {
+            "script_id": "nl_stadion_zuid",
+            "language": "nl",
+            "words": 292,
+            "scenes": 5,
+            "seconds": 0.2153
+          },
+          {
+            "script_id": "pl_stadion_polnocny",
+            "language": "pl",
+            "words": 250,
+            "scenes": 5,
+            "seconds": 2.9639
+          },
+          {
+            "script_id": "pl_stadion_poludniowy",
+            "language": "pl",
+            "words": 259,
+            "scenes": 5,
+            "seconds": 0.279
+          },
+          {
+            "script_id": "pt_estadio_norte",
+            "language": "pt",
+            "words": 265,
+            "scenes": 4,
+            "seconds": 1.7776
+          },
+          {
+            "script_id": "pt_estadio_sul",
+            "language": "pt",
+            "words": 251,
+            "scenes": 4,
+            "seconds": 0.2158
+          },
+          {
+            "script_id": "ru_stadion_severny",
+            "language": "ru",
+            "words": 250,
+            "scenes": 5,
+            "seconds": 5.0509
+          },
+          {
+            "script_id": "ru_stadion_yuzhny",
+            "language": "ru",
+            "words": 264,
+            "scenes": 5,
+            "seconds": 0.2306
+          }
+        ],
+        "repetition": 1
+      },
+      {
+        "threads": 4,
+        "sentences_per_scene": 4,
+        "total_seconds": 29.6135,
+        "words": 5669,
+        "scenes": 91,
+        "words_per_second": 191.4,
+        "p50_script_seconds": 1.1309,
+        "p95_script_seconds": 3.5104,
+        "scripts": [
+          {
+            "script_id": "de_stadion_nord",
+            "language": "de",
+            "words": 266,
+            "scenes": 4,
+            "seconds": 3.5104
+          },
+          {
+            "script_id": "de_stadion_sued",
+            "language": "de",
+            "words": 273,
+            "scenes": 4,
+            "seconds": 0.2231
+          },
+          {
+            "script_id": "en_stadium_central",
+            "language": "en",
+            "words": 284,
+            "scenes": 4,
+            "seconds": 1.9251
+          },
+          {
+            "script_id": "en_stadium_harbour",
+            "language": "en",
+            "words": 286,
+            "scenes": 4,
+            "seconds": 0.2518
+          },
+          {
+            "script_id": "es_estadio_norte",
+            "language": "es",
+            "words": 281,
+            "scenes": 4,
+            "seconds": 3.1061
+          },
+          {
+            "script_id": "es_estadio_sur",
+            "language": "es",
+            "words": 259,
+            "scenes": 4,
+            "seconds": 0.184
+          },
+          {
+            "script_id": "fr_stade_nord",
+            "language": "fr",
+            "words": 280,
+            "scenes": 4,
+            "seconds": 2.6869
+          },
+          {
+            "script_id": "fr_stade_sud",
+            "language": "fr",
+            "words": 264,
+            "scenes": 4,
+            "seconds": 0.2137
+          },
+          {
+            "script_id": "id_stadion_selatan",
+            "language": "id",
+            "words": 252,
+            "scenes": 5,
+            "seconds": 1.6952
+          },
+          {
+            "script_id": "id_stadion_utara",
+            "language": "id",
+            "words": 271,
+            "scenes": 5,
+            "seconds": 0.1781
+          },
+          {
+            "script_id": "it_stadio_porto",
+            "language": "it",
+            "words": 273,
+            "scenes": 4,
+            "seconds": 2.1994
+          },
+          {
+            "script_id": "it_stadium",
+            "language": "it",
+            "words": 584,
+            "scenes": 8,
+            "seconds": 0.5667
+          },
+          {
+            "script_id": "nl_stadion_noord",
+            "language": "nl",
+            "words": 265,
+            "scenes": 4,
+            "seconds": 1.9684
+          },
+          {
+            "script_id": "nl_stadion_zuid",
+            "language": "nl",
+            "words": 292,
+            "scenes": 5,
+            "seconds": 0.2138
+          },
+          {
+            "script_id": "pl_stadion_polnocny",
+            "language": "pl",
+            "words": 250,
+            "scenes": 5,
+            "seconds": 2.9604
+          },
+          {
+            "script_id": "pl_stadion_poludniowy",
+            "language": "pl",
+            "words": 259,
+            "scenes": 5,
+            "seconds": 0.2718
+          },
+          {
+            "script_id": "pt_estadio_norte",
+            "language": "pt",
+            "words": 265,
+            "scenes": 4,
+            "seconds": 1.7603
+          },
+          {
+            "script_id": "pt_estadio_sul",
+            "language": "pt",
+            "words": 251,
+            "scenes": 4,
+            "seconds": 0.251
+          },
+          {
+            "script_id": "ru_stadion_severny",
+            "language": "ru",
+            "words": 250,
+            "scenes": 5,
+            "seconds": 4.8961
+          },
+          {
+            "script_id": "ru_stadion_yuzhny",
+            "language": "ru",
+            "words": 264,
+            "scenes": 5,
+            "seconds": 0.2655
+          }
+        ],
+        "repetition": 2
+      }
+    ]
+  },
+  "warm_single_scene": {
+    "script": "it_stadio_porto",
+    "language": "it",
+    "scenes": 6,
+    "threads": 4,
+    "cold_seconds": 3.3217,
+    "warm_one_scene_changed_seconds": 0.1725,
+    "warm_over_cold": 0.0519,
+    "cache_entries": 7,
+    "cache_entries_baseline_note": 7
+  }
+}
