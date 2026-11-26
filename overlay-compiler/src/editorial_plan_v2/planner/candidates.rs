@@ -141,6 +141,69 @@ pub(super) fn build_entity_card_candidates(
     Ok(items)
 }
 
+/// Drops a plain text phrase that repeats a numeric card already admitted with
+/// the same surface and an overlapping window. `13 settembre 2026` used to
+/// arrive twice at the same instant: once as `TIMELINE_DATE_CARD` and once as
+/// a typewriter `text_phrase`. The numeric card owns the fact and its readable
+/// hold; the duplicate phrase would only stack a second copy on top of it.
+///
+/// The pass runs after admission so a numeric card that lost its budget slot
+/// never takes the phrase down with it. Editorial titles and bullets keep their
+/// authored role and are never treated as a duplicate.
+pub(super) fn drop_text_phrases_shadowed_by_numeric_cards(
+    items: Vec<PlanItemV2>,
+) -> Vec<PlanItemV2> {
+    let numeric: Vec<(String, i64, i64)> = items
+        .iter()
+        .filter(|item| {
+            matches!(
+                item.template_id.as_str(),
+                "TIMELINE_DATE_CARD" | "METRIC_STAT_CARD"
+            )
+        })
+        .filter_map(|item| {
+            let key = normalized_overlay_surface(&item.text);
+            let end = item.start_us.saturating_add(item.duration_us);
+            (!key.is_empty() && end > item.start_us).then_some((key, item.start_us, end))
+        })
+        .collect();
+    if numeric.is_empty() {
+        return items;
+    }
+    items
+        .into_iter()
+        .filter(|item| {
+            if item.kind != "text_phrase" || has_editorial_role(item) {
+                return true;
+            }
+            let key = normalized_overlay_surface(&item.text);
+            if key.is_empty() {
+                return true;
+            }
+            let end = item.start_us.saturating_add(item.duration_us);
+            !numeric.iter().any(|(numeric_key, start, numeric_end)| {
+                *numeric_key == key && item.start_us < *numeric_end && *start < end
+            })
+        })
+        .collect()
+}
+
+fn has_editorial_role(item: &PlanItemV2) -> bool {
+    item.params
+        .as_ref()
+        .and_then(Value::as_object)
+        .and_then(|params| params.get("editorial_role"))
+        .and_then(Value::as_str)
+        .is_some_and(|role| !role.is_empty())
+}
+
+fn normalized_overlay_surface(text: &str) -> String {
+    text.chars()
+        .filter(|ch| ch.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
 mod editorial;
 pub(crate) use editorial::*;
 /// Interleaves the certified motion families so short runs sample more than

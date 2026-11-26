@@ -138,8 +138,172 @@ fn explicit_image_budget_is_a_run_ceiling() {
 }
 
 #[test]
+fn metric_card_gets_a_readable_floor() {
+    let mut request = request();
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "numbers": [
+                {"text": "42", "type": "NUMBER", "start_us": 0, "duration_us": 125000}
+            ]
+        }))
+        .expect("annotations"),
+    );
+    request.budgets.as_mut().expect("budgets").max_per_scene = 10;
+    let compiled = compile_plan(&request).expect("plan");
+    let metric = compiled
+        .plan
+        .items
+        .iter()
+        .find(|item| item.template_id == "METRIC_STAT_CARD")
+        .expect("metric card");
+    assert!(
+        metric.duration_us >= 600_000,
+        "a metric must stay readable, got {} us",
+        metric.duration_us
+    );
+}
+
+#[test]
+fn three_tightly_spoken_metrics_keep_separate_non_overlapping_cards() {
+    let mut request = request();
+    let scene_duration_us = 20_000_000_i64;
+    request.seal.as_mut().expect("seal").audio_duration_us = scene_duration_us;
+    request.scenes[0].duration_us = scene_duration_us;
+    request.scenes[0].duration_ms = scene_duration_us / 1_000;
+    request
+        .scene_windows
+        .insert("scene-1".to_string(), [0, scene_duration_us]);
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "numbers": [
+                {"text": "3 estratti", "type": "NUMBER", "start_us": 0, "duration_us": 796000},
+                {"text": "4 programmi", "type": "NUMBER", "start_us": 916000, "duration_us": 680000},
+                {"text": "2 testate", "type": "NUMBER", "start_us": 2449000, "duration_us": 625000}
+            ]
+        }))
+        .expect("annotations"),
+    );
+    request
+        .canvas
+        .animation_counts
+        .insert("chain_disabled".to_string(), 1);
+    request.budgets.as_mut().expect("budgets").max_per_scene = 20;
+
+    let compiled = compile_plan(&request).expect("plan");
+    let mut metrics: Vec<_> = compiled
+        .plan
+        .items
+        .iter()
+        .filter(|item| item.template_id == "METRIC_STAT_CARD")
+        .collect();
+    metrics.sort_by_key(|item| item.start_us);
+
+    assert_eq!(3, metrics.len(), "expected all three spoken metrics: {metrics:?}");
+    assert!(metrics.iter().all(|item| item.duration_us >= 600_000));
+    assert!(metrics.windows(2).all(|pair| {
+        pair[0].start_us + pair[0].duration_us <= pair[1].start_us
+    }), "metric cards must not overlap: {metrics:?}");
+    let motions: std::collections::BTreeSet<_> =
+        metrics.iter().map(|item| item.motion_id.as_str()).collect();
+    assert_eq!(metrics.len(), motions.len(), "metric motions must rotate: {metrics:?}");
+    assert!(
+        metrics
+            .iter()
+            .any(|item| item.motion_id.starts_with("metric_typewriter_")),
+        "the metric lane must include a typewriter motion: {metrics:?}"
+    );
+}
+
+#[test]
+fn bare_lexical_metric_numeral_is_dropped() {
+    let mut request = request();
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "numbers": [
+                {"text": "due", "type": "NUMBER", "start_us": 0, "duration_us": 125000}
+            ]
+        }))
+        .expect("annotations"),
+    );
+    request.budgets.as_mut().expect("budgets").max_per_scene = 10;
+    let compiled = compile_plan(&request).expect("plan");
+    assert!(
+        !compiled
+            .plan
+            .items
+            .iter()
+            .any(|item| item.template_id == "METRIC_STAT_CARD"),
+        "a bare lexical numeral must not become a metric card: {:?}",
+        compiled.plan.items
+    );
+}
+
+#[test]
+fn text_phrase_duplicating_a_numeric_card_is_dropped_after_admission() {
+    let mut request = request();
+    request
+        .media
+        .as_mut()
+        .expect("media")
+        .verified_entity_assets
+        .clear();
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "numbers": [
+                {"text": "13 settembre 2026", "type": "DATE", "start_us": 0, "duration_us": 500000}
+            ],
+            "phrases": [
+                {"text": "13 settembre 2026", "start_us": 0, "duration_us": 500000, "score": 1.0}
+            ],
+            "end_us": 2000000
+        }))
+        .expect("annotations"),
+    );
+    request.budgets.as_mut().expect("budgets").max_per_scene = 10;
+    request.budgets.as_mut().expect("budgets").phrase_overlays = 10;
+    let compiled = compile_plan(&request).expect("plan");
+    let duplicate_phrases = compiled
+        .plan
+        .items
+        .iter()
+        .filter(|item| {
+            item.kind == "text_phrase"
+                && item
+                    .text
+                    .chars()
+                    .filter(|ch| ch.is_alphanumeric())
+                    .flat_map(char::to_lowercase)
+                    .collect::<String>()
+                    == "13settembre2026"
+        })
+        .count();
+    assert_eq!(
+        0, duplicate_phrases,
+        "the date card owns the surface: {:?}",
+        compiled.plan.items
+    );
+    assert_eq!(
+        Some(&1),
+        compiled.plan.intake.dropped_by_reason.get("numeric_duplicate"),
+        "the duplicate must be recorded in intake: items={:?} intake={:?}",
+        compiled.plan.items,
+        compiled.plan.intake
+    );
+}
+
+#[test]
 fn routes_dates_and_metrics_to_certified_cards() {
     let mut request = request();
+    // Four seconds leave the second card the readable 1.5 s floor required by
+    // the metric contract; the routing assertion is about families, not about
+    // a card squeezed into one second.
+    let scene_duration_us = 4_000_000_i64;
+    request.seal.as_mut().expect("seal").audio_duration_us = scene_duration_us;
+    request.scenes[0].duration_us = scene_duration_us;
+    request.scenes[0].duration_ms = scene_duration_us / 1000;
+    request
+        .scene_windows
+        .insert("scene-1".to_string(), [0, scene_duration_us]);
     request.scenes[0].annotations = Some(
         serde_json::from_value(serde_json::json!({
             "numbers": [
@@ -157,7 +321,7 @@ fn routes_dates_and_metrics_to_certified_cards() {
         .iter()
         .find(|item| item.template_id == "TIMELINE_DATE_CARD")
         .expect("date card");
-    assert_eq!(2_000_000, date.duration_us, "date is capped by the scene");
+    assert_eq!(scene_duration_us, date.duration_us, "date is capped by the scene");
     assert!(super::DATE_MOTIONS.contains(&date.motion_id.as_str()));
     let metric = compiled
         .plan
@@ -597,6 +761,309 @@ fn images_disabled_keeps_the_entity_card_textual() {
     assert_eq!("Tim Cook", card.text);
 }
 
+#[test]
+fn global_category_disable_overrides_scene_enable() {
+    let mut request = request();
+    request
+        .canvas
+        .overlay_categories
+        .insert("phrases".to_string(), "disabled".to_string());
+    request.scenes[0]
+        .overlay_categories
+        .insert("phrases".to_string(), "enabled".to_string());
+
+    assert!(super::category_toggle_disabled(
+        &request,
+        "scene-1",
+        "phrases"
+    ));
+}
+
+#[test]
+fn entities_category_can_be_disabled_without_disabling_phrases() {
+    let mut request = request();
+    request
+        .canvas
+        .overlay_categories
+        .insert("phrases".to_string(), "enabled".to_string());
+    request
+        .canvas
+        .overlay_categories
+        .insert("entities".to_string(), "disabled".to_string());
+    request
+        .media
+        .as_mut()
+        .expect("media")
+        .verified_entity_assets
+        .clear();
+    let compiled = compile_plan(&request).expect("plan");
+
+    assert!(compiled.plan.items.iter().any(|item| item.kind == "text_phrase"));
+    assert!(!compiled.plan.items.iter().any(|item| item.kind == "entity_card"));
+}
+
+#[test]
+fn phrases_disable_remains_legacy_fallback_for_entities() {
+    let mut request = request();
+    request
+        .canvas
+        .overlay_categories
+        .insert("phrases".to_string(), "disabled".to_string());
+    request
+        .media
+        .as_mut()
+        .expect("media")
+        .verified_entity_assets
+        .clear();
+    let compiled = compile_plan(&request).expect("plan");
+
+    assert!(!compiled.plan.items.iter().any(|item| item.kind == "entity_card"));
+}
+
+/// r44 regression: the entity card 209.964–212.465 fully covered the phrase
+/// 211.442–212.249. Go re-anchors phrases to the word timing after the seal,
+/// so the phrase cannot be moved; the entity card must slide to the nearest
+/// free window that ends on the phrase start.
+#[test]
+fn entity_card_is_shifted_off_a_phrase_it_would_cover() {
+    let mut request = request();
+    request.scenes[0].duration_us = 20_000_000;
+    let mut card = overlay_item(
+        "static__francesco-totti__entity_image__02",
+        "entity_card",
+        "person_default",
+        9_964_000,
+        2_500_000,
+    );
+    card.text = "Francesco Totti".to_string();
+    let mut phrase = overlay_item(
+        "short-phrase-web-aperture-scan__prime-video-sport__short_phrase__01",
+        "text_phrase",
+        "IMPORTANT_PHRASE",
+        11_442_000,
+        807_000,
+    );
+    phrase.text = "Prime Video Sport".to_string();
+    let mut decisions = Vec::new();
+    let items = super::resolve_entity_text_overlaps(
+        &request,
+        vec![card, phrase],
+        &mut decisions,
+    );
+    assert_eq!(2, items.len(), "both cards survive: {decisions:#?}");
+    assert!(decisions.is_empty(), "{decisions:#?}");
+    let card = &items[0];
+    let phrase = &items[1];
+    assert_eq!(8_942_000, card.start_us, "card ends on the phrase start");
+    assert_eq!(11_442_000, card.start_us + card.duration_us);
+    assert_eq!(11_442_000, phrase.start_us, "phrase stays on its speech anchor");
+    assert_eq!(
+        Some(-1_022_000),
+        card.params
+            .as_ref()
+            .and_then(|params| params.get("occlusion_shift_us"))
+            .and_then(serde_json::Value::as_i64)
+    );
+    super::assert_no_entity_text_overlap(&items).expect("gate passes");
+}
+
+/// When no free window exists the phrase still owns the spoken surface: the
+/// entity card is dropped with the typed reason, never the phrase.
+#[test]
+fn occluding_entity_card_without_a_free_window_is_dropped_with_reason() {
+    let mut request = request();
+    request.scenes[0].timeline_start_us = 8_000_000;
+    request.scenes[0].duration_us = 4_465_000;
+    let blocker = overlay_item(
+        "static__blocker__entity_image__01",
+        "entity_card",
+        "person_default",
+        8_000_000,
+        1_964_000,
+    );
+    let card = overlay_item(
+        "static__francesco-totti__entity_image__02",
+        "entity_card",
+        "person_default",
+        9_964_000,
+        2_500_000,
+    );
+    let mut phrase = overlay_item(
+        "short-phrase-web-aperture-scan__prime-video-sport__short_phrase__01",
+        "text_phrase",
+        "IMPORTANT_PHRASE",
+        11_442_000,
+        807_000,
+    );
+    phrase.text = "Prime Video Sport".to_string();
+    let mut decisions = Vec::new();
+    let items = super::resolve_entity_text_overlaps(
+        &request,
+        vec![blocker, card, phrase],
+        &mut decisions,
+    );
+    assert_eq!(2, items.len(), "only the occluding card is removed");
+    assert!(items.iter().any(|item| item.kind == "text_phrase"));
+    assert!(items
+        .iter()
+        .all(|item| item.id != "static__francesco-totti__entity_image__02"));
+    assert!(decisions.iter().any(|decision| {
+        decision.reason_code == super::decisions::REASON_OCCLUDED_BY_ENTITY_CARD
+            && decision.candidate_id == "static__francesco-totti__entity_image__02"
+    }));
+    super::assert_no_entity_text_overlap(&items).expect("gate passes");
+}
+
+/// r48 regression: the organization card duplicates its phrase, then overlaps
+/// the following person card. Keep the organization label, drop the duplicate
+/// phrase, and move the person card after the organization window.
+#[test]
+fn entity_card_is_shifted_around_overlapping_organization_card() {
+    let mut request = request();
+    request.scenes[0].duration_us = 200_000_000;
+    let mut person = overlay_item(
+        "static__francesco-totti__entity_image__01",
+        "entity_card",
+        "person_default",
+        131_863_000,
+        2_500_000,
+    );
+    person.text = "Francesco Totti".to_string();
+    let mut organization = overlay_item(
+        "static__prime-video-sport__organization__01",
+        "organization",
+        "org_default",
+        130_692_000,
+        2_501_000,
+    );
+    organization.text = "Prime Video Sport".to_string();
+    let mut phrase = overlay_item(
+        "short-phrase-prime-video-sport__01",
+        "text_phrase",
+        "IMPORTANT_PHRASE",
+        130_692_000,
+        1_024_000,
+    );
+    phrase.text = "Prime Video Sport".to_string();
+
+    assert!(
+        super::assert_no_entity_text_overlap(&[person.clone(), organization.clone()]).is_err(),
+        "the QA gate must catch an entity/organization collision"
+    );
+    let mut decisions = Vec::new();
+    let items = super::drop_phrases_duplicated_by_named_cards(
+        vec![organization, phrase, person],
+        &mut decisions,
+    );
+    assert_eq!(2, items.len());
+    assert!(decisions.iter().any(|decision| {
+        decision.reason_code == super::decisions::REASON_DUPLICATE_NAMED_PHRASE
+            && decision.candidate_id == "short-phrase-prime-video-sport__01"
+    }));
+    let items = super::resolve_entity_text_overlaps(&request, items, &mut decisions);
+    let person = items
+        .iter()
+        .find(|item| item.kind == "entity_card")
+        .expect("person card stays visible");
+    assert_eq!(133_193_000, person.start_us);
+    super::assert_no_entity_text_overlap(&items).expect("resolved plan passes gate");
+}
+
+#[test]
+fn standalone_phrase_duplicated_inside_chain_is_dropped_after_coalescing() {
+    let mut chain = overlay_item(
+        "scene-02:chain-mixed:01",
+        "mixed_chain",
+        "MIXED_CHAIN",
+        10_000_000,
+        5_000_000,
+    );
+    chain.scene_id = "scene-02".to_string();
+    chain.params = Some(serde_json::json!({
+        "chain_segments": [{
+            "kind": "text_phrase",
+            "text": "Prime Video Sport",
+            "start_us": 10_000_000_i64,
+            "duration_us": 2_500_000_i64
+        }]
+    }));
+    let mut duplicate = overlay_item(
+        "phrase-prime-video-sport-standalone",
+        "text_phrase",
+        "IMPORTANT_PHRASE",
+        10_000_000,
+        2_500_000,
+    );
+    duplicate.scene_id = "scene-02".to_string();
+    duplicate.text = "Prime Video Sport".to_string();
+    let mut decisions = Vec::new();
+
+    assert!(super::assert_no_entity_text_overlap(&[chain.clone(), duplicate.clone()]).is_err());
+    let items = super::drop_phrases_duplicated_by_chain_segments(
+        vec![chain, duplicate],
+        &mut decisions,
+    );
+    assert_eq!(1, items.len());
+    assert_eq!("mixed_chain", items[0].kind);
+    assert!(decisions.iter().any(|decision| {
+        decision.reason_code == super::decisions::REASON_DUPLICATE_NAMED_PHRASE
+            && decision.candidate_id == "phrase-prime-video-sport-standalone"
+    }));
+    super::assert_no_entity_text_overlap(&items).expect("deduplicated plan passes gate");
+}
+
+#[test]
+fn identical_overlapping_top_level_phrases_are_deduplicated() {
+    let make_phrase = |id| {
+        let mut phrase = overlay_item(id, "text_phrase", "IMPORTANT_PHRASE", 5_000_000, 2_500_000);
+        phrase.scene_id = "scene-02".to_string();
+        phrase.text = "Una frase pronunciata una sola volta".to_string();
+        phrase
+    };
+    let first = make_phrase("phrase-1");
+    let mut duplicate = make_phrase("phrase-2");
+    duplicate.params = Some(serde_json::json!({
+        "editorial_candidate": "bullet",
+        "editorial_role": "chapter_bullet"
+    }));
+    let mut decisions = Vec::new();
+
+    assert!(super::assert_no_entity_text_overlap(&[first.clone(), duplicate.clone()]).is_err());
+    let items = super::drop_phrases_duplicated_by_chain_segments(
+        vec![first, duplicate],
+        &mut decisions,
+    );
+    assert_eq!(1, items.len());
+    assert_eq!("phrase-1", items[0].id);
+    assert!(decisions.iter().any(|decision| {
+        decision.reason_code == super::decisions::REASON_DUPLICATE_NAMED_PHRASE
+            && decision.candidate_id == "phrase-2"
+    }));
+    super::assert_no_entity_text_overlap(&items).expect("deduplicated plan passes gate");
+}
+
+/// ITCLOSE-06: short and long phrase cards must not share the same visible
+/// family. The marker also tells the Go style projection not to flatten them.
+#[test]
+fn phrase_families_are_visibly_distinct() {
+    let mut short = overlay_item("short", "text_phrase", "IMPORTANT_PHRASE", 0, 1_000_000);
+    short.text = "Prime Video Sport".to_string();
+    let mut long = overlay_item("long", "text_phrase", "IMPORTANT_PHRASE", 2_000_000, 4_000_000);
+    long.text = "Questa riflessione ci costringe a guardare oltre il titolo sensazionalistico".to_string();
+    let items = super::apply_presentation(vec![short, long], "plan-1", &[]);
+    let short_params = items[0].params.as_ref().expect("short params");
+    assert_eq!(Some("short_phrase"), short_params["phrase_family"].as_str());
+    assert_eq!(Some("oswald"), short_params["font_family"].as_str());
+    assert_eq!(Some(96.0), short_params["font_size_px"].as_f64());
+    let long_params = items[1].params.as_ref().expect("long params");
+    assert_eq!(Some("long_phrase"), long_params["phrase_family"].as_str());
+    assert_eq!(
+        Some("playfair_display_italic"),
+        long_params["font_family"].as_str()
+    );
+    assert_eq!(Some(72.0), long_params["font_size_px"].as_f64());
+}
+
 const DENSE_SCENE_COUNT: usize = 6;
 const DENSE_BULLETS_PER_SCENE: usize = 8;
 const DENSE_SCENE_US: i64 = 20_000_000;
@@ -897,4 +1364,183 @@ fn a_request_without_seal_is_rejected_not_panicked() {
         super::ValidatedRequest::new(&request),
         Err(super::EditorialPlanError::MissingSection("seal"))
     ));
+}
+
+#[test]
+fn metric_cards_get_a_readable_floor_from_a_word_fragment() {
+    let mut request = request();
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "numbers": [
+                {"text": "42", "type": "NUMBER", "start_us": 0, "duration_us": 125000}
+            ]
+        }))
+        .expect("annotations"),
+    );
+    request.budgets.as_mut().expect("budgets").max_per_scene = 10;
+    let compiled = compile_plan(&request).expect("plan");
+    let metric = compiled
+        .plan
+        .items
+        .iter()
+        .find(|item| item.template_id == "METRIC_STAT_CARD")
+        .expect("metric card");
+    assert!(
+        metric.duration_us >= 600_000,
+        "metric hold = {} us, want at least 600 ms",
+        metric.duration_us
+    );
+    assert_eq!(
+        metric.end_ms,
+        (metric.start_us + metric.duration_us + 999) / 1000
+    );
+}
+
+#[test]
+fn isolated_lexical_numerals_do_not_become_metric_cards() {
+    let mut request = request();
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "numbers": [
+                {"text": "due", "type": "NUMBER", "start_us": 0, "duration_us": 500000},
+                {"text": "due milioni", "type": "NUMBER", "start_us": 700000, "duration_us": 500000}
+            ]
+        }))
+        .expect("annotations"),
+    );
+    request.budgets.as_mut().expect("budgets").max_per_scene = 10;
+    let compiled = compile_plan(&request).expect("plan");
+    assert!(
+        !compiled
+            .plan
+            .items
+            .iter()
+            .any(|item| item.kind == "number" && item.text == "due"),
+        "the bare word 'due' is not a metric"
+    );
+    assert!(
+        compiled
+            .plan
+            .items
+            .iter()
+            .any(|item| item.kind == "number" && item.text == "due milioni"),
+        "a numeral with a unit must survive"
+    );
+}
+
+#[test]
+fn verified_portraits_take_the_image_budget_before_stills() {
+    let mut request = request();
+    let scene_duration_us = 10_000_000_i64;
+    request.seal.as_mut().expect("seal").audio_duration_us = scene_duration_us;
+    request.scenes[0].duration_us = scene_duration_us;
+    request.scenes[0].duration_ms = scene_duration_us / 1000;
+    request
+        .scene_windows
+        .insert("scene-1".to_string(), [0, scene_duration_us]);
+    let timeline = request.entity_timeline.as_mut().expect("timeline");
+    timeline.duration_us = scene_duration_us;
+    timeline.scenes[0]
+        .entities
+        .push(
+            serde_json::from_value(serde_json::json!({
+                "entity_id": "person-jane", "name": "Jane Doe", "type": "PERSON",
+                "scene_id": "scene-1", "scene_index": 0,
+                "text_start": 0, "text_end": 8, "word_start": 0, "word_end": 2,
+                "local_start_us": 7_000_000, "local_end_us": 8_000_000,
+                "timeline_start_us": 0,
+                "audio_start_us": 7_000_000, "audio_end_us": 8_000_000,
+                "confidence": 0.8, "role": "primary", "canonical_entity_id": "person:jane-doe"
+            }))
+            .expect("second entity"),
+        );
+    request
+        .media
+        .as_mut()
+        .expect("media")
+        .verified_entity_assets
+        .push(
+            serde_json::from_value(serde_json::json!({
+                "entity_id": "person-jane", "canonical_entity_id": "person:jane-doe",
+                "assets": [{"asset_id": "asset-jane", "url": "https://example.test/jane.jpg",
+                    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                    "media_type": "image/jpeg"}]
+            }))
+            .expect("second portrait"),
+        );
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "images": [
+                {"asset_id": "still", "url": "https://example.test/still.jpg", "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "media_type": "image/jpeg", "start_us": 4_000_000, "duration_us": 500000, "score": 0.9}
+            ]
+        }))
+        .expect("annotations"),
+    );
+    let budgets = request.budgets.as_mut().expect("budgets");
+    budgets.image_overlays = 2;
+    budgets.max_per_scene = 10;
+    let compiled = compile_plan(&request).expect("plan");
+    let portraits = compiled
+        .plan
+        .items
+        .iter()
+        .filter(|item| item.kind == "entity_image")
+        .count();
+    assert_eq!(2, portraits, "both portraits must survive: {:?}", compiled.plan.items);
+    assert!(
+        !compiled.plan.items.iter().any(|item| item.kind == "image"),
+        "the still must lose the ceiling to the portraits: {:?}",
+        compiled.plan.items
+    );
+    assert_eq!(
+        Some(&1),
+        compiled.plan.intake.dropped_by_reason.get("budget")
+    );
+}
+
+#[test]
+fn consecutive_images_rotate_without_adjacent_repeats() {
+    let mut request = request();
+    let scene_duration_us = 10_000_000_i64;
+    request.seal.as_mut().expect("seal").audio_duration_us = scene_duration_us;
+    request.scenes[0].duration_us = scene_duration_us;
+    request.scenes[0].duration_ms = scene_duration_us / 1000;
+    request
+        .scene_windows
+        .insert("scene-1".to_string(), [0, scene_duration_us]);
+    request.canvas.image_motions = vec![
+        "image_fade_reveal".to_string(),
+        "image_focus_reveal".to_string(),
+        "image_scale_reveal".to_string(),
+    ];
+    request.canvas.image_motion_offset = 0;
+    let budgets = request.budgets.as_mut().expect("budgets");
+    budgets.image_overlays = 10;
+    budgets.max_per_scene = 10;
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "images": [
+                {"asset_id": "a", "url": "https://example.test/a.jpg", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "media_type": "image/jpeg", "start_us": 0, "duration_us": 500000, "score": 0.9},
+                {"asset_id": "b", "url": "https://example.test/b.jpg", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "media_type": "image/jpeg", "start_us": 1000000, "duration_us": 500000, "score": 0.9},
+                {"asset_id": "c", "url": "https://example.test/c.jpg", "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "media_type": "image/jpeg", "start_us": 2000000, "duration_us": 500000, "score": 0.9}
+            ]
+        }))
+        .expect("annotations"),
+    );
+    let compiled = compile_plan(&request).expect("plan");
+    let motions: Vec<&str> = compiled
+        .plan
+        .items
+        .iter()
+        .filter(|item| item.kind == "image")
+        .map(|item| item.motion_id.as_str())
+        .collect();
+    assert_eq!(3, motions.len(), "expected three image items: {motions:?}");
+    for pair in motions.windows(2) {
+        assert_ne!(pair[0], pair[1], "adjacent images reused {pair:?}");
+    }
+    assert!(
+        motions.iter().all(|motion| request.canvas.image_motions.iter().any(|candidate| candidate == motion)),
+        "image motion outside the certified pool: {motions:?}"
+    );
 }

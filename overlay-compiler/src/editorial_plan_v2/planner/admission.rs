@@ -194,6 +194,7 @@ fn category_for(item: &PlanItemV2) -> &'static str {
         "number" => "numbers",
         "quote" => "quotes",
         "brand_text" => "brand_text",
+        "entity_card" | "organization" | "location" | "concept" => "entities",
         _ => "phrases",
     }
 }
@@ -207,19 +208,65 @@ pub(super) fn category_toggle_disabled(
     scene_id: &str,
     category: &str,
 ) -> bool {
-    if let Some(scene) = request.scenes.iter().find(|scene| scene.id == scene_id) {
-        if let Some(toggle) = scene.overlay_categories.get(category) {
-            if !toggle.is_empty() && toggle != "default" {
-                return toggle == "disabled";
+    // A run-level disable is an operator-wide safety switch. A scene's
+    // generated `enabled` value must not turn that category back on.
+    let run_toggle = request.canvas.overlay_categories.get(category);
+    if run_toggle.is_some_and(|toggle| toggle == "disabled") {
+        return true;
+    }
+
+    let scene = request.scenes.iter().find(|scene| scene.id == scene_id);
+    if category == "entities" {
+        // Older payloads used phrases=disabled as a broad editorial switch,
+        // which also suppressed text-only entity cards because they shared
+        // that category. Preserve that behavior only when no explicit
+        // entities toggle is supplied; new payloads can control the two lanes
+        // independently.
+        let scene_entity_toggle = scene.and_then(|scene| scene.overlay_categories.get(category));
+        let run_entity_toggle_is_explicit =
+            run_toggle.is_some_and(|toggle| !toggle.is_empty() && toggle != "default");
+        if !run_entity_toggle_is_explicit
+            && request
+                .canvas
+                .overlay_categories
+                .get("phrases")
+                .is_some_and(|toggle| toggle == "disabled")
+        {
+            return true;
+        }
+        let explicit_entity_toggle = run_toggle
+            .is_some_and(|toggle| !toggle.is_empty() && toggle != "default")
+            || scene_entity_toggle.is_some_and(|toggle| !toggle.is_empty() && toggle != "default");
+        if scene_entity_toggle.is_some_and(|toggle| toggle == "disabled") {
+            return true;
+        }
+        if !explicit_entity_toggle {
+            if request
+                .canvas
+                .overlay_categories
+                .get("phrases")
+                .is_some_and(|toggle| toggle == "disabled")
+            {
+                return true;
+            }
+            if scene.is_some_and(|scene| {
+                scene
+                    .overlay_categories
+                    .get("phrases")
+                    .is_some_and(|toggle| toggle == "disabled")
+            }) {
+                return true;
             }
         }
+        return false;
     }
-    request
-        .canvas
-        .overlay_categories
-        .get(category)
-        .map(|toggle| toggle == "disabled")
-        .unwrap_or(false)
+
+    if let Some(toggle) = scene.and_then(|scene| scene.overlay_categories.get(category)) {
+        if !toggle.is_empty() && toggle != "default" {
+            return toggle == "disabled";
+        }
+    }
+    false
 }
 
 fn category_disabled(request: &EditorialPlanV2Request, item: &PlanItemV2) -> bool {
@@ -230,10 +277,36 @@ fn group_for(item: &PlanItemV2) -> &'static str {
     match item.kind.as_str() {
         "text_phrase" if role(item) == "scene_bullet" => "bullets",
         "text_phrase" => "phrases",
+        // Numeric cards have their own admission lane. Sharing `phrases`
+        // makes grounded dates and metrics consume the same caller cap as
+        // editorial copy, so a dense scene can silently lose its chronology.
+        "number" => "numbers",
         "image" | "entity_image" | "product" | "logo" => "images",
         "map" => "maps",
         "entity_card" | "organization" | "location" | "concept" => "entities",
         _ => "phrases",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::group_for;
+    use crate::editorial_plan_v2::response::PlanItemV2;
+
+    #[test]
+    fn numeric_cards_do_not_consume_the_phrase_group_limit() {
+        let phrase = PlanItemV2 {
+            kind: "text_phrase".to_string(),
+            ..Default::default()
+        };
+        let number = PlanItemV2 {
+            kind: "number".to_string(),
+            template_id: "TIMELINE_DATE_CARD".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!("phrases", group_for(&phrase));
+        assert_eq!("numbers", group_for(&number));
     }
 }
 
@@ -354,6 +427,424 @@ pub(super) fn resolve_overlaps(
         resolved.push(item);
     }
     resolved
+}
+
+/// Centered text cards cannot share the same visible window. This includes
+/// phrases, entity cards and organization cards (r48: a `Prime Video Sport`
+/// organization card covered the following `Francesco Totti` card). Go
+/// re-anchors phrases to certified word timing after this plan is sealed, so
+/// the movable entity card is shifted to the nearest free window. If no such
+/// window exists, the entity card is dropped with a typed decision.
+pub(super) fn resolve_entity_text_overlaps(
+    request: &EditorialPlanV2Request,
+    mut items: Vec<PlanItemV2>,
+    decisions: &mut Vec<PlanDecisionV2>,
+) -> Vec<PlanItemV2> {
+    let scene_bounds: BTreeMap<&str, (i64, i64)> = request
+        .scenes
+        .iter()
+        .map(|scene| {
+            (
+                scene.id.as_str(),
+                (
+                    scene.timeline_start_us,
+                    scene.timeline_start_us.saturating_add(scene.duration_us),
+                ),
+            )
+        })
+        .collect();
+    let mut dropped: BTreeSet<String> = BTreeSet::new();
+    for entity_index in 0..items.len() {
+        if !is_entity_card(&items[entity_index]) || dropped.contains(&items[entity_index].id) {
+            continue;
+        }
+        let scene_id = items[entity_index].scene_id.clone();
+        let (entity_start, entity_end) = items[entity_index].window_us();
+        if entity_end <= entity_start {
+            continue;
+        }
+        let blockers: Vec<usize> = items
+            .iter()
+            .enumerate()
+            .filter(|(index, item)| {
+                *index != entity_index
+                    && !dropped.contains(&item.id)
+                    && item.scene_id == scene_id
+                    && entity_text_conflict(entity_start, entity_end, item)
+            })
+            .map(|(index, _)| index)
+            .collect();
+        if blockers.is_empty() {
+            continue;
+        }
+        let Some(&(scene_start, scene_end)) = scene_bounds.get(scene_id.as_str()) else {
+            continue;
+        };
+        let duration = entity_end - entity_start;
+        let mut candidates = Vec::with_capacity(blockers.len() * 2);
+        for &blocker_index in &blockers {
+            let (blocker_start, blocker_end) = items[blocker_index].window_us();
+            // End before the blocker starts, or start after it ends.
+            candidates.push(blocker_start - duration);
+            candidates.push(blocker_end);
+        }
+        candidates.sort_by_key(|start| (start - entity_start).abs());
+        candidates.dedup();
+        let target = candidates.into_iter().find(|start| {
+            *start >= scene_start
+                && start.saturating_add(duration) <= scene_end
+                && !overlaps_text_window(
+                    &items,
+                    &dropped,
+                    entity_index,
+                    &scene_id,
+                    *start,
+                    start + duration,
+                )
+        });
+        if let Some(new_start) = target {
+            let item = &mut items[entity_index];
+            if let Some(params) = item.params.get_or_insert_with(|| json!({})).as_object_mut() {
+                params.insert(
+                    "occlusion_shift_us".to_string(),
+                    json!(new_start - entity_start),
+                );
+            }
+            item.start_us = new_start;
+            item.start_ms = new_start / 1_000;
+            item.end_ms = (new_start + duration + 999) / 1_000;
+            item.duration_us = duration;
+            continue;
+        }
+        // No free window: preserve the spoken/text surface and drop the entity
+        // card rather than hide the phrase or another named card.
+        let card = &items[entity_index];
+        push_decision(
+            decisions,
+            STAGE_OVERLAP,
+            REASON_OCCLUDED_BY_ENTITY_CARD,
+            card,
+        );
+        dropped.insert(card.id.clone());
+    }
+    items
+        .into_iter()
+        .filter(|item| !dropped.contains(&item.id))
+        .collect()
+}
+
+fn is_entity_card(item: &PlanItemV2) -> bool {
+    item.kind == "entity_card"
+}
+
+fn is_plain_phrase(item: &PlanItemV2) -> bool {
+    item.kind == "text_phrase" && item.template_id == "IMPORTANT_PHRASE" && role(item).is_empty()
+}
+
+fn entity_text_conflict(entity_start: i64, entity_end: i64, item: &PlanItemV2) -> bool {
+    let (start, end) = item.window_us();
+    if end <= start || entity_start >= end || start >= entity_end {
+        return false;
+    }
+    match item.kind.as_str() {
+        // Named labels and another person card occupy the same centered text
+        // surface, so any overlap can hide part of one card.
+        "entity_card" | "organization" | "location" | "concept" => true,
+        // Go re-anchors phrase timing after the seal. Preserve that anchor and
+        // move the entity only when it would completely cover the phrase.
+        "text_phrase" if is_plain_phrase(item) => start >= entity_start && end <= entity_end,
+        "number" | "quote" | "lower_third" => start >= entity_start && end <= entity_end,
+        _ => false,
+    }
+}
+
+/// A named entity card and an identical phrase at the same time say the same
+/// thing twice. Keep the named card and remove the redundant phrase.
+pub(super) fn drop_phrases_duplicated_by_named_cards(
+    items: Vec<PlanItemV2>,
+    decisions: &mut Vec<PlanDecisionV2>,
+) -> Vec<PlanItemV2> {
+    let named_cards: Vec<(String, String, String, i64, i64)> = items
+        .iter()
+        .filter(|item| matches!(item.kind.as_str(), "entity_card" | "organization"))
+        .map(|card| {
+            let normalized = card
+                .text
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase();
+            let (start, end) = card.window_us();
+            (
+                card.id.clone(),
+                card.scene_id.clone(),
+                normalized,
+                start,
+                end,
+            )
+        })
+        .collect();
+    items
+        .into_iter()
+        .filter(|item| {
+            if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
+                return true;
+            }
+            let normalized = item
+                .text
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase();
+            let (start, end) = item.window_us();
+            let duplicate =
+                named_cards
+                    .iter()
+                    .any(|(id, scene_id, card_text, card_start, card_end)| {
+                        if id == &item.id || scene_id != &item.scene_id {
+                            return false;
+                        }
+                        !normalized.is_empty()
+                            && normalized == *card_text
+                            && start < *card_end
+                            && *card_start < end
+                    });
+            if duplicate {
+                push_decision(
+                    decisions,
+                    STAGE_OVERLAP,
+                    REASON_DUPLICATE_NAMED_PHRASE,
+                    item,
+                );
+            }
+            !duplicate
+        })
+        .collect()
+}
+
+/// Coalescing can place an admitted phrase inside a chain while an identical
+/// phrase candidate remains a top-level item. Remove that duplicate after
+/// coalescing, when the final chain segments and their absolute windows are
+/// available.
+pub(super) fn drop_phrases_duplicated_by_chain_segments(
+    items: Vec<PlanItemV2>,
+    decisions: &mut Vec<PlanDecisionV2>,
+) -> Vec<PlanItemV2> {
+    let chained_phrases: Vec<(String, String, i64, i64)> = items
+        .iter()
+        .filter(|item| matches!(item.kind.as_str(), "phrase_chain" | "mixed_chain"))
+        .flat_map(|chain| {
+            chain
+                .params
+                .as_ref()
+                .and_then(|params| params.get("chain_segments"))
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|segment| {
+                    segment.get("kind").and_then(Value::as_str) == Some("text_phrase")
+                })
+                .filter_map(|segment| {
+                    let text = segment.get("text").and_then(Value::as_str)?;
+                    let start = segment.get("start_us").and_then(Value::as_i64)?;
+                    let duration = segment.get("duration_us").and_then(Value::as_i64)?;
+                    let normalized = text
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .to_lowercase();
+                    Some((
+                        chain.scene_id.clone(),
+                        normalized,
+                        start,
+                        start.saturating_add(duration),
+                    ))
+                })
+        })
+        .collect();
+
+    let mut kept_phrases: Vec<(String, String, i64, i64)> = Vec::new();
+    items
+        .into_iter()
+        .filter(|item| {
+            if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
+                return true;
+            }
+            let normalized = item
+                .text
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase();
+            let (start, end) = item.window_us();
+            let duplicate = !normalized.is_empty()
+                && (chained_phrases
+                    .iter()
+                    .any(|(scene_id, text, chain_start, chain_end)| {
+                        scene_id == &item.scene_id
+                            && text == &normalized
+                            && start < *chain_end
+                            && *chain_start < end
+                    })
+                    || kept_phrases
+                        .iter()
+                        .any(|(scene_id, text, phrase_start, phrase_end)| {
+                            scene_id == &item.scene_id
+                                && text == &normalized
+                                && start < *phrase_end
+                                && *phrase_start < end
+                        }));
+            if duplicate {
+                push_decision(
+                    decisions,
+                    STAGE_OVERLAP,
+                    REASON_DUPLICATE_NAMED_PHRASE,
+                    item,
+                );
+            } else {
+                kept_phrases.push((item.scene_id.clone(), normalized, start, end));
+            }
+            !duplicate
+        })
+        .collect()
+}
+
+/// True when the proposed window intersects any other entity card or text
+/// card in the same scene. Images are deliberately excluded: a photo is a
+/// background layer and may legally sit under a phrase.
+fn overlaps_text_window(
+    items: &[PlanItemV2],
+    dropped: &BTreeSet<String>,
+    skip_index: usize,
+    scene_id: &str,
+    start_us: i64,
+    end_us: i64,
+) -> bool {
+    items.iter().enumerate().any(|(index, item)| {
+        if index == skip_index || item.scene_id != scene_id || dropped.contains(&item.id) {
+            return false;
+        }
+        entity_text_conflict(start_us, end_us, item)
+    })
+}
+
+/// QA gate: no centered text card may overlap an entity card in the sealed
+/// plan. The resolver above prevents this; the check catches later drift.
+pub(super) fn assert_no_entity_text_overlap(
+    items: &[PlanItemV2],
+) -> Result<(), EditorialPlanError> {
+    let cards: Vec<&PlanItemV2> = items.iter().filter(|item| is_entity_card(item)).collect();
+    for text in items.iter().filter(|item| !is_entity_card(item)) {
+        if let Some(card) = cards.iter().find(|card| {
+            card.scene_id == text.scene_id && {
+                let (card_start, card_end) = card.window_us();
+                entity_text_conflict(card_start, card_end, text)
+            }
+        }) {
+            return Err(EditorialPlanError::invalid(
+                "plan.items",
+                format!(
+                    "text item {:?} overlaps entity card {:?} in scene {:?}",
+                    text.id, card.id, text.scene_id
+                ),
+            ));
+        }
+    }
+    for phrase in items
+        .iter()
+        .filter(|item| item.kind == "text_phrase" && item.template_id == "IMPORTANT_PHRASE")
+    {
+        let normalized = phrase
+            .text
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
+        let (phrase_start, phrase_end) = phrase.window_us();
+        let duplicate = items
+            .iter()
+            .filter(|item| matches!(item.kind.as_str(), "phrase_chain" | "mixed_chain"))
+            .flat_map(|chain| {
+                chain
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("chain_segments"))
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+            })
+            .any(|segment| {
+                if segment.get("kind").and_then(Value::as_str) != Some("text_phrase") {
+                    return false;
+                }
+                let text = segment
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .to_lowercase();
+                let start = segment.get("start_us").and_then(Value::as_i64).unwrap_or(0);
+                let end = start.saturating_add(
+                    segment
+                        .get("duration_us")
+                        .and_then(Value::as_i64)
+                        .unwrap_or(0),
+                );
+                !normalized.is_empty()
+                    && text == normalized
+                    && phrase_start < end
+                    && start < phrase_end
+            });
+        if duplicate {
+            return Err(EditorialPlanError::invalid(
+                "plan.items",
+                format!(
+                    "phrase {:?} duplicates an overlapping phrase_chain segment",
+                    phrase.id
+                ),
+            ));
+        }
+    }
+    let phrases: Vec<&PlanItemV2> = items
+        .iter()
+        .filter(|item| item.kind == "text_phrase" && item.template_id == "IMPORTANT_PHRASE")
+        .collect();
+    for (index, phrase) in phrases.iter().enumerate() {
+        let normalized = phrase
+            .text
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
+        let (start, end) = phrase.window_us();
+        if phrases[..index].iter().any(|previous| {
+            if previous.scene_id != phrase.scene_id {
+                return false;
+            }
+            let previous_text = previous
+                .text
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase();
+            let (previous_start, previous_end) = previous.window_us();
+            !normalized.is_empty()
+                && normalized == previous_text
+                && start < previous_end
+                && previous_start < end
+        }) {
+            return Err(EditorialPlanError::invalid(
+                "plan.items",
+                format!(
+                    "phrase {:?} duplicates an overlapping phrase card",
+                    phrase.id
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn count_marked_items(items: &[PlanItemV2], key: &str) -> i64 {

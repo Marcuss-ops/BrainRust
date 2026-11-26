@@ -41,9 +41,23 @@
                 "enter_frames": 8
               },
               "params": {
+                "fill": "#000000",
+                "font_family": "oswald",
+                "font_size_px": 96.0,
+                "glow_color": "#FFFFFF",
+                "glow_size": 10.0,
+                "phrase_family": "short_phrase",
                 "priority": 0.9
               },
               "start_us": 500000,
+              "style": {
+                "fill": "#000000",
+                "font_family": "oswald",
+                "font_size": 96.0,
+                "glow": {
+                  "color": "#FFFFFF"
+                }
+              },
               "template_id": "IMPORTANT_PHRASE",
               "text": "Nike corre al museo"
             },
@@ -54,9 +68,23 @@
                 "enter_frames": 8
               },
               "params": {
+                "fill": "#000000",
+                "font_family": "oswald",
+                "font_size_px": 96.0,
+                "glow_color": "#FFFFFF",
+                "glow_size": 10.0,
+                "phrase_family": "short_phrase",
                 "priority": 0.85
               },
               "start_us": 2100000,
+              "style": {
+                "fill": "#000000",
+                "font_family": "oswald",
+                "font_size": 96.0,
+                "glow": {
+                  "color": "#FFFFFF"
+                }
+              },
               "template_id": "IMPORTANT_PHRASE",
               "text": "Il museo apre domani"
             }
@@ -166,9 +194,23 @@
                 "enter_frames": 8
               },
               "params": {
+                "fill": "#000000",
+                "font_family": "oswald",
+                "font_size_px": 96.0,
+                "glow_color": "#FFFFFF",
+                "glow_size": 10.0,
+                "phrase_family": "short_phrase",
                 "priority": 0.9
               },
               "start_us": 17100000,
+              "style": {
+                "fill": "#000000",
+                "font_family": "oswald",
+                "font_size": 96.0,
+                "glow": {
+                  "color": "#FFFFFF"
+                }
+              },
               "template_id": "IMPORTANT_PHRASE",
               "text": "La Ferrari vince a Monza"
             }

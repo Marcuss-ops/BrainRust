@@ -631,22 +631,47 @@ pub(super) fn normalize_image_presentation(
     items: &mut [PlanItemV2],
 ) {
     let canvas = &request.canvas;
-    for (ordinal, item) in items
-        .iter_mut()
-        .filter(|item| sequenced_image_kind(&item.kind))
+    // Timeline order, not vector order: two images 30 s apart are not
+    // "consecutive" just because admission appended them next to each other.
+    let mut order: Vec<usize> = items
+        .iter()
         .enumerate()
-    {
+        .filter(|(_, item)| sequenced_image_kind(&item.kind))
+        .map(|(index, _)| index)
+        .collect();
+    order.sort_by_key(|index| (items[*index].start_us, items[*index].id.clone()));
+    let mut last_motion = String::new();
+    for (ordinal, index) in order.into_iter().enumerate() {
+        let item = &mut items[index];
         if item.motion_id.trim().is_empty() {
             item.motion_id = if canvas.image_motions.is_empty() {
                 FALLBACK_IMAGE_MOTION.to_string()
             } else {
-                rotate_motion(
+                let mut candidate = rotate_motion(
                     &canvas.image_motions,
                     canvas.image_motion_offset,
                     ordinal as i64,
-                )
+                );
+                // A single-item pool has no alternative; with two or more,
+                // advance until the adjacent entrance differs. This also
+                // covers a pool shared with entity cards whose motion was
+                // assigned earlier.
+                let mut step = 1;
+                while canvas.image_motions.len() > 1
+                    && candidate == last_motion
+                    && step < canvas.image_motions.len()
+                {
+                    candidate = rotate_motion(
+                        &canvas.image_motions,
+                        canvas.image_motion_offset,
+                        ordinal as i64 + step as i64,
+                    );
+                    step += 1;
+                }
+                candidate
             };
         }
+        last_motion = item.motion_id.clone();
         if item.kind == "entity_image" {
             // Entity cards are portraits: a square box keeps the aspect and
             // makes the card roughly twice the width of the preset fallback,

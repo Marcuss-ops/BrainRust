@@ -21,7 +21,7 @@ use super::{
     EDITORIAL_PLAN_V2_SCHEMA_VERSION, EDITORIAL_PROFILE_VERSION,
 };
 
-const OVERLAY_CATEGORIES: [&str; 10] = [
+const OVERLAY_CATEGORIES: [&str; 11] = [
     "phrases",
     "images",
     "numbers",
@@ -32,6 +32,7 @@ const OVERLAY_CATEGORIES: [&str; 10] = [
     "recaps",
     "titles",
     "bullets",
+    "entities",
 ];
 
 mod types;

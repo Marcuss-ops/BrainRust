@@ -181,6 +181,17 @@ pub(super) fn split_long_text_candidates(items: Vec<PlanItemV2>) -> Vec<PlanItem
 
 const PLAYFAIR_RUNTIME_FAMILY: &str = "playfair_display_italic";
 
+/// Phrase-card family presets. Short spoken phrases are display copy: a
+/// condensed sans at a larger size separates them from the long editorial
+/// phrases, which keep the Playfair italic voice. The planner tags the item so
+/// the later run-level `overlay_style` projection cannot flatten the two
+/// families back into one look (ITCLOSE-06).
+const SHORT_PHRASE_FONT_FAMILY: &str = "oswald";
+const SHORT_PHRASE_FONT_SIZE_PX: f64 = 96.0;
+const LONG_PHRASE_FONT_SIZE_PX: f64 = 72.0;
+const SHORT_PHRASE_MARKER: &str = "short_phrase";
+const LONG_PHRASE_MARKER: &str = "long_phrase";
+
 const PRESENTATION_TEXT_FILL: &str = "#000000";
 
 const PRESENTATION_GLOW_COLOR: &str = "#FFFFFF";
@@ -353,6 +364,116 @@ fn normalize_text_item(item: &mut PlanItemV2, font_size: f64) {
     ));
 }
 
+/// Chooses the visible family of a plain phrase card. Short copy (< 6 words)
+/// uses Oswald at display size; long copy keeps Playfair italic at 72 px. Both
+/// carry `params.phrase_family`, the marker the Go style projection checks so
+/// the run-level overlay style cannot erase the distinction.
+fn apply_phrase_family(item: &mut PlanItemV2) {
+    // An explicit planner-side family (a pin or an authored parameter) stays
+    // authoritative; the family preset only supplies the default voice.
+    let explicit = font_in_object(item.params.as_ref().and_then(Value::as_object))
+        .or_else(|| font_in_object(item.style.as_ref().and_then(Value::as_object)));
+    let (family, font_size, marker) = if word_count(&item.text) < 6 {
+        (
+            explicit.unwrap_or_else(|| SHORT_PHRASE_FONT_FAMILY.to_string()),
+            SHORT_PHRASE_FONT_SIZE_PX,
+            SHORT_PHRASE_MARKER,
+        )
+    } else {
+        (
+            explicit.unwrap_or_else(|| PLAYFAIR_RUNTIME_FAMILY.to_string()),
+            LONG_PHRASE_FONT_SIZE_PX,
+            LONG_PHRASE_MARKER,
+        )
+    };
+    let family = family.as_str();
+    item.params = Some(presentation_text_params(
+        item.params.as_ref(),
+        font_size,
+        family,
+    ));
+    item.style = Some(presentation_text_style(
+        item.style.as_ref(),
+        font_size,
+        family,
+    ));
+    if let Some(params) = item.params.as_mut().and_then(Value::as_object_mut) {
+        params.insert("phrase_family".to_string(), json!(marker));
+    }
+}
+
+/// Chain-segment mirror of [`apply_phrase_family`]. A phrase fused into a
+/// mixed chain must keep the same family as a standalone phrase card.
+fn apply_phrase_family_to_segment(segment: &mut Value) {
+    let Some(object) = segment.as_object_mut() else {
+        return;
+    };
+    let kind = object.get("kind").and_then(Value::as_str).unwrap_or("");
+    let template = object
+        .get("template_id")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if kind != "text_phrase" && template != "IMPORTANT_PHRASE" {
+        return;
+    }
+    // Bullet copy rides the same template but owns its typography through the
+    // run-level bullet block and the per-scene pins.
+    if object
+        .get("params")
+        .and_then(Value::as_object)
+        .and_then(|params| params.get("editorial_role"))
+        .and_then(Value::as_str)
+        .is_some_and(|role| matches!(role, "scene_bullet" | "chapter_bullet"))
+    {
+        return;
+    }
+    let text = object.get("text").and_then(Value::as_str).unwrap_or("");
+    if text.trim().is_empty() {
+        // A segment without copy has no family to classify; keep its authored
+        // typography (the round-trip chain fixture relies on this).
+        return;
+    }
+    let explicit = font_in_object(object.get("params").and_then(Value::as_object))
+        .or_else(|| font_in_object(object.get("style").and_then(Value::as_object)));
+    let (family, font_size, marker) = if word_count(text) < 6 {
+        (
+            explicit.unwrap_or_else(|| SHORT_PHRASE_FONT_FAMILY.to_string()),
+            SHORT_PHRASE_FONT_SIZE_PX,
+            SHORT_PHRASE_MARKER,
+        )
+    } else {
+        (
+            explicit.unwrap_or_else(|| PLAYFAIR_RUNTIME_FAMILY.to_string()),
+            LONG_PHRASE_FONT_SIZE_PX,
+            LONG_PHRASE_MARKER,
+        )
+    };
+    let family = family.as_str();
+    let params = object
+        .entry("params".to_string())
+        .or_insert_with(|| json!({}));
+    if let Some(params) = params.as_object_mut() {
+        params.insert("font_family".to_string(), json!(family));
+        params.insert("font_size_px".to_string(), json!(font_size));
+        params.insert("fill".to_string(), json!(PRESENTATION_TEXT_FILL));
+        params.insert("glow_size".to_string(), json!(PRESENTATION_GLOW_PX));
+        params.insert("glow_color".to_string(), json!(PRESENTATION_GLOW_COLOR));
+        params.insert("phrase_family".to_string(), json!(marker));
+    }
+    let style = object
+        .entry("style".to_string())
+        .or_insert_with(|| json!({}));
+    if let Some(style) = style.as_object_mut() {
+        style.insert("font_family".to_string(), json!(family));
+        style.insert("font_size".to_string(), json!(font_size));
+        style.insert("fill".to_string(), json!(PRESENTATION_TEXT_FILL));
+        style.insert(
+            "glow".to_string(),
+            json!({"color": PRESENTATION_GLOW_COLOR}),
+        );
+    }
+}
+
 fn normalize_presentation_item(item: &mut PlanItemV2) {
     // One writer for the caption default: only a card that actually carries a
     // caption gets the runtime family. Earlier this branch assigned the same
@@ -389,6 +510,7 @@ fn normalize_presentation_item(item: &mut PlanItemV2) {
             {
                 for segment in segments {
                     normalize_fonts(segment);
+                    apply_phrase_family_to_segment(segment);
                     if let Some(object) = segment.as_object_mut() {
                         let has_caption = object
                             .get("entity_caption")
@@ -414,21 +536,25 @@ fn normalize_presentation_item(item: &mut PlanItemV2) {
     }
     match item.kind.as_str() {
         "text_phrase" | "important_phrase" => {
-            let runes = item.text.chars().count();
-            let existing = item
-                .params
-                .as_ref()
-                .and_then(|params| params.get("font_size_px"))
-                .and_then(Value::as_f64)
-                .unwrap_or(72.0);
-            let font_size = if runes > 160 {
-                64.0
-            } else if runes > 120 {
-                existing.min(72.0)
+            if presentation_bullet_role(item.params.as_ref()) {
+                let runes = item.text.chars().count();
+                let existing = item
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("font_size_px"))
+                    .and_then(Value::as_f64)
+                    .unwrap_or(72.0);
+                let font_size = if runes > 160 {
+                    64.0
+                } else if runes > 120 {
+                    existing.min(72.0)
+                } else {
+                    existing
+                };
+                normalize_text_item(item, font_size);
             } else {
-                existing
-            };
-            normalize_text_item(item, font_size);
+                apply_phrase_family(item);
+            }
         }
         "number" => normalize_text_item(item, 140.0),
         "quote" => normalize_text_item(item, 72.0),

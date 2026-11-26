@@ -98,6 +98,124 @@ fn projects_phrases_numbers_dates_maps_and_heavy_boost() {
 }
 
 #[test]
+fn raw_date_entity_does_not_add_a_bare_numeric_duplicate() {
+    let mut request = request(json!({}));
+    request.scenes[0]
+        .raw
+        .as_mut()
+        .expect("raw scene")
+        .secondary_entities
+        .push(
+            serde_json::from_value(json!({
+                "stable_entity_id": "ent_date",
+                "type": "DATE",
+                "canonical_name": "13 agosto 2007",
+                "confidence": 0.8,
+                "mentions": [{"text": "13 agosto 2007", "start_rune": 17, "end_rune": 31}]
+            }))
+            .expect("raw date entity"),
+        );
+    request
+        .entity_timeline
+        .as_mut()
+        .expect("entity timeline")
+        .scenes[0]
+        .entities
+        .push(
+            serde_json::from_value(json!({
+                "entity_id": "ent_date",
+                "name": "13 agosto 2007",
+                "type": "DATE",
+                "scene_id": "s1",
+                "audio_start_us": 900000,
+                "audio_end_us": 1800000
+            }))
+            .expect("date occurrence"),
+        );
+
+    project_request(&mut request);
+    let dates: Vec<_> = request.scenes[0]
+        .annotations
+        .as_ref()
+        .expect("projected annotations")
+        .numbers
+        .iter()
+        .filter(|number| number.annotation_type == "DATE")
+        .map(|number| number.text.as_str())
+        .collect();
+    assert_eq!(dates, ["13 agosto 2007"]);
+    let date = request.scenes[0]
+        .annotations
+        .as_ref()
+        .unwrap()
+        .numbers
+        .iter()
+        .find(|number| number.annotation_type == "DATE")
+        .unwrap();
+    assert_eq!((900_000, 900_000), (date.start_us, date.duration_us));
+}
+
+#[test]
+fn grounded_metric_entities_project_digit_surfaces_once() {
+    let mut request = request(json!({}));
+    let scene = &mut request.scenes[0];
+    scene.text =
+        "Il montaggio accosta 3 estratti, 4 programmi d’intervista e 2 testate per la cronologia."
+            .to_string();
+    let raw = scene.raw.as_mut().expect("raw scene");
+    for (id, text, start, end) in [
+        ("ent_3_items", "3 estratti", 21, 31),
+        ("ent_3", "3", 21, 22),
+        ("ent_4_items", "4 programmi", 33, 44),
+        ("ent_4", "4", 33, 34),
+        ("ent_2_items", "2 testate", 60, 69),
+        ("ent_2", "2", 60, 61),
+    ] {
+        raw.secondary_entities.push(
+            serde_json::from_value(json!({
+                "stable_entity_id": id,
+                "type": "NUMBER",
+                "canonical_name": text,
+                "confidence": 0.5,
+                "mentions": [{"text": text, "start_rune": start, "end_rune": end}]
+            }))
+            .expect("raw metric entity"),
+        );
+        request
+            .entity_timeline
+            .as_mut()
+            .expect("entity timeline")
+            .scenes[0]
+            .entities
+            .push(
+                serde_json::from_value(json!({
+                    "entity_id": id,
+                    "name": text,
+                    "type": "NUMBER",
+                    "scene_id": "s1",
+                    "audio_start_us": start * 100000,
+                    "audio_end_us": end * 100000
+                }))
+                .expect("metric occurrence"),
+            );
+    }
+
+    project_request(&mut request);
+    let numbers: Vec<_> = request.scenes[0]
+        .annotations
+        .as_ref()
+        .expect("projected annotations")
+        .numbers
+        .iter()
+        .filter(|number| number.annotation_type == "NUMBER")
+        .map(|number| number.text.as_str())
+        .collect();
+    assert_eq!(numbers.iter().filter(|text| **text == "3").count(), 1);
+    assert_eq!(numbers.iter().filter(|text| **text == "4").count(), 1);
+    assert_eq!(numbers.iter().filter(|text| **text == "2").count(), 1);
+}
+
+#[test]
 fn duplicate_metric_surfaces_collapse_but_dates_and_later_values_survive() {
     let numbers = vec![
         timed("18 unità", "NUMBER", 500_000, 2_000_000, 0.5),

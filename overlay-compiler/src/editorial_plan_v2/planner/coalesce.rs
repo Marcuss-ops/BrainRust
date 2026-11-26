@@ -112,6 +112,7 @@ pub(super) fn coalesce_chained_overlays(
 ///
 /// Background layers are the canvas, not competing overlays, so they survive.
 pub(super) fn resolve_chain_overlaps(items: Vec<PlanItemV2>) -> Vec<PlanItemV2> {
+    let mut items = items;
     let mut chains: Vec<(usize, i64, i64)> = items
         .iter()
         .enumerate()
@@ -136,10 +137,29 @@ pub(super) fn resolve_chain_overlaps(items: Vec<PlanItemV2>) -> Vec<PlanItemV2> 
         }
         kept_windows.push((start, end));
     }
+    // Only surviving chains own timeline windows. A provisional chain that
+    // loses to an earlier chain must not push or suppress a date card.
+    let chain_segments: Vec<(String, Vec<(i64, i64)>)> = items
+        .iter()
+        .enumerate()
+        .filter(|(index, item)| is_chain_kind(&item.kind) && !dropped.contains(index))
+        .map(|(_, item)| (item.scene_id.clone(), visible_chain_windows(item)))
+        .collect();
+    for item in &mut items {
+        if !is_timeline_date_card(item) {
+            continue;
+        }
+        if !fit_date_card_between_chain_segments(item, &chain_segments) {
+            item.duration_us = 0;
+        }
+    }
     items
         .into_iter()
         .enumerate()
         .filter(|(index, item)| {
+            if is_timeline_date_card(item) && item.duration_us <= 0 {
+                return false;
+            }
             if dropped.contains(index) {
                 return false;
             }
@@ -147,12 +167,93 @@ pub(super) fn resolve_chain_overlaps(items: Vec<PlanItemV2>) -> Vec<PlanItemV2> 
                 return true;
             }
             let (start, end) = item.window_us();
+            if is_timeline_date_card(item) {
+                return !chain_segments.iter().any(|(scene_id, segments)| {
+                    scene_id == &item.scene_id
+                        && segments.iter().any(|(segment_start, segment_end)| {
+                            windows_overlap(start, end, *segment_start, *segment_end)
+                        })
+                });
+            }
             !kept_windows.iter().any(|(chain_start, chain_end)| {
                 windows_overlap(start, end, *chain_start, *chain_end)
             })
         })
         .map(|(_, item)| item)
         .collect()
+}
+
+const DATE_CARD_READABLE_FLOOR_US: i64 = 2_000_000;
+const DATE_CARD_CHAIN_SHIFT_LIMIT_US: i64 = 250_000;
+
+fn is_timeline_date_card(item: &PlanItemV2) -> bool {
+    item.kind == "number" && item.template_id.trim() == "TIMELINE_DATE_CARD"
+}
+
+fn visible_chain_windows(item: &PlanItemV2) -> Vec<(i64, i64)> {
+    let Some(segments) = item
+        .params
+        .as_ref()
+        .and_then(|params| params.get("chain_segments"))
+        .and_then(Value::as_array)
+    else {
+        let (start, duration) = item.window_us();
+        return (duration > 0)
+            .then_some((start, start + duration))
+            .into_iter()
+            .collect();
+    };
+    let mut windows: Vec<(i64, i64)> = segments
+        .iter()
+        .filter_map(|segment| {
+            let start = segment.get("start_us")?.as_i64()?;
+            let duration = segment.get("duration_us")?.as_i64()?;
+            (duration > 0).then_some((start, start.saturating_add(duration)))
+        })
+        .collect();
+    windows.sort_by_key(|window| window.0);
+    windows
+}
+
+/// Dates can use the quiet gaps inside a fused chain. If a date starts just
+/// before the next spoken segment, move it by that small tail; if a segment
+/// starts later in the date's hold, shorten the hold to the free gap when it
+/// still leaves two readable seconds. Other overlays keep the chain's full
+/// reserved window and are dropped on any intersection.
+fn fit_date_card_between_chain_segments(
+    item: &mut PlanItemV2,
+    chains: &[(String, Vec<(i64, i64)>)],
+) -> bool {
+    for (scene_id, segments) in chains {
+        if scene_id != &item.scene_id {
+            continue;
+        }
+        for &(segment_start, segment_end) in segments {
+            let mut item_end = item.start_us.saturating_add(item.duration_us.max(0));
+            if !windows_overlap(item.start_us, item_end, segment_start, segment_end) {
+                continue;
+            }
+            if item.start_us < segment_start {
+                let readable_gap = segment_start - item.start_us;
+                if readable_gap >= DATE_CARD_READABLE_FLOOR_US {
+                    item.duration_us = readable_gap;
+                    item_end = segment_start;
+                    item.end_ms = (item_end + 999) / 1_000;
+                    continue;
+                }
+            }
+            let shift_us = segment_end.saturating_sub(item.start_us);
+            if shift_us > 0 && shift_us <= DATE_CARD_CHAIN_SHIFT_LIMIT_US {
+                item.start_us = segment_end;
+                item.start_ms = segment_end / 1_000;
+                item_end = segment_end.saturating_add(item.duration_us.max(0));
+                item.end_ms = (item_end + 999) / 1_000;
+                continue;
+            }
+            return false;
+        }
+    }
+    true
 }
 
 fn windows_overlap(left_start: i64, left_end: i64, right_start: i64, right_end: i64) -> bool {

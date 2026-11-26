@@ -142,6 +142,38 @@ pub fn compile_plan(
     candidates.extend(build_entity_card_candidates(request, &mut decisions)?);
     let intake = new_intake(&validated, &candidates);
     let (mut items, mut intake) = admit(&validated, candidates, intake, &mut decisions);
+    // A numeric card and a plain phrase can describe the same grounded surface
+    // at the same instant. The numeric card owns it; remove the duplicate only
+    // after admission, so a card that lost its slot does not remove the phrase
+    // that should have survived in its place.
+    let before_numeric_dedup = items.len();
+    items = drop_text_phrases_shadowed_by_numeric_cards(items);
+    record_drops(
+        &mut intake,
+        "numeric_duplicate",
+        before_numeric_dedup,
+        items.len(),
+    );
+    let before_named_dedup = items.len();
+    items = drop_phrases_duplicated_by_named_cards(items, &mut decisions);
+    record_drops(
+        &mut intake,
+        "duplicate_named_phrase",
+        before_named_dedup,
+        items.len(),
+    );
+    // An entity card and a plain phrase share the center stage. Go re-anchors
+    // phrases to the certified word timing after the seal, so the phrase cannot
+    // be moved here; the entity card is shifted to the nearest free window and
+    // the phrase is dropped with a typed reason only when no window exists.
+    let before_occlusion = items.len();
+    items = resolve_entity_text_overlaps(request, items, &mut decisions);
+    record_drops(
+        &mut intake,
+        "occluded_by_entity_card",
+        before_occlusion,
+        items.len(),
+    );
     assign_entity_media(request, &mut items)?;
     // The short-phrase entrance is decided before coalescing: a phrase that
     // already carries a lane motion is chainable on its own terms, and the
@@ -244,11 +276,25 @@ pub fn compile_plan(
         before_chain_overlap,
         items.len(),
     );
+    // A coalesced chain may absorb one copy of a phrase while a duplicate
+    // candidate remains outside it. Resolve against the sealed segment windows.
+    let before_chain_phrase_dedup = items.len();
+    items = drop_phrases_duplicated_by_chain_segments(items, &mut decisions);
+    record_drops(
+        &mut intake,
+        "duplicate_chain_phrase",
+        before_chain_phrase_dedup,
+        items.len(),
+    );
     // Coalescing and the presentation pass can both extend a container past
     // its scene window (a fused chain lays segments out sequentially). The
     // seal is the last owner of the scene invariant, so clamp here instead of
     // letting `validate_for` reject the whole plan after the fact.
     items = clip_items_to_scene_bounds(items, request, &mut decisions);
+    // QA gate: no entity card may overlap another centered text card. The
+    // resolver above prevents this; fail closed if a later phase reintroduces
+    // the condition (ITCLOSE-09).
+    assert_no_entity_text_overlap(&items)?;
     name_items_for_review(&mut items);
     // There is no post-plan promotion pass: a card that has a verified portrait
     // was built as `entity_image` by `append_entity_cards` and passed the same

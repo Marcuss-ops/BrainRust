@@ -263,7 +263,11 @@ pub(super) fn date_pattern() -> &'static Regex {
     PATTERN.get_or_init(|| {
         let months = month_alternation();
         Regex::new(&format!(
-            r"(?i)\b(?:[0-9]{{1,2}}\s+(?:{months})\s+[0-9]{{4}}|[0-9]{{4}})\b"
+            // A day + month is a useful timeline fact even when the source
+            // does not state the year. Keep the surface unresolved rather
+            // than dropping it or inventing a year; `date_identity_pattern`
+            // and the temporal-facts contract already support that shape.
+            r"(?i)\b(?:[0-9]{{1,2}}\s+(?:{months})(?:\s+[0-9]{{4}})?|[0-9]{{4}})\b"
         ))
         .expect("date regex")
     })
@@ -478,7 +482,12 @@ mod tests {
 
     #[test]
     fn explicit_date_surfaces_are_multilingual() {
-        for text in ["13 January 2007", "13 janvier 2007", "13 marzo 2007"] {
+        for text in [
+            "13 January 2007",
+            "13 janvier 2007",
+            "13 marzo 2007",
+            "13 settembre",
+        ] {
             assert_eq!(explicit_date_surfaces(text), vec![text.to_string()]);
         }
     }

@@ -200,6 +200,82 @@ impl NumericLane {
     }
 }
 
+/// A metric card that lives less than this is a flash, not a readable stat.
+/// Keep it below the shortest grounded spoken spans so adjacent statistics do
+/// not overlap after each is stretched to a generic 1.5-second hold.
+const METRIC_MIN_HOLD_US: i64 = 600_000;
+
+/// Bare number words carry no quantitative context: the Italian "due" was
+/// admitted as METRIC_STAT_CARD for 125 ms (ITCLOSE-05). A numeral with a unit
+/// ("due milioni") or a digit is still a metric.
+const ISOLATED_NUMERAL_WORDS: &[&str] = &[
+    "zero",
+    "uno",
+    "una",
+    "due",
+    "tre",
+    "quattro",
+    "cinque",
+    "sei",
+    "sette",
+    "otto",
+    "nove",
+    "dieci",
+    "undici",
+    "dodici",
+    "tredici",
+    "quattordici",
+    "quindici",
+    "sedici",
+    "diciassette",
+    "diciotto",
+    "diciannove",
+    "venti",
+    "trenta",
+    "quaranta",
+    "cinquanta",
+    "sessanta",
+    "settanta",
+    "ottanta",
+    "novanta",
+    "cento",
+    "mille",
+    "mila",
+    "milione",
+    "milioni",
+    "miliardo",
+    "miliardi",
+    "primo",
+    "prima",
+    "secondo",
+    "seconda",
+    "terzo",
+    "terza",
+    "quarto",
+    "quarta",
+    "quinto",
+    "quinta",
+    "sesto",
+    "settimo",
+    "ottavo",
+    "nono",
+    "decimo",
+];
+
+fn isolated_lexical_numeral(text: &str) -> bool {
+    let mut words = text.split_whitespace();
+    let Some(word) = words.next() else {
+        return false;
+    };
+    if words.next().is_some() {
+        return false;
+    }
+    let normalized = word
+        .trim_matches(|c: char| !c.is_alphanumeric())
+        .to_lowercase();
+    ISOLATED_NUMERAL_WORDS.contains(&normalized.as_str())
+}
+
 pub(crate) fn number_item(
     scene: &SceneV2,
     _index: usize,
@@ -212,6 +288,17 @@ pub(crate) fn number_item(
     if lane == NumericLane::Date && scene_end.saturating_sub(start_us) < 2_000_000 {
         return None;
     }
+    if lane == NumericLane::Metric {
+        if isolated_lexical_numeral(&annotation.text) {
+            return None;
+        }
+        // The scene boundary is authoritative, like date cards: a metric that
+        // starts near the end keeps the readable remainder instead of being
+        // dropped. Below 600 ms the card is not readable at all.
+        if scene_end.saturating_sub(start_us) < 600_000 {
+            return None;
+        }
+    }
     let id = go_item_id(&scene.id, "number", &annotation.text);
     let mut item = scene_item(
         id.clone(),
@@ -222,6 +309,9 @@ pub(crate) fn number_item(
         annotation.duration_us.max(0),
         annotation.text.clone(),
     );
+    // A metric keeps a readable hold even when the annotation was a word
+    // fragment. The old path copied annotation.duration_us raw, so "due" was
+    // a 125 ms card; the floor is applied above, before the item is built.
     // Motion selection is a plan-wide rotation (see assign_numeric_motions):
     // choosing it here, one item at a time, let two date cards repeat the same
     // gesture and never guaranteed a typewriter entrance in a short run.
@@ -229,6 +319,12 @@ pub(crate) fn number_item(
         item.duration_us = item
             .duration_us
             .max(5_000_000)
+            .min(scene_end.saturating_sub(item.start_us));
+        item.end_ms = (item.start_us + item.duration_us + 999) / 1000;
+    } else if lane == NumericLane::Metric {
+        item.duration_us = item
+            .duration_us
+            .max(METRIC_MIN_HOLD_US)
             .min(scene_end.saturating_sub(item.start_us));
         item.end_ms = (item.start_us + item.duration_us + 999) / 1000;
     }

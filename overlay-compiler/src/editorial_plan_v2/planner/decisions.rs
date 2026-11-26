@@ -31,6 +31,12 @@ pub(super) const REASON_PER_SCENE_LIMIT: &str = "PER_SCENE_LIMIT";
 // Layout lanes: the item existed but could not be placed.
 pub(super) const REASON_OVERLAP_LOST: &str = "OVERLAP_LOST";
 pub(super) const REASON_CLIPPED_OUT: &str = "CLIPPED_OUT";
+/// A phrase card sat entirely inside an entity-card window and there was no
+/// free position for the card that owned the window, so the phrase was
+/// removed instead of rendering an invisible card.
+pub(super) const REASON_OCCLUDED_BY_ENTITY_CARD: &str = "OCCLUDED_BY_ENTITY_CARD";
+/// A phrase duplicates a named entity or organization card in the same window.
+pub(super) const REASON_DUPLICATE_NAMED_PHRASE: &str = "DUPLICATE_NAMED_PHRASE";
 
 /// Records one dropped plan item. The identity fields are copied so the
 /// decision can be joined to the entity timeline without the item.

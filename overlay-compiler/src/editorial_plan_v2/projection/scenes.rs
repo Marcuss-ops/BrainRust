@@ -333,6 +333,27 @@ pub(super) fn project_entity(
     };
     match kind.as_str() {
         "number" => {
+            // Keep the full calendar surface and its entity-timeline timing.
+            // A compound TTS word such as "il 13 settembre" gives
+            // locate_phrase("13 settembre") the start of the whole word,
+            // which can move the card into a neighboring chain segment. The
+            // certified entity occurrence has the exact date span. Adding it
+            // here also prevents the scanner below from emitting a duplicate.
+            if entity.entity_type.trim().eq_ignore_ascii_case("DATE")
+                && explicit_date_surfaces(&scene.text).iter().any(|surface| {
+                    surface.eq_ignore_ascii_case(&entity.canonical_name)
+                        || same_grounded_date(surface, &entity.canonical_name)
+                })
+            {
+                out.numbers.push(timed(
+                    &entity.canonical_name,
+                    "DATE",
+                    occurrence.audio_start_us,
+                    occurrence.audio_end_us,
+                    score,
+                ));
+                return;
+            }
             let mut value = clean_numeric_value(&entity.canonical_name, lexicon);
             if value.is_empty() {
                 return;

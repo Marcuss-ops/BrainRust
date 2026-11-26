@@ -23,6 +23,62 @@ fn chain_keeps_its_background_layer() {
 }
 
 #[test]
+fn timeline_dates_use_chain_gaps_and_keep_a_readable_hold() {
+    let chain = chain_item(
+        "chain",
+        0,
+        12_700_000,
+        &[(0, 2_500_000), (8_700_000, 4_000_000)],
+    );
+    let mut date_in_gap = overlay_item(
+        "date-gap",
+        "number",
+        "TIMELINE_DATE_CARD",
+        4_500_000,
+        5_000_000,
+    );
+    date_in_gap.scene_id = "scene-1".to_string();
+    let mut date_at_segment_tail = overlay_item(
+        "date-tail",
+        "number",
+        "TIMELINE_DATE_CARD",
+        12_600_000,
+        5_000_000,
+    );
+    date_at_segment_tail.scene_id = "scene-1".to_string();
+    let blocked_image = overlay_item("photo", "image", "IMAGE_OVERLAY", 4_000_000, 1_000_000);
+
+    let resolved = resolve_chain_overlaps(vec![chain, date_in_gap, date_at_segment_tail, blocked_image]);
+    let date_gap = resolved.iter().find(|item| item.id == "date-gap").expect("date in gap");
+    assert_eq!((4_500_000, 8_700_000), date_gap.window_us());
+    let date_tail = resolved.iter().find(|item| item.id == "date-tail").expect("date after segment");
+    assert_eq!((12_700_000, 17_700_000), date_tail.window_us());
+    assert!(!resolved.iter().any(|item| item.id == "photo"));
+}
+
+#[test]
+fn date_is_not_blocked_by_a_chain_that_loses_chain_admission() {
+    let winner = chain_item("winner", 0, 5_000_000, &[(0, 2_500_000)]);
+    let loser = chain_item("loser", 4_000_000, 5_000_000, &[(6_000_000, 2_500_000)]);
+    let mut date = overlay_item(
+        "date-after-loser",
+        "number",
+        "TIMELINE_DATE_CARD",
+        6_000_000,
+        5_000_000,
+    );
+    date.scene_id = "scene-1".to_string();
+
+    let resolved = resolve_chain_overlaps(vec![winner, loser, date]);
+    let date = resolved
+        .iter()
+        .find(|item| item.id == "date-after-loser")
+        .expect("date is outside the surviving chain");
+    assert_eq!((6_000_000, 11_000_000), date.window_us());
+    assert!(!resolved.iter().any(|item| item.id == "loser"));
+}
+
+#[test]
 fn chain_drops_a_tail_below_the_readable_minimum() {
     let request = request();
     let chain = chain_item(

@@ -82,13 +82,13 @@
         "scene_id": "s1",
         "kind": "number",
         "start_ms": 1050,
-        "end_ms": 1700,
+        "end_ms": 2550,
         "start_us": 1050000,
-        "duration_us": 650000,
+        "duration_us": 1500000,
         "template_id": "METRIC_STAT_CARD",
         "motion_id": "metric_typewriter_backspace_settle",
         "motion_params": {
-          "enter_frames": 15
+          "enter_frames": 20
         },
         "text": "42 per cento",
         "style": {
