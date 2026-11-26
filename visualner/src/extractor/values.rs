@@ -273,7 +273,7 @@ pub(super) fn scale_word_follows(source_text: &str, end: usize) -> bool {
 }
 
 /// Find source-grounded numeric spans ignored by the noun-phrase tokenizer.
-pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
+pub(super) fn value_candidates(source_text: &str, language: &str) -> Vec<Candidate> {
     let bytes = source_text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
@@ -296,7 +296,8 @@ pub(super) fn value_candidates(source_text: &str) -> Vec<Candidate> {
         let number_start = i;
         let number_end = scan_number_end(bytes, number_start);
         i = number_end;
-        let (candidate, month_first) = quantity_candidate(source_text, number_start, number_end);
+        let (candidate, month_first) =
+            quantity_candidate(source_text, number_start, number_end, language);
         let candidate_end = candidate.end;
         out.push(candidate);
         if month_first {
@@ -486,7 +487,7 @@ fn is_contextual_year(source_text: &str, number_start: usize, number_end: usize)
 
 /// A negative sign or word immediately before the number joins its span, so
 /// the grounded surface (`meno 20`, `-20`) parses as a negative value.
-fn signed_number_start(source_text: &str, number_start: usize) -> usize {
+fn signed_number_start(source_text: &str, number_start: usize, language: &str) -> usize {
     let prefix = &source_text[..number_start];
     let trimmed = prefix.trim_end();
     if trimmed.ends_with('-') {
@@ -518,7 +519,23 @@ fn signed_number_start(source_text: &str, number_start: usize) -> usize {
         word.as_str(),
         "meno" | "minus" | "negative" | "negativo" | "negativa" | "negatif" | "moins" | "menos"
     ) {
-        return word_start;
+        // The tail of a bound cue ("al menos 5", "au moins 5", "pelo menos
+        // 5") is the cue, not a minus sign. The cue table is the only copy of
+        // that knowledge; without this guard the lower bound became -5.
+        let lower = trimmed.to_lowercase();
+        let bound_cue = semantic_core::units::language_units(language).is_some_and(|data| {
+            data.qualifiers
+                .iter()
+                .filter(|(kind, _)| matches!(kind.as_str(), "lower_bound" | "upper_bound"))
+                .flat_map(|(_, cues)| cues)
+                .any(|cue| {
+                    let cue = cue.to_lowercase();
+                    cue.split_whitespace().last() == Some(word.as_str()) && lower.ends_with(&cue)
+                })
+        });
+        if !bound_cue {
+            return word_start;
+        }
     }
     number_start
 }
@@ -529,9 +546,10 @@ fn quantity_candidate(
     source_text: &str,
     number_start: usize,
     number_end: usize,
+    language: &str,
 ) -> (Candidate, bool) {
     let bytes = source_text.as_bytes();
-    let signed_start = signed_number_start(source_text, number_start);
+    let signed_start = signed_number_start(source_text, number_start, language);
     let (currency_start, kind) = currency_prefix(source_text, bytes, number_start);
     let start = signed_start.min(currency_start);
     let (end, kind) = quantity_suffix(source_text, bytes, number_end, kind);

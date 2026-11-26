@@ -76,7 +76,10 @@ fn route_map_requires_two_coordinate_bound_waypoints() {
 
 #[test]
 fn choropleth_requires_two_linked_country_quantities() {
-    let source = "In France the rate was 12%, in Germany it was 18%.";
+    // One value per sentence: two percentages in the same sentence become a
+    // `chart` proposal, and chart-owned spans are deliberately not duplicated
+    // as choropleth cells.
+    let source = "In France the rate was 12%. In Germany the rate was 18%.";
     let candidates = candidates("en", source);
     let maps = recipe(&candidates, "choropleth_value_map");
     assert_eq!(maps.len(), 1, "{candidates:?}");

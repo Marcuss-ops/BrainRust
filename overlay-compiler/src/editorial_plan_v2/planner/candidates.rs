@@ -122,6 +122,7 @@ pub(super) fn build_recap_candidates(
             "style": "quote",
             "priority": source.score,
             "recap": true,
+            "timing_anchor": "word_timing",
         }));
         items.push(item);
         cursor = cursor.saturating_add(duration);
@@ -585,6 +586,18 @@ fn limited_shuffled_pool(pool: &[&'static str], limit: usize, seed: &str) -> Vec
     order
 }
 
+/// True when the scene carries certified word timing. A phrase in a scene
+/// without it has a derived window, not an anchor in the transcript: the gap
+/// pass reports it as `unanchored_in_transcript` instead of placing copy at a
+/// guessed instant.
+pub(super) fn scene_has_word_timing(scene: &SceneV2) -> bool {
+    scene
+        .voiceover
+        .as_ref()
+        .and_then(|voiceover| voiceover.timing.as_ref())
+        .is_some_and(|timing| !timing.words.is_empty())
+}
+
 fn text_item(
     scene: &SceneV2,
     lane: &str,
@@ -602,7 +615,17 @@ fn text_item(
         annotation.duration_us,
         annotation.text.clone(),
     );
-    item.params = Some(json!({"priority": annotation.score}));
+    item.params = Some(json!({
+        "priority": annotation.score,
+        // Every annotation window is certified word timing. The marker lets the
+        // gap pass distinguish a grounded phrase it may promote from one it
+        // must report as `unanchored_in_transcript`.
+        "timing_anchor": if annotation.duration_us > 0 && scene_has_word_timing(scene) {
+            "word_timing"
+        } else {
+            "none"
+        },
+    }));
     item
 }
 

@@ -136,6 +136,32 @@ pub struct CanvasV2 {
     /// every supplied short and long phrase candidate available.
     #[serde(default)]
     pub phrase_motion_family: String,
+    /// Uniform-coverage pacing threshold in microseconds. Zero keeps the
+    /// editorial default of 25 s: after primary admission the planner measures
+    /// the uncovered intervals and runs one targeted pass that promotes
+    /// already-built, word-timing-anchored phrase/quote/bullet candidates into
+    /// them. Raising the global phrase budget alone never closed the 54 s
+    /// desert (r86 grew collisions instead), because score-ordered admission
+    /// spends every slot where the transcript is dense.
+    #[serde(default)]
+    pub max_gap_us: i64,
+    /// Shortest acceptable distance between a gap-promoted card and the
+    /// adjacent overlay (or the gap boundary). Zero keeps 1.2 s, which is the
+    /// shortest hold the editorial contract already considers readable.
+    #[serde(default)]
+    pub gap_cooldown_us: i64,
+    /// Minimum overlay coverage, in percent, the sealed plan must reach. Zero
+    /// keeps the editorial target of 25.0. The planner reports the measured
+    /// value; the Go pre-render gate enforces it (warn or strict).
+    #[serde(default)]
+    pub coverage_min_percent: f64,
+    /// Duration-relative phrase budget. When positive, the effective phrase
+    /// ceiling is `phrase_per_minute * plan_minutes` instead of a fixed number
+    /// that a nine-minute video can never reach (50 requested, 26 planned).
+    /// When `budgets.phrase_overlays` is also positive, the smaller of the two
+    /// wins, so an explicit caller ceiling is still respected.
+    #[serde(default)]
+    pub phrase_per_minute: f64,
     #[serde(default)]
     pub image_motions: Vec<String>,
     #[serde(default)]

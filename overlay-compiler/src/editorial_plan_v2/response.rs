@@ -71,6 +71,87 @@ pub struct FinalPlanV2 {
     pub decisions: Vec<PlanDecisionV2>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub output_profile_id: String,
+    // Coverage pacing is measured on the SEALED item set, so the Go pre-render
+    // gate never has to re-derive the union of overlay windows and guess which
+    // kinds count. Additive: an older consumer decodes the plan it decoded
+    // before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<CoverageV2>,
+    /// Every phrase/quote candidate that did not reach the plan, with one
+    /// deterministic terminal reason. This is the per-phrase breakdown the
+    /// shortfall warning used to lack (AUGRENDER-05).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phrase_shortfall: Option<PhraseShortfallV2>,
+}
+
+/// Uniform-coverage measurement of the sealed plan.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct CoverageV2 {
+    #[serde(default)]
+    pub plan_us: i64,
+    #[serde(default)]
+    pub covered_us: i64,
+    #[serde(default)]
+    pub coverage_percent: f64,
+    #[serde(default)]
+    pub target_percent: f64,
+    #[serde(default)]
+    pub max_gap_us: i64,
+    #[serde(default)]
+    pub threshold_us: i64,
+    #[serde(default)]
+    pub gaps_over_threshold: i64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub gaps: Vec<CoverageGapV2>,
+    /// Effective phrase ceiling after applying `phrase_per_minute`.
+    #[serde(default)]
+    pub phrase_target: i64,
+    #[serde(default)]
+    pub phrase_materialized: i64,
+    #[serde(default)]
+    pub phrase_per_minute: f64,
+    #[serde(default)]
+    pub gap_promotions: i64,
+}
+
+/// One uncovered interval of the sealed plan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct CoverageGapV2 {
+    pub start_us: i64,
+    pub end_us: i64,
+    pub duration_us: i64,
+}
+
+/// The per-phrase shortfall: requested versus materialized, every rejected
+/// candidate and its terminal reason.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct PhraseShortfallV2 {
+    #[serde(default)]
+    pub requested: i64,
+    #[serde(default)]
+    pub materialized: i64,
+    #[serde(default)]
+    pub dropped: i64,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub by_reason: BTreeMap<String, i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drops: Vec<PhraseDropV2>,
+}
+
+/// One rejected phrase candidate. The reason is a stable enum spelling:
+/// `unanchored_in_transcript`, `window_collision`, `scene_cap`, `deduped`,
+/// `budget_exhausted`, `category_disabled`, `maps_only`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct PhraseDropV2 {
+    pub candidate_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub scene_id: String,
+    pub text: String,
+    pub reason: String,
+    #[serde(default)]
+    pub start_us: i64,
+    #[serde(default)]
+    pub duration_us: i64,
 }
 
 /// One planner decision. `reason_code` is a stable enum spelling, never free
@@ -78,6 +159,13 @@ pub struct FinalPlanV2 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct PlanDecisionV2 {
     pub candidate_id: String,
+    // The candidate kind travels with the decision so the phrase shortfall can
+    // be derived from the decision log alone: a dropped phrase is not
+    // re-identified by parsing its id.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub start_us: i64,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub scene_id: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -214,6 +302,11 @@ pub struct IntakeV2 {
     pub planned_by_kind: BTreeMap<String, i64>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub dropped_by_reason: BTreeMap<String, i64>,
+    /// Candidates the gap-aware pacing pass promoted after admission. They are
+    /// admitted items, not rejected ones, so they are counted here and never in
+    /// `dropped_by_reason`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub gap_promoted: i64,
 }
 
 /// The budgets the canvas selected, in the same spelling the Go tracker uses.

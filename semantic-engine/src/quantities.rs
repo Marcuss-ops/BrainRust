@@ -85,6 +85,22 @@ pub(crate) fn extract(
         {
             continue;
         }
+        // "2 kali 5%" / "twice 5%": the ratio word multiplies the next
+        // quantity, so it is a comparison cue, not a measured ratio of its
+        // own. Keeping it as a fact made the following percent values
+        // incompatible and hid the ratio comparison.
+        if unit.dimension == "ratio"
+            && next_number_start.is_some_and(|next| {
+                next > fact.end_byte
+                    && next <= sentence.end_byte
+                    && source
+                        .get(fact.end_byte..next)
+                        .is_some_and(|gap| gap.split_whitespace().count() <= 2)
+            })
+            && has_ratio_signal(sentence.text(source), language)
+        {
+            continue;
+        }
         let scale_in_surface = word_spans(number_text)
             .iter()
             .find_map(|word| scale_word_factor(&word.lowered));
@@ -171,7 +187,15 @@ pub(crate) fn comparisons(
         };
         let cue_start = sentence.start_byte + local_start;
         let cue_end = sentence.start_byte + local_end;
-        let [left, right, ..] = sentence_quantities.as_slice() else {
+        // A multiplier may have contributed a non-percent fact before the
+        // pair ("10% compared with twice 5%"). Compare the first two facts
+        // that actually share a dimension and unit instead of the first two
+        // facts in source order.
+        let Some((left, right)) = sentence_quantities
+            .windows(2)
+            .find(|pair| pair[0].dimension == pair[1].dimension && pair[0].unit == pair[1].unit)
+            .map(|pair| (pair[0], pair[1]))
+        else {
             continue;
         };
         let is_change = change_span.is_some();
@@ -245,6 +269,15 @@ fn find_cue_span(text: &str, cues: &[String]) -> Option<(usize, usize)> {
         }
     }
     best
+}
+
+fn has_ratio_signal(text: &str, language: &str) -> bool {
+    let key = language.split(['-', '_']).next().unwrap_or(language);
+    semantic_core::lexicon::lexicon()
+        .discourse
+        .ratio_signals
+        .get(key)
+        .is_some_and(|cues| contains_cue_phrase(text, cues))
 }
 
 fn contains_cue_phrase(text: &str, cues: &[String]) -> bool {

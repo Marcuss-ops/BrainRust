@@ -14,7 +14,7 @@ pub(super) fn new_intake(request: &ValidatedRequest<'_>, candidates: &[PlanItemV
             .filter(|scene| scene.duration_us > 0)
             .count() as i64,
         budget: IntakeBudgetV2 {
-            phrase_overlays: budgets.phrase_overlays,
+            phrase_overlays: super::gap_pacing::phrase_budget(request, budgets.phrase_overlays),
             image_overlays: budgets.image_overlays,
             map_overlays: budgets.map_overlays,
             max_overlays_per_scene: budgets.max_per_scene,
@@ -58,8 +58,11 @@ pub(super) fn admit(
     candidates: Vec<PlanItemV2>,
     mut intake: IntakeV2,
     decisions: &mut Vec<PlanDecisionV2>,
-) -> (Vec<PlanItemV2>, IntakeV2) {
+) -> (Vec<PlanItemV2>, IntakeV2, Vec<PlanItemV2>) {
     let budgets = request.budgets();
+    // A duration-relative rate replaces a fixed ceiling that a long video can
+    // never reach; an explicit caller ceiling still caps the derivation.
+    let phrase_limit = super::gap_pacing::phrase_budget(request, budgets.phrase_overlays);
     let max_per_scene = if budgets.max_per_scene > 0 {
         budgets.max_per_scene
     } else {
@@ -92,7 +95,7 @@ pub(super) fn admit(
             continue;
         }
         if item.kind == "text_phrase" {
-            if budgets.phrase_overlays > 0 && phrases >= budgets.phrase_overlays {
+            if phrase_limit > 0 && phrases >= phrase_limit {
                 drop_candidate(&mut intake, decisions, "budget", item);
                 continue;
             }
@@ -140,15 +143,17 @@ pub(super) fn admit(
         }
     }
     let mut selected = Vec::with_capacity(keep.iter().filter(|kept| **kept).count());
+    let mut rejected = Vec::new();
     for (index, item) in candidates.into_iter().enumerate() {
         if !keep[index] {
+            rejected.push(item);
             continue;
         }
         *intake.planned_by_kind.entry(item.kind.clone()).or_default() += 1;
         selected.push(item);
     }
     intake.planned = selected.len() as i64;
-    (selected, intake)
+    (selected, intake, rejected)
 }
 fn drop_reason(intake: &mut IntakeV2, reason: &str) {
     *intake
@@ -269,7 +274,7 @@ pub(super) fn category_toggle_disabled(
     false
 }
 
-fn category_disabled(request: &EditorialPlanV2Request, item: &PlanItemV2) -> bool {
+pub(super) fn category_disabled(request: &EditorialPlanV2Request, item: &PlanItemV2) -> bool {
     category_toggle_disabled(request, &item.scene_id, category_for(item))
 }
 
@@ -285,28 +290,6 @@ fn group_for(item: &PlanItemV2) -> &'static str {
         "map" => "maps",
         "entity_card" | "organization" | "location" | "concept" => "entities",
         _ => "phrases",
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::group_for;
-    use crate::editorial_plan_v2::response::PlanItemV2;
-
-    #[test]
-    fn numeric_cards_do_not_consume_the_phrase_group_limit() {
-        let phrase = PlanItemV2 {
-            kind: "text_phrase".to_string(),
-            ..Default::default()
-        };
-        let number = PlanItemV2 {
-            kind: "number".to_string(),
-            template_id: "TIMELINE_DATE_CARD".to_string(),
-            ..Default::default()
-        };
-
-        assert_eq!("phrases", group_for(&phrase));
-        assert_eq!("numbers", group_for(&number));
     }
 }
 
@@ -894,5 +877,27 @@ pub(super) fn finalize_intake(intake: &mut IntakeV2, items: &[PlanItemV2]) {
     intake.planned_by_kind.clear();
     for item in items {
         *intake.planned_by_kind.entry(item.kind.clone()).or_default() += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::group_for;
+    use crate::editorial_plan_v2::response::PlanItemV2;
+
+    #[test]
+    fn numeric_cards_do_not_consume_the_phrase_group_limit() {
+        let phrase = PlanItemV2 {
+            kind: "text_phrase".to_string(),
+            ..Default::default()
+        };
+        let number = PlanItemV2 {
+            kind: "number".to_string(),
+            template_id: "TIMELINE_DATE_CARD".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!("phrases", group_for(&phrase));
+        assert_eq!("numbers", group_for(&number));
     }
 }

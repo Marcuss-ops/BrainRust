@@ -210,7 +210,7 @@ pub(super) fn is_canonical_person_surface(entity: &VisualEntity, context: &Scrip
 /// language lexicon supplies a work/affiliation verb and UDPipe links the
 /// name to that verb as an object or oblique argument.
 pub(super) fn mark_contextual_organizations(
-    candidates: &mut Vec<Candidate>,
+    candidates: &mut [Candidate],
     tokens: &[Token],
     language: &str,
 ) {
@@ -258,12 +258,7 @@ pub(super) fn mark_contextual_organizations(
 /// contiguous, capitalized and not a curated given name, so "Daniel Frost"
 /// and "María Ferrer" stay people. This is syntactic evidence, not a
 /// per-company allowlist.
-fn mark_organization_span(
-    candidates: &mut Vec<Candidate>,
-    start: usize,
-    end: usize,
-    text: &str,
-) {
+fn mark_organization_span(candidates: &mut Vec<Candidate>, start: usize, end: usize, text: &str) {
     let mut replaced = false;
     for candidate in candidates.iter_mut() {
         if candidate.start == start && candidate.end == end {
@@ -304,14 +299,17 @@ pub(super) fn mark_subject_organizations(
         let Some(head) = name.head else {
             continue;
         };
-        let Some(verb) = tokens.iter().find(|token| {
-            token.id == Some(head) && token.sentence_id == name.sentence_id
-        }) else {
+        let Some(verb) = tokens
+            .iter()
+            .find(|token| token.id == Some(head) && token.sentence_id == name.sentence_id)
+        else {
             continue;
         };
-        if !verb.lemma.as_deref().is_some_and(|lemma| {
-            verbs.iter().any(|known| known.eq_ignore_ascii_case(lemma))
-        }) {
+        if !verb
+            .lemma
+            .as_deref()
+            .is_some_and(|lemma| verbs.iter().any(|known| known.eq_ignore_ascii_case(lemma)))
+        {
             continue;
         }
         let is_marker = lexicon
@@ -344,8 +342,7 @@ pub(super) fn mark_subject_organizations(
             continue;
         }
         if is_generic_company {
-            let (Some(first), Some(second)) = (tokens.get(index + 1), tokens.get(index + 2))
-            else {
+            let (Some(first), Some(second)) = (tokens.get(index + 1), tokens.get(index + 2)) else {
                 continue;
             };
             if first.sentence_id != name.sentence_id
@@ -414,80 +411,6 @@ pub(super) fn mark_subject_organizations(
 /// lexicon-backed objects are handled by their own type and bypass this gate.
 /// The POS check also removes adverb-led fragments such as "ancora oggi parte"
 /// without maintaining a language-specific list of filler expressions.
-#[cfg(test)]
-mod organization_and_facility_regressions {
-    use super::*;
-
-    fn subject_type(language: &str, text: &str, span: &str) -> String {
-        let tokens = tokenize(text, language).expect("tokenize");
-        let start = text.find(span).expect("span");
-        let mut candidates = vec![Candidate {
-            text: span.to_string(),
-            start,
-            end: start + span.len(),
-            entity_type: Some("PERSON".to_string()),
-        }];
-        mark_subject_organizations(&mut candidates, &tokens, text, language);
-        candidates
-            .iter()
-            .find(|candidate| {
-                candidate.start == start && candidate.end == start + span.len()
-            })
-            .and_then(|candidate| candidate.entity_type.clone())
-            .expect("candidate type")
-    }
-
-    #[test]
-    fn facility_heads_accept_preposed_and_postposed_names() {
-        for (language, span) in [
-            ("en", "Central Stadium"),
-            ("en", "Harbour Stadium"),
-            ("pl", "Stadion Północny"),
-            ("ru", "Стадион Северный"),
-        ] {
-            assert_eq!(
-                values::classify_value_type(span, true, true, true, language),
-                "FACILITY",
-                "{language}: {span}"
-            );
-        }
-    }
-
-    #[test]
-    fn estimate_verbs_type_company_subjects() {
-        let cases = [
-            (
-                "nl",
-                "Water Noord raamde een besparing van 29%, terwijl Energie Haven 14% verwachtte.",
-                "Water Noord",
-            ),
-            (
-                "id",
-                "Perusahaan Air Utara memperkirakan penghematan 30%, sedangkan Energi Pelabuhan memperkirakan 15%.",
-                "Air Utara",
-            ),
-            (
-                "id",
-                "Perusahaan Air Utara memperkirakan penghematan 30%, sedangkan Energi Pelabuhan memperkirakan 15%.",
-                "Energi Pelabuhan",
-            ),
-            (
-                "pl",
-                "Biuro Halny oczekiwało oszczędności 27%, natomiast biuro Wiślan podało 42%.",
-                "biuro Wiślan",
-            ),
-            (
-                "ru",
-                "Бюро Волга ожидало экономию в 25%, а бюро Заря заявляло 41%.",
-                "бюро Заря",
-            ),
-        ];
-        for (language, text, span) in cases {
-            assert_eq!(subject_type(language, text, span), "ORG", "{language}: {span}");
-        }
-    }
-}
-
 pub(super) fn structurally_specific_visual_concept(
     entity: &VisualEntity,
     tokens: &[Token],
@@ -884,4 +807,80 @@ pub(super) fn reserve_numeric_slots(ranked: Vec<VisualEntity>, top_n: usize) -> 
         .into_iter()
         .filter_map(|index| slots[index].take())
         .collect()
+}
+
+#[cfg(test)]
+mod organization_and_facility_regressions {
+    use super::*;
+
+    fn subject_type(language: &str, text: &str, span: &str) -> String {
+        let tokens = tokenize(text, language).expect("tokenize");
+        let start = text.find(span).expect("span");
+        let mut candidates = vec![Candidate {
+            text: span.to_string(),
+            start,
+            end: start + span.len(),
+            entity_type: Some("PERSON".to_string()),
+        }];
+        mark_subject_organizations(&mut candidates, &tokens, text, language);
+        candidates
+            .iter()
+            .find(|candidate| candidate.start == start && candidate.end == start + span.len())
+            .and_then(|candidate| candidate.entity_type.clone())
+            .expect("candidate type")
+    }
+
+    #[test]
+    fn facility_heads_accept_preposed_and_postposed_names() {
+        for (language, span) in [
+            ("en", "Central Stadium"),
+            ("en", "Harbour Stadium"),
+            ("pl", "Stadion Północny"),
+            ("ru", "Стадион Северный"),
+        ] {
+            assert_eq!(
+                values::classify_value_type(span, true, true, true, language),
+                "FACILITY",
+                "{language}: {span}"
+            );
+        }
+    }
+
+    #[test]
+    fn estimate_verbs_type_company_subjects() {
+        let cases = [
+            (
+                "nl",
+                "Water Noord raamde een besparing van 29%, terwijl Energie Haven 14% verwachtte.",
+                "Water Noord",
+            ),
+            (
+                "id",
+                "Perusahaan Air Utara memperkirakan penghematan 30%, sedangkan Energi Pelabuhan memperkirakan 15%.",
+                "Air Utara",
+            ),
+            (
+                "id",
+                "Perusahaan Air Utara memperkirakan penghematan 30%, sedangkan Energi Pelabuhan memperkirakan 15%.",
+                "Energi Pelabuhan",
+            ),
+            (
+                "pl",
+                "Biuro Halny oczekiwało oszczędności 27%, natomiast biuro Wiślan podało 42%.",
+                "biuro Wiślan",
+            ),
+            (
+                "ru",
+                "Бюро Волга ожидало экономию в 25%, а бюро Заря заявляло 41%.",
+                "бюро Заря",
+            ),
+        ];
+        for (language, text, span) in cases {
+            assert_eq!(
+                subject_type(language, text, span),
+                "ORG",
+                "{language}: {span}"
+            );
+        }
+    }
 }

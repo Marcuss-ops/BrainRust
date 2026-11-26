@@ -108,6 +108,34 @@ fn spelled_quantities_are_numeric_facts_but_not_chart_points() {
 }
 
 #[test]
+fn a_month_in_an_unrelated_clause_does_not_promote_a_count_word() {
+    // "marzo" is a date in the sentence, not an ordered-series cue for
+    // "due": the count of proposals must not become a 2% chart value.
+    let text = "Il bilancio pubblicato a marzo confrontava due proposte per l'efficienza: Aurora Sport stimava un risparmio del 42 per cento, mentre Lumen Energia prevedeva il 18 per cento.";
+    let analysis = analyze(
+        text,
+        &ExtractOptions {
+            language: "it".to_string(),
+            entity_count: 10,
+        },
+    )
+    .unwrap();
+    let points: Vec<(&str, f64)> = analysis
+        .chart_points
+        .iter()
+        .map(|point| (point.text.as_str(), point.value))
+        .collect();
+    assert!(
+        !points.iter().any(|(text, _)| *text == "due"),
+        "count word became a chart point: {points:?}"
+    );
+    assert!(
+        points.contains(&("42 per cento", 42.0)) && points.contains(&("18 per cento", 18.0)),
+        "percent pair missing: {points:?}"
+    );
+}
+
+#[test]
 fn spelled_scale_words_multiply_the_parsed_prefix() {
     // CLDR parses "tre milioni" as the prefix 3; the consumed scale noun
     // must multiply it, otherwise a headline becomes a chart bar of 3.
@@ -401,7 +429,7 @@ fn arabic_numbers_with_written_percent_units_keep_percent_type_multilingually() 
         .iter()
         .any(|unit| unit == "per cento"));
     assert_eq!(
-        crate::extractor::numeric_value_spans("42 per cento")
+        crate::extractor::numeric_value_spans("42 per cento", "en")
             .into_iter()
             .map(|candidate| (candidate.start, candidate.end, candidate.entity_type))
             .collect::<Vec<_>>(),

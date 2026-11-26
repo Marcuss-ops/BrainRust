@@ -9,6 +9,12 @@
 //! can never serve a result computed by a different request or extractor build.
 
 pub mod disk;
+mod fingerprint;
+mod identity;
+
+pub(crate) use fingerprint::request_body;
+pub use fingerprint::request_fingerprint;
+pub(crate) use identity::cache_identity;
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -192,30 +198,10 @@ mod tests {
         ManifestCache::request_key(&request(language, scenes), &analyzers())
     }
 
+    /// The production labels are the only source of truth: a hand-copied
+    /// fixture drifts silently and then tests a version the worker never emits.
     fn analyzers() -> AnalyzerVersions {
-        AnalyzerVersions {
-            visualner: "visualner.v2.additive_types".to_string(),
-            semantic_core: "0.1.0".to_string(),
-            phrase_impact: "phrase_impact".to_string(),
-            lexicon: "lexicon.v1".to_string(),
-            entity_index: "entity_index.v1".to_string(),
-            linker: format!(
-                "{}+sha256:{}",
-                semantic_core::entity_linker::linker_version(),
-                semantic_core::entity_linker::linker_weights_sha256()
-            ),
-            numbers: "number_words.v1".to_string(),
-
-            dates: "relative_time.v1".to_string(),
-            quantities: "typed_quantities.v3.chart_meta_series".to_string(),
-            roles: "person_roles.v4.all_11".to_string(),
-            age_facts: "person_age_facts.v2.localized_dated_age".to_string(),
-            person_relations: "person_relations.seed11.v2".to_string(),
-            places: "place_index.v3.multilingual_labels".to_string(),
-            routes: "place_routes.v2.subject_hops".to_string(),
-            events: "event_frames.v4.documentary_taxonomy".to_string(),
-            discourse: "discourse.v7.role_nominal_basis".to_string(),
-        }
+        crate::analyzer_versions()
     }
 
     #[test]
@@ -241,29 +227,7 @@ mod tests {
     #[test]
     fn analyzer_version_change_invalidates_the_key() {
         let scenes = vec![scene("s1", "Alberto Stasi è un nome.")];
-        let v1 = AnalyzerVersions {
-            visualner: "visualner.v2.additive_types".to_string(),
-            semantic_core: "0.1.0".to_string(),
-            phrase_impact: "phrase_impact".to_string(),
-            lexicon: "lexicon.v1".to_string(),
-            entity_index: "entity_index.v1".to_string(),
-            linker: format!(
-                "{}+sha256:{}",
-                semantic_core::entity_linker::linker_version(),
-                semantic_core::entity_linker::linker_weights_sha256()
-            ),
-            numbers: "number_words.v1".to_string(),
-
-            dates: "relative_time.v1".to_string(),
-            quantities: "typed_quantities.v3.chart_meta_series".to_string(),
-            roles: "person_roles.v4.all_11".to_string(),
-            age_facts: "person_age_facts.v2.localized_dated_age".to_string(),
-            person_relations: "person_relations.seed11.v2".to_string(),
-            places: "place_index.v3.multilingual_labels".to_string(),
-            routes: "place_routes.v2.subject_hops".to_string(),
-            events: "event_frames.v4.documentary_taxonomy".to_string(),
-            discourse: "discourse.v7.role_nominal_basis".to_string(),
-        };
+        let v1 = analyzers();
         let v2 = AnalyzerVersions {
             semantic_core: "0.2.0".to_string(),
             ..v1.clone()

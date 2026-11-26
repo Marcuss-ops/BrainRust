@@ -50,6 +50,32 @@ impl EditorialPlanV2Request {
             }
         }
         self.canvas.validate()?;
+        if self.canvas.max_gap_us < 0 {
+            return Err(EditorialPlanError::invalid(
+                "canvas.max_gap_us",
+                "must not be negative",
+            ));
+        }
+        if self.canvas.gap_cooldown_us < 0 {
+            return Err(EditorialPlanError::invalid(
+                "canvas.gap_cooldown_us",
+                "must not be negative",
+            ));
+        }
+        if !self.canvas.coverage_min_percent.is_finite()
+            || !(0.0..=100.0).contains(&self.canvas.coverage_min_percent)
+        {
+            return Err(EditorialPlanError::invalid(
+                "canvas.coverage_min_percent",
+                "must be a finite percentage in [0,100]",
+            ));
+        }
+        if !self.canvas.phrase_per_minute.is_finite() || self.canvas.phrase_per_minute < 0.0 {
+            return Err(EditorialPlanError::invalid(
+                "canvas.phrase_per_minute",
+                "must be a finite non-negative rate",
+            ));
+        }
 
         let mut scene_ids = BTreeSet::new();
         for scene in &self.scenes {

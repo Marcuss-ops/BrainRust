@@ -110,8 +110,10 @@ MEASURE_CONTEXTS = {
         "İnceleme sırasında {measure} değeri elde edildi.",
     ),
 }
+# `3 times` / `3 volte` are not negatives: ratio is a supported dimension and
+# the matrix above asserts those same surfaces as positive ratio quantities.
 NEGATIVES = (
-    "2019", "123456789", "1st", "3 times", "3 volte", "APT 3",
+    "2019", "123456789", "1st", "APT 3",
     "123 Main St", "ID-42", "Phone 555-0142", "Room 12", "Version 2.3.8",
     "Line 4", "Page 27", "No. 56", "Route 66", "Section 9", "Seat 14",
     "3x", "1:3", "2024-05-03",
@@ -214,7 +216,9 @@ def cases(language: str) -> list[dict]:
         "tr": "10% karşısında iki kat 5%.",
     }[language]
     rows.append({
-        "scene_id": f"{language}_ratio_01",
+        # The generic dimension loop already owns `{language}_ratio_01`; this
+        # case is the explicit ratio-comparison assertion, not a duplicate.
+        "scene_id": f"{language}_ratio_comparison_01",
         "text": ratio_text,
         "expected": [
             {"evidence": "10%", "dimension": "percent", "unit": "PCT", "value": 10.0},

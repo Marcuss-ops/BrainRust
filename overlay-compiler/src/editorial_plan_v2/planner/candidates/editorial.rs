@@ -48,6 +48,14 @@ pub(crate) fn append_editorial(
             "editorial_role": role,
             "editorial_candidate": phrase.candidate,
             "priority": phrase.score,
+            // The projection grounded this phrase on certified transcript
+            // timing, so the gap-aware pacing pass may promote it into a
+            // desert. An unanchored phrase is never placed at a guess.
+            "timing_anchor": if scene_has_word_timing(scene) {
+                "word_timing"
+            } else {
+                "none"
+            },
         }));
         items.push(item);
     }

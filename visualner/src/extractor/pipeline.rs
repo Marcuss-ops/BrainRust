@@ -166,7 +166,7 @@ fn build_candidate_pool(stage: &ExtractionStage<'_>) -> Result<CandidatePool, St
         }
     }
     type_object_head_nouns(&mut candidates, tokens, language);
-    candidates.extend(value_candidates(source_text));
+    candidates.extend(value_candidates(source_text, language));
     // A curated outlet domain is one whole token the noun-phrase pass cannot
     // see (the tokenizer splits at the dot). It joins after the model filters,
     // because it is explicit lexical knowledge, not an NER proposal.

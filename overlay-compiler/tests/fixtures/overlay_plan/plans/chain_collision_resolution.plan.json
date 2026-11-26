@@ -65,6 +65,8 @@
     "decisions": [
       {
         "candidate_id": "s1-phrase-0",
+        "kind": "text_phrase",
+        "start_us": 2200000,
         "scene_id": "s1",
         "stage": "overlap",
         "outcome": "dropped",
@@ -72,12 +74,60 @@
       },
       {
         "candidate_id": "s1-phrase-1",
+        "kind": "text_phrase",
+        "start_us": 3000000,
         "scene_id": "s1",
         "stage": "overlap",
         "outcome": "dropped",
         "reason_code": "OVERLAP_LOST"
       }
     ],
-    "output_profile_id": "assemblyready.alpha.v1"
+    "output_profile_id": "assemblyready.alpha.v1",
+    "coverage": {
+      "plan_us": 9000000,
+      "covered_us": 7000000,
+      "coverage_percent": 77.77777777777779,
+      "target_percent": 25.0,
+      "max_gap_us": 2000000,
+      "threshold_us": 25000000,
+      "gaps_over_threshold": 0,
+      "gaps": [
+        {
+          "start_us": 0,
+          "end_us": 2000000,
+          "duration_us": 2000000
+        }
+      ],
+      "phrase_target": 8,
+      "phrase_materialized": 0,
+      "phrase_per_minute": 0.0,
+      "gap_promotions": 0
+    },
+    "phrase_shortfall": {
+      "requested": 8,
+      "materialized": 0,
+      "dropped": 2,
+      "by_reason": {
+        "window_collision": 2
+      },
+      "drops": [
+        {
+          "candidate_id": "s1-phrase-0",
+          "scene_id": "s1",
+          "text": "",
+          "reason": "window_collision",
+          "start_us": 2200000,
+          "duration_us": 0
+        },
+        {
+          "candidate_id": "s1-phrase-1",
+          "scene_id": "s1",
+          "text": "",
+          "reason": "window_collision",
+          "start_us": 3000000,
+          "duration_us": 0
+        }
+      ]
+    }
   }
 }

@@ -410,6 +410,32 @@ fn ticket_51_single_and_multi_sentence_disco_series() {
 }
 
 #[test]
+fn a_count_word_before_the_percent_pair_is_not_a_bar() {
+    // The month earlier in the clause is not an ordered-series cue for the
+    // count word "due"; the chart must carry only the two percentages.
+    let (_, values, labels) = single_chart(
+        "it",
+        "Il bilancio pubblicato a marzo confrontava due proposte per l'efficienza: Aurora Sport stimava un risparmio del 42 per cento, mentre Lumen Energia prevedeva il 18 per cento.",
+    );
+    assert_eq!(values, [42.0, 18.0]);
+    assert!(
+        labels.iter().all(|label| !label.contains("due")),
+        "count word leaked into labels: {labels:?}"
+    );
+}
+
+#[test]
+fn estimate_and_projection_form_one_forecast_chart() {
+    // "estimated" and "projected" are both forecasts: the pair is allowed,
+    // whereas mixing either with an asserted result is still vetoed.
+    let (_, values, _) = single_chart(
+        "en",
+        "Northwater Limited estimated a saving of 36%, while Quay Power Limited projected 19%.",
+    );
+    assert_eq!(values, [36.0, 19.0]);
+}
+
+#[test]
 fn ticket_51_ranges_and_historical_years_stay_dates() {
     for text in [
         "Dal 2015 al 2018 non ci furono modifiche.",

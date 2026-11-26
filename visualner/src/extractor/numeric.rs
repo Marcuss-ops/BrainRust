@@ -15,8 +15,8 @@ pub struct NumericSpan {
 /// This projection exists so a scene with more numbers than the visual
 /// top-N budget keeps its numeric facts: charts and composed statistics read
 /// from this list, not from the ranked entities.
-pub fn numeric_value_spans(source_text: &str) -> Vec<NumericSpan> {
-    value_candidates(source_text)
+pub fn numeric_value_spans(source_text: &str, language: &str) -> Vec<NumericSpan> {
+    value_candidates(source_text, language)
         .into_iter()
         .filter(|candidate| {
             matches!(

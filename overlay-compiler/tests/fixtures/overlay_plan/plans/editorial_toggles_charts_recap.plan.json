@@ -44,6 +44,7 @@
           "height": 600.0,
           "position": "center",
           "priority": 0.98,
+          "timing_anchor": "word_timing",
           "width": 1700.0
         }
       },
@@ -74,6 +75,7 @@
           "height": 600.0,
           "position": "center",
           "priority": 0.7,
+          "timing_anchor": "word_timing",
           "width": 1700.0
         }
       },
@@ -82,13 +84,13 @@
         "scene_id": "s1",
         "kind": "number",
         "start_ms": 1050,
-        "end_ms": 2550,
+        "end_ms": 1700,
         "start_us": 1050000,
-        "duration_us": 1500000,
+        "duration_us": 650000,
         "template_id": "METRIC_STAT_CARD",
         "motion_id": "metric_typewriter_backspace_settle",
         "motion_params": {
-          "enter_frames": 20
+          "enter_frames": 15
         },
         "text": "42 per cento",
         "style": {
@@ -143,6 +145,7 @@
           "height": 600.0,
           "position": "center",
           "priority": 0.95,
+          "timing_anchor": "word_timing",
           "width": 1700.0
         }
       }
@@ -175,6 +178,31 @@
         "text_phrase": 1
       }
     },
-    "output_profile_id": "assemblyready.alpha.v1"
+    "output_profile_id": "assemblyready.alpha.v1",
+    "coverage": {
+      "plan_us": 4000000,
+      "covered_us": 1700000,
+      "coverage_percent": 42.5,
+      "target_percent": 25.0,
+      "max_gap_us": 2300000,
+      "threshold_us": 25000000,
+      "gaps_over_threshold": 0,
+      "gaps": [
+        {
+          "start_us": 1700000,
+          "end_us": 4000000,
+          "duration_us": 2300000
+        }
+      ],
+      "phrase_target": 8,
+      "phrase_materialized": 1,
+      "phrase_per_minute": 0.0,
+      "gap_promotions": 0
+    },
+    "phrase_shortfall": {
+      "requested": 8,
+      "materialized": 1,
+      "dropped": 0
+    }
   }
 }

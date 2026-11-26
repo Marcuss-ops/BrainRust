@@ -230,7 +230,6 @@ pub fn year_context(text: &str, start: usize, end: usize, year: u32) -> bool {
             .any(|suffix| suffix.eq_ignore_ascii_case(cue));
         let postfix = postfix_capable
             && prefix[..cue_start]
-                .trim_end()
                 .split_whitespace()
                 .last()
                 .is_some_and(|word| {

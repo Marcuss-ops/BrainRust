@@ -38,6 +38,34 @@ fn attaches_currency_scale_predicate_and_same_sentence_year() {
 }
 
 #[test]
+fn a_lower_bound_cue_is_not_a_negative_value() {
+    let source = "al menos 5 EUR";
+    let number = fact(source, "5", "MONEY", Some(5.0));
+    let quantities = extract(source, "es", &[number], &[]);
+    assert_eq!(quantities.len(), 1);
+    assert_eq!(quantities[0].qualifier, "lower_bound");
+    assert_eq!(quantities[0].value, Some(5.0));
+}
+
+#[test]
+fn a_ratio_multiplier_before_a_percent_is_not_its_own_quantity() {
+    let source = "10% dibandingkan dengan dua kali 5%.";
+    let facts = [
+        fact(source, "10%", "PERCENT", Some(10.0)),
+        fact(source, "dua", "NUMBER", Some(2.0)),
+        fact(source, "5%", "PERCENT", Some(5.0)),
+    ];
+    let quantities = extract(source, "id", &facts, &[]);
+    assert_eq!(quantities.len(), 2, "{quantities:?}");
+    assert_eq!(quantities[0].dimension, "percent");
+    assert_eq!(quantities[1].dimension, "percent");
+    let comparisons = comparisons(source, "id", &quantities);
+    assert_eq!(comparisons.len(), 1, "{comparisons:?}");
+    assert_eq!(comparisons[0].kind, "ratio");
+    assert_eq!(comparisons[0].ratio, Some(2.0));
+}
+
+#[test]
 fn ignores_years_without_units_and_does_not_cross_sentence_boundaries() {
     let source = "Nel 2019 la popolazione è cresciuta. Il fatturato era 3 milioni di euro.";
     let number = fact(source, "3", "NUMBER", Some(3.0));

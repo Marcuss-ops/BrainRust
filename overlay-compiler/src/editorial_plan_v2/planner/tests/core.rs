@@ -715,7 +715,8 @@ fn text_entity_card_wins_the_per_scene_ceiling_over_a_number() {
     assert_eq!(1, cards.len());
     candidates.extend(cards);
     let intake = super::new_intake(&validated, &candidates);
-    let (items, intake) = super::admit(&validated, candidates, intake, &mut Vec::new());
+    let (items, intake, _rejected) =
+        super::admit(&validated, candidates, intake, &mut Vec::new());
 
     let kinds: Vec<&str> = items.iter().map(|item| item.kind.as_str()).collect();
     assert_eq!(2, items.len(), "{kinds:?}");

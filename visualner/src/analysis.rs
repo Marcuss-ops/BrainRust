@@ -245,7 +245,7 @@ fn numeric_facts(
     spelled: &[crate::spellout::WordNumberCandidate],
     temporal_facts: &[TemporalFact],
 ) -> Vec<NumericFact> {
-    let mut out: Vec<NumericFact> = numeric_value_spans(source_text)
+    let mut out: Vec<NumericFact> = numeric_value_spans(source_text, language)
         .into_iter()
         .filter_map(|span| {
             let surface = source_text.get(span.start..span.end)?;
@@ -595,10 +595,12 @@ fn chart_points(
 
 /// A spelled value (`millecinquecento`, `zero`) is not a measurement by
 /// itself, but an adjacent ordering cue (`poi`, `prima`, `infine`, an ordinal
-/// or a month) makes it a series point. The window is small and bounded so an
-/// unrelated number in a long paragraph cannot claim the cue.
+/// or a month) makes it a series point. The cue must be adjacent: a month in
+/// an earlier clause ("pubblicato a marzo confrontava due proposte") describes
+/// the count, not a plotted quantity. A wide window also promoted that `due`
+/// into a percent pair and added a false 2% bar.
 fn near_ordered_series_cue(source: &str, start: usize, end: usize) -> bool {
-    semantic_core::chart_cues::ordered_series_cue_near(source, start, end, 48)
+    semantic_core::chart_cues::ordered_series_cue_near(source, start, end, 12)
 }
 
 fn followed_by_month_name(source: &str, end: usize) -> bool {

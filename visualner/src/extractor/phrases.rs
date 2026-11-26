@@ -258,14 +258,7 @@ pub(crate) fn noun_phrase_candidates(
 mod tests {
     use super::*;
 
-    fn token(
-        text: &str,
-        start: usize,
-        upos: &str,
-        lemma: &str,
-        id: i32,
-        head: i32,
-    ) -> Token {
+    fn token(text: &str, start: usize, upos: &str, lemma: &str, id: i32, head: i32) -> Token {
         Token {
             text: text.to_string(),
             start,
@@ -284,12 +277,7 @@ mod tests {
     fn an_inflected_object_matches_its_lemma() {
         let source = "Siatkę";
         let tokens = vec![token(source, 0, "NOUN", "siatka", 1, 0)];
-        let candidates = object_lexicon_candidates(
-            &tokens,
-            &["siatkę".to_string()],
-            source,
-            "pl",
-        );
+        let candidates = object_lexicon_candidates(&tokens, &["siatkę".to_string()], source, "pl");
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].text, source);
         assert_eq!(candidates[0].entity_type.as_deref(), Some("OBJECT"));
@@ -328,9 +316,6 @@ mod tests {
             entity_type: Some("VISUAL_CONCEPT".to_string()),
         }];
         type_object_head_nouns(&mut candidates, &tokens, "it");
-        assert_eq!(
-            candidates[0].entity_type.as_deref(),
-            Some("VISUAL_CONCEPT")
-        );
+        assert_eq!(candidates[0].entity_type.as_deref(), Some("VISUAL_CONCEPT"));
     }
 }

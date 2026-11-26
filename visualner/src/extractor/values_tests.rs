@@ -70,11 +70,33 @@ fn month_before_day_handles_multibyte_punctuation_before_date() {
     let month_start = month_before_day(source, number_start).unwrap();
     assert_eq!(source.get(month_start..number_start), Some("giugno "));
 
-    let candidates = value_candidates(source);
+    let candidates = value_candidates(source, "en");
     assert!(candidates.iter().any(|candidate| {
         candidate.text == "giugno 1988"
             && source.get(candidate.start..candidate.end) == Some("giugno 1988")
     }));
+}
+
+#[test]
+fn bound_cues_are_not_mistaken_for_negative_signs() {
+    for (language, source) in [
+        ("es", "al menos 5 EUR"),
+        ("fr", "au moins 5 EUR"),
+        ("pt", "pelo menos 5 EUR"),
+    ] {
+        let candidates = value_candidates(source, language);
+        let number = candidates
+            .iter()
+            .find(|candidate| candidate.text == "5")
+            .unwrap_or_else(|| panic!("{language}: no value candidate in {candidates:?}"));
+        assert_eq!(number.start, source.find('5').expect("digit"), "{language}");
+    }
+    // A standalone negative word is still a sign.
+    let negative = value_candidates("menos 5 EUR", "es");
+    assert!(
+        negative.iter().any(|candidate| candidate.text == "menos 5"),
+        "{negative:?}"
+    );
 }
 
 #[test]
@@ -92,7 +114,7 @@ fn physical_measurements_are_typed_as_measurement_not_number() {
         ("Мост имеет длину 12 км.", "12"),
     ];
     for (source, surface) in cases {
-        let candidates = value_candidates(source);
+        let candidates = value_candidates(source, "en");
         assert!(
             candidates.iter().any(|candidate| {
                 candidate.entity_type.as_deref() == Some("MEASUREMENT")
@@ -109,15 +131,15 @@ fn physical_measurements_are_typed_as_measurement_not_number() {
 
 #[test]
 fn measurement_units_do_not_steal_money_percent_or_dates() {
-    let money = value_candidates("Costs rose to $1,200.");
+    let money = value_candidates("Costs rose to $1,200.", "en");
     assert!(money
         .iter()
         .any(|c| c.entity_type.as_deref() == Some("MONEY")));
-    let percent = value_candidates("Sales grew 25% this year.");
+    let percent = value_candidates("Sales grew 25% this year.", "en");
     assert!(percent
         .iter()
         .any(|c| c.entity_type.as_deref() == Some("PERCENT")));
-    let date = value_candidates("Il 12 giugno 1988 la nave partì.");
+    let date = value_candidates("Il 12 giugno 1988 la nave partì.", "en");
     assert!(date
         .iter()
         .any(|c| c.entity_type.as_deref() == Some("DATE")));
@@ -287,7 +309,7 @@ fn four_digit_numbers_become_years_only_with_temporal_context() {
         ("ru", "В 2015 году Aurora продала 1500 штук."),
     ];
     for (language, source) in year_and_quantity {
-        let candidates = value_candidates(source);
+        let candidates = value_candidates(source, "en");
         let year = candidates
             .iter()
             .find(|candidate| candidate.text.contains("2015"))
@@ -314,7 +336,7 @@ fn four_digit_numbers_become_years_only_with_temporal_context() {
         "1500 dischi sono stati venduti.",
         "Nel 2015 1.500 dischi, nel 2016 1200.",
     ] {
-        let candidates = value_candidates(source);
+        let candidates = value_candidates(source, "en");
         assert!(
             candidates.iter().any(|candidate| {
                 matches!(candidate.entity_type.as_deref(), Some("NUMBER"))

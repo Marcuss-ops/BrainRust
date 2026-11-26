@@ -179,10 +179,9 @@ fn month_or_sequence_label(
             .month_typing_names
             .iter()
             .any(|name| name == &word.lowered)
+            && month.as_ref().is_none_or(|(last, _)| end > *last)
         {
-            if month.as_ref().is_none_or(|(last, _)| end > *last) {
-                month = Some((end, surface.to_string()));
-            }
+            month = Some((end, surface.to_string()));
         }
         if semantic_core::chart_cues::global()
             .series_label_cues

@@ -47,7 +47,8 @@
                 "glow_color": "#FFFFFF",
                 "glow_size": 10.0,
                 "phrase_family": "short_phrase",
-                "priority": 0.9
+                "priority": 0.9,
+                "timing_anchor": "word_timing"
               },
               "start_us": 500000,
               "style": {
@@ -74,7 +75,8 @@
                 "glow_color": "#FFFFFF",
                 "glow_size": 10.0,
                 "phrase_family": "short_phrase",
-                "priority": 0.85
+                "priority": 0.85,
+                "timing_anchor": "word_timing"
               },
               "start_us": 2100000,
               "style": {
@@ -200,7 +202,8 @@
                 "glow_color": "#FFFFFF",
                 "glow_size": 10.0,
                 "phrase_family": "short_phrase",
-                "priority": 0.9
+                "priority": 0.9,
+                "timing_anchor": "word_timing"
               },
               "start_us": 17100000,
               "style": {
@@ -303,6 +306,51 @@
         "phrase_chain": 1
       }
     },
-    "output_profile_id": "assemblyready.alpha.v1"
+    "output_profile_id": "assemblyready.alpha.v1",
+    "coverage": {
+      "plan_us": 28000000,
+      "covered_us": 18700000,
+      "coverage_percent": 66.78571428571428,
+      "target_percent": 25.0,
+      "max_gap_us": 3900000,
+      "threshold_us": 25000000,
+      "gaps_over_threshold": 0,
+      "gaps": [
+        {
+          "start_us": 3300000,
+          "end_us": 7200000,
+          "duration_us": 3900000
+        },
+        {
+          "start_us": 18300000,
+          "end_us": 21200000,
+          "duration_us": 2900000
+        },
+        {
+          "start_us": 12600000,
+          "end_us": 14200000,
+          "duration_us": 1600000
+        },
+        {
+          "start_us": 0,
+          "end_us": 500000,
+          "duration_us": 500000
+        },
+        {
+          "start_us": 9700000,
+          "end_us": 10100000,
+          "duration_us": 400000
+        }
+      ],
+      "phrase_target": 8,
+      "phrase_materialized": 3,
+      "phrase_per_minute": 0.0,
+      "gap_promotions": 0
+    },
+    "phrase_shortfall": {
+      "requested": 8,
+      "materialized": 3,
+      "dropped": 0
+    }
   }
 }

@@ -43,12 +43,7 @@ use proposals::*;
 #[cfg(test)]
 mod quote_candidates_tests;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
-
-use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use semantic_core::grounding::{check_span, retain_grounded, Grounding};
 use semantic_core::lexicon;
@@ -102,78 +97,11 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
     }
 }
 
-/// Identity of the compiled pipeline for the persistent cache key.
-///
-/// The wire-visible [`analyzer_versions`] labels are hand-written, and a disk
-/// entry outlives the build that wrote it. This identity adds the embedded
-/// lexicon content, the build hash (sources, manifests and git commit) and the
-/// ICU major, so a behaviour change without a label bump cannot serve a stale
-/// manifest. Model identity (file name and SHA-256 content digest) is per
-/// language, so a degraded worker and a worker with UDPipe models keep separate
-/// entries.
-pub(crate) fn cache_identity(language: &str) -> String {
-    format!(
-        "build={};content={};icu={};model={}",
-        env!("SEMANTIC_CACHE_BUILD_ID"),
-        semantic_core::content_fingerprint::embedded_content_fingerprint(),
-        option_env!("RUST_ICU_MAJOR_VERSION_NUMBER").unwrap_or("unknown"),
-        model_profile(language),
-    )
-}
-
-/// UDPipe model identity for one language: the file name and SHA-256 of the
-/// file content, or `absent` for the model-free fallback. The path itself is
-/// not hashed because it differs per operator deployment; the content is what
-/// changes the analysis.
-fn model_profile(language: &str) -> String {
-    let Some(path) = visualner::model_path(language) else {
-        return "absent".to_string();
-    };
-    model_profile_for_path(&path)
-}
-
-fn model_profile_for_path(path: &Path) -> String {
-    let name = path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    match model_digest(path) {
-        Ok(digest) => format!("{name}:{digest}"),
-        Err(_) => format!("{name}:unknown"),
-    }
-}
-
-/// SHA-256 of a model file, computed once per process and bounded to the same
-/// sixteen slots as the loaded-model cache. The model is loaded once, so a
-/// replaced file must not silently change the identity of the model in memory.
-fn model_digest(path: &Path) -> std::io::Result<String> {
-    const MODEL_DIGEST_CACHE_CAP: usize = 16;
-    static DIGESTS: OnceLock<Mutex<HashMap<PathBuf, String>>> = OnceLock::new();
-    let digests = DIGESTS.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Ok(cache) = digests.lock() {
-        if let Some(digest) = cache.get(path) {
-            return Ok(digest.clone());
-        }
-    }
-    let mut file = std::fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 64 * 1024];
-    loop {
-        let read = file.read(&mut buffer)?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-    let digest = semantic_core::text::lowercase_hex(hasher.finalize().as_slice());
-    if let Ok(mut cache) = digests.lock() {
-        if cache.len() >= MODEL_DIGEST_CACHE_CAP {
-            cache.clear();
-        }
-        cache.insert(path.to_path_buf(), digest.clone());
-    }
-    Ok(digest)
-}
+/// Cache identity and request fingerprint live with the cache that owns them;
+/// re-exported here because they are part of this crate's internal API.
+pub(crate) use cache::cache_identity;
+pub(crate) use cache::request_body;
+pub use cache::request_fingerprint;
 
 /// Analyses one scene and records its identities in the shared registry.
 /// Extractor refusals become a `rejected` scene rather than failing the script.
@@ -655,47 +583,6 @@ fn semantic_bullet_spans(
     Some(spans)
 }
 
-/// Canonical bytes of every input that can change a manifest. The in-memory
-/// fingerprint and the on-disk cache key both hash this one encoding, so the
-/// two cannot disagree about what "the same request" means.
-pub(crate) fn request_body(
-    request: &ScriptRequest,
-    analyzers: &semantic_core::AnalyzerVersions,
-) -> Vec<u8> {
-    serde_json::to_vec(&(
-        request.language.trim(),
-        &request.scenes,
-        &request.editorial,
-        request.entity_safety_cap,
-        &request.reference_date,
-        analyzers,
-    ))
-    .unwrap_or_default()
-}
-
-/// FNV-1a fingerprint over every input that can change a manifest, including
-/// optional editorial options and caller-supplied embeddings.
-///
-/// This is the wire-visible `manifest.fingerprint` and stays a 64-bit FNV value
-/// for contract compatibility; the persistent cache uses a wider SHA-256 key
-/// over the same [`request_body`] bytes (see [`cache::disk`]).
-pub fn request_fingerprint(
-    request: &ScriptRequest,
-    analyzers: &semantic_core::AnalyzerVersions,
-) -> String {
-    fnv1a_hex(&request_body(request, analyzers))
-}
-
-/// One FNV-1a 64 implementation for every manifest fingerprint.
-fn fnv1a_hex(body: &[u8]) -> String {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in body {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    format!("{hash:016x}")
-}
-
 #[path = "relations.rs"]
 mod relations;
 use relations::*;
@@ -707,52 +594,3 @@ use scene_content::*;
 /// Milano rispetto a quello di Roma" keeps a pronoun between cue and subject;
 /// a whole clause does not.
 const COMPARISON_CUE_GAP: usize = 4;
-
-#[cfg(test)]
-mod model_profile_tests {
-    use super::*;
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn temp_dir(label: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
-        let dir =
-            std::env::temp_dir().join(format!("brainrust-{label}-{}-{nanos}", std::process::id()));
-        fs::create_dir_all(&dir).expect("temp dir");
-        dir
-    }
-
-    #[test]
-    fn model_profile_detects_same_size_content_changes() {
-        let root = temp_dir("model-profile");
-        let first = root.join("first").join("model.udpipe");
-        let second = root.join("second").join("model.udpipe");
-        fs::create_dir_all(first.parent().expect("first parent")).expect("first dir");
-        fs::create_dir_all(second.parent().expect("second parent")).expect("second dir");
-        fs::write(&first, b"AAAA").expect("first model");
-        fs::write(&second, b"BBBB").expect("second model");
-
-        let first_profile = model_profile_for_path(&first);
-        let second_profile = model_profile_for_path(&second);
-        assert_eq!(
-            fs::metadata(&first).expect("first metadata").len(),
-            fs::metadata(&second).expect("second metadata").len()
-        );
-        assert_ne!(first_profile, second_profile);
-        assert_eq!(first_profile, model_profile_for_path(&first));
-        assert!(first_profile.starts_with("model.udpipe:"));
-
-        fs::remove_dir_all(root).expect("cleanup");
-    }
-
-    #[test]
-    fn missing_model_is_reported_as_unknown() {
-        let root = temp_dir("model-missing");
-        let path = root.join("absent.udpipe");
-        assert_eq!(model_profile_for_path(&path), "absent.udpipe:unknown");
-        fs::remove_dir_all(root).expect("cleanup");
-    }
-}

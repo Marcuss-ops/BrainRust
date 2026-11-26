@@ -19,7 +19,12 @@ pub(crate) fn split_long_overlay_text(item: &PlanItemV2) -> Option<Vec<PlanItemV
     }
     let mut kept_params = serde_json::Map::new();
     if let Some(params) = item.params.as_ref().and_then(Value::as_object) {
-        for key in ["editorial_role", "editorial_candidate", "priority"] {
+        for key in [
+            "editorial_role",
+            "editorial_candidate",
+            "priority",
+            "timing_anchor",
+        ] {
             if let Some(value) = params.get(key) {
                 kept_params.insert(key.to_string(), value.clone());
             }

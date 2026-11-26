@@ -23,8 +23,8 @@ use super::request::{
     MapCandidateV2, MediaV2, SceneV2, SealV2, TimedAnnotationV2,
 };
 use super::response::{
-    EditorialPlanV2Compiled, EntityRefV2, FinalPlanV2, IntakeBudgetV2, IntakeV2, PlanDecisionV2,
-    PlanItemV2,
+    CoverageV2, EditorialPlanV2Compiled, EntityRefV2, FinalPlanV2, IntakeBudgetV2, IntakeV2,
+    PhraseShortfallV2, PlanDecisionV2, PlanItemV2,
 };
 use super::EDITORIAL_PLAN_V2_SCHEMA_VERSION;
 
@@ -32,6 +32,7 @@ mod admission;
 mod candidates;
 mod coalesce;
 mod decisions;
+mod gap_pacing;
 mod map_groups;
 mod media;
 mod presentation;
@@ -41,6 +42,7 @@ use admission::*;
 use candidates::*;
 use coalesce::*;
 use decisions::*;
+use gap_pacing::*;
 use media::*;
 use presentation::*;
 
@@ -141,7 +143,7 @@ pub fn compile_plan(
     // which lane loses a full ceiling.
     candidates.extend(build_entity_card_candidates(request, &mut decisions)?);
     let intake = new_intake(&validated, &candidates);
-    let (mut items, mut intake) = admit(&validated, candidates, intake, &mut decisions);
+    let (mut items, mut intake, rejected) = admit(&validated, candidates, intake, &mut decisions);
     // A numeric card and a plain phrase can describe the same grounded surface
     // at the same instant. The numeric card owns it; remove the duplicate only
     // after admission, so a card that lost its slot does not remove the phrase
@@ -174,6 +176,18 @@ pub fn compile_plan(
         before_occlusion,
         items.len(),
     );
+    // Gap-aware pacing (ITCLOSE-05): primary admission is score-ordered, so
+    // copy clusters where the transcript is dense and leaves long deserts.
+    // The second pass promotes candidates that already carry certified word
+    // timing and fit inside an uncovered interval. It runs after every dedup
+    // and occlusion pass so a promoted card is not removed again, and before
+    // the layout phases so the sealed plan is measured, not a transient set.
+    let (paced_items, unpromoted, gap_promotions) =
+        close_gaps(request, items, rejected, &mut decisions);
+    items = paced_items;
+    if gap_promotions > 0 {
+        intake.gap_promoted += gap_promotions;
+    }
     assign_entity_media(request, &mut items)?;
     // The short-phrase entrance is decided before coalescing: a phrase that
     // already carries a lane motion is chainable on its own terms, and the
@@ -300,7 +314,28 @@ pub fn compile_plan(
     // was built as `entity_image` by `append_entity_cards` and passed the same
     // admission, coalescing and clipping as every other item.
     finalize_intake(&mut intake, &items);
-    let plan = seal(&validated, items, intake, recap.placements, decisions);
+    let coverage = measure_coverage(
+        request,
+        validated.budgets().phrase_overlays,
+        &items,
+        gap_promotions,
+    );
+    let phrase_shortfall = build_phrase_shortfall(
+        request,
+        validated.budgets().phrase_overlays,
+        &decisions,
+        &unpromoted,
+        &items,
+    );
+    let plan = seal(
+        &validated,
+        items,
+        intake,
+        recap.placements,
+        decisions,
+        coverage,
+        phrase_shortfall,
+    );
     let compiled = EditorialPlanV2Compiled {
         ok: true,
         schema_version: EDITORIAL_PLAN_V2_SCHEMA_VERSION.to_string(),
@@ -459,6 +494,8 @@ fn seal(
     intake: IntakeV2,
     recap_placements: i64,
     decisions: Vec<PlanDecisionV2>,
+    coverage: CoverageV2,
+    phrase_shortfall: PhraseShortfallV2,
 ) -> FinalPlanV2 {
     // Render keys are derived state, never planner input. The seal clears
     // them; Go recomputes a SHA-256 key from the finished document.
@@ -501,6 +538,8 @@ fn seal(
         intake,
         decisions,
         output_profile_id: seal.output_profile_id.clone(),
+        coverage: Some(coverage),
+        phrase_shortfall: Some(phrase_shortfall),
     }
 }
 

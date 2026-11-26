@@ -37,6 +37,10 @@ pub(super) const REASON_CLIPPED_OUT: &str = "CLIPPED_OUT";
 pub(super) const REASON_OCCLUDED_BY_ENTITY_CARD: &str = "OCCLUDED_BY_ENTITY_CARD";
 /// A phrase duplicates a named entity or organization card in the same window.
 pub(super) const REASON_DUPLICATE_NAMED_PHRASE: &str = "DUPLICATE_NAMED_PHRASE";
+/// The candidate carried no certified word-timing anchor, so the gap pass may
+/// not promote it into an uncovered interval: it would place copy at a guessed
+/// instant. The phrase lane reports this as `unanchored_in_transcript`.
+pub(super) const REASON_UNANCHORED_IN_TRANSCRIPT: &str = "UNANCHORED_IN_TRANSCRIPT";
 
 /// Records one dropped plan item. The identity fields are copied so the
 /// decision can be joined to the entity timeline without the item.
@@ -48,6 +52,8 @@ pub(super) fn push_decision(
 ) {
     decisions.push(PlanDecisionV2 {
         candidate_id: item.id.clone(),
+        kind: item.kind.clone(),
+        start_us: item.start_us,
         scene_id: item.scene_id.clone(),
         entity_id: item.entity_id.clone(),
         canonical_entity_id: item
@@ -72,6 +78,8 @@ pub(super) fn push_entity_decision(
 ) {
     decisions.push(PlanDecisionV2 {
         candidate_id: candidate_id.to_string(),
+        kind: String::new(),
+        start_us: 0,
         scene_id: scene_id.to_string(),
         entity_id: entity.entity_id.trim().to_string(),
         canonical_entity_id: entity.canonical_entity_id.trim().to_string(),

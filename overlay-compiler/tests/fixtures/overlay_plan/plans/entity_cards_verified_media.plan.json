@@ -24,7 +24,8 @@
         "template_id": "IMPORTANT_WORD",
         "text": "museo",
         "params": {
-          "priority": 0.6
+          "priority": 0.6,
+          "timing_anchor": "word_timing"
         }
       },
       {
@@ -173,6 +174,41 @@
         "organization": 1
       }
     },
-    "output_profile_id": "assemblyready.alpha.v1"
+    "output_profile_id": "assemblyready.alpha.v1",
+    "coverage": {
+      "plan_us": 6000000,
+      "covered_us": 5100000,
+      "coverage_percent": 85.0,
+      "target_percent": 25.0,
+      "max_gap_us": 400000,
+      "threshold_us": 25000000,
+      "gaps_over_threshold": 0,
+      "gaps": [
+        {
+          "start_us": 2500000,
+          "end_us": 2900000,
+          "duration_us": 400000
+        },
+        {
+          "start_us": 5700000,
+          "end_us": 6000000,
+          "duration_us": 300000
+        },
+        {
+          "start_us": 3000000,
+          "end_us": 3200000,
+          "duration_us": 200000
+        }
+      ],
+      "phrase_target": 8,
+      "phrase_materialized": 0,
+      "phrase_per_minute": 0.0,
+      "gap_promotions": 0
+    },
+    "phrase_shortfall": {
+      "requested": 8,
+      "materialized": 0,
+      "dropped": 0
+    }
   }
 }
