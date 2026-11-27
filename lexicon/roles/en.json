@@ -1,6 +1,7 @@
 {
   "schema": "role_lexicon.v1",
   "language": "en",
+  "attach_markers": [" is ", " was ", " as ", " became ", " of "],
   "roles": [
     {
       "role_code": "chief_executive",

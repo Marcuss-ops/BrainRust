@@ -53,6 +53,11 @@ pub(crate) fn resolve(
         }) else {
             continue;
         };
+        let Some(sentence_index) = sentences.iter().position(|candidate| {
+            candidate.start_byte == sentence.start_byte && candidate.end_byte == sentence.end_byte
+        }) else {
+            continue;
+        };
         let sentence_tokens: Vec<&AnalyzedToken> = tokens
             .iter()
             .filter(|token| token.start >= sentence.start_byte && token.end <= sentence.end_byte)
@@ -81,13 +86,26 @@ pub(crate) fn resolve(
             })
             .map(|(index, _)| index)
             .collect();
-        let entity_index = subject_for(
+        let entity_index = match subject_for(
             &sentence_tokens,
             entities,
             &sentence_entities,
             unit_head,
             &predicate,
-        );
+        ) {
+            SubjectResolution::One(index) => Some(index),
+            // A plural or coordinated subject is an ambiguity, never an
+            // invitation to inherit the previous sentence's person.
+            SubjectResolution::Ambiguous => None,
+            SubjectResolution::Absent => preceding_sentence_subject(
+                sentences,
+                sentence_index,
+                &sentence_tokens,
+                entities,
+                unit_head,
+                &predicate,
+            ),
+        };
         let Some(entity_index) = entity_index else {
             continue;
         };
@@ -211,26 +229,39 @@ fn numeric_token<'a>(
         })
 }
 
+/// Why a sentence has (or has not) a subject for one predicate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SubjectResolution {
+    One(usize),
+    /// The sentence names no subject at all (pronoun or elided subject); a
+    /// single previous sentence may still own the predicate.
+    Absent,
+    /// Plural, coordinated or competing subjects: binding would be a guess.
+    Ambiguous,
+}
+
 /// The subject the dependency graph attributes the predicate to.
 ///
 /// Order matters: a measure attached directly to a person ("Luca 175 cm")
 /// wins over the predicate's subject, otherwise the predicate's own subject is
 /// used, then a relative-clause head, then the unique person in the predicate
-/// subtree, and finally the unique person in the sentence.
+/// subtree, and finally the unique person in the sentence. When the sentence
+/// names no subject at all the caller may look one sentence back; every
+/// ambiguous shape stays unresolved.
 fn subject_for(
     tokens: &[&AnalyzedToken],
     entities: &[VisualEntity],
     sentence_entities: &[usize],
     unit_head: &AnalyzedToken,
     predicate: &PredicateHit<'_>,
-) -> Option<usize> {
+) -> SubjectResolution {
     if predicate
         .token
         .features
         .as_deref()
         .is_some_and(|features| features.contains("Number=Plur"))
     {
-        return None;
+        return SubjectResolution::Ambiguous;
     }
     if let Some(index) = local_owner(
         tokens,
@@ -239,7 +270,7 @@ fn subject_for(
         unit_head,
         &predicate.subject_kinds,
     ) {
-        return Some(index);
+        return SubjectResolution::One(index);
     }
     let mut subjects: Vec<usize> = Vec::new();
     for child in children(tokens, predicate.token) {
@@ -275,17 +306,17 @@ fn subject_for(
                     .is_some()
             })
         {
-            return None;
+            return SubjectResolution::Ambiguous;
         }
         if !subjects.contains(&index) {
             subjects.push(index);
         }
     }
     if subjects.len() == 1 {
-        return subjects.first().copied();
+        return SubjectResolution::One(subjects[0]);
     }
     if subjects.len() > 1 {
-        return None;
+        return SubjectResolution::Ambiguous;
     }
     if predicate
         .token
@@ -297,7 +328,7 @@ fn subject_for(
             if let Some(index) =
                 entity_for_token(entities, sentence_entities, head, &predicate.subject_kinds)
             {
-                return Some(index);
+                return SubjectResolution::One(index);
             }
         }
     }
@@ -308,14 +339,110 @@ fn subject_for(
         predicate.token,
         &predicate.subject_kinds,
     ) {
-        return Some(index);
+        return SubjectResolution::One(index);
     }
-    let candidates: Vec<usize> = sentence_entities
+    match sentence_entities
         .iter()
         .copied()
         .filter(|index| entities[*index].kind_in(&predicate.subject_kinds))
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [index] => SubjectResolution::One(*index),
+        [] => SubjectResolution::Absent,
+        _ => SubjectResolution::Ambiguous,
+    }
+}
+
+/// Resolves a pronoun or elided subject to the unique person of the
+/// immediately preceding sentence in the same scene.
+///
+/// This is deliberately narrower than full coreference: it never crosses a
+/// scene boundary, never looks more than one sentence back, never overrides an
+/// ambiguity in the current sentence, and refuses when the current sentence
+/// names any non-numeric entity (an organisation can be the grammatical
+/// subject of "pesa").
+fn preceding_sentence_subject(
+    sentences: &[SentenceSpan],
+    sentence_index: usize,
+    sentence_tokens: &[&AnalyzedToken],
+    entities: &[VisualEntity],
+    unit_head: &AnalyzedToken,
+    predicate: &PredicateHit<'_>,
+) -> Option<usize> {
+    let current = sentences.get(sentence_index)?;
+    let previous = sentences.get(sentence_index.checked_sub(1)?)?;
+    // No named owner may be present in this sentence. Numeric and temporal
+    // mentions are the measured value itself, and a token inside the measure
+    // phrase ("Zentimeter" is tagged VISUAL_CONCEPT by the German model) is
+    // the unit, never a competing subject.
+    if entities.iter().any(|entity| {
+        entity.start >= current.start_byte
+            && entity.end <= current.end_byte
+            && !is_value_surface_kind(&entity.r#type)
+            && !(entity.start < unit_head.end && unit_head.start < entity.end)
+    }) {
+        return None;
+    }
+    if !subject_is_pronominal_or_elided(sentence_tokens, unit_head, predicate) {
+        return None;
+    }
+    let candidates: Vec<usize> = entities
+        .iter()
+        .enumerate()
+        .filter(|(_, entity)| {
+            entity.start >= previous.start_byte
+                && entity.end <= previous.end_byte
+                && entity.kind_in(&predicate.subject_kinds)
+        })
+        .map(|(index, _)| index)
         .collect();
-    (candidates.len() == 1).then(|| candidates[0])
+    match candidates.as_slice() {
+        [index] => Some(*index),
+        _ => None,
+    }
+}
+
+/// Entity types that are a value or a date, not a possible subject.
+fn is_value_surface_kind(kind: &str) -> bool {
+    matches!(
+        kind.to_ascii_uppercase().as_str(),
+        "NUMBER"
+            | "NUM"
+            | "CARDINAL"
+            | "ORDINAL"
+            | "MEASUREMENT"
+            | "MONEY"
+            | "PERCENT"
+            | "PERCENTAGE"
+            | "DATE"
+            | "TIME"
+            | "DURATION"
+    )
+}
+
+/// True when the predicate's `nsubj` is a pronoun, a measure noun (which the
+/// parser promotes to subject in "188 cm") or absent, i.e. the sentence does
+/// not name its own subject.
+fn subject_is_pronominal_or_elided(
+    sentence_tokens: &[&AnalyzedToken],
+    unit_head: &AnalyzedToken,
+    predicate: &PredicateHit<'_>,
+) -> bool {
+    let subjects: Vec<&AnalyzedToken> = children(sentence_tokens, predicate.token)
+        .into_iter()
+        .filter(|child| {
+            child
+                .dependency
+                .as_deref()
+                .is_some_and(|dependency| dependency.starts_with("nsubj"))
+        })
+        .collect();
+    subjects.iter().all(|child| {
+        child.upos.as_deref() == Some("PRON")
+            || child.id.is_some() && child.id == unit_head.id
+            || child.start < unit_head.end && unit_head.start < child.end
+    })
 }
 
 /// A person the measure noun is directly attached to: `Luca 175 cm` (nmod) or

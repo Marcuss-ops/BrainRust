@@ -340,15 +340,14 @@ pub(super) fn series_subject(
             subjects.push(id);
         }
     }
-    let _ = language;
     match subjects.len() {
-        0 => syntactic_subject(bullet, tokens),
+        0 => syntactic_subject(bullet, tokens, language),
         1 => {
             let id = subjects.remove(0);
             // A coordinated second name ("Rick Ross ed Eminem") may fall
             // outside the entity type (VISUAL_CONCEPT), but the value still
             // belongs to two subjects; the syntax alone sees it.
-            match syntactic_subject(bullet, tokens) {
+            match syntactic_subject(bullet, tokens, language) {
                 SeriesSubject::Ambiguous => SeriesSubject::Ambiguous,
                 _ => SeriesSubject::One(id),
             }
@@ -360,7 +359,7 @@ pub(super) fn series_subject(
 /// Fallback for a proper name the named-entity pass missed ("Eminem"): the UD
 /// `nsubj` of the sentence is still a subject, and two different surfaces must
 /// not become one series. Pronouns and elided subjects continue a chain.
-fn syntactic_subject(bullet: &Bullet, tokens: &[AnalyzedToken]) -> SeriesSubject {
+fn syntactic_subject(bullet: &Bullet, tokens: &[AnalyzedToken], language: &str) -> SeriesSubject {
     let local: Vec<&AnalyzedToken> = tokens
         .iter()
         .filter(|token| token.start >= bullet.start && token.end <= bullet.end)
@@ -379,7 +378,7 @@ fn syntactic_subject(bullet: &Bullet, tokens: &[AnalyzedToken]) -> SeriesSubject
         // (`Eminem`), not PROPN, and does not always attach it as `nsubj`. A
         // capitalized lemma still marks a named subject, so a change of name
         // breaks the chain instead of inheriting the previous subject.
-        return named_subject(&local);
+        return named_subject(&local, language);
     }
     if subjects.len() > 1 {
         return SeriesSubject::Ambiguous;
@@ -403,7 +402,7 @@ fn syntactic_subject(bullet: &Bullet, tokens: &[AnalyzedToken]) -> SeriesSubject
     // merge by accident.
     let subtree = subtree_tokens(&local, head.id);
     if head.upos.as_deref() == Some("NOUN") {
-        if let Some(named) = named_surface(&subtree) {
+        if let Some(named) = named_surface(&subtree, language) {
             return named;
         }
     }
@@ -416,7 +415,11 @@ fn syntactic_subject(bullet: &Bullet, tokens: &[AnalyzedToken]) -> SeriesSubject
                 if part_ids.contains(&Some(token_head))
                     && matches!(
                         token.dependency.as_deref(),
-                        Some("flat") | Some("compound") | Some("fixed") | Some("appos")
+                        Some("flat")
+                            | Some("flat:name")
+                            | Some("compound")
+                            | Some("fixed")
+                            | Some("appos")
                     )
                 {
                     part_ids.insert(Some(id));
@@ -468,11 +471,11 @@ pub(super) fn same_series_subject(
 /// Groups the named tokens of a sentence by their own head (name parts are
 /// `flat`/`compound`), so `Rick Ross` is one subject and `Rick Ross ed Eminem`
 /// is two. Zero groups is an elided subject; two or more are ambiguous.
-fn named_subject(local: &[&AnalyzedToken]) -> SeriesSubject {
-    named_surface(local).unwrap_or(SeriesSubject::Unnamed)
+fn named_subject(local: &[&AnalyzedToken], language: &str) -> SeriesSubject {
+    named_surface(local, language).unwrap_or(SeriesSubject::Unnamed)
 }
 
-fn named_surface(local: &[&AnalyzedToken]) -> Option<SeriesSubject> {
+fn named_surface(local: &[&AnalyzedToken], language: &str) -> Option<SeriesSubject> {
     let is_named = |token: &&AnalyzedToken| {
         token.upos.as_deref() == Some("PROPN")
             || (token.upos.as_deref() == Some("NOUN")
@@ -481,6 +484,17 @@ fn named_surface(local: &[&AnalyzedToken]) -> Option<SeriesSubject> {
                     .as_deref()
                     .and_then(|lemma| lemma.chars().next())
                     .is_some_and(char::is_uppercase))
+            // A capitalized PRON the language inventory does not own is a
+            // mislabelled proper name (the Russian model tags `Эминем` as
+            // PRON). A real pronoun stays an elided subject. One inventory,
+            // shared with the discourse resolver.
+            || (token.upos.as_deref() == Some("PRON")
+                && token
+                    .text
+                    .chars()
+                    .next()
+                    .is_some_and(char::is_uppercase)
+                && !crate::discourse::is_known_pronoun(language, &token.text))
     };
     let named: Vec<&AnalyzedToken> = local.iter().copied().filter(is_named).collect();
     if named.is_empty() {
@@ -490,7 +504,7 @@ fn named_surface(local: &[&AnalyzedToken]) -> Option<SeriesSubject> {
     for token in &named {
         let part_of_name = matches!(
             token.dependency.as_deref(),
-            Some("flat") | Some("compound") | Some("fixed") | Some("appos")
+            Some("flat") | Some("flat:name") | Some("compound") | Some("fixed") | Some("appos")
         );
         if part_of_name {
             if let Some(group) = groups.iter_mut().find(|group| {

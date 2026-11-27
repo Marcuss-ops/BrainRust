@@ -12,6 +12,12 @@ mod threads;
 use semantic_core::narrative::{DiscourseCounts, DiscourseProjection, DISCOURSE_SCHEMA};
 use semantic_core::{SceneInput, SceneManifest};
 
+/// Shared pronoun lookup for other conservative resolvers (for example the
+/// chart series subject). One inventory, one owner.
+pub(crate) fn is_known_pronoun(language: &str, surface: &str) -> bool {
+    references::is_known_pronoun(language, surface)
+}
+
 /// Builds the additive `discourse.v1` projection for one analysed script.
 pub fn build(
     language: &str,

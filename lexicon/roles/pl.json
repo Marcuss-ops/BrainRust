@@ -1,6 +1,7 @@
 {
   "schema": "role_lexicon.v1",
   "language": "pl",
+  "attach_markers": [" jest ", " był ", " jako ", " to "],
   "roles": [
     {
       "role_code": "chief_executive",
@@ -473,6 +474,12 @@
           "gender": "feminine",
           "number": "singular",
           "case": "nominative"
+        },
+        {
+          "text": "lekarzem",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "instrumental"
         }
       ]
     },

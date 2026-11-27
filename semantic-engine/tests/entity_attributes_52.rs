@@ -251,6 +251,8 @@ fn the_same_ud_binding_works_in_every_supported_language() {
         ("de", "Marco Rossi ist 188 Zentimeter groß."),
         ("fr", "Marco Rossi mesure 188 centimètres."),
         ("es", "Marco Rossi mide 188 centímetros."),
+        ("pt", "Marco Rossi mede 188 centímetros."),
+        ("nl", "Marco Rossi is 188 centimeter lang."),
         ("pl", "Marco Rossi ma 188 centymetrów wzrostu."),
         ("ru", "Рост Марко Росси составляет 188 сантиметров."),
         ("tr", "Marco Rossi 188 santimetre boyunda."),
@@ -265,4 +267,127 @@ fn the_same_ud_binding_works_in_every_supported_language() {
             .unwrap_or_else(|| panic!("{language}: no height card for {source}: {lists:?}"));
         assert_eq!(height["value"], "188", "{language}");
     }
+}
+
+/// The same canonical height, resolved across languages even when the value
+/// lives in a second sentence whose subject is a pronoun (`en`, `de`, `fr`,
+/// `nl`) or elided (`it`, `es`, `pt`). No per-language extractor participates:
+/// UDPipe's `nsubj` and the grounded person are the only inputs.
+#[test]
+fn a_pronoun_or_elided_subject_binds_to_the_unique_prior_person() {
+    let cases = [
+        (
+            "it",
+            "Andrea Semprio ha 45 anni. È alto 188 centimetri e pesa 79 chilogrammi.",
+        ),
+        (
+            "en",
+            "Andrea Semprio is 45 years old. He is 188 centimeters tall.",
+        ),
+        (
+            "de",
+            "Andrea Semprio ist 45 Jahre alt. Er ist 188 Zentimeter groß.",
+        ),
+        ("fr", "Andrea Semprio a 45 ans. Il mesure 188 centimètres."),
+        ("es", "Andrea Semprio tiene 45 años. Mide 188 centímetros."),
+        (
+            "pt",
+            "Andrea Semprio tem 45 anos. Ele mede 188 centímetros.",
+        ),
+        (
+            "nl",
+            "Andrea Semprio is 45 jaar oud. Hij is 188 centimeter lang.",
+        ),
+    ];
+    for (language, source) in cases {
+        let scene = scene_manifest(language, source);
+        let lists = lists(&scene);
+        assert_eq!(
+            lists.len(),
+            1,
+            "{language}: the pronoun must not create its own subject: {lists:?}"
+        );
+        let list = &lists[0];
+        assert_eq!(list["label"], "Andrea Semprio", "{language}: {list}");
+        let height = attribute(list, "height")
+            .unwrap_or_else(|| panic!("{language}: missing height: {lists:?}"));
+        assert_eq!(height["value"], "188", "{language}");
+        // The antecedent sentence is not the evidence: the claim is the
+        // second sentence, and its offset must still slice the source.
+        let evidence = height["evidence"].as_str().unwrap();
+        assert!(
+            !evidence.contains("45 anni") && !evidence.contains("45 years"),
+            "{language}: evidence must be the claiming sentence: {evidence}"
+        );
+        let start = height["start_byte"].as_u64().unwrap() as usize;
+        let end = height["end_byte"].as_u64().unwrap() as usize;
+        assert_eq!(&source[start..end], "188", "{language}");
+    }
+}
+
+#[test]
+fn a_pronoun_never_inherits_an_ambiguous_antecedent() {
+    for source in [
+        "Andrea Semprio e Marco Rossi hanno 45 anni. È alto 188 centimetri.",
+        "Andrea Semprio e Marco Rossi hanno 45 anni. Lui pesa 79 chilogrammi.",
+    ] {
+        let scene = scene_manifest("it", source);
+        // The coordinated age sentence keeps its own age fact; what must not
+        // happen is a height/weight inherited from two candidates.
+        for list in lists(&scene) {
+            assert!(
+                attribute(&list, "height").is_none(),
+                "{source}: ambiguous height: {list}"
+            );
+            assert!(
+                attribute(&list, "weight").is_none(),
+                "{source}: ambiguous weight: {list}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_named_nominal_subject_never_inherits_the_previous_person() {
+    let source = "Andrea Semprio ha 45 anni. La società pesa 80 kg.";
+    let scene = scene_manifest("it", source);
+    for list in lists(&scene) {
+        assert!(
+            attribute(&list, "weight").is_none(),
+            "{source}: an organisation subject must not become the person: {list}"
+        );
+    }
+}
+
+#[test]
+fn an_antecedent_is_never_taken_from_another_scene() {
+    let manifest = manifest_value_for(
+        "it",
+        vec![
+            scene("one", "Andrea Semprio ha 45 anni."),
+            scene("two", "È alto 188 centimetri."),
+        ],
+    );
+    for scene in manifest["scenes"].as_array().unwrap() {
+        if scene["scene_id"] == "two" {
+            assert!(
+                lists(scene).is_empty(),
+                "a scene boundary must stop the antecedent: {scene}"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_antecedent_found_in_the_previous_sentence_keeps_its_own_grounding() {
+    let source = "Andrea Semprio ha 45 anni. È alto 188 centimetri.";
+    let scene = scene_manifest("it", source);
+    let list = &lists(&scene)[0];
+    assert_eq!(list["label"], "Andrea Semprio");
+    // The card spans both evidence sentences, but each attribute keeps the
+    // sentence it was actually stated in.
+    let age = attribute(list, "age").expect("age");
+    let height = attribute(list, "height").expect("height");
+    assert_ne!(age["sentence_index"], height["sentence_index"]);
+    assert_eq!(height["status"], "asserted");
 }

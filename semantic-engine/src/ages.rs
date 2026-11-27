@@ -164,19 +164,21 @@ fn has_age_marker(text: &str, start: usize, end: usize, language: &str) -> bool 
     let before = text.get(..start).unwrap_or("").to_lowercase();
     let after = text.get(end..).unwrap_or("").to_lowercase();
     let number_phrase = text.get(start..end).unwrap_or("").to_lowercase();
+    // Only age-specific phrases are accepted before the number. A bare
+    // preposition (`de 80`, `mit 80`, `con 80`) also matches ordinary
+    // measured values — the Portuguese `é de 80 kg` produced an age of 80 — so
+    // a digit needs its age unit after the number, and a spelled number is
+    // handled by `embedded_age_unit`.
     let before_markers: &[&str] = match language {
         "en" => &["aged ", "age "],
-        // A bare `di N` / `a N` also matches ordinary counts (`due filoni`,
-        // `cinque consulenze`). Require an age unit after the number or an
-        // explicitly age-specific phrase before it.
         "it" => &["all'età di ", "all’eta di "],
-        "es" => &["de ", "con "],
-        "fr" => &["de ", "âgé de ", "age de "],
-        "de" => &["im alter von ", "mit "],
-        "pt" => &["de ", "com "],
-        "nl" => &["van ", "op "],
-        "pl" => &["w wieku ", "ma "],
-        "ru" => &["в возрасте ", "лет "],
+        "es" => &[],
+        "fr" => &["âgé de ", "age de "],
+        "de" => &["im alter von "],
+        "pt" => &[],
+        "nl" => &[],
+        "pl" => &["w wieku "],
+        "ru" => &["в возрасте "],
         "tr" => &["yaşında ", "yasinda "],
         "id" => &["berusia ", "umur "],
         _ => &[],

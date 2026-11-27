@@ -1580,7 +1580,8 @@
         {
           "surfaces": [
             "kg",
-            "kilogram"
+            "kilogram",
+            "kilo"
           ],
           "dimension": "mass",
           "code": "kg",
@@ -1874,7 +1875,12 @@
           "surfaces": [
             "kg",
             "kilogram",
-            "kilogramy"
+            "kilograma",
+            "kilogramy",
+            "kilogramów",
+            "kilogramowi",
+            "kilogramem",
+            "kilogramie"
           ],
           "dimension": "mass",
           "code": "kg",
@@ -2170,6 +2176,8 @@
         {
           "surfaces": [
             "kg",
+            "quilo",
+            "quilos",
             "quilograma",
             "quilogramas"
           ],
@@ -2469,7 +2477,12 @@
           "surfaces": [
             "кг",
             "килограмм",
-            "килограмма"
+            "килограмма",
+            "килограммов",
+            "килограммы",
+            "килограмму",
+            "килограммом",
+            "килограмме"
           ],
           "dimension": "mass",
           "code": "kg",
@@ -2757,7 +2770,8 @@
         {
           "surfaces": [
             "kg",
-            "kilogram"
+            "kilogram",
+            "kilo"
           ],
           "dimension": "mass",
           "code": "kg",
@@ -3038,7 +3052,8 @@
         {
           "surfaces": [
             "kg",
-            "kilogram"
+            "kilogram",
+            "kilo"
           ],
           "dimension": "mass",
           "code": "kg",

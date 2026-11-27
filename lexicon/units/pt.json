@@ -83,6 +83,8 @@
     {
       "surfaces": [
         "kg",
+        "quilo",
+        "quilos",
         "quilograma",
         "quilogramas"
       ],

@@ -45,6 +45,12 @@
     "es": ["no", "nunca", "sin", "nada", "niega"],
     "fr": ["ne", "pas", "jamais", "sans", "nie"],
     "de": ["nicht", "nie", "ohne", "kein", "bestreitet"],
+    "pt": ["não", "nunca", "sem", "nem", "nega"],
+    "nl": ["niet", "nooit", "zonder", "geen", "ontkent"],
+    "pl": ["nie", "nigdy", "bez", "żaden", "zaprzecza"],
+    "ru": ["не", "никогда", "без", "нет", "отрицает"],
+    "tr": ["değil", "asla", "hiç", "yok", "olmadan", "inkâr"],
+    "id": ["tidak", "bukan", "tak", "tanpa", "belum", "menyangkal"],
     "default": ["not", "never", "no", "without"]
   }
 }

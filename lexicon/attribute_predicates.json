@@ -44,7 +44,7 @@
         "nl": ["wegen", "gewicht"],
         "pl": ["ważyć", "waga"],
         "ru": ["весить", "вес"],
-        "tr": ["tartmak", "ağırlık"],
+        "tr": ["tartmak", "tart", "ağırlık", "ağırlığ"],
         "id": ["menimbang", "berat"]
       }
     }

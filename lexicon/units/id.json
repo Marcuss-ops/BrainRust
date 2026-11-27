@@ -72,7 +72,8 @@
     {
       "surfaces": [
         "kg",
-        "kilogram"
+        "kilogram",
+        "kilo"
       ],
       "dimension": "mass",
       "code": "kg",

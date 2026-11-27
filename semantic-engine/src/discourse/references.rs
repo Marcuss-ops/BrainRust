@@ -79,9 +79,11 @@ struct RoleSurface {
     gender: String,
 }
 
-fn pronoun_gender(language: &str, surface: &str) -> String {
+/// The shared pronoun inventory, parsed once. Other modules use the same map
+/// to tell a real pronoun from a proper name the tagger mislabelled as one.
+fn pronoun_inventories() -> &'static BTreeMap<(String, String), String> {
     static INVENTORIES: OnceLock<BTreeMap<(String, String), String>> = OnceLock::new();
-    let inventories = INVENTORIES.get_or_init(|| {
+    INVENTORIES.get_or_init(|| {
         let sources = [
             (
                 "de",
@@ -149,11 +151,21 @@ fn pronoun_gender(language: &str, surface: &str) -> String {
             }
         }
         output
-    });
-    inventories
+    })
+}
+
+fn pronoun_gender(language: &str, surface: &str) -> String {
+    pronoun_inventories()
         .get(&(language.to_string(), surface.to_lowercase()))
         .cloned()
         .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// True when the language inventory owns this surface as a pronoun. A
+/// capitalized `PRON` outside the inventory is a mislabelled name, not an
+/// elided subject.
+pub(super) fn is_known_pronoun(language: &str, surface: &str) -> bool {
+    pronoun_inventories().contains_key(&(language.to_string(), surface.to_lowercase()))
 }
 
 fn reference_inventory(language: &str) -> Option<&'static LanguageReferenceTerms> {

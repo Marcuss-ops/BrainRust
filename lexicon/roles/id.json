@@ -1,6 +1,7 @@
 {
   "schema": "role_lexicon.v1",
   "language": "id",
+  "attach_markers": [" adalah ", " sebagai ", " merupakan "],
   "roles": [
     {
       "role_code": "chief_executive",

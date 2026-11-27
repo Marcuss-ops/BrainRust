@@ -23,6 +23,12 @@ const TR: &str = include_str!("../../lexicon/roles/tr.json");
 #[derive(Debug, Deserialize)]
 struct RoleFile {
     language: String,
+    /// Data-only copular/appositive connectors between a person and a role
+    /// surface (` is `, ` est `, ` jest `, ` adalah `, ...). They live in the
+    /// language pack instead of a Rust list so a new language is data, and an
+    /// unknown language degrades to punctuation-only attachment.
+    #[serde(default)]
+    attach_markers: Vec<String>,
     roles: Vec<RoleEntry>,
     tense_markers: TenseMarkers,
 }
@@ -106,6 +112,7 @@ pub fn extract(
                             entities[person_index].end,
                             start,
                             end,
+                            &file.attach_markers,
                         )
                     {
                         continue;
@@ -259,6 +266,7 @@ fn attached(
     person_end: usize,
     role_start: usize,
     role_end: usize,
+    markers: &[String],
 ) -> bool {
     let (left, right) = if person_end <= role_start {
         (person_end, role_start)
@@ -271,15 +279,17 @@ fn attached(
         return false;
     };
     let trimmed = gap.trim();
-    trimmed.is_empty()
+    if trimmed.is_empty()
         || trimmed
             .chars()
             .any(|ch| matches!(ch, ',' | ':' | '—' | '–' | '-'))
-        || [
-            " is ", " was ", " è ", " era ", " fu ", " e' ", " di ", " of ",
-        ]
+    {
+        return true;
+    }
+    let haystack = format!(" {trimmed} ").to_lowercase();
+    markers
         .iter()
-        .any(|marker| format!(" {trimmed} ").to_lowercase().contains(marker))
+        .any(|marker| haystack.contains(&marker.to_lowercase()))
 }
 
 fn infer_tense(sentence: &str, markers: &TenseMarkers) -> RoleTense {

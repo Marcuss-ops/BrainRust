@@ -1,6 +1,7 @@
 {
   "schema": "role_lexicon.v1",
   "language": "ru",
+  "attach_markers": [" является ", " был ", " как ", " работает "],
   "roles": [
     {
       "role_code": "chief_executive",
@@ -467,6 +468,12 @@
           "gender": "unknown",
           "number": "singular",
           "case": "nominative"
+        },
+        {
+          "text": "врачом",
+          "gender": "masculine",
+          "number": "singular",
+          "case": "instrumental"
         }
       ]
     },

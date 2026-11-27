@@ -1,6 +1,7 @@
 {
   "schema": "role_lexicon.v1",
   "language": "tr",
+  "attach_markers": [" olarak ", " dır ", " dir ", " idi ", " bir "],
   "roles": [
     {
       "role_code": "chief_executive",

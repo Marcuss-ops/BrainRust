@@ -1,6 +1,7 @@
 {
   "schema": "role_lexicon.v1",
   "language": "nl",
+  "attach_markers": [" is ", " was ", " als "],
   "roles": [
     {
       "role_code": "chief_executive",

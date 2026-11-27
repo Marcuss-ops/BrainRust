@@ -89,7 +89,12 @@
       "surfaces": [
         "kg",
         "kilogram",
-        "kilogramy"
+        "kilograma",
+        "kilogramy",
+        "kilogramów",
+        "kilogramowi",
+        "kilogramem",
+        "kilogramie"
       ],
       "dimension": "mass",
       "code": "kg",
