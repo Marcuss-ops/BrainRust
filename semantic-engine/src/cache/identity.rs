@@ -5,7 +5,10 @@
 //! the build hash (sources, manifests and git commit) and the ICU major, so a
 //! behaviour change without a label bump cannot serve a stale manifest. Model
 //! identity (file name and SHA-256 content digest) is per language, so a
-//! degraded worker and a worker with UDPipe models keep separate entries.
+//! degraded worker and a worker with UDPipe models keep separate entries. The
+//! GLiNER mode/model/thresholds and the effective `SEMANTIC_LEXICON_DIR`
+//! override are included too: both change the extracted entities without
+//! changing the build or the language's UDPipe model.
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -14,14 +17,17 @@ use std::sync::{Mutex, OnceLock};
 
 use sha2::{Digest, Sha256};
 
-/// Identity of the compiled pipeline for the persistent cache key.
+/// Identity of the running pipeline for the persistent cache key.
 pub(crate) fn cache_identity(language: &str) -> String {
     format!(
-        "build={};content={};icu={};model={}",
+        "build={};content={};icu={};model={};ner={};lexicon_override={}",
         env!("SEMANTIC_CACHE_BUILD_ID"),
         semantic_core::content_fingerprint::embedded_content_fingerprint(),
         option_env!("RUST_ICU_MAJOR_VERSION_NUMBER").unwrap_or("unknown"),
         model_profile(language),
+        visualner::ner_cache_identity(),
+        semantic_core::lexicon::override_content_fingerprint()
+            .unwrap_or_else(|| "none".to_string()),
     )
 }
 
@@ -94,6 +100,15 @@ mod tests {
             std::env::temp_dir().join(format!("brainrust-{label}-{}-{nanos}", std::process::id()));
         fs::create_dir_all(&dir).expect("temp dir");
         dir
+    }
+
+    #[test]
+    fn cache_identity_covers_ner_and_lexicon_override() {
+        let identity = cache_identity("it");
+        assert!(identity.contains("model="), "{identity}");
+        assert!(identity.contains("ner=mode="), "{identity}");
+        assert!(identity.contains("lexicon_override="), "{identity}");
+        assert_eq!(identity, cache_identity("it"));
     }
 
     #[test]

@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Marcuss-ops/BrainRust/contract/semantic-manifest.v4/manifest.schema.json",
+  "title": "semantic_manifest.v4 (normalized identity table)",
+  "description": "Normalized delta over semantic_manifest.v3: one document-level identity table plus per-scene identity_ids references. Fields outside this delta keep the v3 contract and are validated by the Rust types.",
+  "type": "object",
+  "required": ["schema_version", "language", "fingerprint", "analyzers", "identities", "scenes"],
+  "properties": {
+    "schema_version": {
+      "const": "semantic_manifest.v4"
+    },
+    "language": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fingerprint": {
+      "type": "string",
+      "minLength": 1
+    },
+    "analyzers": {
+      "type": "object"
+    },
+    "identities": {
+      "type": "array",
+      "description": "The whole document registry, once, in first-registration order.",
+      "items": {
+        "$ref": "#/definitions/identity"
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/scene"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "identity": {
+      "type": "object",
+      "required": ["id", "canonical_surface", "type", "mentions"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_id": {
+          "type": "string"
+        },
+        "canonical_surface": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mentions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/mention"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "mention": {
+      "type": "object",
+      "required": ["scene_id", "surface", "start_byte", "end_byte"],
+      "properties": {
+        "scene_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "surface": {
+          "type": "string"
+        },
+        "start_byte": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_byte": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "scene": {
+      "type": "object",
+      "required": ["scene_id", "status", "identity_ids"],
+      "properties": {
+        "scene_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string"
+        },
+        "identity_ids": {
+          "type": "array",
+          "description": "Ids of the document-table identities whose mentions include this scene, in table order.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "identities": {
+          "description": "v4 must not carry the cumulative v3 copy in a scene.",
+          "not": {}
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

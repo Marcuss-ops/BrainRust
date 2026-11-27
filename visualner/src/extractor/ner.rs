@@ -6,7 +6,8 @@
 
 use super::values::Candidate;
 use gliner25_rs::{BoundaryConfig, BoundaryEngine, BoundaryParams, ExecutionMode, SchemaTask};
-use std::path::PathBuf;
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Sender};
 use std::sync::OnceLock;
 
@@ -24,7 +25,7 @@ const ENTITY_LABELS: [&str; 11] = [
     "brand",
 ];
 
-static NER_WORKER: OnceLock<Sender<ModelRequest>> = OnceLock::new();
+static NER_WORKER: OnceLock<Result<Sender<ModelRequest>, String>> = OnceLock::new();
 
 struct ModelRequest {
     source: String,
@@ -78,7 +79,7 @@ pub struct NerStatus {
     pub model_installed: bool,
     /// Resolved model directory (for deployment diagnostics).
     pub model_dir: String,
-    /// The model thread has been started at least once in this process.
+    /// The model thread has been started successfully in this process.
     pub worker_started: bool,
 }
 
@@ -88,7 +89,7 @@ pub fn status() -> NerStatus {
         mode: requested_mode(),
         model_installed: has_local_model(&model_dir),
         model_dir: model_dir.to_string_lossy().into_owned(),
-        worker_started: NER_WORKER.get().is_some(),
+        worker_started: matches!(NER_WORKER.get(), Some(Ok(_))),
     }
 }
 
@@ -108,11 +109,16 @@ fn is_disabled_value(value: &str) -> bool {
 }
 
 fn worker(model_dir: &std::path::Path) -> Result<&'static Sender<ModelRequest>, String> {
-    if let Some(sender) = NER_WORKER.get() {
-        return Ok(sender);
-    }
-    let (requests, incoming) = mpsc::channel::<ModelRequest>();
     let model_dir = model_dir.to_path_buf();
+    // The whole initialization (channel + thread spawn) runs inside
+    // `get_or_init`, so concurrent callers cannot spawn two model loaders.
+    get_or_init_result(&NER_WORKER, || spawn_worker(model_dir))
+}
+
+/// Starts one worker thread and returns its request sender. Extracted from
+/// `worker()` so the error path can be tested without touching the global.
+fn spawn_worker(model_dir: PathBuf) -> Result<Sender<ModelRequest>, String> {
+    let (requests, incoming) = mpsc::channel::<ModelRequest>();
     std::thread::Builder::new()
         .name("visualner-gliner25".to_string())
         .spawn(move || {
@@ -121,41 +127,51 @@ fn worker(model_dir: &std::path::Path) -> Result<&'static Sender<ModelRequest>, 
                 let candidates = model
                     .as_mut()
                     .map_err(|error| error.clone())
-                    .map(|model| extract_candidates(model, &request.source, &request.language));
+                    .and_then(|model| {
+                        extract_candidates(model, &request.source, &request.language)
+                    });
                 let _ = request.response.send(candidates);
             }
         })
-        .map_err(|error| format!("could not start GLiNER2.5 worker: {error}"))?;
-    // A concurrent caller may have won the OnceLock; the loser's thread sees
-    // its sender dropped and exits on the first `recv`.
-    Ok(NER_WORKER.get_or_init(|| requests))
+        .map(|_| requests)
+        .map_err(|error| format!("could not start GLiNER2.5 worker: {error}"))
 }
 
-fn extract_candidates(model: &mut BoundaryEngine, source: &str, language: &str) -> Vec<Candidate> {
+/// Runs `init` once and returns either the initialized value or the cached
+/// initialization error to every caller. Extracted so the single-execution
+/// guarantee is testable without touching the process-global worker.
+fn get_or_init_result<T>(
+    cell: &OnceLock<Result<T, String>>,
+    init: impl FnOnce() -> Result<T, String>,
+) -> Result<&T, String> {
+    match cell.get_or_init(init) {
+        Ok(value) => Ok(value),
+        Err(error) => Err(error.clone()),
+    }
+}
+
+fn extract_candidates(
+    model: &mut BoundaryEngine,
+    source: &str,
+    language: &str,
+) -> Result<Vec<Candidate>, String> {
     let labels = ENTITY_LABELS
         .iter()
         .map(|label| (*label).to_string())
         .collect();
     let tasks = [SchemaTask::Entities(labels)];
     let mut params = BoundaryParams::default();
-    let global_threshold = threshold_from_env("BRAINRUST_NER_THRESHOLD", 0.80);
-    let location_threshold = threshold_from_env("BRAINRUST_NER_LOCATION_THRESHOLD", 0.90);
-    // Organizations carry the weakest zero-shot signal: synthetic company names
-    // such as "Büro Steinbach" land around 0.5 while person and location
-    // mentions are usually well above 0.8. A single flat threshold either
-    // loses those organizations or lets common nouns through.
-    let organization_threshold =
-        threshold_from_env("BRAINRUST_NER_ORG_THRESHOLD", global_threshold.min(0.50));
+    let (global_threshold, location_threshold, organization_threshold) = effective_thresholds();
     // The engine drops mentions below `params.threshold`, so it must see the
     // most permissive class threshold; the per-class filter below applies the
     // stricter value afterwards.
     params.threshold = global_threshold.min(organization_threshold);
 
-    let Ok(output) = model.extract_long_with(source, &tasks, &params, Default::default()) else {
-        return Vec::new();
-    };
+    let output = model
+        .extract_long_with(source, &tasks, &params, Default::default())
+        .map_err(|error| format!("GLiNER2.5 inference failed: {error}"))?;
 
-    output
+    Ok(output
         .mentions
         .into_iter()
         .filter_map(|mention| {
@@ -179,7 +195,107 @@ fn extract_candidates(model: &mut BoundaryEngine, source: &str, language: &str) 
                 entity_type: Some(kind.to_string()),
             })
         })
-        .collect()
+        .collect())
+}
+
+/// The thresholds the extractor actually applies. Organizations carry the
+/// weakest zero-shot signal: synthetic company names such as "Büro Steinbach"
+/// land around 0.5 while person and location mentions are usually well above
+/// 0.8. A single flat threshold either loses those organizations or lets
+/// common nouns through.
+fn effective_thresholds() -> (f32, f32, f32) {
+    let global = threshold_from_env("BRAINRUST_NER_THRESHOLD", 0.80);
+    let location = threshold_from_env("BRAINRUST_NER_LOCATION_THRESHOLD", 0.90);
+    let organization = threshold_from_env("BRAINRUST_NER_ORG_THRESHOLD", global.min(0.50));
+    (global, location, organization)
+}
+
+/// Identity of the GLiNER runtime for the persistent cache key. It covers the
+/// mode, whether a model is installed, the content digest of the selected
+/// model variant and the effective thresholds. Cached once per process: the
+/// model and the environment are fixed for the lifetime of the worker.
+pub fn ner_cache_identity() -> String {
+    static IDENTITY: OnceLock<String> = OnceLock::new();
+    IDENTITY
+        .get_or_init(|| {
+            let mode = requested_mode();
+            let dir = model_dir();
+            let installed = has_local_model(&dir);
+            // Hash every installed variant, not just the first one: the
+            // loader may select fp32/fp16 by hardware, and the identity must
+            // follow the content that is actually available.
+            let mut variants: Vec<String> = ["fp32_25", "fp16_25", "fp16"]
+                .iter()
+                .map(|variant| dir.join(variant))
+                .filter(|path| path.join("boundary_manifest.json").is_file())
+                .map(|path| {
+                    let name = path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    format!("{name}:{}", directory_fingerprint(&path))
+                })
+                .collect();
+            variants.sort();
+            let model = if variants.is_empty() {
+                "absent".to_string()
+            } else {
+                variants.join(",")
+            };
+            let (global, location, organization) = effective_thresholds();
+            format!(
+                "mode={mode};installed={installed};model={model};thresholds={global:.6}/{location:.6}/{organization:.6}"
+            )
+        })
+        .clone()
+}
+
+/// SHA-256 over the relative names and bytes of every file under `root`. The
+/// path itself is not hashed, so two deployments with the same model content
+/// share the identity. A read error is hashed as such instead of being ignored.
+fn directory_fingerprint(root: &Path) -> String {
+    fn collect(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Ok(metadata) = entry.metadata() else {
+                continue;
+            };
+            if metadata.is_dir() {
+                collect(root, &path, files);
+            } else if metadata.is_file() {
+                let relative = path
+                    .strip_prefix(root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                files.push((relative, path));
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    collect(root, root, &mut files);
+    files.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut hasher = Sha256::new();
+    hasher.update(b"visualner-gliner-model");
+    for (name, path) in files {
+        hasher.update(name.as_bytes());
+        hasher.update([0u8]);
+        match std::fs::read(&path) {
+            Ok(bytes) => {
+                hasher.update((bytes.len() as u64).to_le_bytes());
+                hasher.update(&bytes);
+            }
+            Err(error) => {
+                hasher.update(b"error");
+                hasher.update(error.to_string().as_bytes());
+            }
+        }
+    }
+    semantic_core::text::lowercase_hex(&hasher.finalize())
 }
 
 /// Resolves the bundled ONNX Runtime for GLiNER and exports it for the
@@ -282,7 +398,86 @@ fn has_name_shape(text: &str, language: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::entity_kind;
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    #[test]
+    fn concurrent_initialization_runs_the_closure_once() {
+        static CELL: OnceLock<Result<usize, String>> = OnceLock::new();
+        static CALLS: AtomicUsize = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        get_or_init_result(&CELL, || {
+                            CALLS.fetch_add(1, Ordering::SeqCst);
+                            std::thread::sleep(Duration::from_millis(20));
+                            Ok(42)
+                        })
+                        .copied()
+                    })
+                })
+                .collect();
+            for handle in handles {
+                assert_eq!(handle.join().expect("thread"), Ok(42));
+            }
+        });
+        assert_eq!(CALLS.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn worker_reports_a_model_load_failure_instead_of_an_empty_success() {
+        let root = std::env::temp_dir().join(format!(
+            "brainrust-ner-failure-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        ));
+        std::fs::create_dir_all(root.join("fp32_25")).expect("model dir");
+        std::fs::write(root.join("fp32_25/boundary_manifest.json"), b"not-json").expect("manifest");
+        let sender = spawn_worker(root.clone()).expect("worker starts");
+        let (response, result) = mpsc::channel();
+        sender
+            .send(ModelRequest {
+                source: "Alice met Bob".to_string(),
+                language: "en".to_string(),
+                response,
+            })
+            .expect("request");
+        match result.recv().expect("response") {
+            Err(message) => assert!(
+                message.contains("GLiNER2.5"),
+                "unexpected error message: {message}"
+            ),
+            Ok(candidates) => {
+                panic!("a model load failure must not become an empty success: {candidates:?}")
+            }
+        }
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn model_directory_fingerprint_changes_with_content() {
+        let root = std::env::temp_dir().join(format!(
+            "brainrust-ner-identity-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        ));
+        std::fs::create_dir_all(root.join("fp32_25")).expect("model dir");
+        std::fs::write(root.join("fp32_25/boundary_manifest.json"), b"one").expect("manifest");
+        let first = directory_fingerprint(&root);
+        std::fs::write(root.join("fp32_25/boundary_manifest.json"), b"two").expect("manifest");
+        let second = directory_fingerprint(&root);
+        assert_ne!(first, second);
+        assert_eq!(second, directory_fingerprint(&root));
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
 
     #[test]
     fn additive_gliner_labels_project_to_typed_entity_kinds() {

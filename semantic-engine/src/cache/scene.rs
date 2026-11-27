@@ -5,11 +5,12 @@
 //! temporal facts. It is the expensive half of `analyze_script`, and the same
 //! scene text appears in a replay or in two jobs that share a paragraph.
 //!
-//! The key is SHA-256 over the scene text, the language and the analyzer
-//! versions, widened with the same build/content/model identity as the manifest
-//! cache. A disk entry outlives the process that wrote it, so a change to an
-//! embedded lexicon, a model file or the binary must miss even when the
-//! hand-written analyzer labels did not move.
+//! The key is SHA-256 over the scene text, the language, the analyzer
+//! versions, the effective script context, the reference date and the entity
+//! safety cap, widened with the same runtime identity as the manifest cache.
+//! A disk entry outlives the process that wrote it, so a change to an embedded
+//! lexicon, a model file, the GLiNER configuration or the binary must miss
+//! even when the hand-written analyzer labels did not move.
 //!
 //! Phase 2 (identity registration, coreference, discourse, linker, visual
 //! consolidation) is deliberately NOT cached here: it depends on the registry
@@ -28,7 +29,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use semantic_core::text::lowercase_hex;
-use semantic_core::{AnalyzerVersions, SentenceSpan, TemporalFact};
+use semantic_core::{AnalyzerVersions, TemporalFact};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -36,7 +37,7 @@ use super::cache_identity;
 use super::disk::CACHE_DIR_ENV;
 
 /// Bumped whenever the scene payload shape changes.
-const SCENE_CACHE_FORMAT: u32 = 1;
+const SCENE_CACHE_FORMAT: u32 = 2;
 const KEY_PREFIX: &str = "scene-";
 /// Optional byte budget for the scene directory.
 pub const SCENE_CACHE_BYTES_ENV: &str = "SEMANTIC_SCENE_CACHE_MAX_BYTES";
@@ -53,7 +54,6 @@ pub struct LocalSceneDraft {
     pub scene_id: String,
     pub analysis: visualner::Analysis,
     pub temporal_facts: Vec<TemporalFact>,
-    pub sentence_spans: Vec<SentenceSpan>,
 }
 
 #[derive(Serialize)]
@@ -110,8 +110,31 @@ impl SceneCache {
         Ok(cache)
     }
 
-    /// SHA-256 over text + language + analyzer versions + build/model identity.
-    pub fn key(text: &str, language: &str, analyzers: &AnalyzerVersions) -> String {
+    /// Digest of the script-wide name context. Computed once per script and
+    /// reused by every scene, so the per-scene key never re-serializes the
+    /// whole context.
+    pub fn context_digest(context: &visualner::ScriptContext) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(b"scene-context");
+        hasher.update(
+            serde_json::to_vec(&(&context.person_name_tokens, &context.person_surnames))
+                .unwrap_or_default(),
+        );
+        lowercase_hex(&hasher.finalize())
+    }
+
+    /// SHA-256 over every input that can change the phase-1 draft: text,
+    /// language, analyzer versions, the script-context digest, reference date,
+    /// safety cap and the runtime identity (build, lexicon, UDPipe, GLiNER,
+    /// overrides).
+    pub fn key(
+        text: &str,
+        language: &str,
+        analyzers: &AnalyzerVersions,
+        context_digest: &str,
+        reference_date: Option<&str>,
+        safety_cap: usize,
+    ) -> String {
         let mut hasher = Sha256::new();
         hasher.update(SCENE_CACHE_FORMAT.to_le_bytes());
         hasher.update(language.as_bytes());
@@ -121,6 +144,21 @@ impl SceneCache {
         // `AnalyzerVersions` has a stable serde shape; the JSON bytes are only
         // an internal key component, never a wire value.
         hasher.update(serde_json::to_vec(analyzers).unwrap_or_default());
+        hasher.update([0u8]);
+        // The context is derived from every scene, not from this scene alone:
+        // two scripts that share a scene but state different people must not
+        // share the cached mentions.
+        hasher.update(context_digest.as_bytes());
+        hasher.update([0u8]);
+        match reference_date {
+            Some(date) => {
+                hasher.update(b"date:");
+                hasher.update(date.as_bytes());
+            }
+            None => hasher.update(b"date:none"),
+        }
+        hasher.update([0u8]);
+        hasher.update(safety_cap.to_le_bytes());
         hasher.update([0u8]);
         hasher.update(cache_identity(language).as_bytes());
         format!("{KEY_PREFIX}{}", lowercase_hex(&hasher.finalize()))
@@ -278,6 +316,12 @@ mod tests {
         dir
     }
 
+    fn scene_key(text: &str, language: &str, analyzers: &AnalyzerVersions) -> String {
+        let context = visualner::ScriptContext::default();
+        let digest = SceneCache::context_digest(&context);
+        SceneCache::key(text, language, analyzers, &digest, None, 10)
+    }
+
     fn draft(scene_id: &str) -> LocalSceneDraft {
         LocalSceneDraft {
             scene_id: scene_id.to_string(),
@@ -295,6 +339,10 @@ mod tests {
                     start: 0,
                     end: 5,
                 }],
+                sentence_spans: vec![semantic_core::SentenceSpan {
+                    start_byte: 0,
+                    end_byte: 5,
+                }],
                 relations: Vec::new(),
                 lower_thirds: Vec::new(),
                 bullets: Vec::new(),
@@ -303,22 +351,54 @@ mod tests {
                 numeric_facts: Vec::new(),
             },
             temporal_facts: Vec::new(),
-            sentence_spans: vec![SentenceSpan {
-                start_byte: 0,
-                end_byte: 5,
-            }],
         }
     }
 
     #[test]
     fn scene_key_changes_with_text_language_and_analyzers() {
         let analyzers = crate::analyzer_versions();
-        let base = SceneCache::key("alpha", "it", &analyzers);
-        assert_ne!(base, SceneCache::key("alpha beta", "it", &analyzers));
-        assert_ne!(base, SceneCache::key("alpha", "en", &analyzers));
+        let base = scene_key("alpha", "it", &analyzers);
+        assert_ne!(base, scene_key("alpha beta", "it", &analyzers));
+        assert_ne!(base, scene_key("alpha", "en", &analyzers));
         let mut changed = analyzers.clone();
         changed.visualner = "visualner.changed".to_string();
-        assert_ne!(base, SceneCache::key("alpha", "it", &changed));
+        assert_ne!(base, scene_key("alpha", "it", &changed));
+    }
+
+    #[test]
+    fn scene_key_changes_with_context_reference_date_and_safety_cap() {
+        let analyzers = crate::analyzer_versions();
+        let mut context = visualner::ScriptContext::default();
+        let base_digest = SceneCache::context_digest(&context);
+        let base = SceneCache::key("alpha", "it", &analyzers, &base_digest, None, 10);
+        assert_ne!(
+            base,
+            SceneCache::key(
+                "alpha",
+                "it",
+                &analyzers,
+                &base_digest,
+                Some("2026-11-26"),
+                10
+            )
+        );
+        assert_ne!(
+            base,
+            SceneCache::key("alpha", "it", &analyzers, &base_digest, None, 11)
+        );
+        context
+            .person_surnames
+            .insert("rossi".to_string(), "Mario Rossi".to_string());
+        let surname_digest = SceneCache::context_digest(&context);
+        assert_ne!(base_digest, surname_digest);
+        let with_surname = SceneCache::key("alpha", "it", &analyzers, &surname_digest, None, 10);
+        assert_ne!(base, with_surname);
+        context.person_name_tokens.insert("mario".to_string());
+        assert_ne!(
+            surname_digest,
+            SceneCache::context_digest(&context),
+            "a new name token must move the context digest"
+        );
     }
 
     #[test]
@@ -326,12 +406,15 @@ mod tests {
         let root = temp_dir("scene-cache");
         let cache = SceneCache::open(root.clone(), 1 << 20).expect("cache");
         let analyzers = crate::analyzer_versions();
-        let key = SceneCache::key("alpha", "it", &analyzers);
+        let key = scene_key("alpha", "it", &analyzers);
         let stored = draft("s1");
         cache.store(&key, "it", &stored);
         let loaded = cache.load(&key, "it").expect("hit");
         assert_eq!(loaded.analysis.tokens, stored.analysis.tokens);
-        assert_eq!(loaded.sentence_spans, stored.sentence_spans);
+        assert_eq!(
+            loaded.analysis.sentence_spans,
+            stored.analysis.sentence_spans
+        );
         assert!(cache.load(&key, "en").is_none());
         fs::remove_dir_all(root).expect("cleanup");
     }
@@ -341,10 +424,10 @@ mod tests {
         let root = temp_dir("scene-cache-miss");
         let cache = SceneCache::open(root.clone(), 1 << 20).expect("cache");
         let analyzers = crate::analyzer_versions();
-        let key = SceneCache::key("alpha", "it", &analyzers);
+        let key = scene_key("alpha", "it", &analyzers);
         cache.store(&key, "it", &draft("s1"));
         assert!(cache
-            .load(&SceneCache::key("beta", "it", &analyzers), "it")
+            .load(&scene_key("beta", "it", &analyzers), "it")
             .is_none());
         fs::remove_dir_all(root).expect("cleanup");
     }

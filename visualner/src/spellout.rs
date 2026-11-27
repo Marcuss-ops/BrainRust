@@ -5,7 +5,9 @@
 //! language, requires complete-input parsing, and returns original UTF-8 byte
 //! spans rather than normalized text.
 
+use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use rust_icu_sys::{ULocDataLocaleType, UNumberFormatAttribute, UNumberFormatStyle};
@@ -47,9 +49,18 @@ struct LocaleFormatters {
 /// a spoken thousands prefix such as `duemila`). The parser still decides the
 /// value and the exact span, so the prefilter can only skip windows that
 /// cannot possibly be numbers.
-struct NumberVocabulary {
-    words: BTreeSet<String>,
-    thousands: Vec<String>,
+pub(super) struct NumberVocabulary {
+    pub(super) words: BTreeSet<String>,
+    pub(super) thousands: Vec<String>,
+    /// Exact normalized spelling -> value for 0..=1000, formatted by the same
+    /// locale formatter the prefilter already pays for. This replaces the
+    /// 1,000-value `format_i64` scan that used to recover a compound prefix
+    /// match ("venticinque" parsed as 20) for every window.
+    pub(super) spellings: HashMap<String, i64>,
+    /// Normalized thousands spelling -> amount, longest prefix first. Same
+    /// idea: the thousands recovery becomes a prefix lookup instead of up to
+    /// 99 formatter calls per failed window.
+    pub(super) thousands_spellings: Vec<(String, i64)>,
 }
 
 fn number_vocabulary(language: &str) -> Result<Arc<NumberVocabulary>, String> {
@@ -63,22 +74,30 @@ fn number_vocabulary(language: &str) -> Result<Arc<NumberVocabulary>, String> {
     {
         return Ok(vocabulary.clone());
     }
-    let formatters = formatters(language)?;
+    let formatters = cached_formatters(language)?;
     let mut words = BTreeSet::new();
     let mut thousands = Vec::new();
+    let mut spellings = HashMap::new();
+    let mut thousands_spellings = Vec::new();
     if let Some(formatter) = &formatters.spellout {
         for value in 0..=1000i64 {
             if let Ok(spelled) = formatter.format_i64(value) {
-                words.insert(normalize_spellout(&spelled));
+                let normalized = normalize_spellout(&spelled);
+                spellings.entry(normalized.clone()).or_insert(value);
+                words.insert(normalized);
             }
         }
         for multiplier in 1..=99i64 {
             if let Ok(spelled) = formatter.format_i64(multiplier * 1000) {
                 let normalized = normalize_spellout(&spelled);
                 thousands.push(normalized.clone());
+                thousands_spellings.push((normalized.clone(), multiplier * 1000));
                 words.insert(normalized);
             }
         }
+        // Longest spelling first: the thousands prefix must not shadow a
+        // longer one when both match the same surface.
+        thousands_spellings.sort_by_key(|entry| std::cmp::Reverse(entry.0.len()));
         // Scale words and their small multiples ("one million", "due milioni").
         for exponent in 6..=12u32 {
             let Some(base) = 10i64.checked_pow(exponent) else {
@@ -98,7 +117,12 @@ fn number_vocabulary(language: &str) -> Result<Arc<NumberVocabulary>, String> {
             }
         }
     }
-    let vocabulary = Arc::new(NumberVocabulary { words, thousands });
+    let vocabulary = Arc::new(NumberVocabulary {
+        words,
+        thousands,
+        spellings,
+        thousands_spellings,
+    });
     cache
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -150,6 +174,24 @@ fn available_languages() -> &'static BTreeSet<String> {
             .map(|language| language.to_ascii_lowercase())
             .collect()
     })
+}
+
+/// Per-thread formatter cache. `UNumberFormat` is an ICU handle and is not
+/// `Sync`, so a process-wide cache would need `unsafe`; a thread-local one
+/// still pays ICU locale/rule loading once per language per worker thread
+/// instead of once per scene. `supported_spellout_language_count` deliberately
+/// keeps using the uncached builder: it probes every installed locale.
+fn cached_formatters(language: &str) -> Result<Rc<LocaleFormatters>, String> {
+    thread_local! {
+        static CACHE: RefCell<HashMap<String, Rc<LocaleFormatters>>> = RefCell::new(HashMap::new());
+    }
+    let key = language.trim().to_ascii_lowercase();
+    if let Some(formatters) = CACHE.with(|cache| cache.borrow().get(&key).cloned()) {
+        return Ok(formatters);
+    }
+    let built = Rc::new(formatters(language)?);
+    CACHE.with(|cache| cache.borrow_mut().insert(key, built.clone()));
+    Ok(built)
 }
 
 fn formatters(language: &str) -> Result<LocaleFormatters, String> {
@@ -210,7 +252,7 @@ pub fn supported_spellout_language_count() -> usize {
 }
 
 pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberCandidate>, String> {
-    let formatters = formatters(language)?;
+    let formatters = cached_formatters(language)?;
     if source.is_empty() {
         return Ok(Vec::new());
     }
@@ -222,7 +264,13 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
     let tokens = tokens::word_tokens(source);
     let vocabulary = number_vocabulary(language)?;
     let rules = semantic_core::number_words::rules(language);
-    let mut out = denominator_fractions(source, &tokens, rules, formatters.spellout.as_ref());
+    let mut out = denominator_fractions(
+        source,
+        &tokens,
+        rules,
+        formatters.spellout.as_ref(),
+        &vocabulary,
+    );
 
     for start_index in 0..tokens.len() {
         // ICU RBNF parsing is the expensive part of this scan. Run it only
@@ -309,16 +357,17 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
                         // never accept a prefix or normalize away source text.
                         // CLDR may parse a compound as its first element only:
                         // Italian "duecento" parses as 2, "venticinque" as 20.
-                        // Search the full sub-thousand range so the formatted
-                        // compound (200, 25) is found; the round-trip still
-                        // decides, so a wrong candidate cannot win.
-                        let lower = 0;
-                        let upper = 999;
-                        (lower..=upper).find_map(|candidate| {
-                            let formatted = formatter.format_i64(candidate).ok()?;
-                            (normalize_spellout(variant) == normalize_spellout(&formatted))
-                                .then_some(candidate as f64)
-                        })
+                        // Look the spelling up in the vocabulary the prefilter
+                        // already formatted once per language: the old
+                        // implementation re-formatted 0..=999 for every
+                        // prefix match, which dominated the scan. The
+                        // round-trip still decides, so a wrong candidate
+                        // cannot win.
+                        vocabulary
+                            .spellings
+                            .get(&normalize_spellout(variant))
+                            .filter(|value| **value <= 999)
+                            .map(|value| *value as f64)
                     } else {
                         None
                     };
@@ -341,9 +390,9 @@ pub(crate) fn candidates(source: &str, language: &str) -> Result<Vec<WordNumberC
                     let Some(formatter) = formatters.spellout.as_ref() else {
                         continue;
                     };
-                    let Some(value) = compose_run(surface, rules, formatter)
-                        .or_else(|| parse_half_compound(surface, rules, formatter))
-                        .or_else(|| compose_thousands(surface, formatter))
+                    let Some(value) = compose_run(surface, rules, formatter, &vocabulary)
+                        .or_else(|| parse_half_compound(surface, rules, formatter, &vocabulary))
+                        .or_else(|| compose_thousands(surface, formatter, &vocabulary))
                     else {
                         continue;
                     };

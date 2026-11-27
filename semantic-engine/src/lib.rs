@@ -324,9 +324,20 @@ pub fn analyze_script(request: &ScriptRequest) -> Result<SemanticManifest, Strin
 /// Analysis with an explicit scene cache. `None` disables phase-1 caching, so
 /// the 1-thread/N-thread equivalence gate and unit tests never depend on the
 /// process environment.
-fn analyze_script_with_scene_cache(
+pub(crate) fn analyze_script_with_scene_cache(
     request: &ScriptRequest,
     scene_cache: Option<&cache::scene::SceneCache>,
+) -> Result<SemanticManifest, String> {
+    analyze_script_with_window(request, scene_cache, scene_window(request.scenes.len()))
+}
+
+/// Analysis with an explicit phase-1 window. Tests use it to prove that the
+/// window size never changes the manifest; production reads the window once
+/// per request from the environment.
+pub(crate) fn analyze_script_with_window(
+    request: &ScriptRequest,
+    scene_cache: Option<&cache::scene::SceneCache>,
+    window: usize,
 ) -> Result<SemanticManifest, String> {
     let language = request.language.trim();
     let safety_cap = validate_script_request(request)?;
@@ -338,7 +349,14 @@ fn analyze_script_with_scene_cache(
         mut event_frames,
         search_entries,
         query_seeds: scene_query_seeds,
-    } = analyze_scenes(request, language, safety_cap, &mut registry, scene_cache);
+    } = analyze_scenes(
+        request,
+        language,
+        safety_cap,
+        &mut registry,
+        scene_cache,
+        window.max(1),
+    );
 
     link_event_source_facts(&mut event_frames, &scenes);
     let discourse = discourse::build(language, &request.scenes, &scenes);
@@ -434,12 +452,29 @@ struct ScriptSceneBatch {
 /// order: identity ids, coreference, event framing and every cross-scene
 /// product must not depend on scheduling. `par_iter().collect()` preserves
 /// order, so the finalize loop sees exactly the 0..N-1 sequence.
+///
+/// Phase 1 runs in bounded chunks (`BRAINRUST_SCENE_WINDOW`, `0` = unlimited)
+/// so a long document cannot keep every draft alive at once. The window only
+/// changes when a scene is analysed, never the order it is finalized in, so
+/// the manifest stays byte-identical for every window size.
+fn scene_window(scene_count: usize) -> usize {
+    let configured = std::env::var("BRAINRUST_SCENE_WINDOW")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok());
+    match configured {
+        Some(0) => scene_count.max(1),
+        Some(window) => window,
+        None => (rayon::current_num_threads().max(1) * 2).clamp(4, 64),
+    }
+}
+
 fn analyze_scenes(
     request: &ScriptRequest,
     language: &str,
     safety_cap: usize,
     registry: &mut IdentityRegistry,
     cache: Option<&crate::cache::scene::SceneCache>,
+    window: usize,
 ) -> ScriptSceneBatch {
     let texts: Vec<&str> = request
         .scenes
@@ -447,25 +482,11 @@ fn analyze_scenes(
         .map(|scene| scene.text.as_str())
         .collect();
     let context = visualner::script_person_tokens(&texts, language);
+    let context_digest = cache::scene::SceneCache::context_digest(&context);
     let analyzers = analyzer_versions();
 
     use rayon::prelude::*;
-    let local_scenes: Vec<LocalSceneResult> = request
-        .scenes
-        .par_iter()
-        .map(|scene| {
-            analyze_local_scene(
-                scene,
-                language,
-                safety_cap,
-                &context,
-                request.reference_date.as_deref(),
-                &analyzers,
-                cache,
-            )
-        })
-        .collect();
-
+    let window = window.max(1);
     let mut scenes: Vec<SceneManifest> = Vec::with_capacity(request.scenes.len());
     let mut event_frames = Vec::new();
     let mut search_entries: Vec<SearchFeedbackEntry> = Vec::new();
@@ -473,30 +494,58 @@ fn analyze_scenes(
     // part of the manifest contract and never leave this call.
     let mut scene_query_seeds: Vec<(String, Vec<semantic_core::ContextualImageQuery>)> =
         Vec::with_capacity(request.scenes.len());
-    for (scene_index, (scene, local)) in request.scenes.iter().zip(local_scenes).enumerate() {
-        let analyzed = match local {
-            LocalSceneResult::Rejected { scene_id, reason } => rejected_scene(&scene_id, reason),
-            LocalSceneResult::Draft(draft) => {
-                finalize_scene_with_search(*draft, scene, language, safety_cap, registry, &context)
-            }
-        };
-        let remaining_event_capacity = events::MAX_EVENT_FRAMES.saturating_sub(event_frames.len());
-        event_frames.extend(events::extract_bounded_with_tokens(
-            events::SceneEventInput {
-                scene_index,
-                scene_id: &scene.scene_id,
-                source: &scene.text,
-                language,
-                candidates: &analyzed.manifest.entities,
-                temporal_facts: &analyzed.manifest.temporal_facts,
-                places: &analyzed.manifest.places,
-            },
-            &analyzed.tokens,
-            remaining_event_capacity,
-        ));
-        scene_query_seeds.push((analyzed.manifest.scene_id.clone(), analyzed.query_seeds));
-        scenes.push(analyzed.manifest);
-        search_entries.extend(analyzed.search_feedback);
+    for chunk_start in (0..request.scenes.len()).step_by(window) {
+        let chunk_end = (chunk_start + window).min(request.scenes.len());
+        let local_scenes: Vec<LocalSceneResult> = request.scenes[chunk_start..chunk_end]
+            .par_iter()
+            .map(|scene| {
+                analyze_local_scene(
+                    scene,
+                    &LocalSceneInputs {
+                        language,
+                        safety_cap,
+                        context: &context,
+                        context_digest: &context_digest,
+                        reference_date: request.reference_date.as_deref(),
+                        analyzers: &analyzers,
+                        cache,
+                    },
+                )
+            })
+            .collect();
+        for (offset, (scene, local)) in request.scenes[chunk_start..chunk_end]
+            .iter()
+            .zip(local_scenes)
+            .enumerate()
+        {
+            let scene_index = chunk_start + offset;
+            let analyzed = match local {
+                LocalSceneResult::Rejected { scene_id, reason } => {
+                    rejected_scene(&scene_id, reason)
+                }
+                LocalSceneResult::Draft(draft) => finalize_scene_with_search(
+                    *draft, scene, language, safety_cap, registry, &context,
+                ),
+            };
+            let remaining_event_capacity =
+                events::MAX_EVENT_FRAMES.saturating_sub(event_frames.len());
+            event_frames.extend(events::extract_bounded_with_tokens(
+                events::SceneEventInput {
+                    scene_index,
+                    scene_id: &scene.scene_id,
+                    source: &scene.text,
+                    language,
+                    candidates: &analyzed.manifest.entities,
+                    temporal_facts: &analyzed.manifest.temporal_facts,
+                    places: &analyzed.manifest.places,
+                },
+                &analyzed.tokens,
+                remaining_event_capacity,
+            ));
+            scene_query_seeds.push((analyzed.manifest.scene_id.clone(), analyzed.query_seeds));
+            scenes.push(analyzed.manifest);
+            search_entries.extend(analyzed.search_feedback);
+        }
     }
     ScriptSceneBatch {
         scenes,

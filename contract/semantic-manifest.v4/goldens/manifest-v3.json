@@ -1,0 +1,262 @@
+{
+  "schema_version": "semantic_manifest.v3",
+  "language": "en",
+  "fingerprint": "0123456789abcdef",
+  "analyzers": {
+    "visualner": "visualner",
+    "semantic_core": "0.1.0",
+    "phrase_impact": "phrase_impact",
+    "entity_index": "entity_index.v1"
+  },
+  "entities": [
+    {
+      "local_id": "person_01",
+      "surface_key": "person:marco-rossi",
+      "canonical_surface": "Marco Rossi",
+      "canonical_id": "person:marco-rossi",
+      "link_status": "linked",
+      "canonical_name": "Marco Rossi",
+      "entity_type": "PERSON",
+      "role": "named_entity",
+      "disambiguation_gloss": "Italian founder",
+      "negative_constraints": [],
+      "mentions": [
+        {
+          "scene_id": "scene_01",
+          "surface": "Marco Rossi",
+          "start_byte": 0,
+          "end_byte": 11
+        }
+      ],
+      "search_intents": [
+        {
+          "kind": "identity",
+          "query": "Marco Rossi",
+          "lang": "en"
+        }
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "scene_id": "scene_01",
+      "status": "valid",
+      "reason": null,
+      "entities": [
+        {
+          "id": "person_01",
+          "text": "Marco Rossi",
+          "type": "PERSON",
+          "start_byte": 0,
+          "end_byte": 11,
+          "evidence": "Marco Rossi",
+          "score": 0.9,
+          "provenance": "visualner"
+        }
+      ],
+      "entity_facts": [],
+      "identities": [
+        {
+          "id": "person_01",
+          "canonical_surface": "Marco Rossi",
+          "type": "PERSON",
+          "mentions": [
+            {
+              "scene_id": "scene_01",
+              "surface": "Marco Rossi",
+              "start_byte": 0,
+              "end_byte": 11
+            }
+          ]
+        }
+      ],
+      "relations": {
+        "co_mentions": [],
+        "asserted_relations": []
+      },
+      "numeric_facts": [
+        {
+          "surface": "25%",
+          "type": "PERCENT",
+          "value": 25,
+          "start_byte": 45,
+          "end_byte": 48,
+          "evidence": "25%"
+        },
+        {
+          "surface": "18%",
+          "type": "PERCENT",
+          "value": 18,
+          "start_byte": 57,
+          "end_byte": 60,
+          "evidence": "18%"
+        }
+      ],
+      "temporal_facts": [],
+      "bullets": [
+        {
+          "id": "bullet_01",
+          "text": "Marco Rossi founded the studio.",
+          "type": "SENTENCE",
+          "start_byte": 0,
+          "end_byte": 31,
+          "evidence": "Marco Rossi founded the studio.",
+          "score": 1.0,
+          "provenance": "visualner"
+        },
+        {
+          "id": "bullet_02",
+          "text": "Revenue grew 25% against 18% in 2024.",
+          "type": "SENTENCE",
+          "start_byte": 32,
+          "end_byte": 69,
+          "evidence": "Revenue grew 25% against 18% in 2024.",
+          "score": 1.0,
+          "provenance": "visualner"
+        }
+      ],
+      "short_phrases": [
+        {
+          "id": "phrase_01",
+          "text": "founded",
+          "type": "PHRASE",
+          "start_byte": 12,
+          "end_byte": 19,
+          "evidence": "founded",
+          "score": 0.6,
+          "provenance": "phrase_impact"
+        }
+      ],
+      "long_phrases": [],
+      "quotes": [],
+      "important_words": [],
+      "important_segments": [],
+      "composed_image_queries": [],
+      "contextual_image_queries": [],
+      "visual_proposals": [
+        {
+          "id": "scene_01_visual_001",
+          "proposal_type": "chart",
+          "entity_ids": [],
+          "suggested_visual": "bar_comparison",
+          "status": "requires_semantic_validation",
+          "score": 0.9,
+          "chart_items": [
+            {
+              "label": "Revenue grew 25% against 18% in 2024.",
+              "text": "25%",
+              "kind": "PERCENT",
+              "value": 25,
+              "start_byte": 45,
+              "end_byte": 48
+            },
+            {
+              "label": "Revenue grew 25% against 18% in 2024.",
+              "text": "18%",
+              "kind": "PERCENT",
+              "value": 18,
+              "start_byte": 57,
+              "end_byte": 60
+            }
+          ],
+          "evidence": "Revenue grew 25% against 18% in 2024.",
+          "start_byte": 32,
+          "end_byte": 69
+        },
+        {
+          "id": "scene_01_visual_002",
+          "proposal_type": "entity_card",
+          "entity_ids": [
+            "person_01"
+          ],
+          "visual_query_suggestions": [
+            "Marco Rossi",
+            "Marco Rossi founded the studio."
+          ],
+          "suggested_visual": "entity_card",
+          "status": "requires_semantic_validation",
+          "score": 0.6,
+          "chart_items": [],
+          "temporal_surfaces": [],
+          "evidence": "Marco Rossi founded the studio.",
+          "start_byte": 0,
+          "end_byte": 31
+        }
+      ],
+      "semantic_groups": [
+        {
+          "id": "group_01",
+          "group_type": "enumeration",
+          "title": "Source points",
+          "members": [
+            {
+              "candidate_id": "bullet_01",
+              "sentence_index": 0,
+              "text": "Marco Rossi founded the studio.",
+              "evidence": "Marco Rossi founded the studio.",
+              "start_byte": 0,
+              "end_byte": 31
+            },
+            {
+              "candidate_id": "bullet_02",
+              "sentence_index": 1,
+              "text": "Revenue grew 25% against 18% in 2024.",
+              "evidence": "Revenue grew 25% against 18% in 2024.",
+              "start_byte": 32,
+              "end_byte": 69
+            }
+          ]
+        }
+      ],
+      "micro_summaries": [],
+      "rejected_items": 0
+    },
+    {
+      "scene_id": "scene_02",
+      "status": "valid",
+      "reason": null,
+      "entities": [],
+      "entity_facts": [],
+      "identities": [],
+      "relations": {
+        "co_mentions": [],
+        "asserted_relations": []
+      },
+      "numeric_facts": [],
+      "temporal_facts": [
+        {
+          "surface": "15 March 2008",
+          "type": "DATE",
+          "normalized_date": "2008-03-15",
+          "precision": "day",
+          "start_byte": 19,
+          "end_byte": 32,
+          "evidence": "15 March 2008"
+        }
+      ],
+      "bullets": [
+        {
+          "id": "bullet_01",
+          "text": "The hearing was on 15 March 2008.",
+          "type": "SENTENCE",
+          "start_byte": 0,
+          "end_byte": 33,
+          "evidence": "The hearing was on 15 March 2008.",
+          "score": 1.0,
+          "provenance": "visualner"
+        }
+      ],
+      "short_phrases": [],
+      "long_phrases": [],
+      "quotes": [],
+      "important_words": [],
+      "important_segments": [],
+      "composed_image_queries": [],
+      "contextual_image_queries": [],
+      "visual_proposals": [],
+      "semantic_groups": [],
+      "micro_summaries": [],
+      "rejected_items": 0
+    }
+  ]
+}

@@ -18,7 +18,9 @@
 //! The tables are versioned (`LEXICON_VERSION`) and recorded in
 //! [`crate::AnalyzerVersions`], so a vocabulary change can never serve a
 //! stale cached analysis.
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
@@ -110,6 +112,70 @@ fn override_dir() -> Option<&'static str> {
                 .filter(|dir| !dir.trim().is_empty())
         })
         .as_deref()
+}
+
+/// Content fingerprint of the effective `$SEMANTIC_LEXICON_DIR` override.
+///
+/// The embedded fingerprint cannot cover a directory that replaces tables at
+/// runtime, so a persistent cache key must include this value as well. The
+/// result is computed once per process: the lexicon is loaded once, and a file
+/// change after startup cannot affect the running analysis anyway. `None`
+/// means the embedded tables are in use.
+pub fn override_content_fingerprint() -> Option<String> {
+    static FINGERPRINT: OnceLock<Option<String>> = OnceLock::new();
+    FINGERPRINT
+        .get_or_init(|| override_dir().map(|dir| directory_fingerprint(Path::new(dir))))
+        .clone()
+}
+
+/// SHA-256 over the relative names and bytes of every file under `root`.
+/// Names are sorted and normalized to `/`, so the digest is independent of
+/// insertion order and of the deployment path. A read error is hashed instead
+/// of being silently skipped: an unreadable override must not share the
+/// embedded identity.
+fn directory_fingerprint(root: &Path) -> String {
+    fn collect(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Ok(metadata) = entry.metadata() else {
+                continue;
+            };
+            if metadata.is_dir() {
+                collect(root, &path, files);
+            } else if metadata.is_file() {
+                let relative = path
+                    .strip_prefix(root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                files.push((relative, path));
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    collect(root, root, &mut files);
+    files.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut hasher = Sha256::new();
+    hasher.update(b"semantic-lexicon-override");
+    for (name, path) in files {
+        hasher.update(name.as_bytes());
+        hasher.update([0u8]);
+        match std::fs::read(&path) {
+            Ok(bytes) => {
+                hasher.update((bytes.len() as u64).to_le_bytes());
+                hasher.update(&bytes);
+            }
+            Err(error) => {
+                hasher.update(b"error");
+                hasher.update(error.to_string().as_bytes());
+            }
+        }
+    }
+    crate::text::lowercase_hex(&hasher.finalize())
 }
 
 /// Where the running lexicon actually came from. A deployment that sets

@@ -229,3 +229,22 @@ fn order_sensitve_tables_keep_their_data_order() {
     let legal = crate::legal_packs::get("it").expect("Italian legal pack");
     assert_eq!(legal.patterns[0].normalized, "not_convicted");
 }
+
+#[test]
+fn override_fingerprint_tracks_nested_file_content() {
+    let root = std::env::temp_dir().join(format!(
+        "brainrust-lexicon-override-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    ));
+    std::fs::create_dir_all(root.join("roles")).expect("override dir");
+    std::fs::write(root.join("roles/it.json"), b"one").expect("table");
+    let first = directory_fingerprint(&root);
+    assert_eq!(first, directory_fingerprint(&root));
+    std::fs::write(root.join("roles/it.json"), b"two").expect("table");
+    assert_ne!(first, directory_fingerprint(&root));
+    std::fs::remove_dir_all(root).expect("cleanup");
+}

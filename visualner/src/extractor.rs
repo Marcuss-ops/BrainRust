@@ -45,6 +45,7 @@ mod verb;
 
 pub use model::model_path;
 pub use names::is_heading_surface;
+pub use ner::ner_cache_identity;
 pub use numeric::{numeric_value_spans, NumericSpan};
 pub(crate) use pipeline::extract_with_context_and_spellout;
 pub(crate) use pipeline::extract_with_context_and_spellout_preserving_mentions;

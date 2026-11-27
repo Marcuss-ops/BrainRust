@@ -79,6 +79,7 @@ pub(super) fn compose_run(
     surface: &str,
     rules: Option<&NumberWordRules>,
     formatter: &UNumberFormat,
+    vocabulary: &super::NumberVocabulary,
 ) -> Option<f64> {
     let rules = rules?;
     let words: Vec<&str> = surface.split_whitespace().collect();
@@ -139,7 +140,16 @@ pub(super) fn compose_run(
             components.push(classify_component(*value)?);
             continue;
         }
-        let value = parse_complete(&word, formatter)?;
+        // Ordinary prose words are not number words. Asking ICU to parse
+        // each of them makes the recovery pass pay one failed RBNF parse per
+        // word for every window it sees; the vocabulary already knows every
+        // spelling the locale's formatter can produce, so it can reject them
+        // for free. A word outside the vocabulary cannot compose a number
+        // that the direct parse would have missed.
+        if !vocabulary.words.contains(&normalize_spellout(&word)) {
+            return None;
+        }
+        let value = parse_complete(&word, formatter, vocabulary)?;
         components.push(classify_component(value)?);
     }
     if components.len() < 2 {
@@ -313,6 +323,7 @@ pub(super) fn parse_half_compound(
     surface: &str,
     rules: Option<&NumberWordRules>,
     formatter: &UNumberFormat,
+    vocabulary: &super::NumberVocabulary,
 ) -> Option<f64> {
     let rules = rules?;
     let word = surface.trim().to_lowercase();
@@ -321,7 +332,7 @@ pub(super) fn parse_half_compound(
         if prefix.is_empty() {
             return None;
         }
-        parse_complete(prefix, formatter).map(|base| base + 0.5)
+        parse_complete(prefix, formatter, vocabulary).map(|base| base + 0.5)
     })
 }
 
@@ -332,6 +343,7 @@ pub(super) fn denominator_fractions(
     tokens: &[WordToken],
     rules: Option<&NumberWordRules>,
     formatter: Option<&UNumberFormat>,
+    vocabulary: &super::NumberVocabulary,
 ) -> Vec<WordNumberCandidate> {
     let (Some(rules), Some(formatter)) = (rules, formatter) else {
         return Vec::new();
@@ -352,7 +364,7 @@ pub(super) fn denominator_fractions(
             if next_word
                 .chars()
                 .any(|character| character.is_ascii_digit())
-                || parse_complete(&next_word, formatter).is_some()
+                || parse_complete(&next_word, formatter, vocabulary).is_some()
             {
                 continue;
             }
@@ -367,7 +379,7 @@ pub(super) fn denominator_fractions(
                 .any(|article| article.eq_ignore_ascii_case(&previous_word))
             {
                 start = previous.start;
-            } else if let Some(value) = parse_complete(&previous_word, formatter) {
+            } else if let Some(value) = parse_complete(&previous_word, formatter, vocabulary) {
                 if value.fract() == 0.0 && (1.0..100.0).contains(&value) {
                     numerator = value;
                     start = previous.start;
@@ -443,26 +455,25 @@ pub(super) fn approximator_start(
 /// "duemilaventicinque" = format(2000) + parse("venticinque"),
 /// "two thousand seven" = format(2000) + parse("seven"). This is what keeps
 /// spelled years working without a per-language word table.
-pub(super) fn compose_thousands(surface: &str, formatter: &UNumberFormat) -> Option<f64> {
+pub(super) fn compose_thousands(
+    surface: &str,
+    formatter: &UNumberFormat,
+    vocabulary: &super::NumberVocabulary,
+) -> Option<f64> {
     let normalized = normalize_spellout(surface);
-    for thousands in 1..=99i64 {
-        let amount = thousands * 1000;
-        let Ok(formatted) = formatter.format_i64(amount) else {
-            continue;
-        };
-        let prefix = normalize_spellout(&formatted);
-        if prefix.is_empty() || !normalized.starts_with(&prefix) {
+    for (prefix, amount) in &vocabulary.thousands_spellings {
+        if prefix.is_empty() || !normalized.starts_with(prefix.as_str()) {
             continue;
         }
         let remainder = &normalized[prefix.len()..];
         if remainder.is_empty() {
-            return Some(amount as f64);
+            return Some(*amount as f64);
         }
-        let Some(rest) = parse_complete(remainder, formatter) else {
+        let Some(rest) = parse_complete(remainder, formatter, vocabulary) else {
             continue;
         };
         if (0.0..1000.0).contains(&rest) {
-            return Some(amount as f64 + rest);
+            return Some(*amount as f64 + rest);
         }
     }
     None
@@ -470,7 +481,11 @@ pub(super) fn compose_thousands(surface: &str, formatter: &UNumberFormat) -> Opt
 
 /// Complete parse with the same canonical round-trip rule used by the main
 /// loop, including the compound-prefix recovery for "venticinque" (20 + 5).
-fn parse_complete(surface: &str, formatter: &UNumberFormat) -> Option<f64> {
+fn parse_complete(
+    surface: &str,
+    formatter: &UNumberFormat,
+    vocabulary: &super::NumberVocabulary,
+) -> Option<f64> {
     let value = formatter.parse_to_formattable(surface, Some(0)).ok()?;
     let number = value.get_double().ok()?;
     if !number.is_finite() {
@@ -487,12 +502,11 @@ fn parse_complete(surface: &str, formatter: &UNumberFormat) -> Option<f64> {
     {
         return Some(number);
     }
-    let lower = 0;
-    let upper = 999;
-    (lower..=upper).find_map(|candidate| {
-        let formatted = formatter.format_i64(candidate).ok()?;
-        (normalize_spellout(&formatted) == normalized).then_some(candidate as f64)
-    })
+    vocabulary
+        .spellings
+        .get(&normalized)
+        .filter(|value| **value <= 999)
+        .map(|value| *value as f64)
 }
 
 pub(super) fn ordinal_equivalent(surface: &str, canonical: &str) -> bool {

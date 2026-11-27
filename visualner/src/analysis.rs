@@ -23,6 +23,10 @@ pub struct Analysis {
     /// internal analysis aid and is intentionally omitted from the wire JSON.
     #[serde(skip)]
     pub tokens: Vec<crate::types::AnalyzedToken>,
+    /// Canonical sentence spans. The engine consumes these instead of
+    /// re-segmenting the same source text for phase-2 facts.
+    #[serde(default)]
+    pub sentence_spans: Vec<SentenceSpan>,
     /// Pairs of entities that occur in the same sentence.
     pub relations: Vec<EntityRelation>,
     /// One lower-third spec per entity.
@@ -230,6 +234,7 @@ fn analyze_with_context_mode(
     Ok(Analysis {
         entities,
         tokens,
+        sentence_spans: sentences,
         relations,
         lower_thirds,
         bullets,

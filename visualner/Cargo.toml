@@ -24,6 +24,7 @@ rust_icu_uloc = { version = "5.8.0", default-features = false, features = ["icu_
 rust_icu_unum = { version = "5.8.0", default-features = false, features = ["icu_version_in_env", "renaming"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10"
 ndjson-stdio = { workspace = true }
 semantic-core = { workspace = true }
 udpipe-rs = "0.1"

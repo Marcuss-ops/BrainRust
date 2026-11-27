@@ -8,8 +8,9 @@
 //! re-analysing the same script text (a replay, or a repeated job) is served
 //! from the cache instead of re-running the extractor.
 
+use std::collections::HashMap;
 use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 use semantic_core::cue_timing::{self, ShortFormPolicy, TimedCue};
 use semantic_core::phrase_align::{locate_phrase, LocatedPhrase, SpeechWord};
@@ -21,16 +22,13 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::cache::disk::DiskCache;
+use crate::cache::scene::SceneCache;
 use crate::cache::ManifestCache;
-use crate::{
-    analyze_script, analyzer_versions, request_fingerprint, ScriptRequest, SCHEMA_VERSION,
-};
+use crate::{analyzer_versions, request_fingerprint, ScriptRequest, SCHEMA_VERSION};
 use ndjson_stdio::ErrorCode;
 use overlay_compiler::{
-    cascade_clustered_entrances, compile_editorial_plan, compile_overlay_plan_v2,
-    rank_entity_overlays, resolve_map_overlaps, trim_map_windows_before_budget,
-    CascadeEntrancesRequest, CompileEditorialPlanRequest, EditorialPlanV2Request,
-    RankEntityOverlaysRequest, ResolveMapOverlapsRequest, EDITORIAL_PLAN_V2_SCHEMA_VERSION,
+    compile_editorial_plan, compile_overlay_plan_v2_owned, CompileEditorialPlanRequest,
+    EditorialPlanV2Request, EDITORIAL_PLAN_V2_SCHEMA_VERSION,
 };
 
 /// Entries kept per persistent worker. Large enough that a full script batch
@@ -40,6 +38,18 @@ const CACHE_ENTRIES: usize = 256;
 #[derive(Deserialize)]
 struct Envelope {
     operation: String,
+}
+
+/// `analyze_script` request envelope. The wire version is optional and defaults
+/// to v3, so every existing caller keeps the current contract. The field lives
+/// on the envelope, not on [`ScriptRequest`], because it selects the response
+/// encoding and is not an analysis input.
+#[derive(Deserialize)]
+struct AnalyzeScriptRequest {
+    #[serde(flatten)]
+    request: ScriptRequest,
+    #[serde(default)]
+    manifest_version: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -148,6 +158,78 @@ pub struct Worker {
     /// Optional persistent store. `None` keeps the worker memory-only, which is
     /// the default until `SEMANTIC_CACHE_DIR` is set.
     disk: Option<Arc<DiskCache>>,
+    /// Per-scene cache owned by the worker, initialized once from the
+    /// environment. Reopening it per request would run `create_dir_all` and the
+    /// retention scan on every analysis.
+    scene_cache: Option<Arc<SceneCache>>,
+    /// Identical requests that are already being analysed. A waiter blocks on
+    /// the flight instead of running the same extractor a second time.
+    in_flight: Mutex<HashMap<String, Arc<Flight>>>,
+}
+
+/// Manifest plus its canonical encoding, shared by the leader and every
+/// waiter so a cache hit and a cold response use the same bytes.
+type FlightResult = Result<(Arc<SemanticManifest>, Arc<[u8]>), String>;
+
+/// One analysis in progress, keyed by the request fingerprint.
+struct Flight {
+    result: Mutex<Option<FlightResult>>,
+    done: Condvar,
+}
+
+impl Flight {
+    fn new() -> Self {
+        Self {
+            result: Mutex::new(None),
+            done: Condvar::new(),
+        }
+    }
+
+    fn complete(&self, result: FlightResult) {
+        let mut slot = self
+            .result
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if slot.is_none() {
+            *slot = Some(result);
+            self.done.notify_all();
+        }
+    }
+
+    fn wait(&self) -> FlightResult {
+        let mut slot = self
+            .result
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        while slot.is_none() {
+            slot = self
+                .done
+                .wait(slot)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+        slot.as_ref().expect("flight completed").clone()
+    }
+}
+
+/// Completes a leader's flight with an error if the analysis unwinds, so a
+/// waiter can never block forever on a panicking analysis.
+struct FlightGuard<'a> {
+    worker: &'a Worker,
+    key: String,
+    flight: Arc<Flight>,
+    completed: bool,
+}
+
+impl Drop for FlightGuard<'_> {
+    fn drop(&mut self) {
+        if self.completed {
+            return;
+        }
+        self.flight.complete(Err("analysis aborted".to_string()));
+        if let Ok(mut map) = self.worker.in_flight.lock() {
+            map.remove(&self.key);
+        }
+    }
 }
 
 impl Default for Worker {
@@ -411,7 +493,7 @@ fn compile_full_editorial_plan_line(line: &str) -> String {
             )
         }
     };
-    match compile_overlay_plan_v2(&request) {
+    match compile_overlay_plan_v2_owned(request) {
         Ok(plan) => match serde_json::to_string(&plan) {
             Ok(response) => response,
             Err(err) => error_response(
@@ -435,62 +517,6 @@ fn compile_legacy_editorial_plan_line(line: &str) -> String {
     };
     let plan = compile_editorial_plan(request);
     json!({ "ok": true, "plan": plan }).to_string()
-}
-
-fn resolve_map_overlaps_line(line: &str) -> String {
-    let request: ResolveMapOverlapsRequest = match serde_json::from_str(line) {
-        Ok(request) => request,
-        Err(err) => {
-            return error_response(
-                ErrorCode::Decode,
-                &format!("invalid resolve_map_overlaps request: {err}"),
-            )
-        }
-    };
-    let edits = resolve_map_overlaps(request);
-    json!({ "ok": true, "edits": edits }).to_string()
-}
-
-fn trim_map_windows_before_budget_line(line: &str) -> String {
-    let request: ResolveMapOverlapsRequest = match serde_json::from_str(line) {
-        Ok(request) => request,
-        Err(err) => {
-            return error_response(
-                ErrorCode::Decode,
-                &format!("invalid map-window budget request: {err}"),
-            );
-        }
-    };
-    let edits = trim_map_windows_before_budget(request);
-    json!({ "ok": true, "edits": edits }).to_string()
-}
-
-fn rank_entity_overlays_line(line: &str) -> String {
-    let request: RankEntityOverlaysRequest = match serde_json::from_str(line) {
-        Ok(request) => request,
-        Err(err) => {
-            return error_response(
-                ErrorCode::Decode,
-                &format!("invalid entity overlay rank request: {err}"),
-            )
-        }
-    };
-    let selected_indices = rank_entity_overlays(request);
-    json!({ "ok": true, "selected_indices": selected_indices }).to_string()
-}
-
-fn cascade_clustered_entrances_line(line: &str) -> String {
-    let request: CascadeEntrancesRequest = match serde_json::from_str(line) {
-        Ok(request) => request,
-        Err(err) => {
-            return error_response(
-                ErrorCode::Decode,
-                &format!("invalid entrance cascade request: {err}"),
-            )
-        }
-    };
-    let edits = cascade_clustered_entrances(request);
-    json!({ "ok": true, "edits": edits }).to_string()
 }
 
 fn split_sentences(line: &str) -> String {
@@ -574,15 +600,22 @@ pub fn run_stdio() -> io::Result<()> {
 
 /// One `analyze_script` response, shared by the memory hit, the disk hit and
 /// the fresh-analysis paths so all three report the same completeness contract.
-fn manifest_response(manifest: &SemanticManifest, cached: bool) -> String {
+/// Builds the response from the manifest's canonical bytes, avoiding a second
+/// `serde_json::Value` tree for the whole manifest. Every path (cold, memory
+/// hit, disk hit) uses this builder, so their bodies are byte-identical apart
+/// from the `cached` flag; the protocol test enforces that.
+fn manifest_response_bytes(encoded: &[u8], manifest: &SemanticManifest, cached: bool) -> String {
     let completeness = manifest_completeness(manifest);
-    json!({
-        "ok": true,
-        "manifest": manifest,
-        "cached": cached,
-        "completeness": completeness
-    })
-    .to_string()
+    let manifest = std::str::from_utf8(encoded).unwrap_or("null");
+    let mut response = String::with_capacity(encoded.len() + 128);
+    response.push_str("{\"cached\":");
+    response.push_str(if cached { "true" } else { "false" });
+    response.push_str(",\"completeness\":");
+    response.push_str(&completeness.to_string());
+    response.push_str(",\"manifest\":");
+    response.push_str(manifest);
+    response.push_str(",\"ok\":true}");
+    response
 }
 
 #[cfg(test)]

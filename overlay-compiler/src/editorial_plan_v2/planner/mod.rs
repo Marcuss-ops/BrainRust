@@ -99,14 +99,25 @@ impl std::ops::Deref for ValidatedRequest<'_> {
 
 /// Validates the complete request, runs every phase in order and seals the
 /// final plan. There is no empty-plan fallback: a missing input is an error.
+/// Borrowing compatibility wrapper. Production uses [`compile_plan_owned`],
+/// which projects the request in place instead of copying it.
 pub fn compile_plan(
     request: &EditorialPlanV2Request,
 ) -> Result<EditorialPlanV2Compiled, EditorialPlanError> {
+    compile_plan_owned(request.clone())
+}
+
+/// Compiles a plan, consuming the request. Projection mutates the owned value
+/// in place, so a large document is not deep-copied (scenes, annotations,
+/// timing and media) before the first phase runs. The caller in the worker
+/// deserializes an owned request, so this is the production path.
+pub fn compile_plan_owned(
+    mut request: EditorialPlanV2Request,
+) -> Result<EditorialPlanV2Compiled, EditorialPlanError> {
     // WP4: raw surfaces are projected here, before any planner phase. The
     // producer cannot pre-select, drop or time a phrase/entity/number.
-    let mut projected_request = request.clone();
-    super::projection::project_request(&mut projected_request);
-    let request = &projected_request;
+    super::projection::project_request(&mut request);
+    let request = &request;
     let validated = ValidatedRequest::new(request)?;
     let mut editorial = project_editorial_scenes(request)?;
     if request.chapters.is_some() {

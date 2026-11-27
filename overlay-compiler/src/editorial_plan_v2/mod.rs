@@ -61,3 +61,11 @@ pub fn compile_overlay_plan_v2(
 ) -> Result<EditorialPlanV2Compiled, EditorialPlanError> {
     planner::compile_plan(request)
 }
+
+/// Owned variant: the request is projected in place, with no deep copy. The
+/// worker deserializes an owned request, so this is the production entry point.
+pub fn compile_overlay_plan_v2_owned(
+    request: EditorialPlanV2Request,
+) -> Result<EditorialPlanV2Compiled, EditorialPlanError> {
+    planner::compile_plan_owned(request)
+}

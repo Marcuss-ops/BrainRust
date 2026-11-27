@@ -1,4 +1,5 @@
 use super::*;
+use crate::analyze_script;
 
 fn request(text: &str) -> String {
     json!({
@@ -9,33 +10,156 @@ fn request(text: &str) -> String {
     .to_string()
 }
 
+/// BR-AUDIT-24: the planner phases are internal to `compile_editorial_plan`.
+/// Their NDJSON operations were removed after a census found no PipelineGen
+/// producer, so they must now fail closed instead of silently succeeding.
 #[test]
-fn ranks_entity_overlays_through_the_worker_protocol() {
+fn granular_planner_operations_are_retired() {
     let worker = Worker::new(8);
-    let line = json!({
-        "operation": "rank_entity_overlays",
-        "scenes": [{
-            "entities": [
-                {"entity_id":"org-a", "overlay_id":"a", "entity_type":"ORG", "confidence":0.9},
-                {"entity_id":"person-b", "overlay_id":"b", "entity_type":"PERSON", "confidence":0.8}
-            ]
-        }]
-    })
-    .to_string();
-    let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
-    assert_eq!(response["ok"], true);
-    assert_eq!(response["selected_indices"], json!([[1, 0]]));
+    for operation in [
+        "resolve_map_overlaps",
+        "trim_map_windows_before_budget",
+        "rank_entity_overlays",
+        "cascade_clustered_entrances",
+    ] {
+        let line = json!({ "operation": operation }).to_string();
+        let response: serde_json::Value = serde_json::from_str(&worker.handle_line(&line)).unwrap();
+        assert_eq!(response["ok"], false, "{operation} must not be served");
+        assert_eq!(
+            response["error_code"], "unsupported_operation",
+            "{operation}"
+        );
+    }
 }
 
+/// BR-AUDIT-08: `analyze_script` routes the output by declared version. v3 is
+/// the default and keeps its historical shape; v4 moves identities to one
+/// document table; an unknown version fails closed instead of decoding as v3.
 #[test]
-fn cascades_clustered_entrances_through_the_worker_protocol() {
-    let worker = Worker::default();
-    let response: serde_json::Value = serde_json::from_str(&worker.handle_line(
-            r#"{"operation":"cascade_clustered_entrances","fps_num":24,"fps_den":1,"items":[{"id":"phrase","kind":"text_phrase","start_ms":0,"end_ms":3000,"motion_params":{"enter_frames":8}},{"id":"image","kind":"entity_image","start_ms":100,"end_ms":3000,"motion_params":{"enter_frames":8}}]}"#,
-        )).unwrap();
-    assert_eq!(response["ok"], true);
-    assert_eq!(response["edits"][0]["index"], 1);
-    assert_eq!(response["edits"][0]["enter_frames"], 20);
+fn analyze_script_routes_manifest_versions_and_rejects_unknown() {
+    let worker = Worker::new(8);
+    let base = json!({
+        "operation": "analyze_script",
+        "language": "it",
+        "scenes": [{"scene_id": "s1", "text": "Corrado Augias visitò un museo storico."}]
+    });
+
+    let v3: serde_json::Value =
+        serde_json::from_str(&worker.handle_line(&base.to_string())).unwrap();
+    assert_eq!(v3["ok"], true);
+    assert_eq!(v3["manifest"]["schema_version"], "semantic_manifest.v3");
+    assert!(
+        v3["manifest"]["scenes"][0].get("identities").is_some(),
+        "v3 scenes keep the cumulative identity list"
+    );
+    assert!(v3["manifest"]["scenes"][0].get("identity_ids").is_none());
+    assert!(v3["manifest"].get("identities").is_none());
+
+    let mut v4_request = base.clone();
+    v4_request["manifest_version"] = json!("semantic_manifest.v4");
+    let v4: serde_json::Value =
+        serde_json::from_str(&worker.handle_line(&v4_request.to_string())).unwrap();
+    assert_eq!(v4["ok"], true);
+    assert_eq!(v4["manifest"]["schema_version"], "semantic_manifest.v4");
+    assert!(v4["manifest"]["identities"].is_array());
+    assert!(v4["manifest"]["scenes"][0].get("identities").is_none());
+    assert!(v4["manifest"]["scenes"][0]["identity_ids"].is_array());
+    assert_eq!(v4["manifest"]["fingerprint"], v3["manifest"]["fingerprint"]);
+
+    // The cache key is version-scoped: a v4 request must not poison the v3
+    // entry, and a v3 replay after v4 must still return the v3 shape.
+    let v3_again: serde_json::Value =
+        serde_json::from_str(&worker.handle_line(&base.to_string())).unwrap();
+    assert_eq!(v3_again["manifest"], v3["manifest"]);
+
+    let mut unknown = base.clone();
+    unknown["manifest_version"] = json!("semantic_manifest.v5");
+    let rejected: serde_json::Value =
+        serde_json::from_str(&worker.handle_line(&unknown.to_string())).unwrap();
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error_code"], "decode");
+    assert!(
+        rejected["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("unsupported manifest_version")),
+        "unknown version must be named, got {rejected}"
+    );
+}
+
+/// BR-AUDIT-10 measurement: cost of the old `json!` tree versus the spliced
+/// response for a long-script manifest. Run with `--ignored --nocapture`.
+#[test]
+#[ignore = "manual encoding-cost probe; run with --ignored --nocapture"]
+fn response_encoding_cost() {
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/fixtures/gold_multilingual/long_scripts/it_stadium.txt"
+    ))
+    .expect("long script");
+    let line = json!({
+        "operation": "analyze_script",
+        "language": "it",
+        "scenes": [{"scene_id": "s1", "text": text}]
+    })
+    .to_string();
+    let worker = Worker::new(8);
+    let response = worker.handle_line(&line);
+    let value: serde_json::Value = serde_json::from_str(&response).expect("response json");
+    let manifest: SemanticManifest =
+        serde_json::from_value(value["manifest"].clone()).expect("manifest decodes");
+    let encoded = serde_json::to_vec(&manifest).expect("manifest encodes");
+    let completeness = manifest_completeness(&manifest);
+    let old = || {
+        json!({
+            "ok": true,
+            "manifest": &manifest,
+            "cached": false,
+            "completeness": completeness.clone()
+        })
+        .to_string()
+    };
+    let spliced = || manifest_response_bytes(&encoded, &manifest, false);
+    let _ = old();
+    let _ = spliced();
+    let iterations = 20;
+    let start = std::time::Instant::now();
+    for _ in 0..iterations {
+        std::hint::black_box(old());
+    }
+    let old_us = start.elapsed().as_secs_f64() * 1e6 / iterations as f64;
+    let start = std::time::Instant::now();
+    for _ in 0..iterations {
+        std::hint::black_box(spliced());
+    }
+    let spliced_us = start.elapsed().as_secs_f64() * 1e6 / iterations as f64;
+    println!(
+        "ENCODING_PROBE manifest_bytes={} old_json_us={old_us:.1} spliced_us={spliced_us:.1}",
+        encoded.len()
+    );
+}
+
+/// BR-AUDIT-10: the byte-splicing response must match the `json!` response
+/// exactly, and the cache-hit body must equal the cold body.
+#[test]
+fn cold_and_cached_responses_reuse_the_same_manifest_bytes() {
+    let worker = Worker::new(8);
+    let line = request("Alberto Stasi ha fondato lo studio nel 2008 a Milano.");
+    let cold = worker.handle_line(&line);
+    let hit = worker.handle_line(&line);
+
+    let cold: serde_json::Value = serde_json::from_str(&cold).expect("cold json");
+    let hit: serde_json::Value = serde_json::from_str(&hit).expect("hit json");
+    assert_eq!(cold["cached"], false);
+    assert_eq!(hit["cached"], true);
+    assert_eq!(cold["manifest"], hit["manifest"]);
+    assert_eq!(cold["completeness"], hit["completeness"]);
+
+    // Apart from the `cached` flag, a hit must return the exact cold bytes.
+    let cold_body = worker
+        .handle_line(&line)
+        .replace("\"cached\":false", "\"cached\":true");
+    let hit_body = worker.handle_line(&line);
+    assert_eq!(cold_body, hit_body, "a hit must not re-encode the manifest");
 }
 
 #[test]

@@ -28,6 +28,10 @@ pub const DEFAULT_MAX_BYTES: usize = 128 * 1024 * 1024;
 
 struct CacheEntry {
     manifest: Arc<SemanticManifest>,
+    /// Canonical wire encoding, produced once when the entry is inserted. The
+    /// worker splices these bytes into the response instead of rebuilding a
+    /// `serde_json::Value` tree for a manifest that can be megabytes.
+    encoded: Arc<[u8]>,
     bytes: usize,
 }
 
@@ -37,6 +41,11 @@ struct CacheEntry {
 /// script batch is analysed once and replayed, so recency ordering adds book
 /// keeping without changing which results are correct. The bound only stops a
 /// long-lived worker from growing without limit; it never changes output.
+///
+/// Each entry holds both the decoded manifest and its canonical wire encoding.
+/// The byte budget counts the encoding (the value the previous implementation
+/// used); the decoded structures are also resident, so the real heap is larger
+/// than the configured cap. The cap bounds growth, it is not an RSS limit.
 pub struct ManifestCache {
     max_entries: usize,
     max_bytes: usize,
@@ -78,13 +87,19 @@ impl ManifestCache {
     /// [`Arc`] shares the stored allocation: a cache hit must not deep-clone
     /// a manifest that can be megabytes of grounded facts.
     pub fn get(&mut self, key: &str) -> Option<Arc<SemanticManifest>> {
+        self.get_encoded(key).map(|(manifest, _)| manifest)
+    }
+
+    /// Returns the manifest together with its canonical encoding, so the
+    /// caller can answer a hit without re-serializing it.
+    pub fn get_encoded(&mut self, key: &str) -> Option<(Arc<SemanticManifest>, Arc<[u8]>)> {
         if self.max_entries == 0 || self.max_bytes == 0 {
             return None;
         }
         match self.entries.get(key) {
             Some(entry) => {
                 self.hits += 1;
-                Some(Arc::clone(&entry.manifest))
+                Some((Arc::clone(&entry.manifest), Arc::clone(&entry.encoded)))
             }
             None => {
                 self.misses += 1;
@@ -93,28 +108,42 @@ impl ManifestCache {
         }
     }
 
+    /// Looks up without touching the hit/miss counters. Used by the
+    /// single-flight double-check, which is an internal retry rather than a
+    /// caller-visible cache lookup.
+    pub fn peek_encoded(&self, key: &str) -> Option<(Arc<SemanticManifest>, Arc<[u8]>)> {
+        if self.max_entries == 0 || self.max_bytes == 0 {
+            return None;
+        }
+        self.entries
+            .get(key)
+            .map(|entry| (Arc::clone(&entry.manifest), Arc::clone(&entry.encoded)))
+    }
+
     /// Stores a manifest under `key`, evicting the oldest entries until both
     /// the entry cap and the serialized-byte budget hold. A manifest larger
     /// than the whole budget is not cached.
     pub fn insert(&mut self, key: String, manifest: Arc<SemanticManifest>) {
-        let bytes = serde_json::to_vec(manifest.as_ref())
-            .map(|encoded| encoded.len())
-            .unwrap_or(usize::MAX);
-        self.insert_with_bytes(key, manifest, bytes);
+        let Ok(encoded) = serde_json::to_vec(manifest.as_ref()) else {
+            return;
+        };
+        self.insert_encoded(key, manifest, Arc::from(encoded));
     }
 
-    /// Stores a manifest whose serialized size is already known. The worker
-    /// serializes the manifest once for the disk cache and reuses the length
-    /// here, instead of encoding the same manifest a second time.
-    pub fn insert_with_bytes(
+    /// Stores a manifest together with the canonical encoding the worker
+    /// already produced for the disk cache. Neither representation is rebuilt
+    /// on a hit: the length is the memory budget and the bytes are the wire
+    /// response.
+    pub fn insert_encoded(
         &mut self,
         key: String,
         manifest: Arc<SemanticManifest>,
-        bytes: usize,
+        encoded: Arc<[u8]>,
     ) {
         if self.max_entries == 0 || self.max_bytes == 0 {
             return;
         }
+        let bytes = encoded.len();
         if bytes > self.max_bytes {
             return;
         }
@@ -122,8 +151,14 @@ impl ManifestCache {
             self.total_bytes = self.total_bytes.saturating_sub(previous.bytes);
             self.order.retain(|existing| existing != &key);
         }
-        self.entries
-            .insert(key.clone(), CacheEntry { manifest, bytes });
+        self.entries.insert(
+            key.clone(),
+            CacheEntry {
+                manifest,
+                encoded,
+                bytes,
+            },
+        );
         self.total_bytes = self.total_bytes.saturating_add(bytes);
         self.order.push_back(key);
         while self.entries.len() > self.max_entries || self.total_bytes > self.max_bytes {

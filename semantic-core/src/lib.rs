@@ -66,16 +66,18 @@ pub use identity::{
     role_of, stable_surface_key, CanonicalIdentity, EntityRole, IdentityRegistry, LinkCandidate,
     LinkEvidenceSpan, LinkFeature, LinkStatus, LinkedEntity, Mention, SearchIntent,
 };
+pub use manifest::{global_identities, identity_ids_for_scene, to_v4_value};
 pub use manifest::{
     AnalyzerVersions, Candidate, ComposedImageQuery, ConsolidatedDate, ConsolidatedDateSpan,
     ConsolidatedEventLink, ConsolidatedFact, ConsolidationInventory, ConsolidationMetrics,
     ConsolidationSceneStats, ContextualImageQuery, CoverageItem, CrossSceneRoute,
-    CrossSceneRouteStop, EntityFact, FactRepresentation, ImportantSegment, MicroSummary,
-    PersonAgeFact, PersonRelation, PersonRole, Place, ProductionCandidate, QueryComponent,
-    ReferenceNumber, RoleRank, RoleStatus, RoleTense, Route, RouteEvidence, RouteStop,
-    SceneCoverage, SceneInput, SceneManifest, ScriptRequest, SearchFeedback, SearchFeedbackEntry,
-    SearchQuery, SearchRetry, SemanticGroup, SemanticGroupMember, SemanticManifest, StoryEdge,
-    StoryGraph, StoryNode, VisualConsolidation, VisualCoverage, VisualProposal, SCHEMA_VERSION,
+    CrossSceneRouteStop, EntityFact, FactRepresentation, ImportantSegment, ManifestVersion,
+    MicroSummary, PersonAgeFact, PersonRelation, PersonRole, Place, ProductionCandidate,
+    QueryComponent, ReferenceNumber, RoleRank, RoleStatus, RoleTense, Route, RouteEvidence,
+    RouteStop, SceneCoverage, SceneInput, SceneManifest, ScriptRequest, SearchFeedback,
+    SearchFeedbackEntry, SearchQuery, SearchRetry, SemanticGroup, SemanticGroupMember,
+    SemanticManifest, StoryEdge, StoryGraph, StoryNode, VisualConsolidation, VisualCoverage,
+    VisualProposal, PRODUCIBLE_SCHEMA_VERSIONS, SCHEMA_VERSION, SCHEMA_VERSION_V4,
     SUPPORTED_SCHEMA_VERSIONS, VISUAL_CONSOLIDATION_SCHEMA,
 };
 pub use manifest::{ChartItem, ChartMetadata};

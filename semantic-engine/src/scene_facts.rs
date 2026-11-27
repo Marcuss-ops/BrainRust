@@ -168,19 +168,46 @@ pub(super) enum LocalSceneResult {
     Rejected { scene_id: String, reason: String },
 }
 
+/// Everything phase 1 needs besides the scene itself. Grouping the inputs keeps
+/// the cache key and the extractor reading the same values: a new key
+/// component cannot be threaded to the hasher while being forgotten by the
+/// analysis.
+pub(super) struct LocalSceneInputs<'a> {
+    pub language: &'a str,
+    pub safety_cap: usize,
+    pub context: &'a visualner::ScriptContext,
+    pub context_digest: &'a str,
+    pub reference_date: Option<&'a str>,
+    pub analyzers: &'a semantic_core::AnalyzerVersions,
+    pub cache: Option<&'a crate::cache::scene::SceneCache>,
+}
+
 /// Phase 1: pure scene-local analysis. No identity registry, no cross-scene
 /// state, so scenes can run in parallel and a cache hit is safe. Everything
 /// that depends on earlier scenes is deferred to [`finalize_scene_with_search`].
 pub(super) fn analyze_local_scene(
     scene: &SceneInput,
-    language: &str,
-    safety_cap: usize,
-    context: &visualner::ScriptContext,
-    reference_date: Option<&str>,
-    analyzers: &semantic_core::AnalyzerVersions,
-    cache: Option<&crate::cache::scene::SceneCache>,
+    inputs: &LocalSceneInputs<'_>,
 ) -> LocalSceneResult {
-    let key = cache.map(|_| crate::cache::scene::SceneCache::key(&scene.text, language, analyzers));
+    let LocalSceneInputs {
+        language,
+        safety_cap,
+        context,
+        context_digest,
+        reference_date,
+        analyzers,
+        cache,
+    } = *inputs;
+    let key = cache.map(|_| {
+        crate::cache::scene::SceneCache::key(
+            &scene.text,
+            language,
+            analyzers,
+            context_digest,
+            reference_date,
+            safety_cap,
+        )
+    });
     if let (Some(cache), Some(key)) = (cache, key.as_deref()) {
         if let Some(mut draft) = cache.load(key, language) {
             // Scene ids are positional and not part of the cache key.
@@ -209,17 +236,12 @@ pub(super) fn analyze_local_scene(
         }
     };
 
-    // One canonical segmentation per scene. Every downstream builder consumes
-    // these spans instead of re-splitting the source (the previous per-entity
-    // split made analysis O(entities x text)).
-    let sentence_spans = semantic_core::split_sentences(&scene.text, language, None);
     let temporal_facts =
         retain_grounded_temporal(&scene.text, std::mem::take(&mut analysis.temporal_facts));
     let draft = crate::cache::scene::LocalSceneDraft {
         scene_id: scene.scene_id.clone(),
         analysis,
         temporal_facts,
-        sentence_spans,
     };
     if let (Some(cache), Some(key)) = (cache, key.as_deref()) {
         cache.store(key, language, &draft);
@@ -242,9 +264,11 @@ pub(super) fn finalize_scene_with_search(
     let crate::cache::scene::LocalSceneDraft {
         mut analysis,
         temporal_facts,
-        sentence_spans,
         ..
     } = draft;
+    // The extractor already segmented the source once; phase 2 consumes those
+    // spans instead of re-splitting the same text.
+    let sentence_spans = std::mem::take(&mut analysis.sentence_spans);
     let source = scene.text.as_str();
     let (entities, rejected_entities) = prepare_entities(
         source,
@@ -330,14 +354,18 @@ pub(super) fn analyze_scene_with_search(
     reference_date: Option<&str>,
 ) -> SceneAnalysis {
     let analyzers = crate::analyzer_versions();
+    let context_digest = crate::cache::scene::SceneCache::context_digest(context);
     match analyze_local_scene(
         scene,
-        language,
-        safety_cap,
-        context,
-        reference_date,
-        &analyzers,
-        None,
+        &LocalSceneInputs {
+            language,
+            safety_cap,
+            context,
+            context_digest: &context_digest,
+            reference_date,
+            analyzers: &analyzers,
+            cache: None,
+        },
     ) {
         LocalSceneResult::Rejected { scene_id, reason } => rejected_scene(&scene_id, reason),
         LocalSceneResult::Draft(draft) => {

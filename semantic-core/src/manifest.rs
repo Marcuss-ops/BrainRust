@@ -109,6 +109,8 @@ pub enum RoleStatus {
 
 mod entities;
 pub use entities::*;
+mod v4;
+pub use v4::*;
 /// Wire version of the semantic consolidation projection carried by the same
 /// manifest. It is additive: raw scene collections remain the
 /// complete inventory, and this section is the compiler's selective production
