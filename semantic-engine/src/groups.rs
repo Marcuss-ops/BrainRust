@@ -11,6 +11,7 @@
 use serde::Serialize;
 use std::collections::HashSet;
 use visualner::analysis::{Bullet, ChartPoint, LowerThird};
+use visualner::types::AnalyzedToken;
 use visualner::{TemporalFact, VisualEntity};
 
 use crate::identity_lookup::IdentityLookup;
@@ -53,6 +54,9 @@ pub struct ChartInput<'a> {
     pub points: &'a [ChartPoint],
     pub quantities: &'a [Quantity],
     pub comparisons: &'a [semantic_core::QuantityComparison],
+    /// UDPipe tokens of the scene. They let the series builder compare the
+    /// syntactic subject even when the named-entity pass missed a proper name.
+    pub tokens: &'a [AnalyzedToken],
 }
 
 /// Builds every proposal of one scene, in deterministic source order.

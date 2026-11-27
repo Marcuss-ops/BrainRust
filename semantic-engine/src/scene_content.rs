@@ -40,6 +40,7 @@ pub(super) fn derive_scene_content(input: SceneContentInput<'_>) -> SceneContent
             points: &analysis.chart_points,
             quantities: &facts.quantities,
             comparisons: &facts.quantity_comparisons,
+            tokens: &analysis.tokens,
         },
         &analysis.lower_thirds,
         temporal_facts,

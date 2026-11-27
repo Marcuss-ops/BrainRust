@@ -7,6 +7,7 @@ mod chapters_behavior;
 mod chapters_core;
 mod common;
 mod corpus_metrics;
+mod intro_agenda;
 mod rank;
 mod scenes_titles;
 mod splitting;

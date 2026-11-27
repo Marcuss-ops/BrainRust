@@ -322,14 +322,14 @@ fn routes_dates_and_metrics_to_certified_cards() {
         .find(|item| item.template_id == "TIMELINE_DATE_CARD")
         .expect("date card");
     assert_eq!(scene_duration_us, date.duration_us, "date is capped by the scene");
-    assert!(super::DATE_MOTIONS.contains(&date.motion_id.as_str()));
+    assert!(TEST_DATE_MOTIONS.contains(&date.motion_id.as_str()));
     let metric = compiled
         .plan
         .items
         .iter()
         .find(|item| item.template_id == "METRIC_STAT_CARD")
         .expect("metric card");
-    assert!(super::METRIC_MOTIONS.contains(&metric.motion_id.as_str()));
+    assert!(TEST_METRIC_MOTIONS.contains(&metric.motion_id.as_str()));
 }
 
 #[test]
@@ -434,7 +434,7 @@ fn repeated_dates_and_metrics_rotate_their_motion_pools() {
     assert!(
         metric_motions
             .iter()
-            .all(|motion| super::METRIC_MOTIONS.contains(motion)),
+            .all(|motion| TEST_METRIC_MOTIONS.contains(motion)),
         "metric motion outside the certified pool: {metric_motions:?}"
     );
     let distinct_metrics: std::collections::BTreeSet<&str> =
@@ -489,13 +489,13 @@ fn date_and_metric_cards_interleave_all_three_families() {
     assert!(dates.len() >= 3, "expected date cards, got {dates:?}");
     assert!(metrics.len() >= 3, "expected metric cards, got {metrics:?}");
     assert!(
-        dates.iter().all(|motion| super::DATE_MOTIONS.contains(&motion.as_str())),
+        dates.iter().all(|motion| TEST_DATE_MOTIONS.contains(&motion.as_str())),
         "date motion outside the certified pool: {dates:?}"
     );
     assert!(
         metrics
             .iter()
-            .all(|motion| super::METRIC_MOTIONS.contains(&motion.as_str())),
+            .all(|motion| TEST_METRIC_MOTIONS.contains(&motion.as_str())),
         "metric motion outside the certified pool: {metrics:?}"
     );
     assert!(
@@ -544,19 +544,19 @@ fn seeded_number_motion_matches_the_go_sampler() {
         "s1-number-42-per-cento",
         super::go_item_id("s1", "number", "42 per cento")
     );
-    // The Go sampler hashes the seed to lowercase hex and reads the first
-    // eight hex characters as a big-endian integer. This is the exact
-    // fixture decision the Go oracle produces for this semantic id.
-    assert_eq!(
-        Some("metric_debt_flip".to_string()),
-        super::seeded_preset(
-            "charts-fixture",
-            "s1",
-            "s1-number-42-per-cento",
-            "metric_presentation",
-            super::METRIC_MOTIONS,
-        )
-    );
+    // Cross-language parity fixture: exactly the vector pinned by
+    // TestSeededIndex_ParityVector in PipelineGen
+    // (`internal/capabilities/overlays/seeded_index_test.go`). Both sides hash
+    // the same JSON and read raw digest windows with rejection sampling.
+    use sha2::{Digest, Sha256};
+    let encoded = br#"{"job_fingerprint":"job-fp-123","scene_id":"scene_03","semantic_id":"sem_scene03_person_01","preset_family":"person_image"}"#;
+    let digest = Sha256::digest(encoded);
+    assert_eq!(Some(1), seeded_index_in(&digest, 0, 4));
+    assert_eq!(Some(3), seeded_index_in(&digest, 1, 4));
+    assert_eq!(Some(1), seeded_index_in(&digest, 0, 3));
+    assert_eq!(Some(0), seeded_index_in(&digest, 1, 3));
+    assert_eq!(Some(5), seeded_index_in(&digest, 0, 41));
+    assert_eq!(Some(20), seeded_index_in(&digest, 1, 41));
 }
 
 #[test]
@@ -1544,4 +1544,145 @@ fn consecutive_images_rotate_without_adjacent_repeats() {
         motions.iter().all(|motion| request.canvas.image_motions.iter().any(|candidate| candidate == motion)),
         "image motion outside the certified pool: {motions:?}"
     );
+}
+
+/// ANIMRAND-16: every animated item declares where its entrance came from, and
+/// a producer pin is never reported as automatic.
+#[test]
+fn every_animated_item_records_its_selection_origin() {
+    let mut request = request();
+    request.canvas.editorial_bullet_styles = serde_json::from_value(serde_json::json!([{
+        "scene_id": "scene-1",
+        "motion_id": "pinned_bullet_motion"
+    }]))
+    .expect("bullet pin");
+    request.scenes[0].annotations = Some(
+        serde_json::from_value(serde_json::json!({
+            "numbers": [
+                {"text": "13 agosto", "type": "DATE", "start_us": 0, "duration_us": 500000}
+            ]
+        }))
+        .expect("annotations"),
+    );
+    request.budgets.as_mut().expect("budgets").max_per_scene = 10;
+    let compiled = compile_plan(&request).expect("plan");
+    for item in &compiled.plan.items {
+        if item.motion_id.trim().is_empty() {
+            continue;
+        }
+        let origin = item
+            .params
+            .as_ref()
+            .and_then(|params| params.get("motion_origin"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_else(|| panic!("{} has a motion but no origin: {item:?}", item.id));
+        assert!(
+            ["auto", "explicit", "group", "fallback"].contains(&origin),
+            "{} has an unknown origin {origin}",
+            item.id
+        );
+    }
+    let bullet = compiled
+        .plan
+        .items
+        .iter()
+        .find(|item| {
+            item.params
+                .as_ref()
+                .and_then(|params| params.get("editorial_role"))
+                .and_then(serde_json::Value::as_str)
+                == Some("scene_bullet")
+        })
+        .expect("scene bullet");
+    assert_eq!(
+        Some("explicit"),
+        bullet
+            .params
+            .as_ref()
+            .and_then(|params| params.get("motion_origin"))
+            .and_then(serde_json::Value::as_str),
+        "a pinned bullet must be recorded as explicit"
+    );
+    let date = compiled
+        .plan
+        .items
+        .iter()
+        .find(|item| item.template_id == "TIMELINE_DATE_CARD")
+        .expect("date card");
+    assert_eq!(
+        Some("auto"),
+        date.params
+            .as_ref()
+            .and_then(|params| params.get("motion_origin"))
+            .and_then(serde_json::Value::as_str),
+        "an automatic date must be recorded as auto"
+    );
+}
+
+/// ANIMRAND-15: the CPU-only certification the audit asks for — ten thousand
+/// synthetic draws, no render. It proves coverage (every candidate reachable),
+/// uniform distribution (no residual ASCII-hex bias) and non-zero entropy.
+#[test]
+fn ten_thousand_seeded_draws_are_uniform_and_cover_the_pool() {
+    use sha2::Digest;
+    const SAMPLES: usize = 10_000;
+    const SLOTS: usize = 4;
+    let mut counts = [0usize; SLOTS];
+    for index in 0..SAMPLES {
+        let digest = sha2::Sha256::digest(format!("animrand-distribution-{index:06}").as_bytes());
+        let slot = seeded_index_in(&digest, 0, SLOTS).expect("index");
+        counts[slot] += 1;
+    }
+    let mut entropy = 0.0f64;
+    for (slot, count) in counts.iter().enumerate() {
+        assert!(*count > 0, "slot {slot} is unreachable");
+        let share = *count as f64 / SAMPLES as f64;
+        assert!(
+            (share - 0.25).abs() < 0.02,
+            "slot {slot} share {share:.4} is outside +/-2 points"
+        );
+        entropy -= share * share.log2();
+    }
+    assert!(entropy > 1.99, "entropy {entropy:.4} below the 2-bit bound");
+
+    // Coverage over the real metric pool: every certified id must be reachable
+    // from the same sampler the lanes use.
+    let pool = TEST_METRIC_MOTIONS;
+    let mut seen = std::collections::BTreeSet::new();
+    for index in 0..SAMPLES {
+        let digest = sha2::Sha256::digest(format!("animrand-coverage-{index:06}").as_bytes());
+        let slot = seeded_index_in(&digest, 1, pool.len()).expect("index");
+        seen.insert(pool[slot]);
+    }
+    assert_eq!(
+        pool.len(),
+        seen.len(),
+        "unreachable metric motions: {:?}",
+        pool.iter()
+            .filter(|motion| !seen.contains(*motion))
+            .collect::<Vec<_>>()
+    );
+}
+
+/// ANIMRAND-12: a motion is classified by the registry family it declares, not
+/// by the prefix of its id. A catalog entry whose id looks typewriter but is
+/// tagged classic must be selectable by the classic filter.
+#[test]
+fn registry_metadata_overrides_the_id_prefix() {
+    let mut request = request();
+    request.canvas.date_motion_family = "classic".to_string();
+    request.canvas.date_motions = vec![
+        "date_typewriter_decoy".to_string(),
+        "date_fade_rise".to_string(),
+    ];
+    request
+        .canvas
+        .motion_families
+        .insert("date_typewriter_decoy".to_string(), "classic".to_string());
+    let pool = date_motion_pool(&request);
+    assert!(
+        pool.contains(&"date_typewriter_decoy"),
+        "registry metadata must win over the prefix: {pool:?}"
+    );
+    assert!(pool.contains(&"date_fade_rise"), "{pool:?}");
 }

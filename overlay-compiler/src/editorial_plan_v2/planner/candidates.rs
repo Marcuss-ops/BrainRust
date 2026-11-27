@@ -209,7 +209,11 @@ mod editorial;
 pub(crate) use editorial::*;
 /// Interleaves the certified motion families so short runs sample more than
 /// the first family in the registry. Every family and member order is stable.
-fn ordered_short_phrase_pool<'a>(pool: &[&'a str], seed: &str, words: usize) -> Vec<&'a str> {
+pub(super) fn ordered_short_phrase_pool<'a>(
+    pool: &[&'a str],
+    seed: &str,
+    words: usize,
+) -> Vec<&'a str> {
     let mut families: BTreeMap<String, Vec<&str>> = BTreeMap::new();
     for id in pool.iter().copied() {
         families
@@ -298,13 +302,22 @@ fn family_matches(id: &str, requested: &str) -> bool {
     family == alias
 }
 
-fn motion_seed(request: &EditorialPlanV2Request) -> &str {
+pub(super) fn motion_seed(request: &EditorialPlanV2Request) -> &str {
     let seed = request.plan.motion_seed.trim();
     if seed.is_empty() {
         &request.plan.plan_id
     } else {
         seed
     }
+}
+
+/// The ONE creative seed every automatic lane derives from (ANIMRAND-07).
+/// `motion_seed` is the run's entropy, the plan id keeps a pinned seed from
+/// freezing different plans, and a replay of the same plan reproduces every
+/// draw. Lane suffixes are added by the caller, never by inventing new seed
+/// components (project id, wall clock, run id).
+pub(super) fn creative_seed(request: &EditorialPlanV2Request) -> String {
+    format!("{}\x00{}", motion_seed(request), request.plan.plan_id)
 }
 
 /// Rotates the long-phrase entrance pool for every 6+ word phrase. The long
@@ -343,7 +356,7 @@ pub(super) fn assign_long_phrase_motions(
             ordered.push(motion);
         }
     }
-    let seed = motion_seed(request);
+    let seed = creative_seed(request);
     let mut used = BTreeSet::new();
     for item in items.iter_mut() {
         if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
@@ -356,7 +369,7 @@ pub(super) fn assign_long_phrase_motions(
             continue;
         }
         let start = seeded_index(
-            seed,
+            &seed,
             &item.scene_id,
             &item.id,
             "long_phrase_motion",
@@ -369,6 +382,7 @@ pub(super) fn assign_long_phrase_motions(
             .unwrap_or(ordered[start]);
         used.insert(motion);
         item.motion_id = motion.to_string();
+        mark_motion_origin(item, ORIGIN_AUTO);
     }
 }
 
@@ -380,9 +394,10 @@ pub(super) fn assign_long_phrase_motions(
 /// so a replay reproduces the same order while each new run rotates.
 pub(super) fn assign_numeric_motions(items: &mut [PlanItemV2], request: &EditorialPlanV2Request) {
     // The request's motion_seed is shared by runs that pin one entropy value.
-    // Mixing in the plan id keeps that pin from freezing the numeric entrances
-    // across different plans, while a replay of the same plan stays identical.
-    let seed = format!("{}\x00{}", motion_seed(request), request.plan.plan_id);
+    // `creative_seed` mixes in the plan id, so that pin cannot freeze the
+    // numeric entrances across different plans while a replay of the same plan
+    // stays identical.
+    let seed = creative_seed(request);
     let seed = seed.as_str();
     let mut used: BTreeMap<&'static str, BTreeSet<String>> = BTreeMap::new();
     // A lane cursor walks the interleaved pool in reading order. A per-item
@@ -398,7 +413,13 @@ pub(super) fn assign_numeric_motions(items: &mut [PlanItemV2], request: &Editori
         let Some((counts_key, family_key)) = lane.motion_lane() else {
             continue;
         };
-        let mut pool = lane.motion_pool(request);
+        // An entrance the producer pinned (directive, recipe, bullet) is
+        // authoritative and must never be replaced by the automatic lane
+        // (ANIMRAND-09).
+        if !item.motion_id.trim().is_empty() {
+            continue;
+        }
+        let mut pool: Vec<&str> = lane.motion_pool(request);
         if pool.is_empty() {
             continue;
         }
@@ -416,7 +437,8 @@ pub(super) fn assign_numeric_motions(items: &mut [PlanItemV2], request: &Editori
                 &format!("{seed}\x00{}\x00{family_key}", request.plan.plan_id),
             );
         }
-        let ordered = ordered_numeric_motion_pool(&pool, seed, family_key);
+        let ordered =
+            ordered_numeric_motion_pool(&pool, seed, family_key, &request.canvas.motion_families);
         if ordered.is_empty() {
             continue;
         }
@@ -434,17 +456,23 @@ pub(super) fn assign_numeric_motions(items: &mut [PlanItemV2], request: &Editori
         lane_used.insert(motion.to_string());
         cursors.insert(family_key, (motion_index + 1) % ordered.len());
         item.motion_id = motion.to_string();
+        mark_motion_origin(item, ORIGIN_AUTO);
     }
 }
 
 /// Interleaves classic, didone and typewriter members so a three-card run owns
 /// one entrance from each family instead of three neighbours from the same
 /// family. Each family keeps its registry order, rotated by the run seed.
-fn ordered_numeric_motion_pool<'a>(pool: &[&'a str], seed: &str, lane: &str) -> Vec<&'a str> {
+fn ordered_numeric_motion_pool<'a>(
+    pool: &[&'a str],
+    seed: &str,
+    lane: &str,
+    families_by_id: &BTreeMap<String, String>,
+) -> Vec<&'a str> {
     let mut families: BTreeMap<String, Vec<&str>> = BTreeMap::new();
     for id in pool.iter().copied() {
         families
-            .entry(numeric_motion_family(id).to_string())
+            .entry(numeric_motion_family(id, families_by_id).to_string())
             .or_default()
             .push(id);
     }
@@ -476,7 +504,13 @@ fn ordered_numeric_motion_pool<'a>(pool: &[&'a str], seed: &str, lane: &str) -> 
     ordered
 }
 
-fn numeric_motion_family(id: &str) -> &str {
+/// Family of one numeric motion. The registry projection (`motion_families`)
+/// is authoritative; the prefix is only a legacy fallback for a request that
+/// predates it (ANIMRAND-12).
+fn numeric_motion_family<'a>(id: &str, families_by_id: &'a BTreeMap<String, String>) -> &'a str {
+    if let Some(family) = families_by_id.get(id) {
+        return family.as_str();
+    }
     if id.starts_with("date_didone_") || id.starts_with("metric_didone_") {
         "didone"
     } else if id.starts_with("date_typewriter_") || id.starts_with("metric_typewriter_") {
@@ -507,9 +541,12 @@ fn has_pinned_bullet_motion(request: &EditorialPlanV2Request, item: &PlanItemV2)
 }
 
 /// Seed index shared by every deterministic presentation sampler. It mirrors
-/// Go's `digest.SHA256Bytes`: the first eight ASCII hex bytes form a
-/// big-endian integer, modulo the candidate count.
-fn seeded_index(
+/// Go's `overlays.SeededIndex` (SelectionAlgorithmV2): the raw SHA-256 digest
+/// is read in 8-byte big-endian windows and reduced with rejection sampling,
+/// never through the hexadecimal text. Reading hex as an integer biased the
+/// modulo for most pool sizes (ANIMRAND-02), so the two implementations must
+/// stay byte-for-byte identical.
+pub(super) fn seeded_index(
     job_id: &str,
     scene_id: &str,
     item_id: &str,
@@ -526,9 +563,29 @@ fn seeded_index(
         preset_family: family,
     })
     .ok()?;
-    let hex = format!("{:x}", Sha256::digest(encoded));
-    let bytes: [u8; 8] = hex.as_bytes().get(..8)?.try_into().ok()?;
-    Some((u64::from_be_bytes(bytes) % len as u64) as usize)
+    let digest = Sha256::digest(encoded);
+    seeded_index_in(&digest, 0, len)
+}
+
+/// One raw-digest window reduced without modulo bias, with the same rejection
+/// rule as Go's `SeededIndex`. `slot` selects the window; a rejected window
+/// advances by one and wraps.
+pub(super) fn seeded_index_in(digest: &[u8], slot: usize, len: usize) -> Option<usize> {
+    if len == 0 {
+        return None;
+    }
+    let size = len as u64;
+    let bound = u64::MAX - (u64::MAX % size);
+    for attempt in 0..4usize {
+        let offset = ((slot + attempt) * 8) % 32;
+        let bytes: [u8; 8] = digest.get(offset..offset + 8)?.try_into().ok()?;
+        let value = u64::from_be_bytes(bytes);
+        if value < bound {
+            return Some((value % size) as usize);
+        }
+    }
+    let bytes: [u8; 8] = digest.get(..8)?.try_into().ok()?;
+    Some((u64::from_be_bytes(bytes) % size) as usize)
 }
 
 pub(super) fn seeded_preset(
@@ -571,7 +628,7 @@ pub(super) fn go_item_id(scene_id: &str, kind: &str, value: &str) -> String {
 
 /// Go's `limitedShuffledMotionPool`: a Fisher-Yates shuffle seeded by raw
 /// SHA-256 bytes over `seed + NUL + rune(i)`, then capped to `limit`.
-fn limited_shuffled_pool(pool: &[&'static str], limit: usize, seed: &str) -> Vec<&'static str> {
+fn limited_shuffled_pool<'a>(pool: &[&'a str], limit: usize, seed: &str) -> Vec<&'a str> {
     let mut order = pool.to_vec();
     for i in (1..order.len()).rev() {
         let digest = Sha256::digest(format!(
@@ -697,129 +754,41 @@ pub(super) fn timing_item(item: &PlanItemV2) -> TimingItem {
 /// Generated documentary cards keep the name below the portrait. The generic
 /// `random` selector can sample a side composition, so a captioned card is
 /// pinned to the below-caption pool exactly like Go's presentation pass.
-/// Certified date-card and metric-card pools, in the registration order the
-/// Go accessors expose. Motion ids are renderer vocabulary, not presets.
-pub(super) const DATE_MOTIONS: &[&str] = &[
-    "date_fade_rise",
-    "date_timeline_tick",
-    "date_chronology_focus",
-    "date_calendar_drop",
-    "date_month_wipe",
-    "date_era_zoom",
-    "date_bracket_draw",
-    "date_didone_archive_fade",
-    "date_didone_chronicle_rise",
-    "date_didone_era_settle",
-    "date_didone_fade_tracking",
-    "date_didone_focus_hold",
-    "date_didone_margin_wipe",
-    "date_didone_rule_draw",
-    "date_didone_stamp_drop",
-    "date_didone_underline_hold",
-    "date_didone_year_slide",
-    "date_digit_flip",
-    "date_history_stack",
-    "date_marker_drop",
-    "date_marker_pop",
-    "date_page_turn",
-    "date_range_draw",
-    "date_segment_stagger",
-    "date_split_year",
-    "date_stamp_reveal",
-    "date_timeline_sweep",
-    "date_typewriter_bracket_tap",
-    "date_typewriter_day_stamp",
-    "date_typewriter_era_carriage",
-    "date_typewriter_ink_stamp",
-    "date_typewriter_margin_return",
-    "date_typewriter_month_strike",
-    "date_typewriter_range_type",
-    "date_typewriter_timeline_feed",
-    "date_typewriter_underline_key",
-    "date_typewriter_year_type",
-    "date_underline_focus",
-    "date_year_count",
-];
+/// The numeric lanes select from the request's certified pools, which the Go
+/// producer projects from the animation registry (`entity.date`,
+/// `entity.metric`). The planner keeps no copied id list: a registry change is
+/// visible here on the next request instead of drifting (ANIMRAND-08).
+pub(crate) fn date_motion_pool(request: &EditorialPlanV2Request) -> Vec<&str> {
+    // `validate_compilable` rejects unknown selectors before this phase, so an
+    // invalid value cannot reach the pool; `All` also covers the absent
+    // selector and keeps the historical fail-open to every date motion.
+    let family = DateMotionFamily::parse(&request.canvas.date_motion_family)
+        .unwrap_or(DateMotionFamily::All);
+    let key = family.key();
+    request
+        .canvas
+        .date_motions
+        .iter()
+        .map(String::as_str)
+        .filter(|motion| match family {
+            DateMotionFamily::All => true,
+            _ => match request.canvas.motion_families.get(*motion) {
+                // Registry metadata wins: a motion is classified by what the
+                // catalog says it is, not by how its id happens to start.
+                Some(tag) => tag == key,
+                // Legacy request without the projection keeps the historical
+                // prefix rule.
+                None => family.allows(motion),
+            },
+        })
+        .collect()
+}
 
-pub(super) const METRIC_MOTIONS: &[&str] = &[
-    "metric_counter_scale_settle",
-    "metric_odometer_vertical",
-    "metric_digits_stagger",
-    "metric_delta_reveal",
-    "metric_focus_punch",
-    "metric_before_after",
-    "metric_count_flip",
-    "metric_split_odometer",
-    "metric_arc_sweep",
-    "metric_bar_grow",
-    "metric_bounce_settle",
-    "metric_compare_wipe",
-    "metric_counter_rise",
-    "metric_debt_flip",
-    "metric_didone_column_rise",
-    "metric_didone_drop_in",
-    "metric_didone_focus_pull",
-    "metric_didone_hairline_rise",
-    "metric_didone_hold_breathe",
-    "metric_didone_ink_settle",
-    "metric_didone_numeral_settle",
-    "metric_didone_rule_wipe",
-    "metric_didone_side_slide",
-    "metric_didone_tracking_open",
-    "metric_digit_cascade",
-    "metric_multi_stat_focus",
-    "metric_pulse_hold",
-    "metric_ribbon_unfold",
-    "metric_ring_draw",
-    "metric_slide_left",
-    "metric_typewriter_backspace_settle",
-    "metric_typewriter_carriage_slide",
-    "metric_typewriter_cursor_in",
-    "metric_typewriter_digit_tick",
-    "metric_typewriter_ink_stamp",
-    "metric_typewriter_key_strike",
-    "metric_typewriter_letter_drop",
-    "metric_typewriter_line_feed",
-    "metric_typewriter_ribbon_strike",
-    "metric_typewriter_stepped_reveal",
-];
-
-#[cfg(test)]
-mod tests {
-    use super::{DateMotionFamily, DATE_MOTIONS};
-
-    #[test]
-    fn every_date_motion_belongs_to_exactly_one_family() {
-        let families = [
-            DateMotionFamily::Classic,
-            DateMotionFamily::Didone,
-            DateMotionFamily::Typewriter,
-        ];
-        for motion in DATE_MOTIONS {
-            let matches = families
-                .iter()
-                .filter(|family| family.allows(motion))
-                .count();
-            assert_eq!(
-                1, matches,
-                "{motion} must belong to exactly one family, matched {matches}"
-            );
-        }
-    }
-
-    #[test]
-    fn family_pools_partition_the_catalogue() {
-        let count = |family: DateMotionFamily| {
-            DATE_MOTIONS
-                .iter()
-                .filter(|motion| family.allows(motion))
-                .count()
-        };
-        assert_eq!(
-            DATE_MOTIONS.len(),
-            count(DateMotionFamily::Classic)
-                + count(DateMotionFamily::Didone)
-                + count(DateMotionFamily::Typewriter)
-        );
-    }
+pub(crate) fn metric_motion_pool(request: &EditorialPlanV2Request) -> Vec<&str> {
+    request
+        .canvas
+        .metric_motions
+        .iter()
+        .map(String::as_str)
+        .collect()
 }

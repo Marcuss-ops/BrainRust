@@ -73,13 +73,14 @@ fn apply_visual_recipe(
             append_role_lower_third(items, scene, payload, request);
         }
         "quote_attribution" => apply_quote_attribution(items, payload, first),
-        "source_highlight" => apply_source_highlight(items, payload, first),
+        "source_highlight" => apply_source_highlight(items, payload, first, request),
         "route_map" => apply_route_order(items, payload, first),
         "relative_time_jump" => {
             apply_relative_time_jump(items, scene, payload, request, first);
         }
-        "cause_effect_card" => append_cause_effect_card(items, scene, payload),
-        "process_stepper" => append_process_stepper(items, scene, payload),
+        "cause_effect_card" => append_cause_effect_card(items, scene, payload, request),
+        "process_stepper" => append_process_stepper(items, scene, payload, request),
+        "entity_attribute_list" => append_entity_attribute_list(items, scene, payload, request),
         // TICKET-48 decision: these three stay validated-but-inert. Each needs
         // a layout the renderer does not certify, they fired in 3, 1 and 0 of
         // the 1,173 archived scenes, and rejecting them at validation would
@@ -143,6 +144,7 @@ fn apply_relative_time_jump(
     if delta.is_empty() || resolved.is_empty() {
         return;
     }
+    let date_pool = date_motion_pool(request);
     if delta.chars().count() > 18 || resolved.chars().count() > 24 {
         return;
     }
@@ -171,9 +173,10 @@ fn apply_relative_time_jump(
                 &scene.id,
                 &item.id,
                 "recipe_relative_time_jump",
-                DATE_MOTIONS,
+                &date_pool,
             )
             .unwrap_or_default();
+            mark_motion_origin(item, ORIGIN_AUTO);
         }
         return;
     }
@@ -196,16 +199,22 @@ fn apply_relative_time_jump(
         &scene.id,
         &item.id,
         "recipe_relative_time_jump",
-        DATE_MOTIONS,
+        &date_pool,
     )
     .unwrap_or_default();
+    mark_motion_origin(&mut item, ORIGIN_AUTO);
     items.push(item);
 }
 
 /// `cause_effect_card`: one certified phrase card with both grounded slots.
 /// The card is skipped when an existing phrase already names both members, so
 /// the recipe never duplicates the sentence it explains.
-fn append_cause_effect_card(items: &mut Vec<PlanItemV2>, scene: &SceneV2, payload: &Value) {
+fn append_cause_effect_card(
+    items: &mut Vec<PlanItemV2>,
+    scene: &SceneV2,
+    payload: &Value,
+    request: &EditorialPlanV2Request,
+) {
     let cause = text(payload, "cause_text");
     let effect = text(payload, "effect_text");
     if cause.is_empty() || effect.is_empty() {
@@ -238,7 +247,15 @@ fn append_cause_effect_card(items: &mut Vec<PlanItemV2>, scene: &SceneV2, payloa
         (end_us - start_us).max(2_500_000),
         format!("CAUSA: {cause}\n→ EFFETTO: {effect}"),
     );
-    item.motion_id = "short_phrase_editorial_focus_resolve".to_string();
+    item.motion_id = seeded_recipe_motion(
+        request,
+        &scene.id,
+        &item.id,
+        "recipe_cause_effect",
+        &item.text,
+    )
+    .unwrap_or_default();
+    mark_motion_origin(&mut item, ORIGIN_AUTO);
     item.params = Some(json!({"priority": 0.8, "presentation_role": "cause_effect"}));
     items.push(item);
 }
@@ -247,7 +264,12 @@ fn append_cause_effect_card(items: &mut Vec<PlanItemV2>, scene: &SceneV2, payloa
 /// the words that state it. A step with no certified window is dropped rather
 /// than placed on an invented beat; the existing coalescer can fuse the cards
 /// into the certified `PHRASE_CHAIN` when they are close enough.
-fn append_process_stepper(items: &mut Vec<PlanItemV2>, scene: &SceneV2, payload: &Value) {
+fn append_process_stepper(
+    items: &mut Vec<PlanItemV2>,
+    scene: &SceneV2,
+    payload: &Value,
+    request: &EditorialPlanV2Request,
+) {
     let Some(steps) = payload.get("steps").and_then(Value::as_array) else {
         return;
     };
@@ -290,7 +312,15 @@ fn append_process_stepper(items: &mut Vec<PlanItemV2>, scene: &SceneV2, payload:
             (end_us - start_us).max(1_800_000),
             format!("{}. {label}", index + 1),
         );
-        item.motion_id = "short_phrase_editorial_focus_resolve".to_string();
+        item.motion_id = seeded_recipe_motion(
+            request,
+            &scene.id,
+            &item.id,
+            "recipe_process_step",
+            &item.text,
+        )
+        .unwrap_or_default();
+        mark_motion_origin(&mut item, ORIGIN_AUTO);
         item.params = Some(json!({"priority": 0.79, "presentation_role": "process_step"}));
         items.push(item);
     }
@@ -358,14 +388,20 @@ fn apply_counter_odometer(
     }
     item.text = format!("{value_line}\n{subject}");
     item.template_id = "METRIC_STAT_CARD".to_string();
-    if let Some(motion) = seeded_preset(
-        &request.plan.plan_id,
-        &scene.id,
-        &item.id,
-        "recipe_counter_odometer",
-        METRIC_MOTIONS,
-    ) {
-        item.motion_id = motion;
+    // An explicit entrance wins: the recipe enriches the card, it does not
+    // re-animate a motion the producer pinned (ANIMRAND-09).
+    if item.motion_id.trim().is_empty() {
+        let metric_pool = metric_motion_pool(request);
+        if let Some(motion) = seeded_preset(
+            &request.plan.plan_id,
+            &scene.id,
+            &item.id,
+            "recipe_counter_odometer",
+            &metric_pool,
+        ) {
+            item.motion_id = motion;
+            mark_motion_origin(item, ORIGIN_AUTO);
+        }
     }
     let mut params = item
         .params
@@ -451,6 +487,58 @@ fn append_role_lower_third(
     items.push(item);
 }
 
+/// A grouped person card lowers to the certified `LOWER_THIRD` template: the
+/// name on the first line and the ontology-labeled attributes on the second.
+/// One card per person, timed by that person's own occurrence; it never
+/// competes with a role lower third for the same name.
+fn append_entity_attribute_list(
+    items: &mut Vec<PlanItemV2>,
+    scene: &SceneV2,
+    payload: &Value,
+    request: &EditorialPlanV2Request,
+) {
+    let person = text(payload, "entity_label");
+    let person_id = text(payload, "entity_id");
+    let Some(lines) = payload.get("lines").and_then(Value::as_array) else {
+        return;
+    };
+    let lines: Vec<&str> = lines
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && line.chars().count() <= 48)
+        .collect();
+    if person.is_empty() || person.chars().count() > 48 || lines.len() < 2 || lines.len() > 6 {
+        return;
+    }
+    let details = lines.join(" · ");
+    if details.chars().count() > 96 {
+        return;
+    }
+    if items.iter().any(|item| {
+        item.kind == "lower_third" && normalize(&item.text).starts_with(&normalize(person))
+    }) {
+        return;
+    }
+    let Some((start_us, duration_us)) = entity_window(scene, request, person, person_id) else {
+        return;
+    };
+    let mut item = scene_item(
+        format!("{}-recipe-attribute-list", scene.id),
+        scene,
+        "lower_third",
+        "LOWER_THIRD",
+        start_us,
+        duration_us,
+        format!("{person}\n{details}"),
+    );
+    item.params = Some(json!({
+        "position": "lower_third",
+        "priority": 0.84,
+    }));
+    items.push(item);
+}
+
 /// Finds the person's spoken window: the canonical entity occurrence first,
 /// then a phrase that names them. No match means no card.
 fn entity_window(
@@ -528,7 +616,12 @@ fn surfaces_overlap(left: &str, right: &str) -> bool {
 /// Pins the certified archival-source entrance on the phrase or quote that
 /// names the outlet. No new card: the sentence the viewer already sees is the
 /// one that gains the emphasis.
-fn apply_source_highlight(items: &mut [PlanItemV2], payload: &Value, first: usize) {
+fn apply_source_highlight(
+    items: &mut [PlanItemV2],
+    payload: &Value,
+    first: usize,
+    request: &EditorialPlanV2Request,
+) {
     let source = normalize(text(payload, "source_label"));
     let highlight = normalize(text(payload, "highlight_text"));
     if source.is_empty() {
@@ -541,9 +634,62 @@ fn apply_source_highlight(items: &mut [PlanItemV2], payload: &Value, first: usiz
     }) else {
         return;
     };
+    // A highlight is an emphasis, not a fixed recipe id: draw from the
+    // certified `phrase.documentary` group so two source hits in one run do not
+    // repeat the same gesture (ANIMRAND-05). A pinned entrance still wins.
     if item.motion_id.trim().is_empty() {
-        item.motion_id = "doc_04_archival_source_highlight".to_string();
+        let pool: Vec<&str> = request
+            .canvas
+            .source_highlight_motions
+            .iter()
+            .map(String::as_str)
+            .collect();
+        item.motion_id = seeded_preset(
+            &request.plan.plan_id,
+            &item.scene_id,
+            &item.id,
+            "recipe_source_highlight",
+            &pool,
+        )
+        .unwrap_or_default();
+        mark_motion_origin(item, ORIGIN_AUTO);
     }
+}
+
+/// Pool compatible with a recipe card's visible copy: the certified bucket for
+/// its word count, or the long-phrase pool for 6+ words. The planner never
+/// invents a width-specific list here.
+fn recipe_motion_pool<'a>(request: &'a EditorialPlanV2Request, text: &str) -> Vec<&'a str> {
+    let words = word_count(text);
+    if words == 0 {
+        return Vec::new();
+    }
+    if words <= 5 {
+        request
+            .canvas
+            .short_phrase_motions_by_word
+            .get(&words.to_string())
+            .map(|bucket| bucket.iter().map(String::as_str).collect())
+            .unwrap_or_default()
+    } else {
+        request
+            .canvas
+            .long_phrase_motions
+            .iter()
+            .map(String::as_str)
+            .collect()
+    }
+}
+
+fn seeded_recipe_motion(
+    request: &EditorialPlanV2Request,
+    scene_id: &str,
+    item_id: &str,
+    family: &str,
+    text: &str,
+) -> Option<String> {
+    let pool = recipe_motion_pool(request, text);
+    seeded_preset(&request.plan.plan_id, scene_id, item_id, family, &pool)
 }
 
 /// Route pins are the scene's existing map items, reordered to the waypoint

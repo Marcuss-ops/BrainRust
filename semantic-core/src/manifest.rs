@@ -74,6 +74,9 @@ pub struct AnalyzerVersions {
     /// Version of pronoun/coreference and thread resolution.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub discourse: String,
+    /// Version of person-attribute extraction and grouping.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub person_attributes: String,
 }
 
 /// Rank of a source-grounded title held by a person.
@@ -380,6 +383,10 @@ pub struct SceneManifest {
     /// Explicit ages grounded to an unambiguous person in the same sentence.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub age_facts: Vec<PersonAgeFact>,
+    /// Grounded attributes grouped by person: the one-card projection over
+    /// ages, typed quantities and asserted roles.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entity_attribute_lists: Vec<EntityAttributeList>,
     /// Explicitly stated relations between grounded people.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub person_relations: Vec<PersonRelation>,
@@ -475,6 +482,8 @@ pub struct EditorialManifest {
     pub heavy_sentences: Vec<crate::phrase_impact::RankedSentence>,
     pub chapter_manifest: crate::phrase_impact::ChapterManifest,
     pub scene_highlights: Vec<crate::phrase_impact::SceneHighlight>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intro_agenda: Option<Vec<crate::phrase_impact::IntroTopic>>,
     pub timings: crate::phrase_impact::StageTimings,
 }
 
@@ -486,6 +495,7 @@ impl From<crate::phrase_impact::ResultDocument> for EditorialManifest {
             heavy_sentences: result.heavy_sentences,
             chapter_manifest: result.chapter_manifest,
             scene_highlights: result.scene_highlights,
+            intro_agenda: result.intro_agenda,
             timings: result.timings,
         }
     }

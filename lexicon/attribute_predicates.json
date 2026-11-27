@@ -1,0 +1,78 @@
+{
+  "schema": "attribute_predicates.v1",
+  "comment": "One canonical predicate ontology. `predicates` are resolvable from a typed Quantity through Universal Dependencies; `extractors` are properties already produced by the age/role extractors. Language packs carry only lemmas and display labels, never sentences or regexes.",
+  "predicates": [
+    {
+      "canonical": "height",
+      "dimension": "length",
+      "subject_kinds": ["PERSON"],
+      "labels": {
+        "en": "Height", "it": "Altezza", "es": "Altura", "de": "Größe", "fr": "Taille",
+        "pt": "Altura", "nl": "Lengte", "pl": "Wzrost", "ru": "Рост",
+        "tr": "Boy", "id": "Tinggi"
+      },
+      "lemmas": {
+        "en": ["tall", "height", "measure"],
+        "it": ["alto", "altezza", "statura", "misurare", "misura"],
+        "es": ["alto", "altura", "estatura", "medir", "mide"],
+        "de": ["groß", "gross", "größe", "grösse", "messen"],
+        "fr": ["grand", "taille", "mesurer", "mesure"],
+        "pt": ["alto", "altura", "estatura", "medir", "mede"],
+        "nl": ["lang", "lengte", "meten"],
+        "pl": ["wysoki", "wzrost", "mierzyć"],
+        "ru": ["высокий", "рост", "измерять"],
+        "tr": ["uzun", "boy", "ölçmek"],
+        "id": ["tinggi", "mengukur"]
+      }
+    },
+    {
+      "canonical": "weight",
+      "dimension": "mass",
+      "subject_kinds": ["PERSON"],
+      "labels": {
+        "en": "Weight", "it": "Peso", "es": "Peso", "de": "Gewicht", "fr": "Poids",
+        "pt": "Peso", "nl": "Gewicht", "pl": "Waga", "ru": "Вес",
+        "tr": "Kilo", "id": "Berat"
+      },
+      "lemmas": {
+        "en": ["weigh", "weight"],
+        "it": ["pesare", "peso", "pesante"],
+        "es": ["pesar", "peso"],
+        "de": ["wiegen", "gewicht"],
+        "fr": ["peser", "poids"],
+        "pt": ["pesar", "peso"],
+        "nl": ["wegen", "gewicht"],
+        "pl": ["ważyć", "waga"],
+        "ru": ["весить", "вес"],
+        "tr": ["tartmak", "ağırlık"],
+        "id": ["menimbang", "berat"]
+      }
+    }
+  ],
+  "extractors": [
+    {
+      "canonical": "age",
+      "dimension": "time",
+      "units": {
+        "en": ["year", "years"], "it": ["anno", "anni"], "es": ["año", "años"],
+        "de": ["Jahr", "Jahre"], "fr": ["an", "ans"], "pt": ["ano", "anos"],
+        "nl": ["jaar", "jaar"], "pl": ["rok", "lat"], "ru": ["год", "лет"],
+        "tr": ["yaşında", "yaşında"], "id": ["tahun", "tahun"]
+      },
+      "labels": {
+        "en": "Age", "it": "Età", "es": "Edad", "de": "Alter", "fr": "Âge",
+        "pt": "Idade", "nl": "Leeftijd", "pl": "Wiek", "ru": "Возраст",
+        "tr": "Yaş", "id": "Usia"
+      }
+    },
+    {
+      "canonical": "profession",
+      "dimension": "role",
+      "labels": {
+        "en": "Profession", "it": "Professione", "es": "Profesión", "de": "Beruf",
+        "fr": "Profession", "pt": "Profissão", "nl": "Beroep", "pl": "Zawód",
+        "ru": "Профессия", "tr": "Meslek", "id": "Profesi"
+      }
+    }
+  ]
+}

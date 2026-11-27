@@ -1,0 +1,17 @@
+{
+  "schema": "intro_agenda.v1",
+  "version": 1,
+  "spoiler_cues": {
+    "it": ["condannato", "condannata", "assolto", "assolta", "colpevole", "verdetto", "morto", "morta", "muore", "vinse", "vince", "vincitore", "campione", "retrocesso", "promosso", "si scopre", "finale"],
+    "en": ["convicted", "acquitted", "guilty", "verdict", "sentenced", "died", "dies", "dead", "won", "wins", "winner", "champion", "relegated", "promoted", "it is revealed", "series finale"],
+    "de": ["verurteilt", "freigesprochen", "schuldig", "urteil", "gestorben", "stirbt", "tot", "gewann", "gewinnt", "sieger", "meister", "abgestiegen", "aufgestiegen", "am ende"],
+    "fr": ["condamné", "acquitté", "coupable", "verdict", "mort", "meurt", "décédé", "gagne", "vainqueur", "champion", "relégué", "promu", "finale"],
+    "es": ["condenado", "absuelto", "culpable", "veredicto", "muerto", "muere", "falleció", "ganó", "ganador", "campeón", "descendió", "ascendió", "final"],
+    "pt": ["condenado", "absolvido", "culpado", "veredito", "morreu", "morre", "morto", "venceu", "vencedor", "campeão", "rebaixado", "promovido", "final"],
+    "nl": ["veroordeeld", "vrijgesproken", "schuldig", "uitspraak", "overleden", "sterft", "dood", "won", "winnaar", "kampioen", "gedegradeerd", "gepromoveerd", "finale"],
+    "pl": ["skazany", "uniewinniony", "winny", "wyrok", "zmarł", "umiera", "martwy", "wygrał", "zwycięzca", "mistrz", "spadł", "awansował", "finał"],
+    "ru": ["осужден", "оправдан", "виновен", "приговор", "умер", "умирает", "мертв", "победил", "победитель", "чемпион", "вылетел", "повысился", "финал"],
+    "tr": ["mahkum", "beraat", "suçlu", "karar", "öldü", "ölür", "ölü", "kazandı", "şampiyon", "düştü", "yükseldi", "final"],
+    "id": ["dihukum", "dibebaskan", "bersalah", "putusan", "meninggal", "mati", "menang", "juara", "terdegradasi", "promosi", "final"]
+  }
+}

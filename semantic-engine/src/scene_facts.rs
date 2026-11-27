@@ -7,6 +7,7 @@ pub(super) struct SceneFacts {
     pub(super) entity_facts: Vec<EntityFact>,
     pub(super) person_roles: Vec<semantic_core::PersonRole>,
     pub(super) age_facts: Vec<semantic_core::PersonAgeFact>,
+    pub(super) entity_attribute_lists: Vec<semantic_core::EntityAttributeList>,
     pub(super) person_relations: Vec<semantic_core::PersonRelation>,
     pub(super) places: Vec<semantic_core::Place>,
     pub(super) routes: Vec<semantic_core::Route>,
@@ -91,12 +92,30 @@ pub(super) fn derive_scene_facts(input: SceneDerive<'_>) -> SceneFacts {
         temporal_facts,
         &analysis.numeric_facts,
     ));
-    for fact in &mut entity_facts {
-        fact.finalize();
-    }
     let mut quantities =
         quantities::extract(source, language, &analysis.numeric_facts, temporal_facts);
     quantities::attach_grounded_facts(&mut quantities, &entity_facts);
+    // Person attributes are a projection over facts already extracted above:
+    // UD binds height/weight quantities to their subject, ages and roles keep
+    // their own extractors. The resulting entity facts join the same canonical
+    // fact inventory, so no second fact system is introduced.
+    let attributes = attributes::extract(
+        language,
+        source,
+        sentence_spans,
+        &analysis.tokens,
+        entities,
+        entity_ids,
+        &quantities,
+        &age_facts,
+        &person_roles,
+        &entity_facts,
+        &lexicon::lexicon().attribute_predicates,
+    );
+    entity_facts.extend(attributes.facts);
+    for fact in &mut entity_facts {
+        fact.finalize();
+    }
     let quantity_comparisons = quantities::comparisons(source, language, &quantities);
     let built = micro::build(
         language,
@@ -119,6 +138,7 @@ pub(super) fn derive_scene_facts(input: SceneDerive<'_>) -> SceneFacts {
         entity_facts,
         person_roles,
         age_facts,
+        entity_attribute_lists: attributes.lists,
         person_relations,
         places,
         routes,
@@ -315,6 +335,7 @@ pub(super) fn finalize_scene_with_search(
             identities: registry.identities().to_vec(),
             person_roles: facts.person_roles,
             age_facts: facts.age_facts,
+            entity_attribute_lists: facts.entity_attribute_lists,
             person_relations: facts.person_relations,
             places: facts.places,
             routes: facts.routes,

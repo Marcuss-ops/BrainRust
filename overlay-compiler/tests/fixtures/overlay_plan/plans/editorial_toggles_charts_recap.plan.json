@@ -80,7 +80,7 @@
         }
       },
       {
-        "id": "metric-typewriter-backspace-settle__42-per-cento__date_number__01",
+        "id": "metric-typewriter-key-strike__42-per-cento__date_number__01",
         "scene_id": "s1",
         "kind": "number",
         "start_ms": 1050,
@@ -88,7 +88,7 @@
         "start_us": 1050000,
         "duration_us": 650000,
         "template_id": "METRIC_STAT_CARD",
-        "motion_id": "metric_typewriter_backspace_settle",
+        "motion_id": "metric_typewriter_key_strike",
         "motion_params": {
           "enter_frames": 15
         },
@@ -108,6 +108,7 @@
           "glow_color": "#FFFFFF",
           "glow_size": 10.0,
           "height": 600.0,
+          "motion_origin": "auto",
           "position": "center",
           "priority": 0.9,
           "style": "stat",

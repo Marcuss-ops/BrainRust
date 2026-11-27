@@ -4,30 +4,13 @@
 use super::*;
 use crate::editorial_plan_v2::EditorialBulletStyleV2;
 
-const LIGHT_LEAK_MOTIONS: &[&str] = &[
-    "lightleak_anamorphic_pass",
-    "lightleak_bokeh_pass",
-    "lightleak_corner_bloom",
-    "lightleak_diagonal_sweep",
-    "lightleak_dual_edge",
-    "lightleak_edge_warm",
-    "lightleak_film_burn",
-    "lightleak_focus_glow",
-    "lightleak_horizontal_sweep",
-    "lightleak_prismatic",
-    "lightleak_pulse",
-    "lightleak_soft_flare",
-];
-
-fn light_leak_motion(plan_id: &str, target_id: &str) -> String {
-    seeded_preset(
-        plan_id,
-        target_id,
-        target_id,
-        "light_leak",
-        LIGHT_LEAK_MOTIONS,
-    )
-    .unwrap_or_default()
+/// The light-leak entrance comes from the request's certified
+/// `image.lightleak` pool (the animation registry projection). The planner used
+/// to keep its own copy of the twelve ids, which is exactly the second list
+/// ANIMRAND-08 removes.
+fn light_leak_motion(seed: &str, target_id: &str, pool: &[String]) -> String {
+    let candidates: Vec<&str> = pool.iter().map(String::as_str).collect();
+    seeded_preset(seed, target_id, target_id, "light_leak", &candidates).unwrap_or_default()
 }
 
 fn short_hash(value: &str) -> String {
@@ -44,6 +27,7 @@ pub(super) fn append_light_leak_items(
     request: &EditorialPlanV2Request,
     mut items: Vec<PlanItemV2>,
 ) -> Vec<PlanItemV2> {
+    let seed = creative_seed(request);
     let seal_duration = request
         .seal
         .as_ref()
@@ -91,7 +75,8 @@ pub(super) fn append_light_leak_items(
             );
             item.group_id = scene.id.clone();
             item.subgroup_id = id.clone();
-            item.motion_id = light_leak_motion(&request.plan.plan_id, &id);
+            item.motion_id = light_leak_motion(&seed, &id, &request.canvas.light_leak_motions);
+            mark_motion_origin(&mut item, ORIGIN_AUTO);
             items.push(item);
         }
     }
@@ -124,7 +109,8 @@ pub(super) fn append_light_leak_items(
             );
             item.group_id = overlay.group_id.clone();
             item.subgroup_id = id.clone();
-            item.motion_id = light_leak_motion(&request.plan.plan_id, &id);
+            item.motion_id = light_leak_motion(&seed, &id, &request.canvas.light_leak_motions);
+            mark_motion_origin(&mut item, ORIGIN_AUTO);
             leaks.push(item);
         }
         items.extend(leaks);
@@ -164,6 +150,74 @@ pub(super) fn apply_presentation(
     out
 }
 
+/// Assigns an entrance to phrase cards that were created AFTER the lane passes
+/// ran — the defensive presentation split. Candidates are normally split before
+/// admission, so this only catches authored or externally constructed items.
+/// The pool is the same certified one the lanes use, selected by the fragment's
+/// own word count; the no-repeat set is local to this pass, and an empty pool
+/// leaves the item without a motion rather than pinning a hardcoded id
+/// (ANIMRAND-03).
+///
+/// An explicit motion is never touched: the pass only fills empty ids.
+pub(super) fn assign_split_fragment_motions(
+    items: &mut [PlanItemV2],
+    request: &EditorialPlanV2Request,
+) {
+    let seed = creative_seed(request);
+    let mut used: BTreeSet<String> = BTreeSet::new();
+    for item in items.iter_mut() {
+        if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
+            continue;
+        }
+        if !item.motion_id.trim().is_empty() {
+            continue;
+        }
+        let words = word_count(&item.text);
+        if words == 0 {
+            continue;
+        }
+        let bucket: Vec<&str> = if words <= 5 {
+            request
+                .canvas
+                .short_phrase_motions_by_word
+                .get(&words.to_string())
+                .map(|bucket| bucket.iter().map(String::as_str).collect())
+                .unwrap_or_default()
+        } else {
+            request
+                .canvas
+                .long_phrase_motions
+                .iter()
+                .map(String::as_str)
+                .collect()
+        };
+        if bucket.is_empty() {
+            continue;
+        }
+        let ordered = if words <= 5 {
+            ordered_short_phrase_pool(&bucket, &seed, words)
+        } else {
+            bucket
+        };
+        let start = seeded_index(
+            &seed,
+            &item.scene_id,
+            &item.id,
+            &format!("split_text_{words}"),
+            ordered.len(),
+        )
+        .unwrap_or(0);
+        let motion = (0..ordered.len())
+            .map(|step| ordered[(start + step) % ordered.len()])
+            .find(|candidate| !used.contains(*candidate))
+            .unwrap_or(ordered[start])
+            .to_string();
+        used.insert(motion.clone());
+        item.motion_id = motion;
+        mark_motion_origin(item, ORIGIN_AUTO);
+    }
+}
+
 /// Splits every over-budget text candidate before admission. Doing this here
 /// means the fragments are counted by the phrase budget and can never enter a
 /// fused chain as one oversized segment.
@@ -197,11 +251,6 @@ const PRESENTATION_TEXT_FILL: &str = "#000000";
 const PRESENTATION_GLOW_COLOR: &str = "#FFFFFF";
 
 const PRESENTATION_GLOW_PX: f64 = 10.0;
-
-/// One registry-valid default for split text. The previous seeded pool
-/// contained retired ids (`text_phrase_reveal`/`text_phrase_focus`) that the
-/// Go seal rejects, so do not reintroduce an unsynced motion list here.
-const SPLIT_TEXT_MOTION: &str = "air_rise_type_on";
 
 /// Maximum certified copy length for one text surface. The budget is applied
 /// to candidates *before* admission and chain coalescing; the later split is
@@ -627,6 +676,7 @@ fn apply_pin_to_item(item: &mut PlanItemV2, pin: &EditorialBulletStyleV2) {
     apply_pin_text(&mut item.params, &mut item.style, pin);
     if !pin.motion_id.trim().is_empty() {
         item.motion_id = pin.motion_id.trim().to_string();
+        mark_motion_origin(item, ORIGIN_EXPLICIT);
     }
 }
 

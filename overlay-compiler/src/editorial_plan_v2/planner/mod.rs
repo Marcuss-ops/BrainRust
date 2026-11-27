@@ -35,7 +35,9 @@ mod decisions;
 mod gap_pacing;
 mod map_groups;
 mod media;
+mod motion_bag;
 mod presentation;
+mod selection_origin;
 mod visual_recipes;
 
 use admission::*;
@@ -44,7 +46,9 @@ use coalesce::*;
 use decisions::*;
 use gap_pacing::*;
 use media::*;
+use motion_bag::*;
 use presentation::*;
+use selection_origin::*;
 
 /// A request that passed [`EditorialPlanV2Request::validate_compilable`].
 ///
@@ -155,6 +159,10 @@ pub fn compile_plan_owned(
     candidates.extend(build_entity_card_candidates(request, &mut decisions)?);
     let intake = new_intake(&validated, &candidates);
     let (mut items, mut intake, rejected) = admit(&validated, candidates, intake, &mut decisions);
+    // Selection origin (ANIMRAND-16): anything that arrived with an entrance
+    // is producer-explicit; the lanes below only fill empty ids and record
+    // `auto`.
+    stamp_explicit_existing(&mut items);
     // A numeric card and a plain phrase can describe the same grounded surface
     // at the same instant. The numeric card owns it; remove the duplicate only
     // after admission, so a card that lost its slot does not remove the phrase
@@ -244,7 +252,7 @@ pub fn compile_plan_owned(
     // and a below-portrait caption before coalescing, so they fuse into one
     // image_chain. `normalize_image_presentation` only touches standalone
     // images, so the final chain segments keep their pinned geometry.
-    normalize_image_presentation(request, &mut items);
+    normalize_image_presentation(request, &mut items)?;
     let image_windows = request
         .scenes
         .iter()
@@ -277,6 +285,10 @@ pub fn compile_plan_owned(
         &request.plan.plan_id,
         &request.canvas.editorial_bullet_styles,
     );
+    // The presentation split can create fragments after the phrase lanes ran.
+    // They receive an entrance from the certified pool for their own length;
+    // explicit ids are left untouched.
+    assign_split_fragment_motions(&mut items, request);
     apply_entity_badge_color(&mut items, &request.canvas.entity_badge_color);
     // The long-copy split turns one admitted phrase into multiple render
     // items. They are derived items, not new candidates, but the sealed
@@ -320,6 +332,7 @@ pub fn compile_plan_owned(
     // resolver above prevents this; fail closed if a later phase reintroduces
     // the condition (ITCLOSE-09).
     assert_no_entity_text_overlap(&items)?;
+    stamp_missing_origins(&mut items);
     name_items_for_review(&mut items);
     // There is no post-plan promotion pass: a card that has a verified portrait
     // was built as `entity_image` by `append_entity_cards` and passed the same

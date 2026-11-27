@@ -199,10 +199,28 @@ pub fn build(
     push_multiple_entities(scenes, &identities, &mut candidates);
     push_named_entities(scenes, &identities, &mut candidates);
     push_visual_concepts(language, scenes, &identities, &mut candidates);
+    // One grouped card owns every attribute fact it carries; those facts must
+    // not also become individual `fact_card` overlays.
+    let covered_by_list: HashMap<String, (String, String)> = candidates
+        .iter()
+        .filter(|candidate| candidate.recipe == "entity_attribute_list")
+        .flat_map(|candidate| {
+            candidate.covered_fact_ids.iter().map(move |fact_id| {
+                (
+                    fact_id.clone(),
+                    (
+                        candidate.dedup_key.clone(),
+                        "entity_attribute_list".to_string(),
+                    ),
+                )
+            })
+        })
+        .collect();
     push_fact_cards(
         &facts,
         &identities,
         &mut fact_representations,
+        &covered_by_list,
         &mut candidates,
     );
     contextual_queries::enrich_contextual_search_queries(

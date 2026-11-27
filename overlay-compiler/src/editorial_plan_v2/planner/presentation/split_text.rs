@@ -73,9 +73,10 @@ pub(crate) fn split_long_overlay_text(item: &PlanItemV2) -> Option<Vec<PlanItemV
         part.duration_us = chunk_duration;
         part.start_ms = cursor / 1000;
         part.end_ms = (cursor + chunk_duration + 999) / 1000;
-        if part.motion_id.trim().is_empty() {
-            part.motion_id = SPLIT_TEXT_MOTION.to_string();
-        }
+        // ANIMRAND-03: a split fragment is a normal phrase card. Its entrance
+        // is selected later from the certified pool for its own length; the
+        // planner no longer pins one hardcoded motion on every fragment, which
+        // also made the long-phrase lane skip these items.
         out.push(part);
         cursor += chunk_duration;
     }

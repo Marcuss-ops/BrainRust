@@ -401,3 +401,43 @@ fn long_phrase_split_is_counted_in_intake() {
         "split items must be accounted for by kind"
     );
 }
+
+/// ANIMRAND-03: a presentation-time split is a normal phrase card. Every
+/// fragment takes a certified long-phrase entrance for its own length, with no
+/// repeats until the pool is exhausted — never the old hardcoded
+/// `air_rise_type_on` on all fragments.
+#[test]
+fn split_fragments_take_distinct_certified_motions() {
+    let mut request = request();
+    request.canvas.long_phrase_motions = ["long_a", "long_b", "long_c", "long_d"]
+        .iter()
+        .map(|id| id.to_string())
+        .collect();
+    let long = "parole di prova ".repeat(60);
+    let mut item = phrase_item("split-src", &long, None);
+    item.start_us = 0;
+    item.duration_us = 20_000_000;
+    item.start_ms = 0;
+    item.end_ms = 20_000;
+    let mut parts = super::split_long_overlay_text(&item).expect("split");
+    assert!(parts.len() >= 5, "expected several fragments");
+    assert!(
+        parts.iter().all(|part| part.motion_id.is_empty()),
+        "the split must not pin a motion"
+    );
+    super::assign_split_fragment_motions(&mut parts, &request);
+    assert!(
+        parts
+            .iter()
+            .all(|part| request.canvas.long_phrase_motions.contains(&part.motion_id)),
+        "every fragment must use the certified pool: {:?}",
+        parts.iter().map(|part| &part.motion_id).collect::<Vec<_>>()
+    );
+    let distinct: std::collections::BTreeSet<&str> =
+        parts.iter().map(|part| part.motion_id.as_str()).collect();
+    assert_eq!(
+        4,
+        distinct.len(),
+        "the bag must exhaust the pool before repeating: {distinct:?}"
+    );
+}

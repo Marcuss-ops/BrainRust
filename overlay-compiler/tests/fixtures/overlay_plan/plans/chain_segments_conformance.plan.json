@@ -61,11 +61,11 @@
           "chain_count": 5,
           "chain_gap_us": 400000,
           "chain_motions": [
-            "image_scale_reveal",
             "image_slide_left_reveal",
-            "image_slide_right_reveal",
             "image_card_push",
-            "image_focus_reveal"
+            "image_slide_right_reveal",
+            "image_focus_reveal",
+            "image_scale_reveal"
           ],
           "chain_segments": [
             {
@@ -88,14 +88,16 @@
               "entity_style_id": "premium_below_random_v1",
               "image_preset_id": "image_scale_in",
               "kind": "entity_image",
-              "motion_id": "image_scale_reveal",
+              "motion_id": "image_slide_left_reveal",
               "motion_params": {
                 "enter_frames": 8
               },
               "params": {
                 "canonical_entity_id": "person:ada-lovelace",
+                "caption_motion_origin": "auto",
                 "entity_type": "PERSON",
                 "height": 820.0,
+                "motion_origin": "auto",
                 "position_x": 0.0,
                 "position_y": 0.0,
                 "priority": 0.95,
@@ -124,14 +126,16 @@
               "entity_style_id": "premium_below_random_v1",
               "image_preset_id": "image_scale_in",
               "kind": "entity_image",
-              "motion_id": "image_slide_left_reveal",
+              "motion_id": "image_card_push",
               "motion_params": {
                 "enter_frames": 8
               },
               "params": {
                 "canonical_entity_id": "person:grace-hopper",
+                "caption_motion_origin": "auto",
                 "entity_type": "PERSON",
                 "height": 820.0,
+                "motion_origin": "auto",
                 "position_x": 0.0,
                 "position_y": 0.0,
                 "priority": 0.95,
@@ -166,8 +170,10 @@
               },
               "params": {
                 "canonical_entity_id": "person:alan-turing",
+                "caption_motion_origin": "auto",
                 "entity_type": "PERSON",
                 "height": 820.0,
+                "motion_origin": "auto",
                 "position_x": 0.0,
                 "position_y": 0.0,
                 "priority": 0.95,
@@ -196,14 +202,16 @@
               "entity_style_id": "premium_below_random_v1",
               "image_preset_id": "image_scale_in",
               "kind": "entity_image",
-              "motion_id": "image_card_push",
+              "motion_id": "image_focus_reveal",
               "motion_params": {
                 "enter_frames": 8
               },
               "params": {
                 "canonical_entity_id": "person:marie-curie",
+                "caption_motion_origin": "auto",
                 "entity_type": "PERSON",
                 "height": 820.0,
+                "motion_origin": "auto",
                 "position_x": 0.0,
                 "position_y": 0.0,
                 "priority": 0.95,
@@ -225,21 +233,23 @@
               "caption_color": "#000000",
               "caption_font_family": "playfair_display_italic",
               "caption_layout": "below",
-              "caption_motion_id": "caption_fade",
+              "caption_motion_id": "caption_rise",
               "duration_us": 2500000,
               "entity_caption": "Nikola Tesla",
               "entity_id": "person-nikola",
               "entity_style_id": "premium_below_random_v1",
               "image_preset_id": "image_scale_in",
               "kind": "entity_image",
-              "motion_id": "image_focus_reveal",
+              "motion_id": "image_scale_reveal",
               "motion_params": {
                 "enter_frames": 8
               },
               "params": {
                 "canonical_entity_id": "person:nikola-tesla",
+                "caption_motion_origin": "auto",
                 "entity_type": "PERSON",
                 "height": 820.0,
+                "motion_origin": "auto",
                 "position_x": 0.0,
                 "position_y": 0.0,
                 "priority": 0.95,

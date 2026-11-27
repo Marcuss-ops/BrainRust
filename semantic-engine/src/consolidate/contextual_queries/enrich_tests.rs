@@ -24,6 +24,7 @@ fn scene(scene_id: &str, entities: Vec<ExtractedCandidate>) -> SceneManifest {
         identities: Vec::new(),
         person_roles: Vec::new(),
         age_facts: Vec::new(),
+        entity_attribute_lists: Vec::new(),
         person_relations: Vec::new(),
         places: Vec::new(),
         routes: Vec::new(),

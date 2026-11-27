@@ -94,7 +94,7 @@
         }
       },
       {
-        "id": "image-focus-reveal__s2-image-0__image__01",
+        "id": "image-slide-left-reveal__s2-image-0__image__01",
         "scene_id": "s2",
         "kind": "image",
         "start_ms": 7200,
@@ -102,7 +102,7 @@
         "start_us": 7200000,
         "duration_us": 2500000,
         "template_id": "IMAGE_OVERLAY",
-        "motion_id": "image_focus_reveal",
+        "motion_id": "image_slide_left_reveal",
         "motion_params": {
           "enter_frames": 8
         },
@@ -117,6 +117,7 @@
         "params": {
           "fit": "contain",
           "height": 760.0,
+          "motion_origin": "auto",
           "position": "center",
           "position_x": 0.0,
           "position_y": 0.0,
@@ -125,7 +126,7 @@
         }
       },
       {
-        "id": "image-focus-reveal__s2-image-1__image__01",
+        "id": "image-depth-float__s2-image-1__image__01",
         "scene_id": "s2",
         "kind": "image",
         "start_ms": 10100,
@@ -133,7 +134,7 @@
         "start_us": 10100000,
         "duration_us": 2500000,
         "template_id": "IMAGE_OVERLAY",
-        "motion_id": "image_focus_reveal",
+        "motion_id": "image_depth_float",
         "motion_params": {
           "enter_frames": 8
         },
@@ -148,6 +149,7 @@
         "params": {
           "fit": "contain",
           "height": 760.0,
+          "motion_origin": "auto",
           "position": "center",
           "position_x": 0.0,
           "position_y": 0.0,

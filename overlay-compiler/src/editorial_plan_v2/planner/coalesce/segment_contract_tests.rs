@@ -74,7 +74,7 @@ fn fully_populated(id: &str, start_us: i64) -> PlanItemV2 {
 }
 
 fn fused_segments(group: Vec<PlanItemV2>) -> Vec<Value> {
-    let chain = fuse_chain(&group, 0, CHAIN_HANDOFF_US);
+    let chain = fuse_chain(&group, 0, CHAIN_HANDOFF_US, &[], "segment-contract");
     chain.params.as_ref().expect("chain params")["chain_segments"]
         .as_array()
         .expect("chain segments")

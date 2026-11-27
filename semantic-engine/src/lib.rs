@@ -13,10 +13,12 @@
 #![deny(unsafe_code)]
 
 mod ages;
+mod attributes;
 pub mod cache;
 mod chart_rules;
 pub mod consolidate;
 pub mod discourse;
+mod entity_fact_resolver;
 mod events;
 pub mod groups;
 pub mod identity_lookup;
@@ -92,6 +94,7 @@ pub fn analyzer_versions() -> semantic_core::AnalyzerVersions {
         quantities: "typed_quantities.v3.chart_meta_series".to_string(),
         roles: "person_roles.v4.all_11".to_string(),
         age_facts: "person_age_facts.v2.localized_dated_age".to_string(),
+        person_attributes: "person_attributes.v1.grounded_person_card".to_string(),
         person_relations: "person_relations.seed11.v2".to_string(),
         places: "place_index.v3.multilingual_labels".to_string(),
         routes: "place_routes.v3.cross_scene_hops".to_string(),
@@ -131,6 +134,7 @@ fn rejected_scene(scene_id: &str, reason: String) -> SceneAnalysis {
             identities: Vec::new(),
             person_roles: Vec::new(),
             age_facts: Vec::new(),
+            entity_attribute_lists: Vec::new(),
             person_relations: Vec::new(),
             places: Vec::new(),
             routes: Vec::new(),

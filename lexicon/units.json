@@ -685,6 +685,15 @@
         },
         {
           "surfaces": [
+            "cm",
+            "zentimeter"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
+        },
+        {
+          "surfaces": [
             "kg",
             "kilogramm"
           ],
@@ -958,6 +967,18 @@
           "dimension": "length",
           "code": "m",
           "factor_to_base": 1
+        },
+        {
+          "surfaces": [
+            "cm",
+            "centímetro",
+            "centímetros",
+            "centimetro",
+            "centimetros"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
         },
         {
           "surfaces": [
@@ -1252,6 +1273,18 @@
         },
         {
           "surfaces": [
+            "cm",
+            "centimètre",
+            "centimètres",
+            "centimetre",
+            "centimetres"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
+        },
+        {
+          "surfaces": [
             "kg",
             "kilogramme",
             "kilogrammes"
@@ -1536,6 +1569,16 @@
         },
         {
           "surfaces": [
+            "cm",
+            "centimeter",
+            "centimeters"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
+        },
+        {
+          "surfaces": [
             "kg",
             "kilogram"
           ],
@@ -1813,6 +1856,19 @@
           "dimension": "length",
           "code": "m",
           "factor_to_base": 1
+        },
+        {
+          "surfaces": [
+            "cm",
+            "centymetr",
+            "centymetra",
+            "centymetry",
+            "centymetrów",
+            "centymetrow"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
         },
         {
           "surfaces": [
@@ -2098,6 +2154,18 @@
           "dimension": "length",
           "code": "m",
           "factor_to_base": 1
+        },
+        {
+          "surfaces": [
+            "cm",
+            "centímetro",
+            "centímetros",
+            "centimetro",
+            "centimetros"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
         },
         {
           "surfaces": [
@@ -2388,6 +2456,17 @@
         },
         {
           "surfaces": [
+            "см",
+            "сантиметр",
+            "сантиметра",
+            "сантиметров"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
+        },
+        {
+          "surfaces": [
             "кг",
             "килограмм",
             "килограмма"
@@ -2667,6 +2746,16 @@
         },
         {
           "surfaces": [
+            "cm",
+            "santimetre",
+            "santimetreler"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
+        },
+        {
+          "surfaces": [
             "kg",
             "kilogram"
           ],
@@ -2936,6 +3025,15 @@
           "dimension": "length",
           "code": "m",
           "factor_to_base": 1
+        },
+        {
+          "surfaces": [
+            "cm",
+            "sentimeter"
+          ],
+          "dimension": "length",
+          "code": "cm",
+          "factor_to_base": 0.01
         },
         {
           "surfaces": [

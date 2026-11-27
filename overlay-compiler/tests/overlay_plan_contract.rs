@@ -356,13 +356,23 @@ fn verified_entity_media_becomes_an_image_and_missing_media_stays_text_only() {
         "the verified content address survives unchanged"
     );
     assert_eq!(verified.entity_caption, "Nike");
-    assert_eq!(
-        verified.motion_id, "entity_soft_rise",
-        "the run offset rotates the certified entity pool"
+    let entry = fixture("entity_cards_verified_media");
+    let request = parse_request(entry.request);
+    assert!(
+        request
+            .canvas
+            .entity_image_motions
+            .contains(&verified.motion_id),
+        "the card entrance comes from the certified entity pool: {}",
+        verified.motion_id
     );
-    assert_eq!(
-        verified.caption_motion_id, "caption_fade",
-        "the caption lane rotates independently"
+    assert!(
+        request
+            .canvas
+            .entity_caption_motions
+            .contains(&verified.caption_motion_id),
+        "the caption lane draws from its own certified pool: {}",
+        verified.caption_motion_id
     );
     assert_eq!(
         verified.entity_style_id, "premium_below_random_v1",
@@ -396,7 +406,7 @@ fn verified_entity_media_becomes_an_image_and_missing_media_stays_text_only() {
 }
 
 #[test]
-fn entity_card_motions_rotate_with_the_run_offset_only() {
+fn entity_card_motions_come_from_the_certified_pool_not_the_run_offset() {
     let entry = fixture("entity_cards_verified_media");
     let request = parse_request(entry.request);
     let first = compile_overlay_plan_v2(&request).expect("first compile");
@@ -414,9 +424,32 @@ fn entity_card_motions_rotate_with_the_run_offset_only() {
             .motion_id
             .clone()
     };
-    assert_eq!(motion(&first), "entity_soft_rise");
-    assert_eq!(motion(&second), "entity_reveal_push");
-    assert_ne!(motion(&first), motion(&second));
+    assert!(
+        request
+            .canvas
+            .entity_image_motions
+            .contains(&motion(&first)),
+        "the entrance must come from the request pool: {}",
+        motion(&first)
+    );
+    assert_eq!(
+        motion(&first),
+        motion(&second),
+        "the legacy image_motion_offset is no longer the selection authority"
+    );
+
+    // The creative seed is the only authority that resamples the lane.
+    let mut seen = std::collections::BTreeSet::new();
+    for suffix in 0..16 {
+        let mut reseeded = request.clone();
+        reseeded.plan.motion_seed = format!("{}-{suffix}", request.plan.motion_seed);
+        let compiled = compile_overlay_plan_v2(&reseeded).expect("reseeded compile");
+        seen.insert(motion(&compiled));
+    }
+    assert!(
+        seen.len() > 1,
+        "a new creative seed must be able to change the entrance: {seen:?}"
+    );
 }
 
 #[test]

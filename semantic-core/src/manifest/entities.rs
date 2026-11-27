@@ -30,6 +30,48 @@ pub(super) fn unknown_gender() -> String {
     "unknown".to_string()
 }
 
+/// One grounded property of a person, with the exact value span that proves
+/// it and the id of the entity fact that carries the same claim.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct EntityAttribute {
+    /// `age`, `height`, `weight` or `profession`.
+    pub predicate: String,
+    /// Verbatim value surface (the numeric surface, or the role surface).
+    pub value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normalized_value: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit_surface: Option<String>,
+    /// `exact`, `approximately`, `about`, `at_least`, ... as stated.
+    pub qualifier: String,
+    /// `asserted`; negated and uncertain claims never enter a positive card.
+    pub status: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub sentence_index: usize,
+    /// Verbatim sentence that grounds the predicate-to-value association.
+    pub evidence: String,
+    /// The `EntityFact` id carrying the same claim.
+    pub source_fact_id: String,
+}
+
+/// Every attribute the source binds to one person in one scene. The list is a
+/// projection, not a new extractor: each attribute keeps the evidence of the
+/// fact that produced it.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct EntityAttributeList {
+    pub entity_id: String,
+    pub label: String,
+    pub attributes: Vec<EntityAttribute>,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub sentence_index: usize,
+    /// Verbatim slice spanning the attribute evidence.
+    pub evidence: String,
+}
+
 /// A source-grounded age attached to one unambiguous PERSON mention.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct PersonAgeFact {
@@ -377,8 +419,8 @@ impl EntityFact {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MicroSummary {
     pub id: String,
-    /// `micro_summary`, `fact_comparison`, `step_sequence` or
-    /// `timeline_summary`.
+    /// `micro_summary`, `fact_comparison`, `step_sequence`,
+    /// `timeline_summary`, `attribute_summary` or `metric_summary`.
     pub kind: String,
     pub text: String,
     /// Facts that justify every claim in `text` (never empty).

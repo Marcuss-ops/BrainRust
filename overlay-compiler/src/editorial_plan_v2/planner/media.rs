@@ -79,12 +79,6 @@ pub(super) fn append_image(
 const IMAGE_VIEWPORT_WIDTH: f64 = 1340.0;
 const IMAGE_VIEWPORT_HEIGHT: f64 = 760.0;
 
-/// Entrance used when the run handed no image-motion pool: the certified
-/// single-image focus reveal, the same fallback a chain segment gets. An image
-/// with no motion is a card that simply switches on, which is one of the
-/// reasons the sequence read as "one image behind the other".
-const FALLBACK_IMAGE_MOTION: &str = "image_focus_reveal";
-
 /// Side of the square portrait box an entity card is authored into.
 const ENTITY_IMAGE_VIEWPORT: f64 = 820.0;
 
@@ -571,40 +565,52 @@ pub(super) fn assign_entity_media(
         ));
     }
     let pinned = canvas.entity_style_id.trim();
-    let offset = canvas.image_motion_offset;
     // `entity_split_side` animates position_x and is cleared by the
-    // presentation pass for the below-caption layout. Rotating it here used to
+    // presentation pass for the below-caption layout. Selecting it here used to
     // spend a caption slot on a motion the renderer then discards, leaving the
-    // caption with no entrance. The planner owns the rotation, so it filters
-    // the incompatible gesture before it can be selected.
+    // caption with no entrance. The planner owns the draw, so it filters the
+    // incompatible gesture before it can be selected.
     let caption_pool: Vec<String> = canvas
         .entity_caption_motions
         .iter()
         .filter(|motion| !motion.to_ascii_lowercase().contains("split_side"))
         .cloned()
         .collect();
-    let mut caption_ordinal = 0_i64;
-    for (ordinal, item) in items
-        .iter_mut()
-        .filter(|item| item.kind == "entity_image")
-        .enumerate()
-    {
-        item.motion_id = rotate_motion(&canvas.entity_image_motions, offset, ordinal as i64);
+    // ANIMRAND-06: a seeded shuffle bag, not a rotation. Every card takes a
+    // different entrance until the certified pool is exhausted; the seed is the
+    // ONE creative seed plus the lane, so a replay is identical.
+    let mut image_bag = SeededMotionBag::new(
+        &canvas.entity_image_motions,
+        &format!("{}\x00image.entity", creative_seed(request)),
+    );
+    let mut caption_bag = SeededMotionBag::new(
+        &caption_pool,
+        &format!("{}\x00image.caption", creative_seed(request)),
+    );
+    for item in items.iter_mut().filter(|item| item.kind == "entity_image") {
+        // An explicit entrance is authoritative: the lane only fills empty ids
+        // (ANIMRAND-09).
+        if item.motion_id.trim().is_empty() {
+            item.motion_id = image_bag.take().unwrap_or_default();
+            mark_motion_origin(item, ORIGIN_AUTO);
+        }
         item.image_preset_id = ENTITY_CARD_IMAGE_PRESET.to_string();
         let captioned = !item.entity_caption.trim().is_empty() && !item.asset_refs.is_empty();
         if captioned {
-            if caption_pool.is_empty() {
-                return Err(EditorialPlanError::invalid(
-                    "canvas.entity_caption_motions",
-                    "a non-empty certified pool is required when an entity caption is admitted",
-                ));
+            if item.caption_motion_id.trim().is_empty() {
+                if caption_bag.is_empty() {
+                    return Err(EditorialPlanError::invalid(
+                        "canvas.entity_caption_motions",
+                        "a non-empty certified pool is required when an entity caption is admitted",
+                    ));
+                }
+                item.caption_motion_id = caption_bag.take().unwrap_or_default();
+                mark_caption_origin(item, ORIGIN_AUTO);
             }
-            item.caption_motion_id = rotate_motion(&caption_pool, offset, caption_ordinal);
             item.caption_layout = "below".to_string();
             item.caption_font_family = ENTITY_CAPTION_FONT.to_string();
             item.caption_color = ENTITY_CAPTION_COLOR.to_string();
             item.entity_style_id = ENTITY_STYLE_BELOW.to_string();
-            caption_ordinal += 1;
         } else if !pinned.is_empty() {
             // An uncaptioned card has no name to place below the portrait, so
             // an explicit pinned selector survives instead of being replaced.
@@ -629,7 +635,7 @@ pub(super) fn assign_entity_media(
 pub(super) fn normalize_image_presentation(
     request: &EditorialPlanV2Request,
     items: &mut [PlanItemV2],
-) {
+) -> Result<(), EditorialPlanError> {
     let canvas = &request.canvas;
     // Timeline order, not vector order: two images 30 s apart are not
     // "consecutive" just because admission appended them next to each other.
@@ -640,38 +646,29 @@ pub(super) fn normalize_image_presentation(
         .map(|(index, _)| index)
         .collect();
     order.sort_by_key(|index| (items[*index].start_us, items[*index].id.clone()));
-    let mut last_motion = String::new();
-    for (ordinal, index) in order.into_iter().enumerate() {
+    // A lane of its own: the standalone images walk the certified single-image
+    // pool with a seeded shuffle bag, so two runs are not the same rotation.
+    let mut bag = SeededMotionBag::new(
+        &canvas.image_motions,
+        &format!("{}\x00image.standalone", creative_seed(request)),
+    );
+    for index in order {
         let item = &mut items[index];
         if item.motion_id.trim().is_empty() {
-            item.motion_id = if canvas.image_motions.is_empty() {
-                FALLBACK_IMAGE_MOTION.to_string()
-            } else {
-                let mut candidate = rotate_motion(
-                    &canvas.image_motions,
-                    canvas.image_motion_offset,
-                    ordinal as i64,
-                );
-                // A single-item pool has no alternative; with two or more,
-                // advance until the adjacent entrance differs. This also
-                // covers a pool shared with entity cards whose motion was
-                // assigned earlier.
-                let mut step = 1;
-                while canvas.image_motions.len() > 1
-                    && candidate == last_motion
-                    && step < canvas.image_motions.len()
-                {
-                    candidate = rotate_motion(
-                        &canvas.image_motions,
-                        canvas.image_motion_offset,
-                        ordinal as i64 + step as i64,
-                    );
-                    step += 1;
-                }
-                candidate
-            };
+            // ANIMRAND-04: a missing pool is a configuration error, not a
+            // reason to pin one entrance on every still. The silent fallback
+            // hid an incomplete catalog and made a run of images look like a
+            // single repeated card. `auto` means draw from the certified
+            // pool; an empty pool fails closed here.
+            if bag.is_empty() {
+                return Err(EditorialPlanError::invalid(
+                    "canvas.image_motions",
+                    "a non-empty certified pool is required when a standalone image has no motion",
+                ));
+            }
+            item.motion_id = bag.take().unwrap_or_default();
+            mark_motion_origin(item, ORIGIN_AUTO);
         }
-        last_motion = item.motion_id.clone();
         if item.kind == "entity_image" {
             // Entity cards are portraits: a square box keeps the aspect and
             // makes the card roughly twice the width of the preset fallback,
@@ -701,12 +698,7 @@ pub(super) fn normalize_image_presentation(
             .entry("fit".to_string())
             .or_insert_with(|| json!("contain"));
     }
-}
-
-fn rotate_motion(pool: &[String], offset: i64, ordinal: i64) -> String {
-    let len = pool.len() as i64;
-    let index = (offset.rem_euclid(len) + ordinal).rem_euclid(len) as usize;
-    pool[index].clone()
+    Ok(())
 }
 
 #[cfg(test)]

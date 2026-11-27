@@ -1,8 +1,51 @@
 // Unit tests for the editorial-plan v2 planner.
 use super::{
     assign_long_phrase_motions, assign_short_phrase_motions, clip_items_to_scene_bounds,
-    compile_plan, resolve_chain_overlaps, EditorialPlanV2Request, PlanItemV2,
+    compile_plan, date_motion_pool, resolve_chain_overlaps, seeded_index_in,
+    EditorialPlanV2Request, PlanItemV2,
 };
+
+/// Certified-pool fixture for the planner tests. Production sends the whole
+/// registry group; the fixture keeps one representative per family plus enough
+/// typewriter ids for the three-card no-repeat assertions.
+pub(super) const TEST_DATE_MOTIONS: &[&str] = &[
+    "date_fade_rise",
+    "date_timeline_tick",
+    "date_didone_era_settle",
+    "date_didone_drop_in",
+    "date_typewriter_year_type",
+    "date_typewriter_timeline_feed",
+    "date_typewriter_day_stamp",
+    "date_typewriter_ink_stamp",
+];
+
+pub(super) const TEST_METRIC_MOTIONS: &[&str] = &[
+    "metric_counter_scale_settle",
+    "metric_bar_grow",
+    "metric_didone_drop_in",
+    "metric_didone_ink_settle",
+    "metric_typewriter_key_strike",
+    "metric_typewriter_line_feed",
+    "metric_typewriter_digit_tick",
+    "metric_typewriter_ink_stamp",
+];
+
+pub(super) const TEST_SHORT_PHRASE_MOTIONS: &[&str] = &["short_alpha", "short_beta", "short_gamma"];
+
+pub(super) const TEST_LONG_PHRASE_MOTIONS: &[&str] = &["long_alpha", "long_beta", "long_gamma"];
+
+pub(super) const TEST_SOURCE_HIGHLIGHT_MOTIONS: &[&str] = &[
+    "doc_01_yellow_marker_sweep",
+    "doc_04_archival_source_highlight",
+    "doc_06_red_keyword_punch",
+];
+
+pub(super) const TEST_LIGHT_LEAK_MOTIONS: &[&str] = &[
+    "lightleak_anamorphic_pass",
+    "lightleak_bokeh_pass",
+    "lightleak_pulse",
+    "lightleak_soft_flare",
+];
 
 pub(super) fn request() -> EditorialPlanV2Request {
     serde_json::from_value(serde_json::json!({
@@ -18,6 +61,36 @@ pub(super) fn request() -> EditorialPlanV2Request {
             "canvas": {"group_limits": {},
                 "entity_image_motions": ["entity_reveal_push", "entity_soft_rise"],
                 "entity_caption_motions": ["caption_rise", "caption_fade"],
+                "date_motions": TEST_DATE_MOTIONS,
+                "metric_motions": TEST_METRIC_MOTIONS,
+                "motion_families": {
+                    "date_fade_rise": "classic",
+                    "date_timeline_tick": "classic",
+                    "date_didone_era_settle": "didone",
+                    "date_didone_drop_in": "didone",
+                    "date_typewriter_year_type": "typewriter",
+                    "date_typewriter_timeline_feed": "typewriter",
+                    "date_typewriter_day_stamp": "typewriter",
+                    "date_typewriter_ink_stamp": "typewriter",
+                    "metric_counter_scale_settle": "classic",
+                    "metric_bar_grow": "classic",
+                    "metric_didone_drop_in": "didone",
+                    "metric_didone_ink_settle": "didone",
+                    "metric_typewriter_key_strike": "typewriter",
+                    "metric_typewriter_line_feed": "typewriter",
+                    "metric_typewriter_digit_tick": "typewriter",
+                    "metric_typewriter_ink_stamp": "typewriter"
+                },
+                "light_leak_motions": TEST_LIGHT_LEAK_MOTIONS,
+                "source_highlight_motions": TEST_SOURCE_HIGHLIGHT_MOTIONS,
+                "short_phrase_motions_by_word": {
+                    "1": TEST_SHORT_PHRASE_MOTIONS,
+                    "2": TEST_SHORT_PHRASE_MOTIONS,
+                    "3": TEST_SHORT_PHRASE_MOTIONS,
+                    "4": TEST_SHORT_PHRASE_MOTIONS,
+                    "5": TEST_SHORT_PHRASE_MOTIONS
+                },
+                "long_phrase_motions": TEST_LONG_PHRASE_MOTIONS,
                 "image_motion_offset": 1},
             "scenes": [{
                 "id": "scene-1", "text": "Nike corre al museo.",

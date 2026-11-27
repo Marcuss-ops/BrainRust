@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::lexicon;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -298,6 +299,22 @@ pub struct StageTimings {
     pub total_ms: f64,
 }
 
+/// One introduction topic: a ranked sentence offered before the story proper.
+/// `start_byte`/`end_byte` point at the verbatim sentence so a consumer never
+/// has to re-segment the source to ground it.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct IntroTopic {
+    pub text: String,
+    pub sentence_index: usize,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    /// Index of the scene the sentence belongs to, when the request carried
+    /// aligned scene metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scene_index: Option<usize>,
+    pub importance: f64,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ResultDocument {
     pub summary: String,
@@ -310,6 +327,10 @@ pub struct ResultDocument {
     pub chapter_manifest: ChapterManifest,
     #[serde(default)]
     pub scene_highlights: Vec<SceneHighlight>,
+    /// 3–5 non-spoiler topics for the opening. Absent when fewer than three
+    /// remain: the field is never padded with weaker or spoiling sentences.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intro_agenda: Option<Vec<IntroTopic>>,
     pub timings: StageTimings,
 }
 
@@ -484,6 +505,13 @@ pub fn run_with_chapter_options(
             .total_cmp(&a.importance)
             .then(a.index.cmp(&b.index))
     });
+    let intro_agenda = build_intro_agenda(
+        &request.transcript,
+        &segments,
+        &ranked,
+        &scene_starts,
+        &request.language,
+    );
     let elapsed_ms = total.elapsed().as_secs_f64() * 1000.0;
     Ok(ResultDocument {
         summary,
@@ -496,6 +524,7 @@ pub fn run_with_chapter_options(
             chapters,
         },
         scene_highlights: Vec::new(),
+        intro_agenda,
         timings: StageTimings {
             split_ms,
             embedding_ms: request.embedding_ms,
@@ -506,6 +535,76 @@ pub fn run_with_chapter_options(
             total_ms: elapsed_ms + request.embedding_ms,
         },
     })
+}
+
+/// 3–5 ranked sentences that can open the story without spoiling it. A
+/// conclusion marker in a non-opening sentence disqualifies that sentence;
+/// near-duplicate topics are skipped so the agenda covers different material.
+fn build_intro_agenda(
+    transcript: &str,
+    segments: &[Segment],
+    ranked: &[RankedSentence],
+    scene_starts: &[(usize, usize)],
+    language: &str,
+) -> Option<Vec<IntroTopic>> {
+    if segments.is_empty() {
+        return None;
+    }
+    let cues = &lexicon::lexicon().intro_agenda;
+    // The opening cannot spoil what it opens: cues are ignored in the first
+    // 10% of the sentence sequence.
+    let opening = (segments.len() / 10).max(1);
+    let mut topics: Vec<IntroTopic> = Vec::new();
+    let mut seen_tokens: Vec<HashSet<String>> = Vec::new();
+    for sentence in ranked {
+        if topics.len() == 5 {
+            break;
+        }
+        let Some(segment) = segments.get(sentence.index) else {
+            continue;
+        };
+        let text = sentence.text.trim();
+        let chars = text.chars().count();
+        if !(24..=200).contains(&chars) {
+            continue;
+        }
+        if sentence.index >= opening && cues.is_spoiler(language, text) {
+            continue;
+        }
+        if transcript.get(segment.start_byte..segment.end_byte) != Some(text) {
+            continue;
+        }
+        let tokens = topic_tokens(text);
+        let duplicate = seen_tokens.iter().any(|previous| {
+            let union = previous.union(&tokens).count();
+            union > 0 && previous.intersection(&tokens).count() * 5 >= union * 3
+        });
+        if duplicate {
+            continue;
+        }
+        seen_tokens.push(tokens);
+        topics.push(IntroTopic {
+            text: text.to_string(),
+            sentence_index: sentence.index,
+            start_byte: segment.start_byte,
+            end_byte: segment.end_byte,
+            scene_index: scene_starts
+                .iter()
+                .rev()
+                .find(|(start, _)| *start <= sentence.index)
+                .map(|(_, scene)| *scene),
+            importance: sentence.importance,
+        });
+    }
+    (topics.len() >= 3).then_some(topics)
+}
+
+fn topic_tokens(text: &str) -> HashSet<String> {
+    text.to_lowercase()
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|word| word.chars().count() > 3)
+        .map(str::to_string)
+        .collect()
 }
 
 /// Reject chapter weights and sentence bounds outside the documented ranges.

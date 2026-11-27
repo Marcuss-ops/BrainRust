@@ -116,7 +116,7 @@
         }
       },
       {
-        "id": "lightleak-corner-bloom__light-leak-clip-7f90bc4c6389e3a7__light-leak__01",
+        "id": "lightleak-pulse__light-leak-clip-7f90bc4c6389e3a7__light-leak__01",
         "scene_id": "s1",
         "group_id": "s1",
         "subgroup_id": "light-leak-clip-7f90bc4c6389e3a7",
@@ -125,10 +125,13 @@
         "end_ms": 1200,
         "duration_us": 1200000,
         "template_id": "LIGHT_LEAK",
-        "motion_id": "lightleak_corner_bloom"
+        "motion_id": "lightleak_pulse",
+        "params": {
+          "motion_origin": "auto"
+        }
       },
       {
-        "id": "lightleak-bokeh-pass__light-leak-clip-a7f5a2ba512d4b37__light-leak__01",
+        "id": "lightleak-pulse__light-leak-clip-a7f5a2ba512d4b37__light-leak__01",
         "scene_id": "s2",
         "group_id": "s2",
         "subgroup_id": "light-leak-clip-a7f5a2ba512d4b37",
@@ -138,10 +141,13 @@
         "start_us": 6000000,
         "duration_us": 1200000,
         "template_id": "LIGHT_LEAK",
-        "motion_id": "lightleak_bokeh_pass"
+        "motion_id": "lightleak_pulse",
+        "params": {
+          "motion_origin": "auto"
+        }
       },
       {
-        "id": "lightleak-edge-warm__light-leak-clip-f0770b772f24e72d__light-leak__01",
+        "id": "lightleak-pulse__light-leak-clip-f0770b772f24e72d__light-leak__01",
         "scene_id": "s3",
         "group_id": "s3",
         "subgroup_id": "light-leak-clip-f0770b772f24e72d",
@@ -151,7 +157,10 @@
         "start_us": 12000000,
         "duration_us": 1200000,
         "template_id": "LIGHT_LEAK",
-        "motion_id": "lightleak_edge_warm"
+        "motion_id": "lightleak_pulse",
+        "params": {
+          "motion_origin": "auto"
+        }
       },
       {
         "id": "lightleak-anamorphic-pass__light-leak-clip-19572c31a0b7733d__light-leak__01",
@@ -164,10 +173,13 @@
         "start_us": 18000000,
         "duration_us": 1200000,
         "template_id": "LIGHT_LEAK",
-        "motion_id": "lightleak_anamorphic_pass"
+        "motion_id": "lightleak_anamorphic_pass",
+        "params": {
+          "motion_origin": "auto"
+        }
       },
       {
-        "id": "lightleak-bokeh-pass__light-leak-clip-d2397e8c97580297__light-leak__01",
+        "id": "lightleak-anamorphic-pass__light-leak-clip-d2397e8c97580297__light-leak__01",
         "scene_id": "s5",
         "group_id": "s5",
         "subgroup_id": "light-leak-clip-d2397e8c97580297",
@@ -177,7 +189,10 @@
         "start_us": 30000000,
         "duration_us": 1200000,
         "template_id": "LIGHT_LEAK",
-        "motion_id": "lightleak_bokeh_pass"
+        "motion_id": "lightleak_anamorphic_pass",
+        "params": {
+          "motion_origin": "auto"
+        }
       }
     ],
     "recap_placements": 1,

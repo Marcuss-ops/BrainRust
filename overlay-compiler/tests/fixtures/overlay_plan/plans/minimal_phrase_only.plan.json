@@ -72,7 +72,7 @@
           "enter_frames": 8
         },
         "entity_caption": "Nike",
-        "caption_motion_id": "caption_rise",
+        "caption_motion_id": "caption_fade",
         "caption_font_family": "playfair_display_italic",
         "caption_layout": "below",
         "caption_color": "#000000",
@@ -87,8 +87,10 @@
         "params": {
           "canonical_entity_id": "org:nike",
           "caption_layout": "below",
+          "caption_motion_origin": "auto",
           "entity_type": "ORG",
           "height": 820.0,
+          "motion_origin": "auto",
           "position_x": 0.0,
           "position_y": 0.0,
           "priority": 0.95,

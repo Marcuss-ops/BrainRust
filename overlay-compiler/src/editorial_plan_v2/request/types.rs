@@ -136,6 +136,26 @@ pub struct CanvasV2 {
     /// every supplied short and long phrase candidate available.
     #[serde(default)]
     pub phrase_motion_family: String,
+    /// Certified `entity.date` registry group. The catalog is the single owner:
+    /// the planner selects from this pool and never keeps a copied id list, so
+    /// a registry change cannot drift from the selection (ANIMRAND-08).
+    #[serde(default)]
+    pub date_motions: Vec<String>,
+    /// Certified `entity.metric` registry group (same rule as `date_motions`).
+    #[serde(default)]
+    pub metric_motions: Vec<String>,
+    /// Registry family metadata for numeric motions ("classic", "didone",
+    /// "typewriter"). Classification reads this map, not the id prefix; a
+    /// request that predates it keeps the prefix fallback.
+    #[serde(default)]
+    pub motion_families: std::collections::BTreeMap<String, String>,
+    /// Certified `image.lightleak` registry group (same rule).
+    #[serde(default)]
+    pub light_leak_motions: Vec<String>,
+    /// Certified `phrase.documentary` registry group: the compatible pool the
+    /// source-highlight recipe selects from instead of pinning one id.
+    #[serde(default)]
+    pub source_highlight_motions: Vec<String>,
     /// Uniform-coverage pacing threshold in microseconds. Zero keeps the
     /// editorial default of 25 s: after primary admission the planner measures
     /// the uncovered intervals and runs one targeted pass that promotes

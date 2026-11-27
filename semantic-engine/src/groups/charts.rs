@@ -223,6 +223,7 @@ pub(super) fn build(
             bullets,
             chart_points,
             quantities,
+            tokens: chart_input.tokens,
             identities,
             language,
         },

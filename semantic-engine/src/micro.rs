@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use semantic_core::lexicon::{LegalLexicon, MicroLexicon};
+use semantic_core::lexicon::{self, AttributePredicates, LegalLexicon, MicroLexicon};
 use semantic_core::{legal_packs, EntityFact, MicroSummary, SemanticGroup, SemanticGroupMember};
 use visualner::VisualEntity;
 
@@ -30,15 +30,10 @@ pub fn build(
     entities: &[VisualEntity],
     entity_ids: &[String],
 ) -> MicroBuild {
-    // Micro phrases are rendered from a language's domain pack. Without one
-    // the engine emits no summaries instead of Italian text under a foreign
-    // language tag; the facts themselves are still in the manifest.
-    let Some(legal) = legal_packs::get(language) else {
-        return MicroBuild::default();
-    };
-    if legal.micro.templates.is_empty() {
-        return MicroBuild::default();
-    }
+    // A legal domain pack is optional: its templates are one source of micro
+    // phrases, not a precondition. Attribute and metric projections below are
+    // language-neutral and run for every supported language.
+    let legal = legal_packs::get(language);
     let mut names: BTreeMap<&str, &str> = BTreeMap::new();
     for (index, entity) in entities.iter().enumerate() {
         if let Some(id) = entity_ids.get(index) {
@@ -46,8 +41,31 @@ pub fn build(
         }
     }
 
+    let ontology = &lexicon::lexicon().attribute_predicates;
     let mut summaries: Vec<MicroSummary> = Vec::new();
+    // A compact, fact-backed line per person whose scene states at least two
+    // canonical attributes. It is a projection of the same facts the card
+    // uses, never a second extraction.
+    let mut attribute_lines = attribute_summaries(language, source, facts, &names, ontology);
+    let attribute_fact_ids: std::collections::BTreeSet<String> = attribute_lines
+        .iter()
+        .flat_map(|summary| summary.evidence_fact_ids.iter().cloned())
+        .collect();
+    let mut metric_lines = metric_summaries(language, source, facts, &names, ontology);
+    let metric_fact_ids: std::collections::BTreeSet<String> = metric_lines
+        .iter()
+        .flat_map(|summary| summary.evidence_fact_ids.iter().cloned())
+        .collect();
     for fact in facts.iter().filter(|fact| fact.status == "asserted") {
+        if attribute_fact_ids.contains(&fact.id) || metric_fact_ids.contains(&fact.id) {
+            continue;
+        }
+        let Some(legal) = legal else {
+            break;
+        };
+        if legal.micro.templates.is_empty() {
+            break;
+        }
         let Some(text) = phrase_for(fact, &names, legal) else {
             continue;
         };
@@ -95,6 +113,9 @@ pub fn build(
             score: 0.8,
         });
     }
+
+    summaries.append(&mut attribute_lines);
+    summaries.append(&mut metric_lines);
 
     // When several asserted facts about one subject are grounded in the same
     // source sentence, retain that complete sentence as a conservative
@@ -157,12 +178,213 @@ pub fn build(
         });
     }
     summaries.sort_by_key(|summary| (summary.sentence_index, summary.start_byte));
+    // Ids are assigned after every source has contributed, so a legal phrase,
+    // an attribute projection and an extractive sentence never collide on the
+    // same id regardless of which sources exist for a language.
+    for (index, summary) in summaries.iter_mut().enumerate() {
+        summary.id = format!("micro_{:03}", index + 1);
+    }
 
     let mut groups = Vec::new();
-    groups.extend(comparison_groups(scene_id, &summaries, legal));
-    groups.extend(sequence_groups(scene_id, &summaries, legal));
+    if let Some(legal) = legal {
+        groups.extend(comparison_groups(scene_id, &summaries, legal));
+        groups.extend(sequence_groups(scene_id, &summaries, legal));
+    }
 
     MicroBuild { summaries, groups }
+}
+
+/// Canonical attribute behind a fact. The age extractor keeps its historical
+/// `personal_data` predicate, so the unit decides it; every other attribute
+/// is named by the ontology.
+fn canonical_attribute(
+    fact: &EntityFact,
+    language: &str,
+    ontology: &AttributePredicates,
+) -> Option<String> {
+    // The legal age extractor names the claim `personal_data`; its unit was
+    // never carried on the fact, so the predicate itself is the only marker.
+    // The attribute projection also emits `age` facts in languages without a
+    // legal pack, and both spellings resolve to the same canonical attribute.
+    if fact.predicate == "personal_data" && fact.value_type == "NUMBER" {
+        return Some("age".to_string());
+    }
+    ontology
+        .label(&fact.predicate, language)
+        .map(|_| fact.predicate.clone())
+}
+
+fn attribute_unit(
+    fact: &EntityFact,
+    canonical: &str,
+    language: &str,
+    ontology: &AttributePredicates,
+) -> Option<String> {
+    if canonical == "age" {
+        let units = ontology.units("age", language);
+        let plural = fact
+            .normalized_value
+            .as_deref()
+            .and_then(|value| value.parse::<f64>().ok())
+            .is_some_and(|value| value != 1.0);
+        return units
+            .get(usize::from(plural) * usize::from(units.len() > 1))
+            .cloned()
+            .or_else(|| Some("year".to_string()));
+    }
+    fact.unit.clone()
+}
+
+fn attribute_line(
+    fact: &EntityFact,
+    canonical: &str,
+    language: &str,
+    ontology: &AttributePredicates,
+) -> Option<String> {
+    let label = ontology.label(canonical, language)?;
+    let value = fact
+        .normalized_value
+        .as_deref()
+        .unwrap_or(fact.value.as_str());
+    Some(match attribute_unit(fact, canonical, language, ontology) {
+        Some(unit) => format!("{label} {value} {unit}"),
+        None => format!("{label} {value}"),
+    })
+}
+
+/// One compact line per person with at least two canonical attributes, in
+/// source order and with the ontology's localized labels. No legal pack is
+/// consulted, so the projection works in every supported language.
+fn attribute_summaries(
+    language: &str,
+    source: &str,
+    facts: &[EntityFact],
+    names: &BTreeMap<&str, &str>,
+    ontology: &AttributePredicates,
+) -> Vec<MicroSummary> {
+    let mut by_subject: BTreeMap<&str, Vec<(&EntityFact, String)>> = BTreeMap::new();
+    for fact in facts.iter().filter(|fact| fact.status == "asserted") {
+        let Some(canonical) = canonical_attribute(fact, language, ontology) else {
+            continue;
+        };
+        let Some(line) = attribute_line(fact, &canonical, language, ontology) else {
+            continue;
+        };
+        by_subject
+            .entry(fact.subject_entity_id.as_str())
+            .or_default()
+            .push((fact, line));
+    }
+    let mut out = Vec::new();
+    for (subject, mut attributes) in by_subject {
+        if attributes.len() < 2 {
+            continue;
+        }
+        let Some(name) = names.get(subject) else {
+            continue;
+        };
+        attributes.sort_by_key(|(fact, _)| fact.start_byte);
+        let text = format!(
+            "{name}: {}",
+            attributes
+                .iter()
+                .map(|(_, line)| line.as_str())
+                .collect::<Vec<_>>()
+                .join(" · ")
+        );
+        if text.chars().count() > 160 {
+            continue;
+        }
+        let start = attributes
+            .iter()
+            .map(|(fact, _)| fact.evidence_start_byte)
+            .min()
+            .unwrap_or(0);
+        let end = attributes
+            .iter()
+            .map(|(fact, _)| fact.evidence_end_byte)
+            .max()
+            .unwrap_or(start);
+        let Some(evidence) = source.get(start..end) else {
+            continue;
+        };
+        if evidence.chars().count() > 240 || evidence.trim().is_empty() {
+            continue;
+        }
+        out.push(MicroSummary {
+            id: format!("micro_attr_{:03}", out.len() + 1),
+            kind: "attribute_summary".to_string(),
+            text,
+            evidence_fact_ids: attributes.iter().map(|(fact, _)| fact.id.clone()).collect(),
+            subject_entity_id: Some(subject.to_string()),
+            normalized_date: None,
+            sentence_index: attributes
+                .iter()
+                .map(|(fact, _)| fact.sentence_index)
+                .min()
+                .unwrap_or(0),
+            evidence: evidence.to_string(),
+            start_byte: start,
+            end_byte: end,
+            score: 0.82,
+        });
+    }
+    out
+}
+
+/// A fact that already carries a unit and a normalized date is a metric (a
+/// fine, a capacity, a quoted amount). The projection only reformats it; it
+/// never turns a raw chart quantity into a fact, so provenance stays exact.
+fn metric_summaries(
+    language: &str,
+    source: &str,
+    facts: &[EntityFact],
+    names: &BTreeMap<&str, &str>,
+    ontology: &AttributePredicates,
+) -> Vec<MicroSummary> {
+    let mut out = Vec::new();
+    for fact in facts.iter().filter(|fact| fact.status == "asserted") {
+        let (Some(unit), Some(date), Some(value)) = (
+            fact.unit.as_deref(),
+            fact.normalized_date.as_deref(),
+            fact.normalized_value.as_deref(),
+        ) else {
+            continue;
+        };
+        if canonical_attribute(fact, language, ontology).is_some() {
+            continue;
+        }
+        let Some(name) = names.get(fact.subject_entity_id.as_str()) else {
+            continue;
+        };
+        let Some(year) = date.get(0..4) else {
+            continue;
+        };
+        let text = format!("{year} — {name}: {value} {unit}");
+        if text.chars().count() > 160 {
+            continue;
+        }
+        let Some(evidence) = source.get(fact.evidence_start_byte..fact.evidence_end_byte) else {
+            continue;
+        };
+        if evidence.trim().is_empty() {
+            continue;
+        }
+        out.push(MicroSummary {
+            id: format!("micro_metric_{:03}", out.len() + 1),
+            kind: "metric_summary".to_string(),
+            text,
+            evidence_fact_ids: vec![fact.id.clone()],
+            subject_entity_id: Some(fact.subject_entity_id.clone()),
+            normalized_date: Some(date.to_string()),
+            sentence_index: fact.sentence_index,
+            evidence: evidence.to_string(),
+            start_byte: fact.evidence_start_byte,
+            end_byte: fact.evidence_end_byte,
+            score: 0.78,
+        });
+    }
+    out
 }
 
 /// A short phrase for one asserted fact. Wording changes; subject, state,
@@ -700,5 +922,31 @@ mod tests {
             vec!["f1"],
             "different subjects must never merge into one summary"
         );
+    }
+
+    #[test]
+    fn a_fact_with_a_unit_and_a_date_becomes_one_metric_summary() {
+        let (entity, id) = person();
+        let (source, spans) = spans_of(&["Alberto Stasi fu multato di 5.000 euro nel 2019."]);
+        let mut metric = fact(
+            "f_fine",
+            &id,
+            0,
+            "fine",
+            "5000",
+            Some("2019-03-01"),
+            "asserted",
+            &source,
+            spans[0],
+        );
+        metric.value = "5.000 euro".to_string();
+        metric.value_type = "MONEY".to_string();
+        metric.unit = Some("EUR".to_string());
+        let built = build("xx", "scena", &source, &[metric], &[entity], &[id]);
+        assert_eq!(built.summaries.len(), 1, "{:?}", built.summaries);
+        assert_eq!(built.summaries[0].kind, "metric_summary");
+        assert_eq!(built.summaries[0].text, "2019 — Alberto Stasi: 5000 EUR");
+        assert_eq!(built.summaries[0].evidence_fact_ids, vec!["f_fine"]);
+        assert_eq!(built.summaries[0].evidence, source);
     }
 }

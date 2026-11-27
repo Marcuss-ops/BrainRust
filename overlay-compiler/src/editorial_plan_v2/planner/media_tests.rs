@@ -227,14 +227,11 @@ mod entity_window_sequencing_tests {
             captions.iter().all(|id| !id.contains("split_side")),
             "the below-caption lane must never select the side slide: {captions:?}"
         );
+        let distinct: std::collections::BTreeSet<&str> = captions.iter().copied().collect();
         assert_eq!(
-            captions,
-            vec![
-                "entity_caption_rise",
-                "entity_name_pill",
-                "entity_caption_rise"
-            ],
-            "the compatible pool must rotate in order"
+            distinct.len(),
+            captions.len().min(2),
+            "the bag must not repeat before the compatible pool is exhausted: {captions:?}"
         );
     }
 
@@ -299,5 +296,161 @@ mod entity_window_sequencing_tests {
                 item.entity_ref.as_ref().unwrap().canonical_entity_id
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod image_pool_tests {
+    use super::*;
+
+    fn request_with_images(pool: Vec<&str>) -> EditorialPlanV2Request {
+        serde_json::from_value(serde_json::json!({
+            "operation": "compile_editorial_plan",
+            "schema_version": "editorial_plan.v2",
+            "plan": {
+                "plan_id": "plan-images", "video_id": "video-images",
+                "project_id": "project-images", "motion_seed": "seed-images",
+                "width": 1920, "height": 1080, "fps_num": 24, "fps_den": 1
+            },
+            "language": "it",
+            "seal": {"audio_duration_us": 8_000_000},
+            "canvas": {"image_motions": pool},
+            "scenes": [{
+                "id": "scene-1", "text": "", "duration_ms": 8000,
+                "timeline_start_us": 0, "duration_us": 8_000_000
+            }]
+        }))
+        .expect("request")
+    }
+
+    fn standalone_image(id: &str, start_us: i64) -> PlanItemV2 {
+        PlanItemV2 {
+            id: id.to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "image".to_string(),
+            start_us,
+            duration_us: 2_000_000,
+            ..Default::default()
+        }
+    }
+
+    /// ANIMRAND-04: a missing pool is a configuration error, never a silent
+    /// `image_focus_reveal` on every image.
+    #[test]
+    fn standalone_image_without_a_pool_fails_closed() {
+        let request = request_with_images(Vec::new());
+        let mut items = vec![standalone_image("img-1", 0)];
+        let error = normalize_image_presentation(&request, &mut items)
+            .expect_err("an empty image pool must fail closed");
+        assert!(
+            error.to_string().contains("canvas.image_motions"),
+            "error must name the missing pool: {error}"
+        );
+        assert!(
+            items[0].motion_id.is_empty(),
+            "a failed normalization must not pin a fallback"
+        );
+    }
+
+    #[test]
+    fn standalone_image_uses_the_certified_pool() {
+        let request = request_with_images(vec!["image_a", "image_b"]);
+        let mut items = vec![
+            standalone_image("img-1", 0),
+            standalone_image("img-2", 3_000_000),
+        ];
+        normalize_image_presentation(&request, &mut items).expect("normalize");
+        assert!(
+            items
+                .iter()
+                .all(|item| request.canvas.image_motions.contains(&item.motion_id)),
+            "motions must come from the pool: {:?}",
+            items.iter().map(|item| &item.motion_id).collect::<Vec<_>>()
+        );
+        assert_ne!(
+            items[0].motion_id, items[1].motion_id,
+            "neighbouring images must not share the same entrance"
+        );
+    }
+}
+
+#[cfg(test)]
+mod explicit_motion_guard_tests {
+    use super::*;
+
+    fn request() -> EditorialPlanV2Request {
+        serde_json::from_value(serde_json::json!({
+            "operation": "compile_editorial_plan",
+            "schema_version": "editorial_plan.v2",
+            "plan": {
+                "plan_id": "plan-explicit", "video_id": "video-explicit",
+                "project_id": "project-explicit", "motion_seed": "seed-explicit",
+                "width": 1920, "height": 1080, "fps_num": 24, "fps_den": 1
+            },
+            "language": "it",
+            "seal": {"audio_duration_us": 4_000_000},
+            "canvas": {
+                "image_motions": ["image_a", "image_b"],
+                "entity_image_motions": ["entity_a", "entity_b"],
+                "entity_caption_motions": ["caption_a", "caption_b"],
+                "date_motions": ["date_a", "date_b"],
+                "metric_motions": ["metric_a", "metric_b"]
+            },
+            "scenes": [{
+                "id": "scene-1", "text": "", "duration_ms": 4000,
+                "timeline_start_us": 0, "duration_us": 4_000_000
+            }]
+        }))
+        .expect("request")
+    }
+
+    /// ANIMRAND-09: an entrance pinned by the producer survives every automatic
+    /// lane — numeric, entity image, caption and standalone image.
+    #[test]
+    fn explicit_motions_are_never_overwritten() {
+        let request = request();
+
+        let mut numbers = vec![PlanItemV2 {
+            id: "date".to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "number".to_string(),
+            template_id: "TIMELINE_DATE_CARD".to_string(),
+            motion_id: "pinned_date".to_string(),
+            ..Default::default()
+        }];
+        assign_numeric_motions(&mut numbers, &request);
+        assert_eq!("pinned_date", numbers[0].motion_id);
+
+        let asset = || AssetRefV2 {
+            asset_id: "portrait".to_string(),
+            url: "https://cdn.example/portrait.png".to_string(),
+            sha256: "a".repeat(64),
+            media_type: "image/png".to_string(),
+        };
+        let mut cards = vec![PlanItemV2 {
+            id: "card".to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "entity_image".to_string(),
+            motion_id: "pinned_entity".to_string(),
+            entity_caption: "Ada".to_string(),
+            caption_motion_id: "pinned_caption".to_string(),
+            asset_refs: vec![asset()],
+            ..Default::default()
+        }];
+        assign_entity_media(&request, &mut cards).expect("assign entity media");
+        assert_eq!("pinned_entity", cards[0].motion_id);
+        assert_eq!("pinned_caption", cards[0].caption_motion_id);
+
+        let mut images = vec![PlanItemV2 {
+            id: "image".to_string(),
+            scene_id: "scene-1".to_string(),
+            kind: "image".to_string(),
+            motion_id: "pinned_image".to_string(),
+            start_us: 0,
+            duration_us: 2_000_000,
+            ..Default::default()
+        }];
+        normalize_image_presentation(&request, &mut images).expect("normalize");
+        assert_eq!("pinned_image", images[0].motion_id);
     }
 }

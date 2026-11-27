@@ -56,12 +56,24 @@ pub(super) fn chart_measure(
 /// sentences. A grounded `Quantity` predicate and unit take precedence over the
 /// lexical stem fallback.
 /// Inputs for the cross-sentence chart-series pass.
+/// The sentence-level bindings a series point needs. Grouped so the chain
+/// walker keeps one context argument instead of six unrelated slices.
+struct SeriesBindings<'a> {
+    bullets: &'a [Bullet],
+    quantities: &'a [Quantity],
+    entities: &'a [VisualEntity],
+    tokens: &'a [AnalyzedToken],
+    identities: &'a IdentityLookup,
+    language: &'a str,
+}
+
 pub(super) struct SeriesContext<'a> {
     pub(super) source: &'a str,
     pub(super) entities: &'a [VisualEntity],
     pub(super) bullets: &'a [Bullet],
     pub(super) chart_points: &'a [ChartPoint],
     pub(super) quantities: &'a [Quantity],
+    pub(super) tokens: &'a [AnalyzedToken],
     pub(super) identities: &'a IdentityLookup,
     pub(super) language: &'a str,
 }
@@ -85,9 +97,18 @@ pub(super) fn cross_sentence_series(input: SeriesContext<'_>, out: &mut Vec<Visu
         bullets,
         chart_points,
         quantities,
+        tokens,
         identities,
         language,
     } = input;
+    let bindings = SeriesBindings {
+        bullets,
+        quantities,
+        entities,
+        tokens,
+        identities,
+        language,
+    };
     let mut ordered: Vec<&ChartPoint> = chart_points.iter().collect();
     ordered.sort_by_key(|point| (point.start, point.end));
     let mut used = vec![false; ordered.len()];
@@ -98,9 +119,7 @@ pub(super) fn cross_sentence_series(input: SeriesContext<'_>, out: &mut Vec<Visu
         let mut chain = vec![start_index];
         let mut cursor = start_index;
         while chain.len() < 6 {
-            let Some(next) =
-                next_series_point(&ordered, &used, cursor, bullets, quantities, language)
-            else {
+            let Some(next) = next_series_point(&ordered, &used, cursor, &bindings) else {
                 break;
             };
             chain.push(next);
@@ -156,14 +175,20 @@ pub(super) fn cross_sentence_series(input: SeriesContext<'_>, out: &mut Vec<Visu
 /// unit and time-anchor checks are identical to the historical pair rule; the
 /// difference is that the chain is kept together instead of fragmenting into
 /// overlapping pairs.
-pub(super) fn next_series_point(
+fn next_series_point(
     ordered: &[&ChartPoint],
     used: &[bool],
     from: usize,
-    bullets: &[Bullet],
-    quantities: &[Quantity],
-    language: &str,
+    bindings: &SeriesBindings<'_>,
 ) -> Option<usize> {
+    let SeriesBindings {
+        bullets,
+        quantities,
+        entities,
+        tokens,
+        identities,
+        language,
+    } = *bindings;
     let left = ordered[from];
     let left_bullet = bullets
         .iter()
@@ -197,6 +222,19 @@ pub(super) fn next_series_point(
             continue;
         }
         if !series_time_anchor(&left_bullet.text, &right_bullet.text) {
+            continue;
+        }
+        // A repeated metric under different years is only one series when the
+        // values belong to the same subject. "Rick Ross ... Eminem ..." must
+        // never become a Rick Ross trend.
+        if !same_series_subject(
+            left_bullet,
+            right_bullet,
+            entities,
+            tokens,
+            identities,
+            language,
+        ) {
             continue;
         }
         let (Some(left_start), Some(left_end), Some(right_start), Some(right_end)) = (
@@ -258,6 +296,246 @@ pub(super) fn compatible_measures(
             || left.signature == right.signature
             || right.signature == right.kind
             || left.signature == left.kind)
+}
+
+/// Grounded entity families that can own a chart series. Generic visual
+/// concepts and measured values are not subjects.
+fn is_chart_subject_type(kind: &str) -> bool {
+    matches!(
+        kind,
+        "PERSON" | "ORG" | "FACILITY" | "LOCATION" | "GPE" | "PRODUCT" | "EVENT" | "NORP" | "LAW"
+    )
+}
+
+/// The subject a sentence attributes its value to, when unambiguous.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum SeriesSubject {
+    One(String),
+    /// No person is named: a pronoun or an elided subject continues the
+    /// previous series without competing with it.
+    Unnamed,
+    /// More than one person: the value cannot be attributed by position.
+    Ambiguous,
+}
+
+pub(super) fn series_subject(
+    bullet: &Bullet,
+    entities: &[VisualEntity],
+    tokens: &[AnalyzedToken],
+    identities: &IdentityLookup,
+    language: &str,
+) -> SeriesSubject {
+    let mut subjects = Vec::new();
+    for (index, entity) in entities.iter().enumerate() {
+        if !is_chart_subject_type(&entity.r#type)
+            || entity.start < bullet.start
+            || entity.end > bullet.end
+        {
+            continue;
+        }
+        // The shared registry collapses a bare surname and its full name to
+        // the same id; compare ids, not surfaces.
+        let id = identities.id_of(index);
+        if !subjects.contains(&id) {
+            subjects.push(id);
+        }
+    }
+    let _ = language;
+    match subjects.len() {
+        0 => syntactic_subject(bullet, tokens),
+        1 => {
+            let id = subjects.remove(0);
+            // A coordinated second name ("Rick Ross ed Eminem") may fall
+            // outside the entity type (VISUAL_CONCEPT), but the value still
+            // belongs to two subjects; the syntax alone sees it.
+            match syntactic_subject(bullet, tokens) {
+                SeriesSubject::Ambiguous => SeriesSubject::Ambiguous,
+                _ => SeriesSubject::One(id),
+            }
+        }
+        _ => SeriesSubject::Ambiguous,
+    }
+}
+
+/// Fallback for a proper name the named-entity pass missed ("Eminem"): the UD
+/// `nsubj` of the sentence is still a subject, and two different surfaces must
+/// not become one series. Pronouns and elided subjects continue a chain.
+fn syntactic_subject(bullet: &Bullet, tokens: &[AnalyzedToken]) -> SeriesSubject {
+    let local: Vec<&AnalyzedToken> = tokens
+        .iter()
+        .filter(|token| token.start >= bullet.start && token.end <= bullet.end)
+        .collect();
+    let subjects: Vec<&&AnalyzedToken> = local
+        .iter()
+        .filter(|token| {
+            matches!(
+                token.dependency.as_deref(),
+                Some("nsubj") | Some("nsubj:pass")
+            )
+        })
+        .collect();
+    if subjects.is_empty() {
+        // UDPipe's Italian model tags a sentence-initial unknown name as NOUN
+        // (`Eminem`), not PROPN, and does not always attach it as `nsubj`. A
+        // capitalized lemma still marks a named subject, so a change of name
+        // breaks the chain instead of inheriting the previous subject.
+        return named_subject(&local);
+    }
+    if subjects.len() > 1 {
+        return SeriesSubject::Ambiguous;
+    }
+    let head = *subjects[0];
+    // A clitic pronoun, a bare number parsed as the subject ("ne ha prodotti
+    // 120.000") or any other non-nominal head is not a competing named
+    // subject: the sentence continues the chain.
+    if !matches!(head.upos.as_deref(), Some("NOUN") | Some("PROPN")) {
+        return SeriesSubject::Unnamed;
+    }
+    // "Rick Ross ed Eminem": the coordinated conjunct is a second subject.
+    if local.iter().any(|token| {
+        token.dependency.as_deref() == Some("conj") && token.head.is_some() && token.head == head.id
+    }) {
+        return SeriesSubject::Ambiguous;
+    }
+    // "i ricavi di Alfa": the grammatical subject is the metric noun, but the
+    // series belongs to the named entity in its subtree. A common noun with no
+    // named dependent keeps its own surface, so two different metrics do not
+    // merge by accident.
+    let subtree = subtree_tokens(&local, head.id);
+    if head.upos.as_deref() == Some("NOUN") {
+        if let Some(named) = named_surface(&subtree) {
+            return named;
+        }
+    }
+    let mut part_ids: HashSet<Option<i32>> = HashSet::new();
+    part_ids.insert(head.id);
+    loop {
+        let before = part_ids.len();
+        for token in &local {
+            if let (Some(id), Some(token_head)) = (token.id, token.head) {
+                if part_ids.contains(&Some(token_head))
+                    && matches!(
+                        token.dependency.as_deref(),
+                        Some("flat") | Some("compound") | Some("fixed") | Some("appos")
+                    )
+                {
+                    part_ids.insert(Some(id));
+                }
+            }
+        }
+        if part_ids.len() == before {
+            break;
+        }
+    }
+    let mut surface: Vec<&AnalyzedToken> = local
+        .iter()
+        .filter(|token| part_ids.contains(&token.id))
+        .copied()
+        .collect();
+    surface.sort_by_key(|token| token.start);
+    let surface = surface
+        .iter()
+        .map(|token| token.text.to_lowercase())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if surface.is_empty() {
+        SeriesSubject::Unnamed
+    } else {
+        SeriesSubject::One(format!("surface:{surface}"))
+    }
+}
+
+/// Two consecutive values join one series only when they name the same subject
+/// or one sentence leaves the subject implicit. A different named subject and
+/// an ambiguous sentence both break the chain.
+pub(super) fn same_series_subject(
+    left: &Bullet,
+    right: &Bullet,
+    entities: &[VisualEntity],
+    tokens: &[AnalyzedToken],
+    identities: &IdentityLookup,
+    language: &str,
+) -> bool {
+    let left = series_subject(left, entities, tokens, identities, language);
+    let right = series_subject(right, entities, tokens, identities, language);
+    match (left, right) {
+        (SeriesSubject::One(a), SeriesSubject::One(b)) => a == b,
+        (SeriesSubject::Ambiguous, _) | (_, SeriesSubject::Ambiguous) => false,
+        _ => true,
+    }
+}
+
+/// Groups the named tokens of a sentence by their own head (name parts are
+/// `flat`/`compound`), so `Rick Ross` is one subject and `Rick Ross ed Eminem`
+/// is two. Zero groups is an elided subject; two or more are ambiguous.
+fn named_subject(local: &[&AnalyzedToken]) -> SeriesSubject {
+    named_surface(local).unwrap_or(SeriesSubject::Unnamed)
+}
+
+fn named_surface(local: &[&AnalyzedToken]) -> Option<SeriesSubject> {
+    let is_named = |token: &&AnalyzedToken| {
+        token.upos.as_deref() == Some("PROPN")
+            || (token.upos.as_deref() == Some("NOUN")
+                && token
+                    .lemma
+                    .as_deref()
+                    .and_then(|lemma| lemma.chars().next())
+                    .is_some_and(char::is_uppercase))
+    };
+    let named: Vec<&AnalyzedToken> = local.iter().copied().filter(is_named).collect();
+    if named.is_empty() {
+        return None;
+    }
+    let mut groups: Vec<Vec<&AnalyzedToken>> = Vec::new();
+    for token in &named {
+        let part_of_name = matches!(
+            token.dependency.as_deref(),
+            Some("flat") | Some("compound") | Some("fixed") | Some("appos")
+        );
+        if part_of_name {
+            if let Some(group) = groups.iter_mut().find(|group| {
+                group
+                    .iter()
+                    .any(|head| head.id.is_some() && head.id == token.head)
+            }) {
+                group.push(token);
+                continue;
+            }
+        }
+        groups.push(vec![token]);
+    }
+    if groups.len() > 1 {
+        return Some(SeriesSubject::Ambiguous);
+    }
+    let mut group = groups.remove(0);
+    group.sort_by_key(|token| token.start);
+    let surface = group
+        .iter()
+        .map(|token| token.text.to_lowercase())
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(SeriesSubject::One(format!("surface:{surface}")))
+}
+
+fn subtree_tokens<'a>(local: &[&'a AnalyzedToken], root: Option<i32>) -> Vec<&'a AnalyzedToken> {
+    let mut ids: HashSet<Option<i32>> = HashSet::new();
+    ids.insert(root);
+    loop {
+        let before = ids.len();
+        for token in local {
+            if token.head.is_some() && ids.contains(&token.head) {
+                ids.insert(token.id);
+            }
+        }
+        if ids.len() == before {
+            break;
+        }
+    }
+    local
+        .iter()
+        .copied()
+        .filter(|token| ids.contains(&token.id))
+        .collect()
 }
 
 pub(super) fn series_time_anchor(left: &str, right: &str) -> bool {

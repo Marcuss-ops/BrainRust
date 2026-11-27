@@ -30,14 +30,45 @@
     "phrase_motions": [],
     "short_phrase_motion": "",
     "long_phrase_motion": "",
-    "image_motions": [],
+    "image_motions": [
+      "image_focus_reveal",
+      "image_slide_left_reveal",
+      "image_scale_reveal",
+      "image_depth_float"
+    ],
     "image_with_text_motions": [],
     "entity_style_id": "random",
     "animation_directives": [],
     "animation_contract_version": 2,
     "animation_catalog_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "disable_editorial_overlays": true,
-    "light_leak_on_clip_start": true
+    "light_leak_on_clip_start": true,
+    "date_motions": [
+      "date_fade_rise",
+      "date_didone_era_settle",
+      "date_typewriter_year_type"
+    ],
+    "metric_motions": [
+      "metric_counter_scale_settle",
+      "metric_didone_drop_in",
+      "metric_typewriter_key_strike"
+    ],
+    "light_leak_motions": [
+      "lightleak_anamorphic_pass",
+      "lightleak_pulse"
+    ],
+    "source_highlight_motions": [
+      "doc_01_yellow_marker_sweep",
+      "doc_04_archival_source_highlight"
+    ],
+    "motion_families": {
+      "date_fade_rise": "classic",
+      "date_didone_era_settle": "didone",
+      "date_typewriter_year_type": "typewriter",
+      "metric_counter_scale_settle": "classic",
+      "metric_didone_drop_in": "didone",
+      "metric_typewriter_key_strike": "typewriter"
+    }
   },
   "editorial": {
     "schema_version": "editorial.v1",

@@ -1,7 +1,7 @@
 //! Visual-concept and fact-card production: the concept budget, the fact
 //! card recipes and the deterministic priority scoring.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use semantic_core::{Candidate, ConsolidatedFact, ProductionCandidate, SceneManifest, SearchQuery};
 
@@ -208,9 +208,21 @@ pub(super) fn push_fact_cards(
     facts: &[ConsolidatedFact],
     identities: &BTreeMap<String, IdentityState>,
     representations: &mut BTreeMap<String, (String, String)>,
+    covered_by_list: &HashMap<String, (String, String)>,
     candidates: &mut Vec<ProductionCandidate>,
 ) {
     for fact in facts {
+        // A grouped attribute card already represents this claim. It is the
+        // richer composition, so the fact must not also become a lone card.
+        // The list still carries raw fact ids at this stage; the canonical
+        // fact keeps them in `fact_ids`, so match either spelling.
+        let listed = std::iter::once(&fact.id)
+            .chain(fact.fact_ids.iter())
+            .find_map(|raw| covered_by_list.get(raw));
+        if let Some((dedup_key, recipe)) = listed {
+            representations.insert(fact.id.clone(), (dedup_key.clone(), recipe.clone()));
+            continue;
+        }
         if representations.contains_key(&fact.id) {
             continue;
         }

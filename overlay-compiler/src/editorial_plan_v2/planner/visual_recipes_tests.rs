@@ -125,6 +125,81 @@ fn role_lower_third_uses_the_entity_occurrence_window() {
 }
 
 #[test]
+fn entity_attribute_list_lowers_to_one_certified_lower_third() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "entity_attribute_list",
+        json!({
+            "schema": "visual_recipe.v1",
+            "recipe": "entity_attribute_list",
+            "entity_id": "person-tim",
+            "entity_label": "Tim Cook",
+            "lines": ["Età 63 anni", "Altezza 188 cm"],
+            "attributes": [
+                {"predicate": "age"},
+                {"predicate": "height"}
+            ],
+        }),
+    );
+    let mut items = Vec::new();
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert_eq!(items.len(), 1, "{items:?}");
+    let card = &items[0];
+    assert_eq!(card.kind, "lower_third");
+    assert_eq!(card.template_id, "LOWER_THIRD");
+    assert_eq!(card.text, "Tim Cook\nEtà 63 anni · Altezza 188 cm");
+    assert_eq!(card.start_us, 200_000);
+    assert_eq!(card.duration_us, 1_800_000);
+}
+
+#[test]
+fn entity_attribute_list_never_duplicates_an_existing_role_card() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "entity_attribute_list",
+        json!({
+            "recipe": "entity_attribute_list",
+            "entity_id": "person-tim",
+            "entity_label": "Tim Cook",
+            "lines": ["Età 63 anni", "Altezza 188 cm"],
+        }),
+    );
+    let mut items = Vec::new();
+    let mut first = annotations.clone();
+    first.visual_recipe = "role_lower_third".to_string();
+    first.visual_payload = Some(json!({
+        "recipe": "role_lower_third",
+        "person_id": "person-tim",
+        "person_label": "Tim Cook",
+        "role_surface": "CEO",
+        "organization_label": "Apple",
+    }));
+    apply_visual_recipes(&mut items, &scene, &first, &request, 0);
+    assert_eq!(items.len(), 1);
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert_eq!(items.len(), 1, "one representation per person: {items:?}");
+}
+
+#[test]
+fn entity_attribute_list_with_one_line_is_a_no_op() {
+    let request = super::tests::request();
+    let scene = request.scenes[0].clone();
+    let annotations = annotations(
+        "entity_attribute_list",
+        json!({
+            "recipe": "entity_attribute_list",
+            "entity_label": "Tim Cook",
+            "lines": ["Età 63 anni"],
+        }),
+    );
+    let mut items = Vec::new();
+    apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
+    assert!(items.is_empty());
+}
+
+#[test]
 fn role_lower_third_without_a_timeline_occurrence_is_a_no_op() {
     let request = super::tests::request();
     let scene = request.scenes[0].clone();
@@ -237,7 +312,14 @@ fn source_highlight_pins_the_certified_motion_on_the_named_phrase() {
         },
     ];
     apply_visual_recipes(&mut items, &scene, &annotations, &request, 0);
-    assert_eq!(items[0].motion_id, "doc_04_archival_source_highlight");
+    assert!(
+        request
+            .canvas
+            .source_highlight_motions
+            .contains(&items[0].motion_id),
+        "the highlight must come from the certified documentary pool: {}",
+        items[0].motion_id
+    );
     assert!(items[1].motion_id.is_empty());
 }
 

@@ -30,7 +30,19 @@ impl DateMotionFamily {
         }
     }
 
-    /// Whether a registered date motion belongs to this family.
+    /// The registry family tag the producer sends in `canvas.motion_families`.
+    pub(super) fn key(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Classic => "classic",
+            Self::Didone => "didone",
+            Self::Typewriter => "typewriter",
+        }
+    }
+
+    /// Prefix fallback for a legacy request without registry metadata. New
+    /// requests classify through [`Self::key`] and the family map; this method
+    /// exists so an old request keeps its historical behaviour.
     pub(super) fn allows(self, motion: &str) -> bool {
         match self {
             Self::All => true,

@@ -131,6 +131,14 @@ pub fn embedded_assets() -> Vec<(String, &'static str)> {
             include_str!("../../lexicon/facility_facts.json"),
         ),
         (
+            "lexicon/attribute_predicates.json".to_string(),
+            include_str!("../../lexicon/attribute_predicates.json"),
+        ),
+        (
+            "lexicon/intro_agenda.json".to_string(),
+            include_str!("../../lexicon/intro_agenda.json"),
+        ),
+        (
             "lexicon/discourse_cues.json".to_string(),
             include_str!("../../lexicon/discourse_cues.json"),
         ),

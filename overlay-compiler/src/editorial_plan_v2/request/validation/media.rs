@@ -70,6 +70,7 @@ pub(super) fn is_supported_visual_recipe(recipe: &str) -> bool {
             | "relative_time_jump"
             | "cause_effect_card"
             | "process_stepper"
+            | "entity_attribute_list"
     )
 }
 

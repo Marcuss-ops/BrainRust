@@ -84,6 +84,8 @@ pub(super) fn coalesce_chained_overlays(
             handoff_us,
             scene_ends,
             0,
+            &request.canvas.image_motions,
+            &creative_seed(request),
         ));
         out.sort_by(|left, right| {
             left.window_us()
@@ -94,7 +96,16 @@ pub(super) fn coalesce_chained_overlays(
         return apply_chain_camera(out, chain_camera);
     }
     apply_chain_camera(
-        coalesce_chain_subset(items, max_gap_us, max_segments, handoff_us, scene_ends, 0),
+        coalesce_chain_subset(
+            items,
+            max_gap_us,
+            max_segments,
+            handoff_us,
+            scene_ends,
+            0,
+            &request.canvas.image_motions,
+            &creative_seed(request),
+        ),
         chain_camera,
     )
 }
@@ -339,6 +350,7 @@ fn chain_config(counts: &BTreeMap<String, i64>) -> Option<(i64, usize, i64)> {
     Some((max_gap_us, max_segments, handoff_us))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn coalesce_chain_subset(
     items: Vec<PlanItemV2>,
     max_gap_us: i64,
@@ -346,6 +358,8 @@ fn coalesce_chain_subset(
     handoff_us: i64,
     scene_ends: &BTreeMap<String, i64>,
     chain_index_start: u64,
+    image_motions: &[String],
+    seed: &str,
 ) -> Vec<PlanItemV2> {
     let mut sorted = items;
     sorted.sort_by(|left, right| {
@@ -398,7 +412,13 @@ fn coalesce_chain_subset(
             index = next;
             continue;
         }
-        out.push(fuse_chain(&group[..fitted], chain_index, handoff_us));
+        out.push(fuse_chain(
+            &group[..fitted],
+            chain_index,
+            handoff_us,
+            image_motions,
+            seed,
+        ));
         out.extend(group[fitted..].iter().cloned());
         chain_index += 1;
         index = next;
@@ -606,19 +626,18 @@ fn is_blank(value: &str) -> bool {
     value.trim().is_empty()
 }
 
-/// DEFAULT_CHAIN_IMAGE_MOTION is the entrance a chained image segment gets when
-/// the producer item carries none. Without it the segment is a still frame that
-/// replaces the previous one: the chain hand-off looks like a cut and there is
-/// nothing for the renderer to animate. The id is certified in the Chronon
-/// motion catalog for image templates (same family the entity pool rotates).
-const DEFAULT_CHAIN_IMAGE_MOTION: &str = "image_focus_reveal";
-
 /// Builds one chain container exactly like the former Go `model.fuseChain`:
 /// segments are laid
 /// out sequentially with the configured handoff, card segments keep a 2.5s minimum
 /// hold, and every segment keeps its own text, motion, caption, assets and
 /// opaque metadata. The container carries no preset/motion of its own.
-fn fuse_chain(group: &[PlanItemV2], chain_index: u64, handoff_us: i64) -> PlanItemV2 {
+fn fuse_chain(
+    group: &[PlanItemV2],
+    chain_index: u64,
+    handoff_us: i64,
+    image_motions: &[String],
+    seed: &str,
+) -> PlanItemV2 {
     let first = &group[0];
     let start_us = group
         .iter()
@@ -659,8 +678,12 @@ fn fuse_chain(group: &[PlanItemV2], chain_index: u64, handoff_us: i64) -> PlanIt
         // Every image segment must animate on entry: a segment with no motion
         // is a still image swapped in place, which is exactly what makes a
         // chain read as "one image behind the other" instead of a sequence.
+        // The entrance is drawn from the run's certified image pool, never a
+        // hardcoded id (ANIMRAND-04). An empty pool leaves it empty: the seal
+        // rejects the segment instead of hiding a broken catalog.
         let motion_id = if item.motion_id.trim().is_empty() && chain_family(&item.kind) == "image" {
-            DEFAULT_CHAIN_IMAGE_MOTION.to_string()
+            let pool: Vec<&str> = image_motions.iter().map(String::as_str).collect();
+            seeded_preset(seed, &item.scene_id, &item.id, "chain_image", &pool).unwrap_or_default()
         } else {
             item.motion_id.clone()
         };

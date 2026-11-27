@@ -192,10 +192,10 @@ impl NumericLane {
         }
     }
 
-    pub(crate) fn motion_pool(self, request: &EditorialPlanV2Request) -> Vec<&'static str> {
+    pub(crate) fn motion_pool(self, request: &EditorialPlanV2Request) -> Vec<&str> {
         match self {
-            Self::Date => date_motion_pool(request),
-            Self::Metric => METRIC_MOTIONS.to_vec(),
+            Self::Date => super::date_motion_pool(request),
+            Self::Metric => super::metric_motion_pool(request),
             Self::Plain => Vec::new(),
         }
     }
@@ -345,19 +345,6 @@ pub(crate) fn number_item(
     Some(item)
 }
 
-pub(crate) fn date_motion_pool(request: &EditorialPlanV2Request) -> Vec<&'static str> {
-    // `validate_compilable` rejects unknown selectors before this phase, so an
-    // invalid value cannot reach the pool; `All` also covers the absent
-    // selector and keeps the historical fail-open to every date motion.
-    let family = DateMotionFamily::parse(&request.canvas.date_motion_family)
-        .unwrap_or(DateMotionFamily::All);
-    DATE_MOTIONS
-        .iter()
-        .copied()
-        .filter(|motion| family.allows(motion))
-        .collect()
-}
-
 #[derive(Serialize)]
 pub(crate) struct PresetSeed<'a> {
     pub(crate) job_fingerprint: &'a str,
@@ -393,8 +380,9 @@ pub(crate) fn assign_short_phrase_motions(
 ) {
     let canvas = &request.canvas;
     let pin = canvas.short_phrase_motion.trim();
-    // Sample independently for each phrase from the run seed and item identity.
-    // The used set prevents repeats until the available pool is exhausted.
+    // Sample independently for each phrase from the ONE creative seed and item
+    // identity. The used set prevents repeats until the pool is exhausted.
+    let seed = creative_seed(request);
     let mut used: BTreeSet<String> = BTreeSet::new();
     for item in items.iter_mut() {
         if item.kind != "text_phrase" || item.template_id != "IMPORTANT_PHRASE" {
@@ -409,6 +397,7 @@ pub(crate) fn assign_short_phrase_motions(
         }
         if !pin.is_empty() {
             item.motion_id = pin.to_string();
+            mark_motion_origin(item, ORIGIN_EXPLICIT);
             continue;
         }
         let bucket: Vec<&str> = canvas
@@ -429,9 +418,9 @@ pub(crate) fn assign_short_phrase_motions(
         } else {
             &filtered
         };
-        let ordered = ordered_short_phrase_pool(eligible, motion_seed(request), words);
+        let ordered = ordered_short_phrase_pool(eligible, &seed, words);
         let start = seeded_index(
-            motion_seed(request),
+            &seed,
             &item.scene_id,
             &item.id,
             &format!("short_phrase_{words}"),
@@ -445,5 +434,6 @@ pub(crate) fn assign_short_phrase_motions(
             .to_string();
         used.insert(motion.clone());
         item.motion_id = motion;
+        mark_motion_origin(item, ORIGIN_AUTO);
     }
 }

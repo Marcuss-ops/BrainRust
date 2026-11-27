@@ -90,7 +90,7 @@ pub fn is_curated_given_name(language: &str, surface: &str) -> bool {
 }
 
 /// Version of the lexicon tables. Bump whenever a table changes semantics.
-pub const LEXICON_VERSION: &str = "lexicon.v6";
+pub const LEXICON_VERSION: &str = "lexicon.v8";
 
 /// Environment variable naming a directory of overriding table files.
 pub const LEXICON_DIR_ENV: &str = "SEMANTIC_LEXICON_DIR";
@@ -252,7 +252,8 @@ mod profiles;
 mod vocabulary;
 
 pub use cues::{
-    DimensionCue, DiscourseCues, EntityRelationMarker, FacilityLexicon, NumberWord, OperatorCue,
+    AttributeExtractorDef, AttributePredicateDef, AttributePredicates, DimensionCue, DiscourseCues,
+    EntityRelationMarker, FacilityLexicon, IntroAgendaLexicon, NumberWord, OperatorCue,
     ProcessPhase, ProcessPhases, RelationCues, RelationMarkerGroup,
 };
 pub use legal::{
@@ -292,6 +293,10 @@ pub struct Lexicon {
     pub location_cues: LocationCues,
     pub process_phases: ProcessPhases,
     pub facility: FacilityLexicon,
+    /// Canonical attribute predicate ontology and its localized lemmas.
+    pub attribute_predicates: AttributePredicates,
+    /// Minimal conclusion markers used to keep spoilers out of the intro.
+    pub intro_agenda: IntroAgendaLexicon,
     pub discourse: DiscourseCues,
     pub relation: RelationCues,
     /// Generated CLDR month table (`lexicon/months.json`).
@@ -501,6 +506,14 @@ impl Lexicon {
                 facility: load_table(
                     "facility_facts.json",
                     include_str!("../../lexicon/facility_facts.json"),
+                ),
+                attribute_predicates: load_table(
+                    "attribute_predicates.json",
+                    include_str!("../../lexicon/attribute_predicates.json"),
+                ),
+                intro_agenda: load_table(
+                    "intro_agenda.json",
+                    include_str!("../../lexicon/intro_agenda.json"),
                 ),
                 discourse: load_table(
                     "discourse_cues.json",

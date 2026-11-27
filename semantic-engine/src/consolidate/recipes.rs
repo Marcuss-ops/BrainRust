@@ -123,6 +123,101 @@ fn ties(identities: &BTreeMap<String, IdentityState>, id: &str) -> Option<String
         .map(|identity| identity.canonical.clone())
 }
 
+/// One grouped card per person whose scene has at least two asserted
+/// attributes. The payload is a projection of `entity_attribute_lists`; it
+/// carries no new extraction and no timing.
+fn push_entity_attribute_lists(
+    language: &str,
+    scenes: &[SceneManifest],
+    identities: &BTreeMap<String, IdentityState>,
+    texts: &HashMap<&str, &str>,
+    candidates: &mut Vec<ProductionCandidate>,
+) {
+    let ontology = &semantic_core::lexicon::lexicon().attribute_predicates;
+    for scene in scenes {
+        let Some(text) = texts.get(scene.scene_id.as_str()) else {
+            continue;
+        };
+        for list in &scene.entity_attribute_lists {
+            if list.attributes.len() < 2 || !identities.contains_key(&list.entity_id) {
+                continue;
+            }
+            let Some(evidence) = grounded(text, list.start_byte, list.end_byte) else {
+                continue;
+            };
+            if evidence != list.evidence {
+                continue;
+            }
+            let mut lines = Vec::new();
+            let mut attributes = Vec::new();
+            let mut covered = Vec::new();
+            for attribute in &list.attributes {
+                let Some(label) = ontology.label(&attribute.predicate, language) else {
+                    continue;
+                };
+                let mut line = format!("{label} {}", attribute.value);
+                if let Some(unit) = attribute.unit_surface.as_deref() {
+                    if !unit.is_empty() {
+                        line.push(' ');
+                        line.push_str(unit);
+                    }
+                }
+                if attribute.qualifier != "exact" {
+                    line = format!("~{line}");
+                }
+                lines.push(line);
+                covered.push(attribute.source_fact_id.clone());
+                attributes.push(json!({
+                    "predicate": attribute.predicate,
+                    "value": attribute.value,
+                    "normalized_value": attribute.normalized_value,
+                    "unit": attribute.unit,
+                    "unit_surface": attribute.unit_surface,
+                    "qualifier": attribute.qualifier,
+                    "status": attribute.status,
+                    "start_byte": attribute.start_byte,
+                    "end_byte": attribute.end_byte,
+                    "sentence_index": attribute.sentence_index,
+                    "evidence": attribute.evidence,
+                    "source_fact_id": attribute.source_fact_id,
+                }));
+            }
+            if attributes.len() < 2 {
+                continue;
+            }
+            let payload = json!({
+                "schema": RECIPE_SCHEMA,
+                "recipe": "entity_attribute_list",
+                "entity_id": list.entity_id,
+                "entity_label": list.label,
+                "evidence": evidence,
+                "lines": lines,
+                "attributes": attributes,
+            });
+            if let Some(candidate) = candidate(RecipeCandidate {
+                recipe: "entity_attribute_list",
+                scene_id: scene.scene_id.as_str(),
+                text,
+                start: list.start_byte,
+                end: list.end_byte,
+                title: list.label.clone(),
+                suggested_visual: "entity_attribute_list",
+                priority: 0.84,
+                entity_ids: vec![list.entity_id.clone()],
+                covered_fact_ids: covered,
+                payload,
+                dedup_key: format!(
+                    "entity_attribute_list:{}:{}",
+                    scene.scene_id, list.entity_id
+                ),
+                rationale: "at least two asserted attributes bound to one grounded identity",
+            }) {
+                candidates.push(candidate);
+            }
+        }
+    }
+}
+
 fn push_relationship_graphs(
     scenes: &[SceneManifest],
     identities: &BTreeMap<String, IdentityState>,
@@ -207,6 +302,7 @@ fn push_role_lower_thirds(
     scenes: &[SceneManifest],
     identities: &BTreeMap<String, IdentityState>,
     texts: &HashMap<&str, &str>,
+    listed_professions: &HashSet<(String, String, usize, usize)>,
     candidates: &mut Vec<ProductionCandidate>,
 ) {
     for scene in scenes {
@@ -218,6 +314,15 @@ fn push_role_lower_thirds(
                 continue;
             };
             if role.status != semantic_core::RoleStatus::Asserted {
+                continue;
+            }
+            // The attribute card already names this role: one fact, one card.
+            if listed_professions.contains(&(
+                scene.scene_id.clone(),
+                role.person_id.clone(),
+                role.start_byte,
+                role.end_byte,
+            )) {
                 continue;
             }
             let Some(person) = ties(identities, &role.person_id) else {
@@ -468,6 +573,7 @@ fn push_counter_odometers(
     identities: &BTreeMap<String, IdentityState>,
     texts: &HashMap<&str, &str>,
     chart_spans: &HashMap<String, Vec<(usize, usize)>>,
+    attribute_spans: &HashSet<(String, usize, usize)>,
     candidates: &mut Vec<ProductionCandidate>,
 ) {
     for scene in scenes {
@@ -488,6 +594,11 @@ fn push_counter_odometers(
                 || overlaps(covered_chart, quantity.start_byte, quantity.end_byte)
                 || grounded(text, quantity.start_byte, quantity.end_byte)
                     != Some(quantity.evidence.as_str())
+                || attribute_spans.contains(&(
+                    scene.scene_id.clone(),
+                    quantity.start_byte,
+                    quantity.end_byte,
+                ))
             {
                 continue;
             }
@@ -557,6 +668,88 @@ fn push_counter_odometers(
     }
 }
 
+/// Exact value spans already represented by a grouped attribute card.
+fn attribute_list_spans(candidates: &[ProductionCandidate]) -> HashSet<(String, usize, usize)> {
+    let mut spans = HashSet::new();
+    for candidate in candidates
+        .iter()
+        .filter(|candidate| candidate.recipe == "entity_attribute_list")
+    {
+        let Some(attributes) = candidate
+            .visual_payload
+            .as_ref()
+            .and_then(|payload| payload.get("attributes"))
+            .and_then(serde_json::Value::as_array)
+        else {
+            continue;
+        };
+        for attribute in attributes {
+            let (Some(start), Some(end)) = (
+                attribute
+                    .get("start_byte")
+                    .and_then(serde_json::Value::as_u64),
+                attribute
+                    .get("end_byte")
+                    .and_then(serde_json::Value::as_u64),
+            ) else {
+                continue;
+            };
+            spans.insert((candidate.scene_id.clone(), start as usize, end as usize));
+        }
+    }
+    spans
+}
+
+/// Roles already named by a grouped attribute card, keyed by the exact role
+/// span so a second role of the same person keeps its own lower third.
+fn profession_attribute_spans(
+    candidates: &[ProductionCandidate],
+) -> HashSet<(String, String, usize, usize)> {
+    let mut spans = HashSet::new();
+    for candidate in candidates
+        .iter()
+        .filter(|candidate| candidate.recipe == "entity_attribute_list")
+    {
+        let Some(entity_id) = candidate.entity_ids.first() else {
+            continue;
+        };
+        let Some(attributes) = candidate
+            .visual_payload
+            .as_ref()
+            .and_then(|payload| payload.get("attributes"))
+            .and_then(serde_json::Value::as_array)
+        else {
+            continue;
+        };
+        for attribute in attributes {
+            if attribute
+                .get("predicate")
+                .and_then(serde_json::Value::as_str)
+                != Some("profession")
+            {
+                continue;
+            }
+            let (Some(start), Some(end)) = (
+                attribute
+                    .get("start_byte")
+                    .and_then(serde_json::Value::as_u64),
+                attribute
+                    .get("end_byte")
+                    .and_then(serde_json::Value::as_u64),
+            ) else {
+                continue;
+            };
+            spans.insert((
+                candidate.scene_id.clone(),
+                entity_id.clone(),
+                start as usize,
+                end as usize,
+            ));
+        }
+    }
+    spans
+}
+
 pub(super) fn push_visual_recipes(
     language: &str,
     sources: &[SceneInput],
@@ -570,14 +763,24 @@ pub(super) fn push_visual_recipes(
         .map(|scene| (scene.scene_id.as_str(), scene.text.as_str()))
         .collect();
     let covered_chart = chart_spans(candidates);
+    push_entity_attribute_lists(language, scenes, identities, &texts, candidates);
+    let attribute_spans = attribute_list_spans(candidates);
+    let listed_professions = profession_attribute_spans(candidates);
     push_relationship_graphs(scenes, identities, &texts, candidates);
-    push_role_lower_thirds(scenes, identities, &texts, candidates);
+    push_role_lower_thirds(scenes, identities, &texts, &listed_professions, candidates);
     push_route_maps(scenes, identities, &texts, candidates);
     push_quote_attributions(scenes, identities, &texts, candidates);
     push_source_highlights(scenes, identities, &texts, candidates);
     push_choropleths(scenes, &texts, &covered_chart, candidates);
     push_lifespans(scenes, events, identities, sources, &texts, candidates);
-    push_counter_odometers(scenes, identities, &texts, &covered_chart, candidates);
+    push_counter_odometers(
+        scenes,
+        identities,
+        &texts,
+        &covered_chart,
+        &attribute_spans,
+        candidates,
+    );
     push_relative_time_jumps(language, scenes, &texts, candidates);
     push_cause_effect_cards(scenes, &texts, &covered_chart, candidates);
     push_process_steppers(scenes, &texts, &covered_chart, candidates);

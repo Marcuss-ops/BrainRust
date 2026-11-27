@@ -73,8 +73,10 @@
               },
               "params": {
                 "canonical_entity_id": "person:ada-lovelace",
+                "caption_motion_origin": "auto",
                 "entity_type": "PERSON",
                 "height": 820.0,
+                "motion_origin": "auto",
                 "position_x": 0.0,
                 "position_y": 0.0,
                 "priority": 0.95,
@@ -109,8 +111,10 @@
               },
               "params": {
                 "canonical_entity_id": "person:grace-hopper",
+                "caption_motion_origin": "auto",
                 "entity_type": "PERSON",
                 "height": 820.0,
+                "motion_origin": "auto",
                 "position_x": 0.0,
                 "position_y": 0.0,
                 "priority": 0.93,
@@ -160,8 +164,10 @@
         "params": {
           "canonical_entity_id": "person:alan-turing",
           "caption_layout": "below",
+          "caption_motion_origin": "auto",
           "entity_type": "PERSON",
           "height": 820.0,
+          "motion_origin": "auto",
           "position_x": 0.0,
           "position_y": 0.0,
           "priority": 0.94,

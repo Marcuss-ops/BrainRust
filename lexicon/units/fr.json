@@ -71,6 +71,18 @@
     },
     {
       "surfaces": [
+        "cm",
+        "centimètre",
+        "centimètres",
+        "centimetre",
+        "centimetres"
+      ],
+      "dimension": "length",
+      "code": "cm",
+      "factor_to_base": 0.01
+    },
+    {
+      "surfaces": [
         "kg",
         "kilogramme",
         "kilogrammes"

@@ -58,11 +58,155 @@ pub struct RelationMarkerGroup {
     pub markers: Vec<String>,
 }
 
+/// Minimal multilingual table of conclusion markers used by the intro agenda.
+/// A topic whose sentence states one of these outside the opening is a spoiler
+/// and is not offered as an introduction.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct IntroAgendaLexicon {
+    #[serde(default)]
+    pub spoiler_cues: BTreeMap<String, Vec<String>>,
+}
+
+impl IntroAgendaLexicon {
+    pub fn is_spoiler(&self, language: &str, text: &str) -> bool {
+        let key = language.split(['-', '_']).next().unwrap_or(language);
+        let cues = self
+            .spoiler_cues
+            .get(key)
+            .or_else(|| self.spoiler_cues.get("en"));
+        let Some(cues) = cues else {
+            return false;
+        };
+        let lowered = text.to_lowercase();
+        let words: std::collections::HashSet<&str> = lowered
+            .split(|character: char| !character.is_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .collect();
+        cues.iter().any(|cue| {
+            let cue = cue.trim().to_lowercase();
+            if cue.is_empty() {
+                return false;
+            }
+            if cue.contains(' ') {
+                lowered.contains(&cue)
+            } else {
+                words.contains(cue.as_str())
+            }
+        })
+    }
+}
+
 /// One entity-graph relation predicate (token-level markers).
 #[derive(Debug, Clone, Deserialize)]
 pub struct EntityRelationMarker {
     pub relation: String,
     pub markers: Vec<String>,
+}
+
+/// One canonical predicate resolvable from a typed `Quantity` through the
+/// Universal Dependencies parse. The ontology is language-independent: only
+/// the lemma list is localized, and the same resolver reads every language.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AttributePredicateDef {
+    pub canonical: String,
+    /// Quantity dimension this predicate measures (`length`, `mass`, ...).
+    pub dimension: String,
+    /// Entity families the predicate may bind, such as `PERSON`.
+    #[serde(default)]
+    pub subject_kinds: Vec<String>,
+    /// Localized display label for the card line.
+    #[serde(default)]
+    pub labels: BTreeMap<String, String>,
+    /// Language -> lemma list. Lemmas are matched against the UDPipe lemma,
+    /// so inflected surfaces need no entry.
+    #[serde(default)]
+    pub lemmas: BTreeMap<String, Vec<String>>,
+}
+
+/// A property already produced by a dedicated extractor (age, role). It
+/// contributes a canonical name, a dimension and display labels only; it is
+/// never re-extracted here.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AttributeExtractorDef {
+    pub canonical: String,
+    pub dimension: String,
+    /// Localized singular/plural unit surfaces, when the extractor does not
+    /// keep the source unit itself.
+    #[serde(default)]
+    pub units: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub labels: BTreeMap<String, String>,
+}
+
+/// Canonical attribute ontology (`lexicon/attribute_predicates.json`).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AttributePredicates {
+    #[serde(default)]
+    pub predicates: Vec<AttributePredicateDef>,
+    #[serde(default)]
+    pub extractors: Vec<AttributeExtractorDef>,
+}
+
+impl AttributePredicates {
+    /// Resolves a UDPipe lemma to the canonical predicate it expresses. A
+    /// lemma outside the ontology resolves to nothing: the resolver never
+    /// guesses from a unit alone.
+    pub fn resolve(
+        &self,
+        language: &str,
+        lemma: &str,
+        dimension: &str,
+    ) -> Option<&AttributePredicateDef> {
+        let key = language.split(['-', '_']).next().unwrap_or(language);
+        let lemma = lemma.to_lowercase();
+        self.predicates.iter().find(|predicate| {
+            predicate.dimension == dimension
+                && predicate.lemmas.get(key).is_some_and(|lemmas| {
+                    lemmas
+                        .iter()
+                        .any(|candidate| candidate.to_lowercase() == lemma)
+                })
+        })
+    }
+
+    /// Declared predicates for one dimension, in registry order.
+    pub fn for_dimension<'a>(
+        &'a self,
+        dimension: &str,
+    ) -> impl Iterator<Item = &'a AttributePredicateDef> + 'a {
+        let dimension = dimension.to_string();
+        self.predicates
+            .iter()
+            .filter(move |predicate| predicate.dimension == dimension)
+    }
+
+    /// Localized display label for a canonical attribute name.
+    pub fn label<'a>(&'a self, canonical: &str, language: &str) -> Option<&'a str> {
+        let key = language.split(['-', '_']).next().unwrap_or(language);
+        self.predicates
+            .iter()
+            .find(|entry| entry.canonical == canonical)
+            .and_then(|entry| entry.labels.get(key))
+            .or_else(|| {
+                self.extractors
+                    .iter()
+                    .find(|entry| entry.canonical == canonical)
+                    .and_then(|entry| entry.labels.get(key))
+            })
+            .map(String::as_str)
+    }
+
+    /// Localized singular/plural unit surfaces for an extractor-owned
+    /// property (`age`).
+    pub fn units<'a>(&'a self, canonical: &str, language: &str) -> &'a [String] {
+        let key = language.split(['-', '_']).next().unwrap_or(language);
+        self.extractors
+            .iter()
+            .find(|entry| entry.canonical == canonical)
+            .and_then(|entry| entry.units.get(key))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
 }
 
 /// One comparison dimension and its multilingual keys.
